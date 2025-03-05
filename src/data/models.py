@@ -1,4 +1,8 @@
 from pydantic import BaseModel
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import List, Optional, Dict, Union, Literal, Any
+from decimal import Decimal
 
 
 class Price(BaseModel):
@@ -148,3 +152,141 @@ class AgentStateData(BaseModel):
 class AgentStateMetadata(BaseModel):
     show_reasoning: bool = False
     model_config = {"extra": "allow"}
+
+
+@dataclass
+class OptionContract:
+    contract_symbol: str
+    option_type: Literal["CALL", "PUT"]
+    strike: Decimal
+    currency: Optional[str] = None
+    last_price: Optional[Decimal] = None
+    change_price: Optional[Decimal] = None
+    percent_change: Optional[Decimal] = None
+    volume: Optional[int] = None
+    open_interest: Optional[int] = None
+    bid: Optional[Decimal] = None
+    ask: Optional[Decimal] = None
+    contract_size: Optional[str] = None
+    expiration: Optional[datetime] = None
+    last_trade_date: Optional[datetime] = None
+    implied_volatility: Optional[Decimal] = None
+    in_the_money: Optional[bool] = None
+    
+    # Calculated Greeks (not in original schema but useful for analysis)
+    delta: Optional[float] = None
+    gamma: Optional[float] = None
+    theta: Optional[float] = None
+    vega: Optional[float] = None
+    rho: Optional[float] = None
+
+
+@dataclass
+class OptionStraddle:
+    strike: Decimal
+    call_contract: Optional[OptionContract] = None
+    put_contract: Optional[OptionContract] = None
+
+
+@dataclass
+class OptionChainOptions:
+    expiration_date: datetime
+    has_mini_options: bool
+    straddles: List[OptionStraddle] = None
+
+
+@dataclass
+class OptionChainQuote:
+    quote_type: Optional[str] = None
+    market_state: Optional[str] = None
+    currency: Optional[str] = None
+    regular_market_price: Optional[Decimal] = None
+    regular_market_change: Optional[Decimal] = None
+    regular_market_change_percent: Optional[Decimal] = None
+    regular_market_open: Optional[Decimal] = None
+    regular_market_day_high: Optional[Decimal] = None
+    regular_market_day_low: Optional[Decimal] = None
+    regular_market_volume: Optional[int] = None
+    market_cap: Optional[int] = None
+    trailing_pe: Optional[Decimal] = None
+    trailing_annual_dividend_rate: Optional[Decimal] = None
+    dividend_rate: Optional[Decimal] = None
+    dividend_yield: Optional[Decimal] = None
+    eps_trailing_twelve_months: Optional[Decimal] = None
+    eps_forward: Optional[Decimal] = None
+    eps_current_year: Optional[Decimal] = None
+
+
+@dataclass
+class OptionChain:
+    underlying_symbol: str
+    has_mini_options: bool
+    quote: Optional[OptionChainQuote] = None
+    expiration_dates: List[datetime] = None
+    strikes: List[Decimal] = None
+    options: List[OptionChainOptions] = None
+    raw_json: Optional[Dict] = None
+
+
+@dataclass
+class MarketQuote:
+    """Detailed market quote data from Yahoo Finance marketGetQuotesV2 endpoint"""
+    symbol: str
+    quote_type: str
+    market_state: str
+    regular_market_price: float
+    regular_market_previous_close: float
+    regular_market_open: float
+    regular_market_day_high: float
+    regular_market_day_low: float
+    regular_market_volume: int
+    average_volume: int
+    average_volume_10_days: int
+    bid: float
+    ask: float
+    bid_size: int
+    ask_size: int
+    market_cap: float
+    fifty_two_week_high: float
+    fifty_two_week_low: float
+    fifty_day_average: float
+    two_hundred_day_average: float
+    trailing_annual_dividend_rate: float
+    trailing_annual_dividend_yield: float
+    trailing_pe: float
+    exchange: str
+    exchange_name: str
+    currency: str
+    raw_data: Dict[str, Any] = field(default_factory=dict)
+    
+    def get_price_to_book(self) -> Optional[float]:
+        """Calculate price to book ratio if available"""
+        if "priceToBook" in self.raw_data:
+            return self.raw_data["priceToBook"]
+        return None
+    
+    def get_dividend_yield(self) -> float:
+        """Get the dividend yield as a percentage"""
+        return self.trailing_annual_dividend_yield * 100
+    
+    def get_price_to_earnings(self) -> float:
+        """Get the price to earnings ratio"""
+        return self.trailing_pe
+    
+    def is_market_open(self) -> bool:
+        """Check if the market is currently open"""
+        return self.market_state in ["REGULAR", "PRE", "POST"]
+    
+    def get_day_change_percent(self) -> float:
+        """Calculate the day's price change as a percentage"""
+        if self.regular_market_previous_close > 0:
+            return ((self.regular_market_price - self.regular_market_previous_close) / 
+                    self.regular_market_previous_close) * 100
+        return 0
+    
+    def get_day_range_percent(self) -> float:
+        """Calculate the day's price range as a percentage of the current price"""
+        if self.regular_market_price > 0:
+            return ((self.regular_market_day_high - self.regular_market_day_low) / 
+                    self.regular_market_price) * 100
+        return 0

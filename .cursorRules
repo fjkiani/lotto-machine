@@ -1,0 +1,236 @@
+# Instructions
+
+During you interaction with the user, if you find anything reusable in this project (e.g. version of a library, model name), especially about a fix to a mistake you made or a correction you received, you should take note in the `Lessons` section in the `.cursorrules` file so you will not make the same mistake again. 
+
+You should also use the `.cursorrules` file as a scratchpad to organize your thoughts. Especially when you receive a new task, you should first review the content of the scratchpad, clear old different task if necessary, first explain the task, and plan the steps you need to take to complete the task. You can use todo markers to indicate the progress, e.g.
+[X] Task 1
+[ ] Task 2
+
+Also update the progress of the task in the Scratchpad when you finish a subtask.
+Especially when you finished a milestone, it will help to improve your depth of task accomplishment to use the scratchpad to reflect and plan.
+The goal is to help you maintain a big picture as well as the progress of the task. Always refer to the Scratchpad when you plan the next step.
+
+# Tools
+
+Note all the tools are in python. So in the case you need to do batch processing, you can always consult the python files and write your own script.
+
+## Screenshot Verification
+The screenshot verification workflow allows you to capture screenshots of web pages and verify their appearance using LLMs. The following tools are available:
+
+1. Screenshot Capture:
+```bash
+venv/bin/python tools/screenshot_utils.py URL [--output OUTPUT] [--width WIDTH] [--height HEIGHT]
+```
+
+2. LLM Verification with Images:
+```bash
+venv/bin/python tools/llm_api.py --prompt "Your verification question" --provider {openai|anthropic} --image path/to/screenshot.png
+```
+
+Example workflow:
+```python
+from screenshot_utils import take_screenshot_sync
+from llm_api import query_llm
+
+# Take a screenshot
+screenshot_path = take_screenshot_sync('https://example.com', 'screenshot.png')
+
+# Verify with LLM
+response = query_llm(
+    "What is the background color and title of this webpage?",
+    provider="openai",  # or "anthropic"
+    image_path=screenshot_path
+)
+print(response)
+```
+
+## LLM
+
+You always have an LLM at your side to help you with the task. For simple tasks, you could invoke the LLM by running the following command:
+```
+venv/bin/python ./tools/llm_api.py --prompt "What is the capital of France?" --provider "anthropic"
+```
+
+The LLM API supports multiple providers:
+- OpenAI (default, model: gpt-4o)
+- Azure OpenAI (model: configured via AZURE_OPENAI_MODEL_DEPLOYMENT in .env file, defaults to gpt-4o-ms)
+- DeepSeek (model: deepseek-chat)
+- Anthropic (model: claude-3-sonnet-20240229)
+- Gemini (model: gemini-pro)
+- Local LLM (model: Qwen/Qwen2.5-32B-Instruct-AWQ)
+
+But usually it's a better idea to check the content of the file and use the APIs in the `tools/llm_api.py` file to invoke the LLM if needed.
+
+## Web browser
+
+You could use the `tools/web_scraper.py` file to scrape the web.
+```
+venv/bin/python ./tools/web_scraper.py --max-concurrent 3 URL1 URL2 URL3
+```
+This will output the content of the web pages.
+
+## Search engine
+
+You could use the `tools/search_engine.py` file to search the web.
+```
+venv/bin/python ./tools/search_engine.py "your search keywords"
+```
+This will output the search results in the following format:
+```
+URL: https://example.com
+Title: This is the title of the search result
+Snippet: This is a snippet of the search result
+```
+If needed, you can further use the `web_scraper.py` file to scrape the web page content.
+
+# Lessons
+
+## User Specified Lessons
+
+- You have a python venv in ./venv. Use it.
+- Include info useful for debugging in the program output.
+- Read the file before you try to edit it.
+- Due to Cursor's limit, when you use `git` and `gh` and need to submit a multiline commit message, first write the message in a file, and then use `git commit -F <filename>` or similar command to commit. And then remove the file. Include "[Cursor] " in the commit message and PR title.
+
+## Cursor learned
+
+- For search results, ensure proper handling of different character encodings (UTF-8) for international queries
+- Add debug information to stderr while keeping the main output clean in stdout for better pipeline integration
+- When using seaborn styles in matplotlib, use 'seaborn-v0_8' instead of 'seaborn' as the style name due to recent seaborn version changes
+- Use 'gpt-4o' as the model name for OpenAI's GPT-4 with vision capabilities
+
+# Scratchpad
+
+## Current Task
+Enhancing Investment Analysis System with Multi-API Data Integration and Options Analysis
+
+## Project Overview
+The goal is to enhance the existing investment analysis system by:
+1. Integrating multiple data sources (Economic Calendar API, Yahoo Finance API)
+2. Creating a structured data storage system with metadata and keywords
+3. Enhancing agents to analyze options data, evaluate market conditions, and find optimal entry/exit points
+4. Adding options analysis capabilities including Greeks evaluation
+
+## System Architecture Plan
+
+### 1. Data Ingestion Layer
+[ ] Create a unified data ingestion framework
+  [ ] Design abstract base class for API connectors
+  [ ] Implement Economic Calendar API connector
+  [ ] Implement Yahoo Finance API connector
+  [ ] Add options data fetching capabilities
+  [ ] Implement rate limiting and error handling
+
+### 2. Data Storage Layer
+[ ] Design a flexible data storage system
+  [ ] Create data models for different types of financial data
+  [ ] Implement metadata tagging system
+  [ ] Add keyword extraction and indexing
+  [ ] Design caching mechanism for API responses
+  [ ] Implement data versioning for historical analysis
+
+### 3. Agent Enhancement
+[ ] Upgrade existing agents with new capabilities
+  [ ] Add macroeconomic analysis to fundamental agents
+  [ ] Enhance sentiment agent with economic event sentiment
+  [ ] Create new options analysis agent
+  [ ] Implement market condition evaluation (overbought/oversold)
+  [ ] Add entry/exit point optimization
+
+### 4. Options Analysis Module
+[ ] Build specialized options analysis capabilities
+  [ ] Implement Black-Scholes model for options pricing
+  [ ] Create Greeks calculator (Delta, Gamma, Theta, Vega, Rho)
+  [ ] Design option chain visualization tools
+  [ ] Add implied volatility surface analysis
+  [ ] Implement options strategy evaluation
+
+### 5. Strategy Optimization
+[ ] Create a strategy optimization framework
+  [ ] Design scoring system for strategy evaluation
+  [ ] Implement backtesting for options strategies
+  [ ] Add risk-adjusted return calculations
+  [ ] Create portfolio optimization with options hedging
+  [ ] Implement strategy comparison visualization
+
+## Implementation Approach
+
+### Phase 1: Data Infrastructure
+1. First, we'll build the data ingestion and storage infrastructure:
+   - Create `src/data/connectors/` directory for API connectors
+   - Implement base connector class with common functionality
+   - Add specific connectors for each API source
+   - Design data models in `src/data/models.py`
+   - Implement metadata system in `src/data/metadata.py`
+
+2. Data models needed:
+   - EconomicEvent (date, event_name, actual, forecast, previous, impact)
+   - StockPrice (ticker, date, open, high, low, close, volume)
+   - OptionChain (ticker, expiration_date, strikes, calls, puts)
+   - OptionContract (contract_type, strike, expiration, bid, ask, volume, open_interest, greeks)
+
+### Phase 2: Options Analysis
+1. Create new modules for options analysis:
+   - `src/analysis/options.py` - Core options pricing and Greeks calculations
+   - `src/analysis/volatility.py` - Volatility analysis and surface modeling
+   - `src/analysis/strategies.py` - Options strategy evaluation
+
+2. Key functions to implement:
+   - calculate_option_price(S, K, T, r, sigma, option_type)
+   - calculate_greeks(option, underlying_price)
+   - evaluate_market_conditions(ticker, timeframe)
+   - find_optimal_entry_exit(ticker, strategy, risk_tolerance)
+
+### Phase 3: Agent Enhancement
+1. Enhance existing agents:
+   - Update `src/agents/fundamentals.py` to incorporate economic data
+   - Enhance `src/agents/sentiment.py` to analyze economic event sentiment
+   - Create new `src/agents/options_analyst.py` for options-specific analysis
+   - Update `src/agents/risk_manager.py` to handle options risk
+
+2. Create new agent:
+   - `src/agents/options_strategist.py` - Specialized in options strategies
+
+### Phase 4: Strategy Optimization
+1. Enhance backtester to support options:
+   - Update `src/backtester.py` to handle options strategies
+   - Add options-specific performance metrics
+   - Implement visualization for options strategy performance
+
+2. Create strategy optimizer:
+   - `src/optimizer.py` - Compare and rank different strategies
+   - Add risk-adjusted return calculations
+   - Implement portfolio optimization with options
+
+## Technical Considerations
+
+1. **API Rate Limits**: 
+   - Implement caching to reduce API calls
+   - Add exponential backoff for retries
+   - Consider batch requests where possible
+
+2. **Data Storage**:
+   - Use SQLite for local development
+   - Consider PostgreSQL for production
+   - Implement efficient indexing for keyword searches
+
+3. **Computational Efficiency**:
+   - Use NumPy/SciPy for options calculations
+   - Consider parallel processing for backtesting
+   - Implement lazy loading for large datasets
+
+4. **Dependencies**:
+   - yfinance for Yahoo Finance data
+   - pandas-datareader for economic data
+   - scipy for mathematical functions
+   - py_vollib for options pricing
+   - matplotlib/seaborn for visualization
+
+## Next Steps
+1. Start with data connector implementation
+2. Design and implement data models
+3. Create basic options pricing functionality
+4. Enhance one agent as proof of concept
+5. Build simple backtesting for options strategies
+
+This plan provides a structured approach to enhancing the investment analysis system with multi-API data integration and options analysis capabilities.
