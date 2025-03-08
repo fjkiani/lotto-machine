@@ -98,18 +98,147 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 - Add debug information to stderr while keeping the main output clean in stdout for better pipeline integration
 - When using seaborn styles in matplotlib, use 'seaborn-v0_8' instead of 'seaborn' as the style name due to recent seaborn version changes
 - Use 'gpt-4o' as the model name for OpenAI's GPT-4 with vision capabilities
+- When using f-strings with JSON templates, double the curly braces `{{` and `}}` to escape them properly and avoid format specifier errors
+- When working with experimental models like `gemini-2.0-flash-thinking-exp-01-21`, always implement fallback mechanisms to standard models in case the experimental model is unavailable
+- For options data, use RapidAPI directly instead of the YahooFinanceConnector class to avoid compatibility issues with the OptionChainQuote initialization
+- When processing options data from RapidAPI, create a mapping of strikes to straddles for easier lookup and processing of call and put data
 
 # Scratchpad
 
 ## Current Task
-Enhancing Investment Analysis System with Multi-API Data Integration and Options Analysis
+Enhancing Investment Analysis System with Deep Reasoning and Feedback Loop
 
 ## Project Overview
 The goal is to enhance the existing investment analysis system by:
-1. Integrating multiple data sources (Economic Calendar API, Yahoo Finance API)
-2. Creating a structured data storage system with metadata and keywords
-3. Enhancing agents to analyze options data, evaluate market conditions, and find optimal entry/exit points
-4. Adding options analysis capabilities including Greeks evaluation
+1. Implementing a feedback loop between initial market quote analysis and deep reasoning analysis
+2. Utilizing experimental deep reasoning models for more sophisticated analysis
+3. Generating learning points to continuously improve the analysis process
+4. Creating an enhanced analysis pipeline that integrates these improvements
+5. Integrating options analysis with the enhanced analysis pipeline
+6. Building a Streamlit interface to visualize and interact with the analysis
+
+## Progress
+
+### 1. Deep Reasoning Implementation
+[X] Create deep reasoning analysis function
+  [X] Implement standard deep reasoning in `deep_reasoning_fix.py`
+  [X] Implement experimental model version in `deep_reasoning_fix_experimental.py`
+  [X] Add fallback mechanism to standard model if experimental model fails
+  [X] Create test script for deep reasoning analysis
+
+### 2. Feedback Loop Implementation
+[X] Create feedback loop system
+  [X] Implement contradiction detection between initial and deep analyses
+  [X] Create function to update initial analysis based on contradictions
+  [X] Implement learning point generation for future improvement
+  [X] Add experimental model support with fallbacks
+  [X] Fix format specifier error in JSON template
+
+### 3. Enhanced Analysis Pipeline
+[X] Create enhanced analysis pipeline
+  [X] Implement `EnhancedAnalysisPipeline` class
+  [X] Add support for feedback loop integration
+  [X] Create learning database for tracking improvements
+  [X] Implement visualization for learning trends
+  [X] Create demo script to showcase the pipeline
+
+### 4. Direct Deep Reasoning for Initial Analysis
+[X] Create enhanced initial analysis using deep reasoning model
+  [X] Implement `enhanced_initial_analysis.py` script
+  [X] Use experimental model for initial analysis with fallback
+  [X] Add comprehensive output format with support/resistance levels
+  [X] Include macroeconomic factors in analysis
+  [X] Add nuanced trading strategies for different risk profiles
+
+### 5. Options Analysis Integration
+[X] Create options enhanced analysis script
+  [X] Implement `options_enhanced_analysis.py` script
+  [X] Add deep reasoning for options analysis with experimental model
+  [X] Combine market and options analysis results
+  [X] Handle options data compatibility issues
+  [X] Add visualization for learning trends
+
+### 6. Fix Options Data Compatibility Issue
+[X] Implement direct RapidAPI integration for options data
+  [X] Create function to fetch options data from RapidAPI
+  [X] Create function to prepare options data for analysis
+  [X] Add debugging output for options data
+  [X] Implement fallback to standard analysis if options data unavailable
+  [X] Successfully test with AAPL ticker
+
+### 7. Streamlit Interface Development
+[ ] Create Streamlit interface for integrated analysis
+  [ ] Design interface layout and components
+  [ ] Implement ticker selection and analysis type options
+  [ ] Create market analysis visualization components
+  [ ] Create options analysis visualization components
+  [ ] Implement cross-validation display between market and options analysis
+  [ ] Add interactive elements for exploring different strategies
+  [ ] Create historical data visualization
+  [ ] Implement learning database visualization
+  [ ] Add user feedback collection mechanism
+
+## Streamlit Interface Plan
+
+### 1. Interface Structure
+- **Header Section**: App title, description, and navigation
+- **Input Section**: Ticker selection, analysis type, date range
+- **Market Analysis Section**: Technical indicators, sentiment, support/resistance
+- **Options Analysis Section**: IV, put-call ratio, recommended strategies
+- **Cross-Validation Section**: Confirmation/contradiction between analyses
+- **Strategy Recommendation Section**: Integrated strategy suggestions
+- **Learning Database Section**: Visualization of learning points
+- **Historical Performance Section**: Backtesting results (future)
+
+### 2. Key Components to Implement
+- Ticker input with autocomplete
+- Analysis type selection (basic, comprehensive, options-enhanced)
+- Date range selector for historical analysis
+- Technical indicator charts (price, volume, moving averages)
+- Options data visualization (IV surface, put-call ratio)
+- Strategy cards with detailed explanations
+- Cross-validation indicators (agreement/disagreement highlights)
+- Learning database trend charts
+- Feedback collection buttons
+
+### 3. Data Flow
+1. User inputs ticker and analysis parameters
+2. App fetches market data from Yahoo Finance
+3. App fetches options data from RapidAPI
+4. Enhanced analysis pipeline processes both data sources
+5. Results are displayed in respective sections
+6. Cross-validation logic highlights agreements/contradictions
+7. Strategy recommendations are generated and displayed
+8. User can provide feedback on analysis quality
+
+### 4. Technical Implementation Considerations
+- Use Streamlit caching for expensive operations
+- Implement asynchronous data fetching where possible
+- Create modular components for reusability
+- Use Plotly for interactive charts
+- Implement session state to maintain analysis between interactions
+- Add error handling for API failures
+- Implement progress indicators for long-running analyses
+
+### 5. Development Phases
+1. **Phase 1**: Basic interface with ticker selection and market analysis
+2. **Phase 2**: Add options analysis visualization
+3. **Phase 3**: Implement cross-validation and integrated strategy recommendations
+4. **Phase 4**: Add historical analysis and backtesting
+5. **Phase 5**: Implement user feedback and continuous learning
+
+## Next Steps
+[ ] Enhance the initial analysis with historical data
+  [ ] Add support for fetching historical price data
+  [ ] Implement trend analysis over different timeframes
+  [ ] Add technical indicator calculations (RSI, MACD, etc.)
+  [ ] Create visualization of historical trends
+
+[ ] Implement backtesting for strategies
+  [ ] Create backtesting framework for recommended strategies
+  [ ] Add performance metrics and visualization
+  [ ] Compare strategies generated by different models
+  [ ] Implement optimization based on historical performance
 
 ## System Architecture Plan
 
@@ -227,10 +356,6 @@ The goal is to enhance the existing investment analysis system by:
    - matplotlib/seaborn for visualization
 
 ## Next Steps
-1. Start with data connector implementation
-2. Design and implement data models
-3. Create basic options pricing functionality
-4. Enhance one agent as proof of concept
-5. Build simple backtesting for options strategies
-
-This plan provides a structured approach to enhancing the investment analysis system with multi-API data integration and options analysis capabilities.
+1. Enhance the initial analysis with historical data
+2. Integrate options analysis with deep reasoning
+3. Implement backtesting for strategies generated by the enhanced analysis pipeline

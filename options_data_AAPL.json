@@ -1,0 +1,146 @@
+{
+  "underlying_symbol": "AAPL",
+  "current_price": 239.47,
+  "expiration_dates": [
+    "2025-03-06"
+  ],
+  "strikes": [
+    100,
+    110,
+    120,
+    130,
+    140,
+    145,
+    150,
+    155,
+    160,
+    165,
+    170,
+    175,
+    180,
+    185,
+    190,
+    195,
+    200,
+    205,
+    210,
+    212.5
+  ],
+  "options_sample": [
+    {
+      "strike": 235,
+      "call": {
+        "contract_symbol": "AAPL250307C00235000",
+        "strike": 235,
+        "bid": 4.75,
+        "ask": 5,
+        "implied_volatility": 0.40918559570312496,
+        "volume": 6281,
+        "open_interest": 10642,
+        "in_the_money": true
+      },
+      "put": {
+        "contract_symbol": "AAPL250307P00235000",
+        "strike": 235,
+        "bid": 0.06,
+        "ask": 0.07,
+        "implied_volatility": 0.22852333984375,
+        "volume": 61282,
+        "open_interest": 11044,
+        "in_the_money": false
+      }
+    },
+    {
+      "strike": 237.5,
+      "call": {
+        "contract_symbol": "AAPL250307C00237500",
+        "strike": 237.5,
+        "bid": 2.45,
+        "ask": 2.55,
+        "implied_volatility": 0.26929441650390623,
+        "volume": 27142,
+        "open_interest": 10581,
+        "in_the_money": true
+      },
+      "put": {
+        "contract_symbol": "AAPL250307P00237500",
+        "strike": 237.5,
+        "bid": 0.23,
+        "ask": 0.25,
+        "implied_volatility": 0.1840901904296875,
+        "volume": 58907,
+        "open_interest": 3813,
+        "in_the_money": false
+      }
+    },
+    {
+      "strike": 240,
+      "call": {
+        "contract_symbol": "AAPL250307C00240000",
+        "strike": 240,
+        "bid": 0.65,
+        "ask": 0.68,
+        "implied_volatility": 0.1840901904296875,
+        "volume": 69070,
+        "open_interest": 17256,
+        "in_the_money": false
+      },
+      "put": {
+        "contract_symbol": "AAPL250307P00240000",
+        "strike": 240,
+        "bid": 0.96,
+        "ask": 1,
+        "implied_volatility": 0.14063359375,
+        "volume": 28257,
+        "open_interest": 12115,
+        "in_the_money": true
+      }
+    },
+    {
+      "strike": 242.5,
+      "call": {
+        "contract_symbol": "AAPL250307C00242500",
+        "strike": 242.5,
+        "bid": 0.1,
+        "ask": 0.11,
+        "implied_volatility": 0.186531572265625,
+        "volume": 41995,
+        "open_interest": 11697,
+        "in_the_money": false
+      },
+      "put": {
+        "contract_symbol": "AAPL250307P00242500",
+        "strike": 242.5,
+        "bid": 2.81,
+        "ask": 3,
+        "implied_volatility": 1.0000000000000003e-05,
+        "volume": 3858,
+        "open_interest": 7320,
+        "in_the_money": true
+      }
+    },
+    {
+      "strike": 245,
+      "call": {
+        "contract_symbol": "AAPL250307C00245000",
+        "strike": 245,
+        "bid": 0.02,
+        "ask": 0.03,
+        "implied_volatility": 0.22657023437499998,
+        "volume": 22343,
+        "open_interest": 19383,
+        "in_the_money": false
+      },
+      "put": {
+        "contract_symbol": "AAPL250307P00245000",
+        "strike": 245,
+        "bid": 5.25,
+        "ask": 5.55,
+        "implied_volatility": 0.21289849609375,
+        "volume": 1792,
+        "open_interest": 1739,
+        "in_the_money": true
+      }
+    }
+  ]
+}

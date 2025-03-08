@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Dict, List, Any, Tuple
 import google.generativeai as genai
 import os
@@ -47,18 +48,18 @@ def detect_contradictions(initial_analysis: Dict, deep_analysis: str) -> Dict:
     3. Why one analysis might be more reliable than the other
     
     Return your response as a JSON object with the following structure:
-    {
+    {{
         "contradictions": [
-            {
+            {{
                 "area": "area where contradiction exists",
                 "initial_analysis": "what the initial analysis claimed",
                 "deep_analysis": "what the deep analysis claimed",
                 "resolution": "which is more likely correct and why",
                 "confidence": 0.0 to 1.0
-            }
+            }}
         ],
         "overall_assessment": "overall assessment of which analysis is more reliable"
-    }
+    }}
     """
     
     # Generate the response
@@ -68,7 +69,6 @@ def detect_contradictions(initial_analysis: Dict, deep_analysis: str) -> Dict:
     # Parse the response
     try:
         # Extract JSON from the response text
-        import re
         json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
         if json_match:
             contradictions = json.loads(json_match.group(0))
