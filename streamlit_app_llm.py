@@ -9,23 +9,19 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Check if plotly is installed, if not, install it
+# Flag to track if plotly is available
+plotly_available = False
+
+# Check if plotly is installed
 try:
     import plotly.graph_objects as go
     import plotly.express as px
+    plotly_available = True
     logger.info("Plotly is already installed")
 except ImportError:
-    logger.info("Plotly not found, attempting to install...")
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "plotly==5.18.0"])
-        logger.info("Plotly installed successfully")
-        import plotly.graph_objects as go
-        import plotly.express as px
-    except Exception as e:
-        logger.error(f"Failed to install plotly: {str(e)}")
-        st.error(f"Failed to install required package 'plotly': {str(e)}")
-        st.info("Please contact the administrator to install the required packages.")
-        st.stop()
+    logger.info("Plotly not found, will use alternative visualization")
+    # We won't try to install it at runtime since we don't have permissions
+    st.warning("Plotly is not available. Some visualizations will use Streamlit's built-in charts instead.")
 
 import json
 import os
@@ -813,23 +809,33 @@ def main():
                                 categories = list(learning_summary.keys())
                                 counts = list(learning_summary.values())
                                 
-                                fig = go.Figure(data=[
-                                    go.Bar(
-                                        x=categories,
-                                        y=counts,
-                                        text=counts,
-                                        textposition='auto',
+                                if plotly_available:
+                                    # Use plotly if available
+                                    fig = go.Figure(data=[
+                                        go.Bar(
+                                            x=categories,
+                                            y=counts,
+                                            text=counts,
+                                            textposition='auto',
+                                        )
+                                    ])
+                                    
+                                    fig.update_layout(
+                                        title="Learning Points by Category",
+                                        xaxis_title="Category",
+                                        yaxis_title="Count",
+                                        showlegend=False
                                     )
-                                ])
-                                
-                                fig.update_layout(
-                                    title="Learning Points by Category",
-                                    xaxis_title="Category",
-                                    yaxis_title="Count",
-                                    showlegend=False
-                                )
-                                
-                                st.plotly_chart(fig)
+                                    
+                                    st.plotly_chart(fig)
+                                else:
+                                    # Fallback to Streamlit's built-in chart
+                                    st.subheader("Learning Points by Category")
+                                    chart_data = pd.DataFrame({
+                                        'Category': categories,
+                                        'Count': counts
+                                    })
+                                    st.bar_chart(chart_data, x='Category', y='Count')
                 
         except Exception as e:
             st.error(f"Error in analysis: {str(e)}")
