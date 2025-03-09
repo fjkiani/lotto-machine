@@ -1,1 +1,1 @@
-web: streamlit run streamlit_app_llm.py 
+web: PYTHONPATH=$PYTHONPATH:. streamlit run streamlit_app_llm.py 

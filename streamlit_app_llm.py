@@ -5,6 +5,9 @@ import sys
 import subprocess
 import logging
 
+# Add the current directory to the Python path
+sys.path.insert(0, os.path.abspath('.'))
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -19,22 +22,14 @@ try:
     plotly_available = True
     logger.info("Plotly is already installed")
 except ImportError:
-    logger.info("Plotly not found, will use alternative visualization")
-    # We won't try to install it at runtime since we don't have permissions
-    st.warning("Plotly is not available. Some visualizations will use Streamlit's built-in charts instead.")
-
-import json
-import os
-import http.client
-
-# Flag to track if Google Generative AI is available
-genai_available = False
-
+    logger.warning("Plotly is not available, will use alternative visualizations")
+    st.warning("Plotly is not available. Some visualizations will be limited.")
+    
 # Check if Google Generative AI is installed
+gemini_available = False
 try:
     import google.generativeai as genai
-    import google.generativeai.types as types
-    genai_available = True
+    gemini_available = True
     logger.info("Google Generative AI is already installed")
 except ImportError:
     logger.error("Google Generative AI package not found")
@@ -48,9 +43,23 @@ try:
     from src.analysis.enhanced_analysis_pipeline import EnhancedAnalysisPipeline
     pipeline_available = True
     logger.info("Enhanced analysis pipeline is available")
-except ImportError:
+except ImportError as e:
     pipeline_available = False
-    logger.error("Enhanced analysis pipeline module not found")
+    logger.error(f"Enhanced analysis pipeline module not found: {e}")
+    # Print the Python path for debugging
+    logger.error(f"Python path: {sys.path}")
+    # Check if the file exists
+    file_path = os.path.join('src', 'analysis', 'enhanced_analysis_pipeline.py')
+    if os.path.exists(file_path):
+        logger.info(f"File exists: {file_path}")
+    else:
+        logger.error(f"File does not exist: {file_path}")
+    # List the contents of the src/analysis directory
+    analysis_dir = os.path.join('src', 'analysis')
+    if os.path.exists(analysis_dir):
+        logger.info(f"Contents of {analysis_dir}: {os.listdir(analysis_dir)}")
+    else:
+        logger.error(f"Directory does not exist: {analysis_dir}")
     st.error("Required module 'src.analysis.enhanced_analysis_pipeline' is not available. Some features will be limited.")
 
 # Load environment variables from multiple sources
@@ -84,7 +93,7 @@ if missing_vars:
     st.error(f"Missing required environment variables: {', '.join(missing_vars)}")
 
 # Initialize Google Generative AI with API key if available
-if genai_available:
+if gemini_available:
     try:
         genai.configure(api_key=os.environ.get('GOOGLE_API_KEY'))
         logger.info("Successfully configured Google Generative AI")
@@ -283,7 +292,7 @@ def prepare_gemini_input(api_data, ticker):
 def analyze_with_gemini(ticker, option_chain_data, risk_tolerance="medium"):
     """Use Gemini to analyze options data"""
     # Check if Gemini is available
-    if not genai_available:
+    if not gemini_available:
         return {
             "error": "Google Generative AI package is not available. Please install it to use this feature.",
             "overall_sentiment": "neutral",
@@ -757,7 +766,7 @@ def main():
     
     # Check for required dependencies
     missing_dependencies = []
-    if not genai_available:
+    if not gemini_available:
         missing_dependencies.append("Google Generative AI")
     if not pipeline_available:
         missing_dependencies.append("Enhanced Analysis Pipeline")
@@ -827,7 +836,7 @@ def main():
                                     st.json(gemini_input)
                                 
                                 # Run LLM analysis if available
-                                if genai_available:
+                                if gemini_available:
                                     with st.spinner("Analyzing options with LLM..."):
                                         analysis_result = analyze_with_gemini(ticker, gemini_input, risk_tolerance)
                                         
