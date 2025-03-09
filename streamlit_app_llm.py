@@ -57,17 +57,24 @@ except ImportError:
 load_dotenv()  # First try loading from .env file
 
 # Then try loading from Streamlit secrets if available
-if hasattr(st, 'secrets') and 'env' in st.secrets:
-    # Update environment with Streamlit secrets
-    for key, value in st.secrets['env'].items():
-        os.environ[key] = value
-        logger.info(f"Loaded environment variable from Streamlit secrets: {key}")
-elif hasattr(st, 'secrets'):
-    # If secrets exist but not in 'env' section, check for direct keys
-    for key in st.secrets:
-        if key not in os.environ:
-            os.environ[key] = st.secrets[key]
+try:
+    if hasattr(st, 'secrets') and 'env' in st.secrets:
+        # Update environment with Streamlit secrets
+        for key, value in st.secrets['env'].items():
+            os.environ[key] = value
             logger.info(f"Loaded environment variable from Streamlit secrets: {key}")
+    elif hasattr(st, 'secrets'):
+        # If secrets exist but not in 'env' section, check for direct keys
+        for key in st.secrets:
+            if key not in os.environ:
+                os.environ[key] = st.secrets[key]
+                logger.info(f"Loaded environment variable from Streamlit secrets: {key}")
+except FileNotFoundError as e:
+    logger.warning(f"No secrets file found: {str(e)}")
+    st.warning("No secrets file found. Using environment variables from .env file or system environment.")
+except Exception as e:
+    logger.error(f"Error loading secrets: {str(e)}")
+    st.error(f"Error loading secrets: {str(e)}")
 
 # Check for required environment variables
 required_vars = ['OPENAI_API_KEY', 'GOOGLE_API_KEY']
