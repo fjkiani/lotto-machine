@@ -698,14 +698,14 @@ def main():
     gemini_key = os.getenv("GEMINI_API_KEY")
     
     if not api_key:
-        st.sidebar.error("RAPIDAPI_KEY not found in environment variables")
+        st.sidebar.error("Quant_KEY not found in environment variables")
     else:
-        st.sidebar.success(f"RapidAPI Key: {api_key[:5]}...{api_key[-5:]}")
+        st.sidebar.success(f"Quant-API Key: {api_key[:5]}...{api_key[-5:]}")
     
     if not gemini_key:
-        st.sidebar.error("GEMINI_API_KEY not found in environment variables")
+        st.sidebar.error("LLM_API_KEY not found in environment variables")
     else:
-        st.sidebar.success(f"Gemini API Key: {gemini_key[:5]}...{gemini_key[-5:]}")
+        st.sidebar.success(f"LLM API Key: {gemini_key[:5]}...{gemini_key[-5:]}")
     
     # Create tabs
     tab1, tab2 = st.tabs(["Options Analysis", "Enhanced Analysis"])
