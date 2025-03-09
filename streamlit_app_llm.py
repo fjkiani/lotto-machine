@@ -25,13 +25,33 @@ except ImportError:
 
 import json
 import os
-import logging
 import http.client
-import google.generativeai as genai
-import google.generativeai.types as types
+
+# Flag to track if Google Generative AI is available
+genai_available = False
+
+# Check if Google Generative AI is installed
+try:
+    import google.generativeai as genai
+    import google.generativeai.types as types
+    genai_available = True
+    logger.info("Google Generative AI is already installed")
+except ImportError:
+    logger.error("Google Generative AI package not found")
+    st.error("Required package 'google.generativeai' is not available. Some features will be limited.")
+    
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from src.analysis.enhanced_analysis_pipeline import EnhancedAnalysisPipeline
+
+# Try to import the enhanced analysis pipeline
+try:
+    from src.analysis.enhanced_analysis_pipeline import EnhancedAnalysisPipeline
+    pipeline_available = True
+    logger.info("Enhanced analysis pipeline is available")
+except ImportError:
+    pipeline_available = False
+    logger.error("Enhanced analysis pipeline module not found")
+    st.error("Required module 'src.analysis.enhanced_analysis_pipeline' is not available. Some features will be limited.")
 
 # Load environment variables from multiple sources
 load_dotenv()  # First try loading from .env file
@@ -56,13 +76,14 @@ if missing_vars:
     logger.warning(f"Missing required environment variables: {', '.join(missing_vars)}")
     st.error(f"Missing required environment variables: {', '.join(missing_vars)}")
 
-# Initialize Google Generative AI with API key
-try:
-    genai.configure(api_key=os.environ.get('GOOGLE_API_KEY'))
-    logger.info("Successfully configured Google Generative AI")
-except Exception as e:
-    logger.error(f"Failed to configure Google Generative AI: {str(e)}")
-    st.error(f"Failed to configure Google Generative AI: {str(e)}")
+# Initialize Google Generative AI with API key if available
+if genai_available:
+    try:
+        genai.configure(api_key=os.environ.get('GOOGLE_API_KEY'))
+        logger.info("Successfully configured Google Generative AI")
+    except Exception as e:
+        logger.error(f"Failed to configure Google Generative AI: {str(e)}")
+        st.error(f"Failed to configure Google Generative AI: {str(e)}")
 
 def fetch_market_data(ticker):
     """Fetch market data from RapidAPI Yahoo Finance"""
@@ -254,6 +275,15 @@ def prepare_gemini_input(api_data, ticker):
 
 def analyze_with_gemini(ticker, option_chain_data, risk_tolerance="medium"):
     """Use Gemini to analyze options data"""
+    # Check if Gemini is available
+    if not genai_available:
+        return {
+            "error": "Google Generative AI package is not available. Please install it to use this feature.",
+            "overall_sentiment": "neutral",
+            "confidence": 0,
+            "reasoning": "Dependency missing"
+        }
+        
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return {
@@ -718,6 +748,17 @@ def main():
     
     st.title("AI-Powered Market Analysis Dashboard")
     
+    # Check for required dependencies
+    missing_dependencies = []
+    if not genai_available:
+        missing_dependencies.append("Google Generative AI")
+    if not pipeline_available:
+        missing_dependencies.append("Enhanced Analysis Pipeline")
+    
+    if missing_dependencies:
+        st.error(f"Missing required dependencies: {', '.join(missing_dependencies)}")
+        st.info("The app will run with limited functionality. Please contact the administrator to install the required packages.")
+    
     # Sidebar
     st.sidebar.header("Settings")
     ticker = st.sidebar.text_input("Enter Ticker Symbol", value="AAPL").upper()
@@ -778,64 +819,70 @@ def main():
                                 with st.expander("Prepared Options Data"):
                                     st.json(gemini_input)
                                 
-                                # Run LLM analysis
-                                with st.spinner("Analyzing options with LLM..."):
-                                    analysis_result = analyze_with_gemini(ticker, gemini_input, risk_tolerance)
-                                    
-                                    # Display LLM analysis
-                                    display_llm_options_analysis(analysis_result, ticker)
+                                # Run LLM analysis if available
+                                if genai_available:
+                                    with st.spinner("Analyzing options with LLM..."):
+                                        analysis_result = analyze_with_gemini(ticker, gemini_input, risk_tolerance)
+                                        
+                                        # Display LLM analysis
+                                        display_llm_options_analysis(analysis_result, ticker)
+                                else:
+                                    st.warning("Google Generative AI is not available. Options analysis cannot be performed.")
                 
                 with tab2:
-                    with st.spinner("Running enhanced analysis..."):
-                        # Create enhanced analysis pipeline
-                        pipeline = EnhancedAnalysisPipeline(use_feedback_loop=use_feedback_loop)
-                        
-                        # Run enhanced analysis
-                        enhanced_analysis = pipeline.analyze_tickers([ticker], analysis_type)
-                        
-                        # Display enhanced analysis
-                        display_enhanced_analysis(enhanced_analysis)
-                        
-                        # Display learning summary if feedback loop is enabled
-                        if use_feedback_loop:
-                            learning_db = pipeline.get_learning_database()
-                            if not learning_db.empty:
-                                st.subheader("Learning Summary")
-                                
-                                # Get and display learning summary
-                                learning_summary = pipeline.get_learning_summary()
-                                
-                                # Create bar chart
-                                categories = list(learning_summary.keys())
-                                counts = list(learning_summary.values())
-                                
-                                if plotly_available:
-                                    # Use plotly if available
-                                    fig = go.Figure(data=[
-                                        go.Bar(
-                                            x=categories,
-                                            y=counts,
-                                            text=counts,
-                                            textposition='auto',
+                    if pipeline_available:
+                        with st.spinner("Running enhanced analysis..."):
+                            # Create enhanced analysis pipeline
+                            pipeline = EnhancedAnalysisPipeline(use_feedback_loop=use_feedback_loop)
+                            
+                            # Run enhanced analysis
+                            enhanced_analysis = pipeline.analyze_tickers([ticker], analysis_type)
+                            
+                            # Display enhanced analysis
+                            display_enhanced_analysis(enhanced_analysis)
+                            
+                            # Display learning summary if feedback loop is enabled
+                            if use_feedback_loop:
+                                learning_db = pipeline.get_learning_database()
+                                if not learning_db.empty:
+                                    st.subheader("Learning Summary")
+                                    
+                                    # Get and display learning summary
+                                    learning_summary = pipeline.get_learning_summary()
+                                    
+                                    # Create bar chart
+                                    categories = list(learning_summary.keys())
+                                    counts = list(learning_summary.values())
+                                    
+                                    if plotly_available:
+                                        # Use plotly if available
+                                        fig = go.Figure(data=[
+                                            go.Bar(
+                                                x=categories,
+                                                y=counts,
+                                                text=counts,
+                                                textposition='auto',
+                                            )
+                                        ])
+                                        
+                                        fig.update_layout(
+                                            title="Learning Points by Category",
+                                            xaxis_title="Category",
+                                            yaxis_title="Count",
+                                            showlegend=False
                                         )
-                                    ])
-                                    
-                                    fig.update_layout(
-                                        title="Learning Points by Category",
-                                        xaxis_title="Category",
-                                        yaxis_title="Count",
-                                        showlegend=False
-                                    )
-                                    
-                                    st.plotly_chart(fig)
-                                else:
-                                    # Fallback to Streamlit's built-in chart
-                                    st.subheader("Learning Points by Category")
-                                    chart_data = pd.DataFrame({
-                                        'Category': categories,
-                                        'Count': counts
-                                    })
-                                    st.bar_chart(chart_data, x='Category', y='Count')
+                                        
+                                        st.plotly_chart(fig)
+                                    else:
+                                        # Fallback to Streamlit's built-in chart
+                                        st.subheader("Learning Points by Category")
+                                        chart_data = pd.DataFrame({
+                                            'Category': categories,
+                                            'Count': counts
+                                        })
+                                        st.bar_chart(chart_data, x='Category', y='Count')
+                    else:
+                        st.warning("Enhanced Analysis Pipeline is not available. Enhanced analysis cannot be performed.")
                 
         except Exception as e:
             st.error(f"Error in analysis: {str(e)}")
