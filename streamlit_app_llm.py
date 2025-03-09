@@ -14,6 +14,7 @@ import subprocess
 import logging
 import http.client
 import json
+from datetime import datetime, timedelta
 
 # Add the current directory to the Python path
 sys.path.insert(0, os.path.abspath('.'))
@@ -39,13 +40,26 @@ except ImportError:
 gemini_available = False
 try:
     import google.generativeai as genai
+    # Create a types module if it doesn't exist
+    try:
+        import google.generativeai.types as types
+    except ImportError:
+        # Create a simple types module as a fallback
+        class SimpleTypes:
+            class GenerationConfig:
+                def __init__(self, **kwargs):
+                    for key, value in kwargs.items():
+                        setattr(self, key, value)
+        
+        # Add the SimpleTypes to the genai module
+        genai.types = SimpleTypes()
+        
     gemini_available = True
     logger.info("Google Generative AI is already installed")
 except ImportError:
     logger.error("Google Generative AI package not found")
     st.error("Required package 'google.generativeai' is not available. Some features will be limited.")
     
-from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 # Try to import the enhanced analysis pipeline
@@ -331,11 +345,11 @@ def analyze_with_gemini(ticker, option_chain_data, risk_tolerance="medium"):
     # Initialize Gemini client
     genai.configure(api_key=api_key)
 
-    prompt = """
+    prompt = f"""
 Analyze the following options data for {ticker} and recommend an optimal options trading strategy based on a {risk_tolerance} risk tolerance level.
 
 Option Chain Data:
-{option_chain_data}
+{json.dumps(option_chain_data, indent=2)}
 
 Specifically, please:
 
@@ -344,104 +358,73 @@ Specifically, please:
 2. Calculate the Put/Call Ratio as follows:
    - Sum the 'volume' values for all put options in the 'options_sample' data.
    - Sum the 'volume' values for all call options in the 'options_sample' data.
-   - Divide the total put volume by the total call volume.
-   - Report the result as the 'put_call_ratio'.
+   - Divide the put volume by the call volume.
+   - Interpret this ratio: values above 1 indicate bearish sentiment, values below 1 indicate bullish sentiment.
 
-3. Calculate the Implied Volatility (IV) Skew as follows:
-   - Use the put option with the highest 'strike' in the 'options_sample' data as the out-of-the-money (OTM) put.
-   - Use the call option with the lowest 'strike' in the 'options_sample' data as the OTM call.
-   - Subtract the 'implied_volatility' of the OTM call from the 'implied_volatility' of the OTM put.
-   - Report the result as the 'implied_volatility_skew'.
+3. Recommend specific options strategies appropriate for the current market conditions and the {risk_tolerance} risk tolerance level.
 
-4. Calculate the Maximum Profit for the recommended strategy as follows:
-   - For each option in the strategy, calculate the mid-price by averaging the 'bid' and 'ask' values.
-   - Sum the mid-prices of all options that are being sold in the strategy.
-   - Report the result as the 'max_profit'.
+4. For each recommended strategy, explain:
+   - The specific options to buy/sell (strike prices and expiration dates)
+   - The maximum potential profit and loss
+   - The break-even point(s)
+   - The ideal market conditions for this strategy
+   - The exit strategy (when to exit the position)
 
-5. Evaluate whether the market is overbought or oversold based on the provided data.
-
-6. Recommend an options strategy with specific strikes and expiration, justifying your choice based on the analysis of the provided data, including implied volatility, volume, and open interest.
-
-7. Estimate the maximum profit and loss potential for the recommended strategy, considering the mid price (average of bid and ask) for premium calculations.
-
-8. Determine the overall market sentiment (bullish, bearish, or neutral) and provide a confidence level (percentage).
-
-9. Explain your reasoning in detail, referencing specific data points from the provided option chain, especially the differences in implied volatility between calls and puts, and the volume and open interest.
-
-10. Provide estimates or calculations of the key Greeks (delta, gamma, theta, vega) for at-the-money options. If exact calculations are not possible, provide well-reasoned estimations. Fill in the following table:
-
-Greeks:
-| Option Type | Strike | Delta | Gamma | Theta | Vega |
-|-------------|--------|-------|-------|-------|------|
-| Call        | {atm_strike} |       |       |       |      |
-| Put         | {atm_strike} |       |       |       |      |
-
-11. Explain in detail why you have the level of confidence that you have in this analysis.
+5. Provide a confidence level (0-100%) for your recommendation and explain your reasoning.
 
 Format your response as a JSON object with the following structure:
 {{
-    "market_conditions": {{
-        "put_call_ratio": float,
-        "implied_volatility_skew": float,
-        "sentiment": "bullish|bearish|neutral",
-        "market_condition": "overbought|oversold|normal"
-    }},
-    "greeks": {{
-        "call_delta": float,
-        "call_gamma": float,
-        "call_theta": float,
-        "call_vega": float,
-        "put_delta": float,
-        "put_gamma": float,
-        "put_theta": float,
-        "put_vega": float
-    }},
-    "recommended_strategy": {{
-        "name": string,
-        "description": string,
-        "legs": [
-            {{"type": "buy|sell", "option_type": "call|put", "strike": float, "expiration": string}}
-        ],
-        "max_profit": string,
-        "max_loss": string
-    }},
-    "overall_sentiment": "bullish|bearish|neutral",
-    "confidence": float,
-    "reasoning": string
+  "ticker": "{ticker}",
+  "analysis_date": "current date",
+  "market_conditions": {{
+    "implied_volatility_analysis": "detailed analysis of IV",
+    "put_call_ratio": "calculated ratio and interpretation",
+    "overall_sentiment": "bullish/bearish/neutral",
+    "key_observations": ["list of important observations"]
+  }},
+  "recommended_strategies": [
+    {{
+      "strategy_name": "name of strategy",
+      "description": "brief description",
+      "implementation": "specific options to trade",
+      "max_profit": "maximum potential profit",
+      "max_loss": "maximum potential loss",
+      "break_even": "break-even point(s)",
+      "ideal_conditions": "when this strategy works best",
+      "exit_strategy": "when to exit the position",
+      "risk_level": "low/medium/high"
+    }}
+  ],
+  "confidence": "confidence level (0-100%)",
+  "reasoning": "detailed explanation of your recommendation"
 }}
-""".format(
-    ticker=ticker,
-    risk_tolerance=risk_tolerance,
-    option_chain_data=json.dumps(option_chain_data, indent=2),
-    atm_strike=option_chain_data["options_sample"][len(option_chain_data["options_sample"])//2]["strike"] if option_chain_data["options_sample"] else 0
-)
+"""
+
     try:
-        # Configure Gemini model
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-pro",
-            generation_config=types.GenerationConfig(
-                temperature=0.2,
-                top_p=0.95,
-                top_k=64,
-                max_output_tokens=8192,
-                response_mime_type="application/json",
-            )
+        # Create a generation config
+        generation_config = genai.types.GenerationConfig(
+            temperature=0.2,
+            top_p=0.8,
+            top_k=40,
+            max_output_tokens=2048,
         )
-
-        # Generate response
-        response = model.generate_content(prompt)
-
-        # Parse and return the JSON response
-        try:
-            return json.loads(response.text)
-        except json.JSONDecodeError:
-            # If response is not valid JSON, return a simplified response
+        
+        # Generate content
+        model = genai.GenerativeModel('gemini-1.5-pro')
+        response = model.generate_content(prompt, generation_config=generation_config)
+        
+        # Extract JSON from response
+        import re
+        json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group(0))
+            return result
+        else:
             return {
-                "error": "Failed to parse Gemini response",
-                "raw_response": response.text,
+                "error": "Could not extract JSON from Gemini response",
                 "overall_sentiment": "neutral",
                 "confidence": 0,
-                "reasoning": "Error in analysis"
+                "reasoning": "Error in response format"
             }
     except Exception as e:
         logger.error(f"Error in Gemini analysis: {str(e)}")
@@ -449,7 +432,7 @@ Format your response as a JSON object with the following structure:
             "error": f"Error in Gemini analysis: {str(e)}",
             "overall_sentiment": "neutral",
             "confidence": 0,
-            "reasoning": "Error in analysis"
+            "reasoning": "Error during analysis"
         }
 
 def display_market_overview(market_data, ticker):

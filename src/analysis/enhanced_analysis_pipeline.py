@@ -59,29 +59,36 @@ except ImportError:
         def get_day_change_percent(self):
             return 1.0
 
+# Try to import the LLM models, but use our simplified version if not available
 try:
     from src.llm.models import analyze_market_quotes_with_gemini
     gemini_available = True
 except ImportError:
-    logger.warning("analyze_market_quotes_with_gemini not available, using simplified version")
-    gemini_available = False
-    
-    # Define a simple function as a fallback
-    def analyze_market_quotes_with_gemini(quotes, analysis_type):
-        logger.info(f"Would analyze quotes with Gemini (analysis_type: {analysis_type})")
-        tickers = list(quotes.keys())
-        return json.dumps({
-            "analysis": {
-                "tickers": tickers,
-                "timestamp": datetime.now().isoformat(),
-                "market_analysis": {
-                    "trend": "neutral",
-                    "recommendation": "hold",
-                    "confidence": 0.5,
-                    "reasoning": "This is a simplified analysis. The full analysis pipeline is not available."
+    logger.warning("src.llm.models not available, trying simplified version")
+    try:
+        from src.llm.models_simplified import analyze_market_quotes_with_gemini
+        gemini_available = True
+        logger.info("Using simplified models")
+    except ImportError:
+        logger.warning("simplified models not available either, using fallback")
+        gemini_available = False
+        
+        # Define a simple function as a fallback
+        def analyze_market_quotes_with_gemini(quotes, analysis_type):
+            logger.info(f"Would analyze quotes with Gemini (analysis_type: {analysis_type})")
+            tickers = list(quotes.keys())
+            return json.dumps({
+                "analysis": {
+                    "tickers": tickers,
+                    "timestamp": datetime.now().isoformat(),
+                    "market_analysis": {
+                        "trend": "neutral",
+                        "recommendation": "hold",
+                        "confidence": 0.5,
+                        "reasoning": "This is a simplified analysis. The full analysis pipeline is not available."
+                    }
                 }
-            }
-        })
+            })
 
 try:
     from deep_reasoning_fix import deep_reasoning_analysis
