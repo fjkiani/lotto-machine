@@ -1,7 +1,32 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
-import plotly.express as px
+import os
+import sys
+import subprocess
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Check if plotly is installed, if not, install it
+try:
+    import plotly.graph_objects as go
+    import plotly.express as px
+    logger.info("Plotly is already installed")
+except ImportError:
+    logger.info("Plotly not found, attempting to install...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "plotly==5.18.0"])
+        logger.info("Plotly installed successfully")
+        import plotly.graph_objects as go
+        import plotly.express as px
+    except Exception as e:
+        logger.error(f"Failed to install plotly: {str(e)}")
+        st.error(f"Failed to install required package 'plotly': {str(e)}")
+        st.info("Please contact the administrator to install the required packages.")
+        st.stop()
+
 import json
 import os
 import logging
@@ -11,10 +36,6 @@ import google.generativeai.types as types
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from src.analysis.enhanced_analysis_pipeline import EnhancedAnalysisPipeline
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # Load environment variables from multiple sources
 load_dotenv()  # First try loading from .env file
