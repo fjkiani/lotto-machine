@@ -1,4 +1,12 @@
 import streamlit as st
+
+# Set page config - must be the first Streamlit command
+st.set_page_config(
+    page_title="Options Analysis Dashboard",
+    page_icon="📈",
+    layout="wide"
+)
+
 import pandas as pd
 import os
 import sys
@@ -756,12 +764,6 @@ def display_enhanced_analysis(analysis_result):
                 st.markdown(f"- {point}")
 
 def main():
-    st.set_page_config(
-        page_title="Options Analysis Dashboard",
-        page_icon="📈",
-        layout="wide"
-    )
-    
     st.title("AI-Powered Market Analysis Dashboard")
     
     # Check for required dependencies
