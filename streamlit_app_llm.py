@@ -513,118 +513,92 @@ def display_market_overview(market_data, ticker):
     return current_price
 
 def display_llm_options_analysis(analysis_result, ticker):
-    """Display LLM-powered options analysis"""
-    st.header("LLM-Powered Options Analysis")
-    
-    # Check for errors
+    """Display the LLM options analysis"""
     if "error" in analysis_result:
-        st.error(f"Error in options analysis: {analysis_result.get('error')}")
-        if "raw_response" in analysis_result:
-            with st.expander("Raw LLM Response"):
-                st.code(analysis_result.get("raw_response"))
+        st.error(f"Error in options analysis: {analysis_result['error']}")
         return
     
-    # Market Conditions
-    st.subheader("Market Conditions")
-    market_conditions = analysis_result.get("market_conditions", {})
+    st.subheader(f"Options Analysis for {ticker}")
+    
+    # Extract market conditions
+    market_conditions = analysis_result.get('market_conditions', {})
     
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("Put-Call Ratio", f"{market_conditions.get('put_call_ratio', 0):.2f}")
-        st.metric("IV Skew", f"{market_conditions.get('implied_volatility_skew', 0):.2f}")
+        # Handle put_call_ratio which could be a string or a float
+        put_call_ratio = market_conditions.get('put_call_ratio', 0)
+        if isinstance(put_call_ratio, (int, float)):
+            st.metric("Put-Call Ratio", f"{put_call_ratio:.2f}")
+        else:
+            st.metric("Put-Call Ratio", put_call_ratio)
+        
+        # Handle implied_volatility_skew which could be a string or a float
+        iv_skew = market_conditions.get('implied_volatility_skew', 0)
+        if isinstance(iv_skew, (int, float)):
+            st.metric("IV Skew", f"{iv_skew:.2f}")
+        else:
+            st.metric("IV Skew", iv_skew)
     
     with col2:
-        sentiment = market_conditions.get('sentiment', 'neutral')
+        # Get sentiment, which could be under different keys in different response formats
+        sentiment = market_conditions.get('sentiment', 
+                                         market_conditions.get('overall_sentiment', 
+                                                              analysis_result.get('overall_sentiment', 'neutral')))
         sentiment_color = {
             'bullish': 'green',
             'bearish': 'red',
-            'neutral': 'blue'
-        }.get(sentiment.lower(), 'blue')
+            'neutral': 'gray'
+        }.get(sentiment.lower() if isinstance(sentiment, str) else 'neutral', 'gray')
         
-        st.markdown(f"**Sentiment**: <span style='color:{sentiment_color}'>{sentiment}</span>", unsafe_allow_html=True)
+        st.markdown(f"**Market Sentiment:** <span style='color:{sentiment_color}'>{sentiment}</span>", unsafe_allow_html=True)
         
+        # Get market condition, which might not be present in all response formats
         market_condition = market_conditions.get('market_condition', 'normal')
-        condition_color = {
-            'overbought': 'red',
-            'oversold': 'green',
-            'normal': 'blue'
-        }.get(market_condition.lower(), 'blue')
-        
-        st.markdown(f"**Market Condition**: <span style='color:{condition_color}'>{market_condition}</span>", unsafe_allow_html=True)
+        st.markdown(f"**Market Condition:** {market_condition}")
     
-    # Greeks
-    st.subheader("Options Greeks")
-    greeks = analysis_result.get("greeks", {})
+    # Display confidence
+    confidence = analysis_result.get('confidence', 0)
+    if isinstance(confidence, (int, float)):
+        confidence_pct = confidence * 100 if confidence <= 1 else confidence
+        st.progress(confidence_pct / 100)
+        st.markdown(f"**Confidence:** {confidence_pct:.1f}%")
+    else:
+        st.markdown(f"**Confidence:** {confidence}")
     
-    # Create a DataFrame for the Greeks
-    greeks_data = {
-        "Greek": ["Delta", "Gamma", "Theta", "Vega"],
-        "Call": [
-            greeks.get("call_delta", "N/A"),
-            greeks.get("call_gamma", "N/A"),
-            greeks.get("call_theta", "N/A"),
-            greeks.get("call_vega", "N/A")
-        ],
-        "Put": [
-            greeks.get("put_delta", "N/A"),
-            greeks.get("put_gamma", "N/A"),
-            greeks.get("put_theta", "N/A"),
-            greeks.get("put_vega", "N/A")
-        ]
-    }
+    # Display reasoning
+    st.subheader("Analysis Reasoning")
+    st.markdown(analysis_result.get('reasoning', 'No reasoning provided'))
     
-    greeks_df = pd.DataFrame(greeks_data)
-    st.table(greeks_df)
+    # Display recommended strategies
+    st.subheader("Recommended Strategies")
     
-    # Recommended Strategy
-    st.subheader("Recommended Options Strategy")
-    strategy = analysis_result.get("recommended_strategy", {})
-    
-    st.markdown(f"### {strategy.get('name', 'N/A')}")
-    st.write(strategy.get('description', 'N/A'))
-    
-    # Strategy legs
-    st.write("**Strategy Legs:**")
-    legs = strategy.get("legs", [])
-    
-    if legs:
-        legs_data = []
-        for leg in legs:
-            legs_data.append({
-                "Action": leg.get("type", "N/A"),
-                "Option Type": leg.get("option_type", "N/A"),
-                "Strike": f"${leg.get('strike', 0):.2f}",
-                "Expiration": leg.get("expiration", "N/A")
-            })
-        
-        legs_df = pd.DataFrame(legs_data)
-        st.table(legs_df)
-    
-    # Profit/Loss
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"**Maximum Profit**: {strategy.get('max_profit', 'N/A')}")
-    with col2:
-        st.markdown(f"**Maximum Loss**: {strategy.get('max_loss', 'N/A')}")
-    
-    # Overall Analysis
-    st.subheader("Analysis Summary")
-    
-    # Overall sentiment and confidence
-    sentiment = analysis_result.get("overall_sentiment", "neutral")
-    confidence = analysis_result.get("confidence", 0)
-    
-    sentiment_color = {
-        'bullish': 'green',
-        'bearish': 'red',
-        'neutral': 'blue'
-    }.get(sentiment.lower(), 'blue')
-    
-    st.markdown(f"**Overall Sentiment**: <span style='color:{sentiment_color}'>{sentiment}</span> (Confidence: {confidence:.1f}%)", unsafe_allow_html=True)
-    
-    # Reasoning
-    st.subheader("Detailed Reasoning")
-    st.write(analysis_result.get("reasoning", "No reasoning provided"))
+    # Check if we have the new format (recommended_strategies list) or old format (recommended_strategy object)
+    if 'recommended_strategies' in analysis_result:
+        strategies = analysis_result['recommended_strategies']
+        for i, strategy in enumerate(strategies):
+            with st.expander(f"{i+1}. {strategy.get('strategy_name', strategy.get('name', 'Strategy'))}"):
+                st.markdown(f"**Description:** {strategy.get('description', 'No description')}")
+                st.markdown(f"**Implementation:** {strategy.get('implementation', 'No implementation details')}")
+                st.markdown(f"**Max Profit:** {strategy.get('max_profit', 'Not specified')}")
+                st.markdown(f"**Max Loss:** {strategy.get('max_loss', 'Not specified')}")
+                st.markdown(f"**Break Even:** {strategy.get('break_even', 'Not specified')}")
+                st.markdown(f"**Ideal Conditions:** {strategy.get('ideal_conditions', 'Not specified')}")
+                st.markdown(f"**Exit Strategy:** {strategy.get('exit_strategy', 'Not specified')}")
+                st.markdown(f"**Risk Level:** {strategy.get('risk_level', 'Not specified')}")
+    elif 'recommended_strategy' in analysis_result:
+        strategy = analysis_result['recommended_strategy']
+        with st.expander(f"{strategy.get('name', 'Recommended Strategy')}"):
+            st.markdown(f"**Description:** {strategy.get('description', 'No description')}")
+            
+            if 'legs' in strategy:
+                st.markdown("**Options Legs:**")
+                for leg in strategy['legs']:
+                    st.markdown(f"- {leg.get('type', 'buy/sell')} {leg.get('option_type', 'option')} @ strike {leg.get('strike', 'N/A')}, expiration {leg.get('expiration', 'N/A')}")
+            
+            st.markdown(f"**Max Profit:** {strategy.get('max_profit', 'Not specified')}")
+            st.markdown(f"**Max Loss:** {strategy.get('max_loss', 'Not specified')}")
+    else:
+        st.info("No specific strategy recommendations available")
 
 def display_enhanced_analysis(analysis_result):
     """Display enhanced analysis with feedback loop"""
