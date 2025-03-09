@@ -16,8 +16,36 @@ from src.analysis.enhanced_analysis_pipeline import EnhancedAnalysisPipeline
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from multiple sources
+load_dotenv()  # First try loading from .env file
+
+# Then try loading from Streamlit secrets if available
+if hasattr(st, 'secrets') and 'env' in st.secrets:
+    # Update environment with Streamlit secrets
+    for key, value in st.secrets['env'].items():
+        os.environ[key] = value
+        logger.info(f"Loaded environment variable from Streamlit secrets: {key}")
+elif hasattr(st, 'secrets'):
+    # If secrets exist but not in 'env' section, check for direct keys
+    for key in st.secrets:
+        if key not in os.environ:
+            os.environ[key] = st.secrets[key]
+            logger.info(f"Loaded environment variable from Streamlit secrets: {key}")
+
+# Check for required environment variables
+required_vars = ['OPENAI_API_KEY', 'GOOGLE_API_KEY']
+missing_vars = [var for var in required_vars if not os.environ.get(var)]
+if missing_vars:
+    logger.warning(f"Missing required environment variables: {', '.join(missing_vars)}")
+    st.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+
+# Initialize Google Generative AI with API key
+try:
+    genai.configure(api_key=os.environ.get('GOOGLE_API_KEY'))
+    logger.info("Successfully configured Google Generative AI")
+except Exception as e:
+    logger.error(f"Failed to configure Google Generative AI: {str(e)}")
+    st.error(f"Failed to configure Google Generative AI: {str(e)}")
 
 def fetch_market_data(ticker):
     """Fetch market data from RapidAPI Yahoo Finance"""
