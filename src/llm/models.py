@@ -86,13 +86,13 @@ AVAILABLE_MODELS = [
     ),
     # Add Gemini models
     LLMModel(
-        display_name="[gemini] gemini-1.5-pro",
-        model_name="gemini-1.5-pro",
+        display_name="[gemini] gemini-1.5-flash",
+        model_name="gemini-1.5-flash",
         provider=ModelProvider.GEMINI
     ),
     LLMModel(
-        display_name="[gemini] gemini-1.5-flash",
-        model_name="gemini-1.5-flash",
+        display_name="[gemini] gemini-1.5-pro",
+        model_name="gemini-1.5-pro",
         provider=ModelProvider.GEMINI
     ),
     LLMModel(
@@ -225,7 +225,7 @@ def analyze_options_with_gemini(ticker: str, option_chain_data: dict, risk_toler
     
     # Configure Gemini model
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-pro",  # Using a more widely available model
+        model_name="gemini-1.5-flash",  # Using a more widely available model
         generation_config=GenerationConfig(
             temperature=0.2,
             top_p=0.95,
@@ -396,7 +396,7 @@ def analyze_market_quotes_with_gemini(quotes: Dict[str, 'MarketQuote'], analysis
     
     # Configure Gemini model
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-pro",
+        model_name="gemini-1.5-flash",
         generation_config=GenerationConfig(
             temperature=0.2,
             top_p=0.95,
@@ -461,27 +461,28 @@ def deep_reasoning_analysis(market_data: Dict, analysis_result: Dict) -> str:
     """
     
     # Configure the model
-    model = "gemini-2.0-flash-thinking-exp-01-21"
-    contents = [
-        types.Content(
-            role="user",
-            parts=[types.Part.from_text(text=prompt)],
-        ),
-    ]
-    
-    generate_content_config = types.GenerateContentConfig(
-        temperature=0.7,
-        top_p=0.95,
-        top_k=64,
-        max_output_tokens=65536,
-        response_mime_type="text/plain",
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        generation_config=genai.GenerateContentConfig(
+            temperature=0.7,
+            top_p=0.95,
+            top_k=64,
+            max_output_tokens=65536,
+            response_mime_type="text/plain",
+        )
     )
     
     # Generate the response
     response = client.models.generate_content(
         model=model,
-        contents=contents,
-        config=generate_content_config,
+        contents=[types.Content(role="user", parts=[types.Part.from_text(text=prompt)]),],
+        config=genai.GenerateContentConfig(
+            temperature=0.7,
+            top_p=0.95,
+            top_k=64,
+            max_output_tokens=65536,
+            response_mime_type="text/plain",
+        ),
     )
     
     return response.text
