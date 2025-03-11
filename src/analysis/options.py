@@ -3,8 +3,14 @@ from scipy.stats import norm
 from datetime import datetime
 import math
 from typing import Literal, Dict, List, Optional
+import json
+import os
+import logging
 
 from src.data.models import OptionContract, OptionChain
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 def calculate_option_price(S: float, K: float, T: float, r: float, sigma: float, option_type: Literal["CALL", "PUT"]) -> float:
     """Calculate option price using Black-Scholes model
@@ -343,4 +349,127 @@ def find_optimal_options_strategy(option_chain: OptionChain, risk_tolerance: Lit
         "underlying_price": current_price,
         "expiration_date": target_exp.strftime("%Y-%m-%d"),
         "days_to_expiration": (target_exp - now).days
-    } 
+    }
+
+def analyze_options(ticker: str, options_data: dict, risk_tolerance: str = "medium") -> dict:
+    """
+    Analyze options data and recommend strategies
+    
+    Args:
+        ticker: Stock ticker symbol
+        options_data: Options data in dictionary format
+        risk_tolerance: Risk tolerance level (low, medium, high)
+        
+    Returns:
+        Dictionary with analysis results
+    """
+    logger.info(f"Analyzing options for {ticker} with {risk_tolerance} risk tolerance")
+    
+    try:
+        # Use Gemini for options analysis if available
+        try:
+            from src.llm.models import analyze_options_with_gemini
+            return analyze_options_with_gemini(ticker, options_data, risk_tolerance)
+        except ImportError:
+            logger.warning("Gemini analysis not available, using basic options analysis")
+            
+            # Fallback to basic analysis
+            return {
+                "market_conditions": {
+                    "put_call_ratio": options_data.get("put_call_ratio", 1.0),
+                    "implied_volatility_skew": options_data.get("implied_volatility_skew", 0),
+                    "sentiment": options_data.get("sentiment", "neutral"),
+                    "market_condition": options_data.get("market_condition", "normal")
+                },
+                "recommended_strategy": {
+                    "name": "Long Stock",
+                    "description": "Buy and hold the underlying stock",
+                    "legs": [],
+                    "max_profit": "Unlimited",
+                    "max_loss": "Current stock price"
+                },
+                "overall_sentiment": "neutral",
+                "confidence": 0.5,
+                "reasoning": "Basic analysis without LLM capabilities"
+            }
+    except Exception as e:
+        logger.error(f"Error analyzing options: {str(e)}")
+        return {
+            "error": f"Error analyzing options: {str(e)}",
+            "overall_sentiment": "neutral",
+            "confidence": 0,
+            "reasoning": "Error in analysis"
+        }
+
+def prepare_options_data(market_data: dict) -> dict:
+    """
+    Prepare options data for analysis
+    
+    Args:
+        market_data: Market data from API
+        
+    Returns:
+        Dictionary with prepared options data
+    """
+    logger.info("Preparing options data for analysis")
+    
+    try:
+        # Extract option chain from market data
+        option_chain = market_data.get("raw_data", {}).get("optionChain", {})
+        result = option_chain.get("result", [])
+        
+        if not result:
+            logger.error("No result data in API response")
+            return {
+                "error": "No options data available from API"
+            }
+        
+        # Extract quote data
+        quote_data = result[0].get("quote", {})
+        current_price = quote_data.get("regularMarketPrice", 0)
+        
+        # Process options data
+        option_chain_data = result[0].get("options", [])
+        
+        if not option_chain_data:
+            logger.error("No options data in API response")
+            return {
+                "error": "No options data available"
+            }
+        
+        # Calculate put-call ratio
+        call_volume = 0
+        put_volume = 0
+        
+        for option_date in option_chain_data:
+            straddles = option_date.get("straddles", [])
+            
+            for straddle in straddles:
+                call = straddle.get("call", {})
+                put = straddle.get("put", {})
+                
+                call_volume += call.get("volume", 0) or 0
+                put_volume += put.get("volume", 0) or 0
+        
+        put_call_ratio = put_volume / call_volume if call_volume > 0 else 1.0
+        
+        # Determine sentiment based on put-call ratio
+        sentiment = "neutral"
+        if put_call_ratio > 1.2:
+            sentiment = "bearish"
+        elif put_call_ratio < 0.8:
+            sentiment = "bullish"
+        
+        return {
+            "current_price": current_price,
+            "put_call_ratio": put_call_ratio,
+            "sentiment": sentiment,
+            "option_chain": option_chain_data,
+            "quote_data": quote_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Error preparing options data: {str(e)}")
+        return {
+            "error": f"Error preparing options data: {str(e)}"
+        } 

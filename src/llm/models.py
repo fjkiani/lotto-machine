@@ -1,13 +1,46 @@
 import os
 import base64
-from langchain_anthropic import ChatAnthropic
-from langchain_groq import ChatGroq
-from langchain_openai import ChatOpenAI
-from langchain_google_genai import ChatGoogleGenerativeAI
 from enum import Enum
 from pydantic import BaseModel
 from typing import Tuple, Dict, List, Union, Any
 import json
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
+# Try to import langchain modules, but don't fail if they're not available
+try:
+    from langchain_anthropic import ChatAnthropic
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    logger.warning("langchain_anthropic not available, Anthropic models will be disabled")
+    ANTHROPIC_AVAILABLE = False
+
+try:
+    from langchain_groq import ChatGroq
+    GROQ_AVAILABLE = True
+except ImportError:
+    logger.warning("langchain_groq not available, Groq models will be disabled")
+    GROQ_AVAILABLE = False
+
+try:
+    from langchain_openai import ChatOpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    logger.warning("langchain_openai not available, OpenAI models will be disabled")
+    OPENAI_AVAILABLE = False
+
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    GOOGLE_GENAI_AVAILABLE = True
+except ImportError:
+    logger.warning("langchain_google_genai not available, using direct Google Generative AI API")
+    GOOGLE_GENAI_AVAILABLE = False
+
+# Import Google Generative AI directly as a fallback
+import google.generativeai as genai
+from google.generativeai import GenerationConfig
 
 
 class ModelProvider(str, Enum):
@@ -37,59 +70,71 @@ class LLMModel(BaseModel):
         return self.model_name.startswith("gemini")
 
 
-# Define available models
-AVAILABLE_MODELS = [
-    LLMModel(
-        display_name="[anthropic] claude-3.5-haiku",
-        model_name="claude-3-5-haiku-latest",
-        provider=ModelProvider.ANTHROPIC
-    ),
-    LLMModel(
-        display_name="[anthropic] claude-3.5-sonnet",
-        model_name="claude-3-5-sonnet-latest",
-        provider=ModelProvider.ANTHROPIC
-    ),
-    LLMModel(
-        display_name="[anthropic] claude-3.7-sonnet",
-        model_name="claude-3-7-sonnet-latest",
-        provider=ModelProvider.ANTHROPIC
-    ),
-    LLMModel(
-        display_name="[groq] deepseek-r1 70b",
-        model_name="deepseek-r1-distill-llama-70b",
-        provider=ModelProvider.GROQ
-    ),
-    LLMModel(
-        display_name="[groq] llama-3.3 70b",
-        model_name="llama-3.3-70b-versatile",
-        provider=ModelProvider.GROQ
-    ),
-    LLMModel(
-        display_name="[openai] gpt-4o",
-        model_name="gpt-4o",
-        provider=ModelProvider.OPENAI
-    ),
-    LLMModel(
-        display_name="[openai] gpt-4o-mini",
-        model_name="gpt-4o-mini",
-        provider=ModelProvider.OPENAI
-    ),
-    LLMModel(
-        display_name="[openai] o1",
-        model_name="o1",
-        provider=ModelProvider.OPENAI
-    ),
-    LLMModel(
-        display_name="[openai] o3-mini",
-        model_name="o3-mini",
-        provider=ModelProvider.OPENAI
-    ),
-    # Add Gemini models
-    LLMModel(
-        display_name="[gemini] gemini-1.5-flash",
-        model_name="gemini-1.5-flash",
-        provider=ModelProvider.GEMINI
-    ),
+# Define available models - filter based on available modules
+AVAILABLE_MODELS = []
+
+# Only add Anthropic models if the module is available
+if ANTHROPIC_AVAILABLE:
+    AVAILABLE_MODELS.extend([
+        LLMModel(
+            display_name="[anthropic] claude-3.5-haiku",
+            model_name="claude-3-5-haiku-latest",
+            provider=ModelProvider.ANTHROPIC
+        ),
+        LLMModel(
+            display_name="[anthropic] claude-3.5-sonnet",
+            model_name="claude-3-5-sonnet-latest",
+            provider=ModelProvider.ANTHROPIC
+        ),
+        LLMModel(
+            display_name="[anthropic] claude-3.7-sonnet",
+            model_name="claude-3-7-sonnet-latest",
+            provider=ModelProvider.ANTHROPIC
+        ),
+    ])
+
+# Only add Groq models if the module is available
+if GROQ_AVAILABLE:
+    AVAILABLE_MODELS.extend([
+        LLMModel(
+            display_name="[groq] deepseek-r1 70b",
+            model_name="deepseek-r1-distill-llama-70b",
+            provider=ModelProvider.GROQ
+        ),
+        LLMModel(
+            display_name="[groq] llama-3.3 70b",
+            model_name="llama-3.3-70b-versatile",
+            provider=ModelProvider.GROQ
+        ),
+    ])
+
+# Only add OpenAI models if the module is available
+if OPENAI_AVAILABLE:
+    AVAILABLE_MODELS.extend([
+        LLMModel(
+            display_name="[openai] gpt-4o",
+            model_name="gpt-4o",
+            provider=ModelProvider.OPENAI
+        ),
+        LLMModel(
+            display_name="[openai] gpt-4o-mini",
+            model_name="gpt-4o-mini",
+            provider=ModelProvider.OPENAI
+        ),
+        LLMModel(
+            display_name="[openai] o1",
+            model_name="o1",
+            provider=ModelProvider.OPENAI
+        ),
+        LLMModel(
+            display_name="[openai] o3-mini",
+            model_name="o3-mini",
+            provider=ModelProvider.OPENAI
+        ),
+    ])
+
+# Always add Gemini models since we have a direct fallback
+AVAILABLE_MODELS.extend([
     LLMModel(
         display_name="[gemini] gemini-1.5-pro",
         model_name="gemini-1.5-pro",
@@ -100,7 +145,7 @@ AVAILABLE_MODELS = [
         model_name="gemini-2.0-flash-thinking-exp-01-21",
         provider=ModelProvider.GEMINI
     ),
-]
+])
 
 # Create LLM_ORDER in the format expected by the UI
 LLM_ORDER = [model.to_choice_tuple() for model in AVAILABLE_MODELS]
@@ -109,37 +154,65 @@ def get_model_info(model_name: str) -> LLMModel | None:
     """Get model information by model_name"""
     return next((model for model in AVAILABLE_MODELS if model.model_name == model_name), None)
 
-def get_model(model_name: str, model_provider: ModelProvider) -> ChatOpenAI | ChatGroq | ChatAnthropic | ChatGoogleGenerativeAI | None:
+def get_model(model_name: str, model_provider: ModelProvider):
+    """Get model instance based on provider and model name"""
     if model_provider == ModelProvider.GROQ:
+        if not GROQ_AVAILABLE:
+            logger.error("Groq models are not available due to missing dependencies")
+            return None
+            
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             # Print error to console
-            print(f"API Key Error: Please make sure GROQ_API_KEY is set in your .env file.")
+            logger.error("API Key Error: Please make sure GROQ_API_KEY is set in your .env file.")
             raise ValueError("Groq API key not found.  Please make sure GROQ_API_KEY is set in your .env file.")
         return ChatGroq(model=model_name, api_key=api_key)
     
     elif model_provider == ModelProvider.OPENAI:
+        if not OPENAI_AVAILABLE:
+            logger.error("OpenAI models are not available due to missing dependencies")
+            return None
+            
         # Get and validate API key
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             # Print error to console
-            print(f"API Key Error: Please make sure OPENAI_API_KEY is set in your .env file.")
+            logger.error("API Key Error: Please make sure OPENAI_API_KEY is set in your .env file.")
             raise ValueError("OpenAI API key not found.  Please make sure OPENAI_API_KEY is set in your .env file.")
         return ChatOpenAI(model=model_name, api_key=api_key)
     
     elif model_provider == ModelProvider.ANTHROPIC:
+        if not ANTHROPIC_AVAILABLE:
+            logger.error("Anthropic models are not available due to missing dependencies")
+            return None
+            
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            print(f"API Key Error: Please make sure ANTHROPIC_API_KEY is set in your .env file.")
+            logger.error("API Key Error: Please make sure ANTHROPIC_API_KEY is set in your .env file.")
             raise ValueError("Anthropic API key not found.  Please make sure ANTHROPIC_API_KEY is set in your .env file.")
         return ChatAnthropic(model=model_name, api_key=api_key)
     
     elif model_provider == ModelProvider.GEMINI:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            print(f"API Key Error: Please make sure GEMINI_API_KEY is set in your .env file.")
+            logger.error("API Key Error: Please make sure GEMINI_API_KEY is set in your .env file.")
             raise ValueError("Gemini API key not found. Please make sure GEMINI_API_KEY is set in your .env file.")
-        return ChatGoogleGenerativeAI(model=model_name, google_api_key=api_key)
+            
+        # Try to use langchain if available
+        if GOOGLE_GENAI_AVAILABLE:
+            return ChatGoogleGenerativeAI(model=model_name, google_api_key=api_key)
+        else:
+            # Use direct API as fallback
+            genai.configure(api_key=api_key)
+            return genai.GenerativeModel(
+                model_name=model_name,
+                generation_config=GenerationConfig(
+                    temperature=0.2,
+                    top_p=0.95,
+                    top_k=64,
+                    max_output_tokens=8192,
+                )
+            )
     
     return None
 
@@ -160,12 +233,6 @@ def analyze_options_with_gemini(ticker: str, option_chain_data: dict, risk_toler
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("Gemini API key not found. Please make sure GEMINI_API_KEY is set in your .env file.")
-    
-    try:
-        import google.generativeai as genai
-        from google.generativeai import GenerationConfig
-    except ImportError:
-        raise ImportError("Google Generative AI package not installed. Please install with: pip install google-generativeai")
     
     # Initialize Gemini client
     genai.configure(api_key=api_key)
@@ -225,7 +292,7 @@ def analyze_options_with_gemini(ticker: str, option_chain_data: dict, risk_toler
     
     # Configure Gemini model
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",  # Using a more widely available model
+        model_name="gemini-1.5-pro",  # Using a more widely available model
         generation_config=GenerationConfig(
             temperature=0.2,
             top_p=0.95,
@@ -396,7 +463,7 @@ def analyze_market_quotes_with_gemini(quotes: Dict[str, 'MarketQuote'], analysis
     
     # Configure Gemini model
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-1.5-pro",
         generation_config=GenerationConfig(
             temperature=0.2,
             top_p=0.95,
@@ -461,28 +528,27 @@ def deep_reasoning_analysis(market_data: Dict, analysis_result: Dict) -> str:
     """
     
     # Configure the model
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        generation_config=genai.GenerateContentConfig(
-            temperature=0.7,
-            top_p=0.95,
-            top_k=64,
-            max_output_tokens=65536,
-            response_mime_type="text/plain",
-        )
+    model = "gemini-2.0-flash-thinking-exp-01-21"
+    contents = [
+        types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=prompt)],
+        ),
+    ]
+    
+    generate_content_config = types.GenerateContentConfig(
+        temperature=0.7,
+        top_p=0.95,
+        top_k=64,
+        max_output_tokens=65536,
+        response_mime_type="text/plain",
     )
     
     # Generate the response
     response = client.models.generate_content(
         model=model,
-        contents=[types.Content(role="user", parts=[types.Part.from_text(text=prompt)]),],
-        config=genai.GenerateContentConfig(
-            temperature=0.7,
-            top_p=0.95,
-            top_k=64,
-            max_output_tokens=65536,
-            response_mime_type="text/plain",
-        ),
+        contents=contents,
+        config=generate_content_config,
     )
     
     return response.text

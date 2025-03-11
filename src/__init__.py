@@ -1,3 +1,0 @@
-"""
-AI Hedge Fund project.
-""" 

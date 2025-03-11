@@ -1143,69 +1143,28 @@ def create_technical_chart(ticker, market_data, analysis_result):
                 ))
             
             # Add support and resistance levels if selected
-            if "Support/Resistance" in indicator_options:
-                # Get levels from technical analysis
-                sr_levels = analysis_result.get("support_resistance", {})
-                
-                # Add strong support levels
-                for level in sr_levels.get("strong_support_levels", []):
-                    fig.add_hline(
-                        y=level,
-                        line_dash="solid",
-                        line_color="green",
-                        line_width=2,
-                        annotation=dict(
-                            text=f"Strong Support: ${level:.2f}",
-                            align="left",
-                            xanchor="left",
-                            yanchor="bottom"
+            if "Support/Resistance" in indicator_options and analysis_result:
+                ticker_analysis = analysis_result.get("ticker_analysis", {}).get(ticker, {})
+                if "support_resistance" in ticker_analysis:
+                    sr_levels = ticker_analysis["support_resistance"]
+                    
+                    # Add support levels
+                    for level in sr_levels.get("support_levels", []):
+                        fig.add_hline(
+                            y=level,
+                            line_dash="dash",
+                            line_color="green",
+                            annotation_text=f"Support: ${level:.2f}"
                         )
-                    )
-                
-                # Add weak support levels
-                for level in sr_levels.get("weak_support_levels", []):
-                    fig.add_hline(
-                        y=level,
-                        line_dash="dot",
-                        line_color="lightgreen",
-                        line_width=1,
-                        annotation=dict(
-                            text=f"Weak Support: ${level:.2f}",
-                            align="left",
-                            xanchor="left",
-                            yanchor="bottom"
+                    
+                    # Add resistance levels
+                    for level in sr_levels.get("resistance_levels", []):
+                        fig.add_hline(
+                            y=level,
+                            line_dash="dash",
+                            line_color="red",
+                            annotation_text=f"Resistance: ${level:.2f}"
                         )
-                    )
-                
-                # Add strong resistance levels
-                for level in sr_levels.get("strong_resistance_levels", []):
-                    fig.add_hline(
-                        y=level,
-                        line_dash="solid",
-                        line_color="red",
-                        line_width=2,
-                        annotation=dict(
-                            text=f"Strong Resistance: ${level:.2f}",
-                            align="left",
-                            xanchor="left",
-                            yanchor="top"
-                        )
-                    )
-                
-                # Add weak resistance levels
-                for level in sr_levels.get("weak_resistance_levels", []):
-                    fig.add_hline(
-                        y=level,
-                        line_dash="dot",
-                        line_color="pink",
-                        line_width=1,
-                        annotation=dict(
-                            text=f"Weak Resistance: ${level:.2f}",
-                            align="left",
-                            xanchor="left",
-                            yanchor="top"
-                        )
-                    )
             
             # Update layout
             layout_height = 600
