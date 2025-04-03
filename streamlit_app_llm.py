@@ -4,6 +4,19 @@ import os
 import sys
 import subprocess
 import logging
+import json
+import http.client
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+import google.generativeai as genai
+import google.generativeai.types as types
+import plotly.graph_objects as go
+import plotly.express as px
+
+from src.analysis.enhanced_analysis_pipeline import EnhancedAnalysisPipeline
+from src.data.connectors.yahoo_finance import YahooFinanceConnector
+from src.llm.memory_enhanced_analysis import MemoryEnhancedAnalysis
+from src.data.memory import AnalysisMemory
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -26,19 +39,6 @@ except ImportError:
         st.error(f"Failed to install required package 'plotly': {str(e)}")
         st.info("Please contact the administrator to install the required packages.")
         st.stop()
-
-import json
-import os
-import logging
-import http.client
-import google.generativeai as genai
-import google.generativeai.types as types
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
-from src.analysis.enhanced_analysis_pipeline import EnhancedAnalysisPipeline
-from src.data.connectors.yahoo_finance import YahooFinanceConnector
-from src.llm.memory_enhanced_analysis import MemoryEnhancedAnalysis
-from src.data.memory import AnalysisMemory
 
 # Initialize session state for storing analysis results and other data
 if 'market_data' not in st.session_state:
@@ -729,230 +729,163 @@ def display_enhanced_analysis(analysis_result):
 def display_memory_enhanced_analysis(ticker, analysis_result, historical_analyses):
     """Display memory-enhanced analysis results with historical context"""
     
-    # Display current analysis
-    st.subheader(f"Memory-Enhanced Analysis for {ticker}")
-    
-    # Check if we have a valid analysis result
-    if not analysis_result or isinstance(analysis_result, str):
-        st.error(f"Invalid analysis result: {analysis_result if isinstance(analysis_result, str) else 'No data'}")
+    if analysis_result is None or "error" in analysis_result:
+        st.error(f"Error in analysis result: {analysis_result.get('error', 'Unknown error')}")
         return
-    
-    # Market Overview
-    st.write("### Market Overview")
-    current_price = analysis_result.get("current_price", "N/A")
-    price_change = analysis_result.get("price_change_percent", "N/A")
-    
-    # Format current price as float if possible
-    try:
-        if current_price != "N/A":
-            current_price = float(current_price)
-            price_display = f"${current_price:.2f}"
-        else:
-            price_display = "N/A"
-    except (ValueError, TypeError):
-        price_display = f"${current_price}" if current_price != "N/A" else "N/A"
-    
-    # Display price with change if available
-    if price_change != "N/A":
-        try:
-            price_change = float(price_change)
-            st.metric("Current Price", price_display, f"{price_change:.2f}%")
-        except (ValueError, TypeError):
-            st.metric("Current Price", price_display)
-    else:
-        st.metric("Current Price", price_display)
-    
-    # Additional market metrics if available
-    col1, col2 = st.columns(2)
-    with col1:
-        volume = analysis_result.get("volume", "N/A")
-        if volume != "N/A":
-            try:
-                volume = int(volume)
-                st.metric("Volume", f"{volume:,}")
-            except (ValueError, TypeError):
-                st.metric("Volume", volume)
-    
-    with col2:
-        market_cap = analysis_result.get("market_cap", "N/A")
-        if market_cap != "N/A":
-            try:
-                market_cap = float(market_cap)
-                st.metric("Market Cap", f"${market_cap/1e9:.2f}B" if market_cap >= 1e9 else f"${market_cap/1e6:.2f}M")
-            except (ValueError, TypeError):
-                st.metric("Market Cap", market_cap)
-    
-    # Analysis Summary
-    st.write("### Analysis Summary")
-    summary = analysis_result.get("summary", "No summary available")
-    st.write(summary)
-    
-    # Recommendation
-    recommendation = analysis_result.get("recommendation", {})
-    if recommendation:
-        st.write("### Recommendation")
-        rec_type = recommendation.get("type", "N/A")
-        confidence = recommendation.get("confidence", 0)
+
+    # Market Overview Section
+    st.header("Market Overview")
+    if "market_overview" in analysis_result:
+        market_overview = analysis_result["market_overview"]
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Market Sentiment", market_overview.get("sentiment", "N/A"))
+        with col2:
+            st.write("Key Market Factors:")
+            for factor in market_overview.get("key_factors", []):
+                st.markdown(f"- {factor}")
+        with col3:
+            st.write("Summary:")
+            st.write(market_overview.get("summary", "N/A"))
+
+    # Ticker Analysis Section
+    st.header(f"Analysis for {ticker}")
+    if "ticker_analysis" in analysis_result and ticker in analysis_result["ticker_analysis"]:
+        ticker_data = analysis_result["ticker_analysis"][ticker]
         
-        # Color-code the recommendation
-        rec_color = {
-            "BUY": "green",
-            "SELL": "red",
-            "HOLD": "blue"
-        }.get(rec_type.upper(), "black")
-        
-        st.markdown(f"**Recommendation:** <span style='color:{rec_color}'>{rec_type.upper()}</span> with {confidence:.1f}% confidence", unsafe_allow_html=True)
-        st.write(recommendation.get("reasoning", "No reasoning provided"))
-    
-    # Historical Context
-    st.write("### Historical Context")
-    if historical_analyses:
-        # Convert to DataFrame for easier manipulation
-        hist_data = []
-        for analysis in historical_analyses:
-            # Extract data from dictionary
-            try:
-                # Get recommendation data
-                rec_data = analysis.get("recommendation", {})
-                if isinstance(rec_data, dict):
-                    rec_type = rec_data.get("type", "N/A")
-                    confidence = rec_data.get("confidence", 0)
-                else:
-                    rec_type = str(rec_data).upper() if rec_data else "N/A"
+        # Current Price and Metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            current_price = ticker_data.get("current_price", 0)
+            st.metric("Current Price", f"${current_price:,.2f}")
+        with col2:
+            st.metric("Recommendation", ticker_data.get("recommendation", "N/A"))
+        with col3:
+            confidence = ticker_data.get("confidence", "0")
+            # Handle string percentage values
+            if isinstance(confidence, str):
+                try:
+                    # Remove % sign if present and convert to float
+                    confidence = float(confidence.strip('%')) / 100
+                except ValueError:
                     confidence = 0
+            st.metric("Confidence", f"{confidence*100:.1f}%")
+
+        # Risk Assessment
+        if "risk_assessment" in ticker_data:
+            risk = ticker_data["risk_assessment"]
+            st.subheader("Risk Assessment")
+            col1, col2 = st.columns(2)
+            with col1:
+                risk_level = risk.get("overall_risk", "N/A")
+                st.metric("Risk Level", risk_level)
+            with col2:
+                st.write("Risk Factors:")
+                for factor in risk.get("factors", []):
+                    st.markdown(f"- {factor}")
+
+        # Price Targets
+        if "price_targets" in ticker_data:
+            st.subheader("Price Targets")
+            targets = ticker_data["price_targets"]
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("Short Term:")
+                short_term = targets.get("short_term", {})
+                st.metric("Target", f"${short_term.get('target', 0):,.2f}")
+                st.write(f"Timeframe: {short_term.get('timeframe', 'N/A')}")
+                st.write(f"Confidence: {short_term.get('confidence', 'N/A')}")
+            
+            with col2:
+                st.write("Long Term:")
+                long_term = targets.get("long_term", {})
+                st.metric("Target", f"${long_term.get('target', 0):,.2f}")
+                st.write(f"Timeframe: {long_term.get('timeframe', 'N/A')}")
+                st.write(f"Confidence: {long_term.get('confidence', 'N/A')}")
+
+    # Trading Opportunities
+    if "trading_opportunities" in analysis_result:
+        st.header("Trading Opportunities")
+        for opportunity in analysis_result["trading_opportunities"]:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"**Type**: {opportunity.get('type', 'N/A')}")
+                st.markdown(f"**Entry Point**: ${opportunity.get('entry_point', 'N/A')}")
+                st.markdown(f"**Target**: ${opportunity.get('target', 'N/A')}")
+                st.markdown(f"**Stop Loss**: ${opportunity.get('stop_loss', 'N/A')}")
+                st.markdown(f"**Time Horizon**: {opportunity.get('time_horizon', 'N/A')}")
+                st.markdown(f"**Risk/Reward**: {opportunity.get('risk_reward_ratio', 'N/A')}")
+            with col2:
+                st.markdown("**Rationale:**")
+                st.write(opportunity.get('rationale', 'N/A'))
+
+    # Historical Analysis Section
+    if historical_analyses:
+        st.header("Historical Analysis")
+        
+        # Convert to DataFrame for easier manipulation
+        analysis_records = []
+        for analysis in historical_analyses:
+            try:
+                analysis_data = analysis.get('analysis_data', {})
+                if isinstance(analysis_data, str):
+                    analysis_data = json.loads(analysis_data)
                 
-                # Get price data
-                price = analysis.get("price", 0)
-                if isinstance(price, str) and price.strip():
-                    try:
-                        price = float(price)
-                    except (ValueError, TypeError):
-                        price = 0
-                
-                hist_data.append({
-                    "timestamp": analysis.get("timestamp", "Unknown"),
-                    "price": price,
-                    "recommendation": rec_type,
-                    "confidence": confidence,
-                    "accuracy": analysis.get("accuracy_score", 0)
-                })
+                record = {
+                    'timestamp': pd.to_datetime(analysis['timestamp']),
+                    'current_price': analysis_data.get('current_price', 0.0),
+                    'recommendation': analysis_data.get('recommendation', 'N/A'),
+                    'confidence': analysis_data.get('confidence', 0.0),
+                    'risk_level': analysis_data.get('risk_level', 'N/A'),
+                    'market_sentiment': analysis_data.get('market_sentiment', 'N/A'),
+                    'accuracy_score': analysis_data.get('accuracy_score', 0.0)
+                }
+                analysis_records.append(record)
             except Exception as e:
                 st.warning(f"Error processing historical analysis: {str(e)}")
                 continue
-        
-        if hist_data:
-            hist_df = pd.DataFrame(hist_data)
-            if not hist_df.empty:
-                # Convert timestamp to datetime if it's not already
-                if not pd.api.types.is_datetime64_any_dtype(hist_df['timestamp']):
-                    try:
-                        hist_df['timestamp'] = pd.to_datetime(hist_df['timestamp'])
-                    except:
-                        st.warning("Could not convert timestamps to datetime format")
-                
-                hist_df = hist_df.sort_values('timestamp', ascending=False)
-                
-                # Display historical recommendations
-                st.write("Previous Recommendations:")
-                for _, analysis in hist_df.iterrows():
-                    timestamp_str = analysis['timestamp']
-                    if isinstance(analysis['timestamp'], pd.Timestamp):
-                        timestamp_str = analysis['timestamp'].strftime('%Y-%m-%d %H:%M')
-                        
-                    with st.expander(f"Analysis from {timestamp_str}"):
-                        st.write(f"Price at Analysis: ${analysis['price']:.2f}")
-                        st.write(f"Recommendation: {analysis['recommendation']}")
-                        st.write(f"Confidence: {analysis['confidence']:.1f}%")
-                        st.write(f"Accuracy Score: {analysis['accuracy']:.2f}")
-                        
-                # Plot price and recommendations over time if we have more than one data point
-                if len(hist_df) > 1:
-                    fig = go.Figure()
-                    
-                    # Add price line
-                    fig.add_trace(go.Scatter(
-                        x=hist_df['timestamp'], 
-                        y=hist_df['price'],
-                        mode='lines+markers',
-                        name='Price'
-                    ))
-                    
-                    # Add recommendation markers
-                    buy_df = hist_df[hist_df['recommendation'] == 'BUY']
-                    sell_df = hist_df[hist_df['recommendation'] == 'SELL']
-                    hold_df = hist_df[hist_df['recommendation'] == 'HOLD']
-                    
-                    if not buy_df.empty:
-                        fig.add_trace(go.Scatter(
-                            x=buy_df['timestamp'], 
-                            y=buy_df['price'],
-                            mode='markers',
-                            marker=dict(color='green', size=12, symbol='triangle-up'),
-                            name='Buy'
-                        ))
-                    
-                    if not sell_df.empty:
-                        fig.add_trace(go.Scatter(
-                            x=sell_df['timestamp'], 
-                            y=sell_df['price'],
-                            mode='markers',
-                            marker=dict(color='red', size=12, symbol='triangle-down'),
-                            name='Sell'
-                        ))
-                    
-                    if not hold_df.empty:
-                        fig.add_trace(go.Scatter(
-                            x=hold_df['timestamp'], 
-                            y=hold_df['price'],
-                            mode='markers',
-                            marker=dict(color='blue', size=12, symbol='circle'),
-                            name='Hold'
-                        ))
-                    
-                    fig.update_layout(
-                        title=f'Historical Price and Recommendations for {ticker}',
-                        xaxis_title='Date',
-                        yaxis_title='Price ($)',
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                    )
-                    
-                    st.plotly_chart(fig)
-        else:
-            st.info("No valid historical analyses available.")
-    else:
-        st.info("No historical analyses available yet.")
-    
+
+        if analysis_records:
+            df = pd.DataFrame(analysis_records)
+            df = df.sort_values('timestamp')
+
+            # Display historical analysis table
+            st.dataframe(df)
+
+            # Plot if we have multiple data points
+            if len(df) > 1:
+                st.line_chart(df.set_index('timestamp')['current_price'])
+
+    # Memory Information
+    if "memory_context" in analysis_result:
+        st.header("Memory Information")
+        st.write(analysis_result["memory_context"])
+
     # Learning Points
-    learning_points = analysis_result.get("learning_points", [])
-    if learning_points:
-        st.write("### Learning Points")
-        for point in learning_points:
-            st.write(f"- {point}")
-    
-    # Feedback Collection
-    st.write("### Provide Feedback")
-    feedback_type = st.selectbox(
-        "Feedback Type", 
-        ["General", "Accuracy", "Insight", "Recommendation", "Other"]
-    )
+    if "learning_points" in analysis_result:
+        st.header("Learning Points")
+        for point in analysis_result["learning_points"]:
+            st.markdown(f"- {point}")
+
+    # Feedback Form
+    st.header("Feedback")
+    feedback_type = st.selectbox("Feedback Type", ["Accuracy", "Usefulness", "Clarity"])
     feedback_text = st.text_area("Your Feedback")
-    
     if st.button("Submit Feedback"):
-        try:
-            # Get the analysis ID from the result
-            analysis_id = analysis_result.get("analysis_id", None)
-            if analysis_id:
-                st.session_state.memory_analyzer.add_user_feedback(
-                    analysis_id=analysis_id,
-                    feedback_type=feedback_type.lower(),
-                    feedback_text=feedback_text
+        if "analysis_id" in analysis_result:
+            try:
+                memory_analyzer = MemoryEnhancedAnalysis()
+                memory_analyzer.add_user_feedback(
+                    analysis_result["analysis_id"],
+                    feedback_type.lower(),
+                    feedback_text
                 )
-                st.success("Thank you for your feedback!")
-            else:
-                st.error("Could not submit feedback: Analysis ID not found")
-        except Exception as e:
-            st.error(f"Error submitting feedback: {str(e)}")
-            logger.error(f"Feedback submission error: {str(e)}", exc_info=True)
+                st.success("Feedback submitted successfully!")
+            except Exception as e:
+                st.error(f"Error submitting feedback: {str(e)}")
+        else:
+            st.error("No analysis ID found. Feedback cannot be submitted.")
 
 def create_technical_chart(ticker, market_data, analysis_result):
     """Create a technical chart with AI-identified labels and indicators"""

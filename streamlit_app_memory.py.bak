@@ -207,223 +207,303 @@ def display_market_overview(result, ticker):
     Display market overview section
     
     Args:
-        result: Analysis result dictionary
+        result: Analysis result
         ticker: Ticker symbol
     """
     if result is None:
-        st.error("No analysis results available.")
+        st.error("No analysis result available. Please run the analysis first.")
         return
         
-    st.subheader(f"Market Overview for {ticker}")
-    
-    # Create columns for different metrics
-    col1, col2, col3 = st.columns(3)
-    
-    # Market sentiment
-    with col1:
-        st.metric(
-            "Market Sentiment",
-            result.get("market_sentiment", "N/A"),
-            delta=result.get("sentiment_change", "N/A")
-        )
-    
-    # Market volatility
-    with col2:
-        st.metric(
-            "Market Volatility",
-            result.get("market_volatility", "N/A"),
-            delta=result.get("volatility_change", "N/A")
-        )
-    
-    # Trading volume
-    with col3:
-        st.metric(
-            "Trading Volume",
-            result.get("trading_volume", "N/A"),
-            delta=result.get("volume_change", "N/A")
-        )
-    
-    # Market factors
-    if "market_factors" in result and result["market_factors"]:
-        st.subheader("Key Market Factors")
-        for factor in result["market_factors"]:
-            st.markdown(f"- {factor}")
-    
-    # Market summary
-    if "market_summary" in result and result["market_summary"]:
-        st.subheader("Market Summary")
-        st.write(result["market_summary"])
-
-def display_ticker_analysis(result, ticker):
-    """
-    Display ticker-specific analysis section
-    
-    Args:
-        result: Analysis result dictionary
-        ticker: Ticker symbol
-    """
-    if result is None:
-        st.error("No analysis results available.")
+    if "market_overview" not in result:
+        st.warning("No market overview data available in the analysis result.")
         return
-        
-    st.subheader(f"Analysis for {ticker}")
+    
+    overview = result["market_overview"]
     
     # Create columns for metrics
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric(
-            "Recommendation",
-            result.get("recommendation", "N/A")
-        )
+        sentiment = overview.get("sentiment", "N/A")
+        sentiment_color = "green" if sentiment == "bullish" else "red" if sentiment == "bearish" else "gray"
+        st.metric("Market Sentiment", sentiment)
     
     with col2:
-        st.metric(
-            "Risk Level",
-            result.get("risk_level", "N/A")
-        )
+        # Display key factors if available
+        if "key_factors" in overview:
+            st.write("Key Market Factors:")
+            for factor in overview["key_factors"]:
+                st.markdown(f"- {factor}")
     
     with col3:
-        confidence = result.get("confidence", "N/A")
-        if isinstance(confidence, (int, float)):
-            confidence = f"{confidence:.1f}%"
-        st.metric("Confidence", confidence)
-    
-    # Display entry points
-    st.subheader("Entry Points")
-    entry_points = result.get("entry_points", [])
-    if entry_points:
-        for point in entry_points:
-            if isinstance(point, (int, float)):
-                st.markdown(f"- ${point:.2f}")
-            else:
-                st.markdown(f"- {point}")
-    else:
-        st.info("No entry points specified.")
-    
-    # Display exit points
-    st.subheader("Exit Points")
-    exit_points = result.get("exit_points", [])
-    if exit_points:
-        for point in exit_points:
-            if isinstance(point, (int, float)):
-                st.markdown(f"- ${point:.2f}")
-            else:
-                st.markdown(f"- {point}")
-    else:
-        st.info("No exit points specified.")
-    
-    # Display technical indicators
-    if "technical_indicators" in result:
-        st.subheader("Technical Indicators")
-        for indicator, value in result["technical_indicators"].items():
-            st.markdown(f"- **{indicator}**: {value}")
-    
-    # Display trading strategy
-    if "trading_strategy" in result:
-        st.subheader("Trading Strategy")
-        st.write(result["trading_strategy"])
+        # Display summary
+        st.write("Market Summary:")
+        st.write(overview.get("summary", "No summary available"))
 
-def display_technical_insights(technical_analysis):
+def display_ticker_analysis(result, ticker):
     """
-    Display technical analysis insights in a structured format
+    Display ticker analysis section
     
     Args:
-        technical_analysis: Dictionary containing technical analysis results
+        result: Analysis result
+        ticker: Ticker symbol
     """
-    if not technical_analysis:
-        st.info("No technical analysis data available.")
+    if "ticker_analysis" not in result or ticker not in result["ticker_analysis"]:
+        st.warning("No ticker analysis available")
         return
-        
-    # Display trend analysis
-    st.subheader("Trend Analysis")
-    trend_col1, trend_col2 = st.columns(2)
     
-    with trend_col1:
-        st.markdown("#### Short-term Trend")
-        if "short_term_trend" in technical_analysis:
-            trend = technical_analysis["short_term_trend"]
-            st.markdown(f"**Direction:** {trend.get('direction', 'N/A')}")
-            st.markdown(f"**Strength:** {trend.get('strength', 'N/A')}")
-            st.markdown(f"**Key Support:** ${trend.get('support', 0):.2f}")
-            st.markdown(f"**Key Resistance:** ${trend.get('resistance', 0):.2f}")
+    analysis = result["ticker_analysis"][ticker]
     
-    with trend_col2:
-        st.markdown("#### Medium-term Trend")
-        if "medium_term_trend" in technical_analysis:
-            trend = technical_analysis["medium_term_trend"]
-            st.markdown(f"**Direction:** {trend.get('direction', 'N/A')}")
-            st.markdown(f"**Strength:** {trend.get('strength', 'N/A')}")
-            st.markdown(f"**Key Support:** ${trend.get('support', 0):.2f}")
-            st.markdown(f"**Key Resistance:** ${trend.get('resistance', 0):.2f}")
+    # Create columns for metrics
+    col1, col2, col3 = st.columns(3)
     
-    # Display technical indicators
-    st.subheader("Technical Indicators")
+    with col1:
+        recommendation = analysis.get("recommendation", "N/A")
+        rec_color = "green" if recommendation == "buy" else "red" if recommendation == "sell" else "gray"
+        st.metric("Recommendation", recommendation)
     
-    # Create three columns for different types of indicators
-    trend_indicators, momentum_indicators, volatility_indicators = st.columns(3)
-    
-    with trend_indicators:
-        st.markdown("#### Trend Indicators")
-        if "moving_averages" in technical_analysis:
-            ma = technical_analysis["moving_averages"]
-            st.markdown(f"**MA(20):** ${ma.get('MA20', 0):.2f}")
-            st.markdown(f"**MA(50):** ${ma.get('MA50', 0):.2f}")
-            st.markdown(f"**MA(200):** ${ma.get('MA200', 0):.2f}")
-        
-        if "macd" in technical_analysis:
-            macd = technical_analysis["macd"]
-            st.markdown(f"**MACD:** {macd.get('signal', 'N/A')}")
-            st.markdown(f"**MACD Value:** {macd.get('value', 0):.3f}")
-            st.markdown(f"**Signal Line:** {macd.get('signal_line', 0):.3f}")
-    
-    with momentum_indicators:
-        st.markdown("#### Momentum Indicators")
-        if "rsi" in technical_analysis:
-            rsi = technical_analysis["rsi"]
-            st.markdown(f"**RSI(14):** {rsi.get('value', 0):.2f}")
-            st.markdown(f"**RSI Signal:** {rsi.get('signal', 'N/A')}")
-        
-        if "stochastic" in technical_analysis:
-            stoch = technical_analysis["stochastic"]
-            st.markdown(f"**%K:** {stoch.get('k', 0):.2f}")
-            st.markdown(f"**%D:** {stoch.get('d', 0):.2f}")
-            st.markdown(f"**Signal:** {stoch.get('signal', 'N/A')}")
-    
-    with volatility_indicators:
-        st.markdown("#### Volatility Indicators")
-        if "bollinger_bands" in technical_analysis:
-            bb = technical_analysis["bollinger_bands"]
-            st.markdown(f"**Upper Band:** ${bb.get('upper', 0):.2f}")
-            st.markdown(f"**Middle Band:** ${bb.get('middle', 0):.2f}")
-            st.markdown(f"**Lower Band:** ${bb.get('lower', 0):.2f}")
-            st.markdown(f"**Width:** {bb.get('width', 0):.2f}%")
-    
-    # Display pattern analysis if available
-    if "patterns" in technical_analysis:
-        st.subheader("Pattern Analysis")
-        patterns = technical_analysis["patterns"]
-        if patterns:
-            for pattern in patterns:
-                st.markdown(f"- **{pattern['name']}**: {pattern['description']}")
-                st.markdown(f"  - Confidence: {pattern['confidence']}%")
-                st.markdown(f"  - Signal: {pattern['signal']}")
+    with col2:
+        if "risk_assessment" in analysis:
+            risk_level = analysis["risk_assessment"].get("overall_risk", "N/A")
         else:
-            st.info("No significant patterns detected.")
+            risk_level = "N/A"
+        risk_color = "red" if risk_level == "high" else "orange" if risk_level == "medium" else "green"
+        st.metric("Risk Level", risk_level)
     
-    # Display volume analysis
-    if "volume_analysis" in technical_analysis:
-        st.subheader("Volume Analysis")
-        volume = technical_analysis["volume_analysis"]
-        vol_col1, vol_col2 = st.columns(2)
+    with col3:
+        confidence = analysis.get("confidence", "N/A")
+        st.metric("Confidence", confidence)
+    
+    # Technical indicators
+    if "technical_indicators" in analysis:
+        st.subheader("Technical Analysis")
+        tech = analysis["technical_indicators"]
         
-        with vol_col1:
-            st.markdown(f"**Average Volume:** {volume.get('average', 0):,.0f}")
-            st.markdown(f"**Volume Trend:** {volume.get('trend', 'N/A')}")
+        col1, col2 = st.columns(2)
         
-        with vol_col2:
-            st.markdown(f"**Volume Signal:** {volume.get('signal', 'N/A')}")
-            st.markdown(f"**Unusual Activity:** {volume.get('unusual_activity', 'None')}")
+        with col1:
+            st.metric("Trend", tech.get("trend", "N/A"))
+            st.metric("Strength", tech.get("strength", "N/A"))
+        
+        with col2:
+            if "patterns" in tech:
+                st.subheader("Patterns")
+                for pattern in tech["patterns"]:
+                    st.markdown(f"- {pattern}")
+            
+            if "signals" in tech:
+                st.subheader("Signals")
+                for signal in tech["signals"]:
+                    st.markdown(f"- {signal}")
+        
+        # Support and resistance levels
+        if "key_levels" in tech:
+            st.subheader("Key Price Levels")
+            levels = tech["key_levels"]
+            
+            # Create a range for the chart
+            support_levels = levels.get("support", [])
+            resistance_levels = levels.get("resistance", [])
+            
+            current_price = analysis.get("current_price", 0)
+            
+            # Create a range for the chart
+            all_levels = support_levels + resistance_levels + [current_price]
+            if all_levels:
+                min_price = min(all_levels) * 0.95
+                max_price = max(all_levels) * 1.05
+                
+                # Create a candlestick-like chart with support and resistance
+                fig = go.Figure()
+                
+                # Add support levels
+                for level in support_levels:
+                    fig.add_shape(
+                        type="line",
+                        x0=0,
+                        y0=level,
+                        x1=1,
+                        y1=level,
+                        line=dict(
+                            color="green",
+                            width=2,
+                            dash="dash",
+                        ),
+                    )
+                    fig.add_annotation(
+                        x=0.1,
+                        y=level,
+                        text=f"Support: ${level:.2f}",
+                        showarrow=False,
+                        xshift=-50,
+                    )
+                
+                # Add resistance levels
+                for level in resistance_levels:
+                    fig.add_shape(
+                        type="line",
+                        x0=0,
+                        y0=level,
+                        x1=1,
+                        y1=level,
+                        line=dict(
+                            color="red",
+                            width=2,
+                            dash="dash",
+                        ),
+                    )
+                    fig.add_annotation(
+                        x=0.9,
+                        y=level,
+                        text=f"Resistance: ${level:.2f}",
+                        showarrow=False,
+                        xshift=50,
+                    )
+                
+                # Add current price
+                fig.add_shape(
+                    type="line",
+                    x0=0,
+                    y0=current_price,
+                    x1=1,
+                    y1=current_price,
+                    line=dict(
+                        color="blue",
+                        width=3,
+                    ),
+                )
+                
+                # Add annotations
+                fig.add_annotation(
+                    x=0.5,
+                    y=current_price,
+                    text=f"Current: ${current_price:.2f}",
+                    showarrow=False,
+                    yshift=10,
+                )
+                
+                # Update layout
+                fig.update_layout(
+                    title=f"{ticker} Support & Resistance Levels",
+                    xaxis=dict(
+                        showgrid=False,
+                        zeroline=False,
+                        showticklabels=False,
+                    ),
+                    yaxis=dict(
+                        range=[min_price, max_price],
+                    ),
+                    showlegend=False,
+                    height=400,
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+    
+    # Price targets
+    if "price_targets" in analysis:
+        st.subheader("Price Targets")
+        targets = analysis["price_targets"]
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if "short_term" in targets:
+                short_term = targets["short_term"]
+                st.metric(
+                    f"Short-Term ({short_term.get('timeframe', 'N/A')})", 
+                    f"${short_term.get('target', 0):.2f}",
+                    f"Confidence: {short_term.get('confidence', 'N/A')}"
+                )
+        
+        with col2:
+            if "long_term" in targets:
+                long_term = targets["long_term"]
+                st.metric(
+                    f"Long-Term ({long_term.get('timeframe', 'N/A')})", 
+                    f"${long_term.get('target', 0):.2f}",
+                    f"Confidence: {long_term.get('confidence', 'N/A')}"
+                )
+    
+    # Trading strategy
+    if "trading_strategy" in analysis:
+        st.subheader("Trading Strategy")
+        strategy = analysis["trading_strategy"]
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if "entry_points" in strategy:
+                st.write("**Entry Points:**")
+                for point in strategy["entry_points"]:
+                    st.markdown(f"- ${point:.2f}")
+            
+            if "stop_loss" in strategy:
+                st.metric("Stop Loss", f"${strategy['stop_loss']:.2f}")
+        
+        with col2:
+            if "exit_points" in strategy:
+                st.write("**Exit Points:**")
+                for point in strategy["exit_points"]:
+                    st.markdown(f"- ${point:.2f}")
+            
+            if "take_profit" in strategy:
+                st.metric("Take Profit", f"${strategy['take_profit']:.2f}")
+        
+        if "position_sizing" in strategy:
+            st.write(f"**Position Sizing:** {strategy['position_sizing']}")
+        
+        if "risk_management" in strategy:
+            st.write(f"**Risk Management:** {strategy['risk_management']}")
+    
+    # Historical comparison
+    if "historical_comparison" in analysis:
+        st.subheader("Historical Comparison")
+        comparison = analysis["historical_comparison"]
+        
+        if "similar_periods" in comparison:
+            st.write("**Similar Historical Periods:**")
+            for period in comparison["similar_periods"]:
+                st.markdown(f"- {period}")
+        
+        if "differences" in comparison:
+            st.write("**Key Differences:**")
+            for diff in comparison["differences"]:
+                st.markdown(f"- {diff}")
+        
+        if "implications" in comparison:
+            st.write(f"**Implications:** {comparison['implications']}")
+
+def display_technical_insights(result):
+    """
+    Display technical insights section
+    
+    Args:
+        result: Analysis result
+    """
+    if "technical_insights" not in result or not result["technical_insights"]:
+        st.warning("No technical insights available")
+        return
+    
+    insights = result["technical_insights"]
+    
+    for insight in insights:
+        col1, col2, col3 = st.columns([1, 1, 2])
+        
+        with col1:
+            indicator = insight.get("indicator", "N/A")
+            st.markdown(f"**{indicator}**")
+        
+        with col2:
+            signal = insight.get("signal", "N/A")
+            strength = insight.get("strength", "N/A")
+            signal_color = "green" if signal == "bullish" else "red" if signal == "bearish" else "gray"
+            st.markdown(f"**Signal:** {signal} ({strength})")
+        
+        with col3:
+            description = insight.get("description", "N/A")
+            st.markdown(f"**Description:** {description}")
+        
+        st.markdown("---")
 
 def display_learning_points(result):
     """
@@ -1021,178 +1101,6 @@ def generate_and_store_trend_analysis(ticker, analysis_result):
         logger.error(f"Error generating and storing trend analysis: {str(e)}")
         return None
 
-def display_price_target_verification(ticker, price_targets):
-    """
-    Display verification information for price targets
-    
-    Args:
-        ticker: Ticker symbol
-        price_targets: Dictionary containing price target information
-    """
-    st.subheader("Price Target Verification")
-    
-    if not price_targets:
-        st.info("No price targets available for verification.")
-        return
-    
-    # Create tabs for different timeframes
-    short_term_tab, medium_term_tab, accuracy_tab = st.tabs([
-        "Short-term Targets",
-        "Medium-term Targets",
-        "Historical Accuracy"
-    ])
-    
-    with short_term_tab:
-        st.subheader("Short-term Price Targets")
-        
-        if 'short_term' in price_targets:
-            short_term = price_targets['short_term']
-            
-            # Create columns for target details
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("Target Price", f"${short_term['target']:.2f}")
-            with col2:
-                st.metric("Timeframe", short_term['timeframe'])
-            with col3:
-                st.metric("Confidence", f"{short_term['confidence']}%")
-            
-            # Get verification status
-            try:
-                verification = st.session_state.trend_storage.get_prediction_accuracy(
-                    ticker, prediction_type='short_term'
-                )
-                
-                if verification:
-                    st.markdown("### Verification Status")
-                    status_col1, status_col2, status_col3 = st.columns(3)
-                    
-                    with status_col1:
-                        status = "🟢 Hit" if verification.get('was_correct', False) else "🔴 Missed"
-                        st.metric("Status", status)
-                    with status_col2:
-                        accuracy = verification.get('accuracy', 0)
-                        st.metric("Accuracy", f"{accuracy*100:.1f}%")
-                    with status_col3:
-                        days = verification.get('days_to_target')
-                        if days:
-                            st.metric("Days to Target", str(days))
-                        else:
-                            st.metric("Days to Target", "Pending")
-            except Exception as e:
-                logger.error(f"Error getting short-term verification: {str(e)}")
-        else:
-            st.info("No short-term targets available.")
-    
-    with medium_term_tab:
-        st.subheader("Medium-term Price Targets")
-        
-        if 'medium_term' in price_targets:
-            medium_term = price_targets['medium_term']
-            
-            # Create columns for target details
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("Target Price", f"${medium_term['target']:.2f}")
-            with col2:
-                st.metric("Timeframe", medium_term['timeframe'])
-            with col3:
-                st.metric("Confidence", f"{medium_term['confidence']}%")
-            
-            # Get verification status
-            try:
-                verification = st.session_state.trend_storage.get_prediction_accuracy(
-                    ticker, prediction_type='medium_term'
-                )
-                
-                if verification:
-                    st.markdown("### Verification Status")
-                    status_col1, status_col2, status_col3 = st.columns(3)
-                    
-                    with status_col1:
-                        status = "🟢 Hit" if verification.get('was_correct', False) else "🔴 Missed"
-                        st.metric("Status", status)
-                    with status_col2:
-                        accuracy = verification.get('accuracy', 0)
-                        st.metric("Accuracy", f"{accuracy*100:.1f}%")
-                    with status_col3:
-                        days = verification.get('days_to_target')
-                        if days:
-                            st.metric("Days to Target", str(days))
-                        else:
-                            st.metric("Days to Target", "Pending")
-            except Exception as e:
-                logger.error(f"Error getting medium-term verification: {str(e)}")
-        else:
-            st.info("No medium-term targets available.")
-    
-    with accuracy_tab:
-        st.subheader("Historical Prediction Accuracy")
-        
-        try:
-            accuracy_metrics = st.session_state.trend_storage.get_prediction_accuracy(ticker)
-            
-            if accuracy_metrics:
-                # Overall accuracy
-                if 'overall' in accuracy_metrics:
-                    overall = accuracy_metrics['overall']
-                    st.markdown("### Overall Performance")
-                    
-                    overall_col1, overall_col2, overall_col3 = st.columns(3)
-                    
-                    with overall_col1:
-                        accuracy = overall.get('accuracy', 0)
-                        st.metric("Overall Accuracy", f"{accuracy*100:.1f}%")
-                    with overall_col2:
-                        correct = overall.get('correct_predictions', 0)
-                        total = overall.get('total_predictions', 0)
-                        st.metric("Correct Predictions", f"{correct}/{total}")
-                    with overall_col3:
-                        avg_days = overall.get('avg_days_to_target', 0)
-                        st.metric("Avg Days to Target", f"{avg_days:.1f}")
-                
-                # Recent verifications
-                st.markdown("### Recent Verifications")
-                
-                recent_verifications = st.session_state.trend_storage.get_trend_analysis_history(
-                    ticker, limit=5
-                )
-                
-                if recent_verifications:
-                    verification_data = []
-                    for v in recent_verifications:
-                        if 'verification_date' in v:
-                            verification_data.append({
-                                'Date': v['verification_date'],
-                                'Type': v['prediction_type'],
-                                'Target': f"${v['target_price']:.2f}",
-                                'Actual': f"${v['actual_price']:.2f}",
-                                'Status': "Hit" if v['was_correct'] else "Missed",
-                                'Accuracy': f"{v['accuracy_score']*100:.1f}%"
-                            })
-                    
-                    if verification_data:
-                        df = pd.DataFrame(verification_data)
-                        st.dataframe(df)
-                        
-                        # Create an accuracy trend chart
-                        try:
-                            fig = px.line(df, x='Date', y='Accuracy',
-                                        title='Prediction Accuracy Trend',
-                                        labels={'Accuracy': 'Accuracy (%)'})
-                            st.plotly_chart(fig)
-                        except Exception as e:
-                            logger.error(f"Error creating accuracy trend chart: {str(e)}")
-                else:
-                    st.info("No recent verifications available.")
-            else:
-                st.info("No accuracy metrics available yet.")
-        except Exception as e:
-            logger.error(f"Error getting accuracy metrics: {str(e)}")
-            st.error("Error retrieving accuracy metrics.")
-
 def display_analysis(result, ticker):
     """
     Display the analysis result in a structured format with tabs
@@ -1206,7 +1114,7 @@ def display_analysis(result, ticker):
         return
         
     # Create tabs for different sections
-    overview_tab, analysis_tab, tech_tab, learning_tab, verification_tab, timeline_tab = st.tabs([
+    market_tab, ticker_tab, technical_tab, learning_tab, verification_tab, timeline_tab = st.tabs([
         "Market Overview", 
         "Ticker Analysis", 
         "Technical Insights",
@@ -1215,90 +1123,31 @@ def display_analysis(result, ticker):
         "Prediction Timeline"
     ])
     
-    with overview_tab:
+    with market_tab:
         display_market_overview(result, ticker)
         
-    with analysis_tab:
+    with ticker_tab:
         display_ticker_analysis(result, ticker)
         
-    with tech_tab:
-        display_technical_insights(result.get('technical_analysis', {}))
+    with technical_tab:
+        display_technical_insights(result)
         
     with learning_tab:
         display_learning_points(result)
         
     with verification_tab:
-        # Get price targets from the result
-        price_targets = {}
-        if 'ticker_analysis' in result and ticker in result['ticker_analysis']:
-            ticker_data = result['ticker_analysis'][ticker]
-            if 'price_targets' in ticker_data:
-                price_targets = ticker_data['price_targets']
-        display_price_target_verification(ticker, price_targets)
+        try:
+            from src.ui.price_target_verification_ui import display_prediction_verification
+            display_prediction_verification(ticker)
+        except ImportError:
+            st.warning("Price target verification module not available. Please install the required dependencies.")
         
     with timeline_tab:
-        # Get historical predictions
         try:
-            historical_predictions = st.session_state.trend_storage.get_trend_analysis_history(ticker)
-            
-            if not historical_predictions:
-                st.info("No historical predictions available yet.")
-            else:
-                # Create a DataFrame for the predictions
-                import pandas as pd
-                
-                prediction_data = []
-                for pred in historical_predictions:
-                    timestamp = pd.to_datetime(pred['timestamp'])
-                    prediction_data.extend([
-                        {
-                            'Date': timestamp,
-                            'Type': 'Short-term Bullish',
-                            'Target': pred['short_term_bullish_target'],
-                            'Confidence': pred['short_term_confidence'],
-                            'Timeframe': pred['short_term_timeframe']
-                        },
-                        {
-                            'Date': timestamp,
-                            'Type': 'Short-term Bearish',
-                            'Target': pred['short_term_bearish_target'],
-                            'Confidence': pred['short_term_confidence'],
-                            'Timeframe': pred['short_term_timeframe']
-                        },
-                        {
-                            'Date': timestamp,
-                            'Type': 'Medium-term Bullish',
-                            'Target': pred['medium_term_bullish_target'],
-                            'Confidence': pred['medium_term_confidence'],
-                            'Timeframe': pred['medium_term_timeframe']
-                        },
-                        {
-                            'Date': timestamp,
-                            'Type': 'Medium-term Bearish',
-                            'Target': pred['medium_term_bearish_target'],
-                            'Confidence': pred['medium_term_confidence'],
-                            'Timeframe': pred['medium_term_timeframe']
-                        }
-                    ])
-                
-                df = pd.DataFrame(prediction_data)
-                
-                # Display the predictions
-                st.subheader("Historical Price Target Predictions")
-                st.dataframe(df)
-                
-                # Create a line chart of price targets over time
-                import plotly.express as px
-                
-                fig = px.line(df, x='Date', y='Target', color='Type',
-                            title=f'Price Target History for {ticker}',
-                            labels={'Target': 'Price Target ($)', 'Date': 'Prediction Date'})
-                
-                st.plotly_chart(fig)
-                
-        except Exception as e:
-            st.error(f"Error retrieving prediction timeline: {str(e)}")
-            logger.error(f"Error in prediction timeline: {str(e)}")
+            from src.ui.price_target_verification_ui import display_prediction_timeline
+            display_prediction_timeline(ticker)
+        except ImportError:
+            st.warning("Price target verification module not available. Please install the required dependencies.")
 
 def main():
     """Main function for the Streamlit app"""

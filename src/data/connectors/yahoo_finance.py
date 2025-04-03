@@ -5,6 +5,7 @@ import requests
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Union
 import time
+import pandas as pd
 
 from src.data.models import OptionChain, OptionContract, OptionChainOptions, OptionStraddle, OptionChainQuote, MarketQuote
 
@@ -424,11 +425,220 @@ class YahooFinanceConnector:
                 
                 quotes[symbol] = market_quote
             
-            # Cache the result
+            # Store in cache
             self._store_in_cache(cache_key, quotes)
             
             return quotes
             
         except Exception as e:
-            logger.error(f"Error fetching market quotes for {tickers_str}: {str(e)}")
-            raise 
+            logger.error(f"Error fetching market quotes: {str(e)}")
+            raise
+    
+    def get_quote(self, ticker: str) -> Dict[str, Any]:
+        """Get a quote for a single ticker
+        
+        Args:
+            ticker: Ticker symbol
+            
+        Returns:
+            Dictionary with quote data
+        """
+        try:
+            # Call get_market_quotes to fetch the data
+            quotes = self.get_market_quotes(ticker)
+            
+            # Check if the ticker exists in the results
+            if ticker in quotes:
+                # Convert MarketQuote object to dictionary for compatibility
+                quote = quotes[ticker]
+                return {
+                    "symbol": quote.symbol,
+                    "quoteType": quote.quote_type,
+                    "marketState": quote.market_state,
+                    "regularMarketPrice": quote.regular_market_price,
+                    "regularMarketPreviousClose": quote.regular_market_previous_close,
+                    "regularMarketOpen": quote.regular_market_open,
+                    "regularMarketDayHigh": quote.regular_market_day_high,
+                    "regularMarketDayLow": quote.regular_market_day_low,
+                    "regularMarketVolume": quote.regular_market_volume,
+                    "regularMarketChangePercent": quote.get_day_change_percent(),
+                    "averageVolume": quote.average_volume,
+                    "marketCap": quote.market_cap,
+                    "trailingPE": quote.trailing_pe,
+                    "dividendYield": quote.get_dividend_yield(),
+                    "fiftyTwoWeekHigh": quote.fifty_two_week_high,
+                    "fiftyTwoWeekLow": quote.fifty_two_week_low,
+                    "fiftyDayAverage": quote.fifty_day_average,
+                    "twoHundredDayAverage": quote.two_hundred_day_average,
+                    "exchange": quote.exchange_name,
+                    "currency": quote.currency
+                }
+            else:
+                logger.error(f"Ticker {ticker} not found in market quotes response")
+                return {}
+                
+        except Exception as e:
+            logger.error(f"Error getting quote for {ticker}: {str(e)}")
+            return {}
+    
+    def get_historical_data(self, ticker: str, period: str = "1y", interval: str = "1d") -> Optional[pd.DataFrame]:
+        """Get historical price data for a ticker
+        
+        Args:
+            ticker: Ticker symbol
+            period: Data period (e.g., "1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max")
+            interval: Data interval (e.g., "1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo")
+            
+        Returns:
+            Pandas DataFrame with historical data or None if data cannot be fetched
+        """
+        cache_key = f"historical_data_{ticker}_{period}_{interval}"
+        cached_data = self._get_from_cache(cache_key)
+        if cached_data is not None:
+            return cached_data
+        
+        try:
+            # Try to use yfinance first
+            import yfinance as yf
+            
+            logger.info(f"Fetching historical data for {ticker} with period={period}, interval={interval}")
+            
+            # Get the data using yfinance
+            ticker_data = yf.Ticker(ticker)
+            df = ticker_data.history(period=period, interval=interval)
+            
+            # Check if we got valid data
+            if df is None or df.empty:
+                logger.error(f"No historical data available for {ticker}")
+                return None
+            
+            # Rename columns to ensure consistency
+            df.columns = [col.capitalize() for col in df.columns]
+            
+            # Store in cache
+            self._store_in_cache(cache_key, df)
+            
+            return df
+            
+        except ImportError:
+            logger.error("yfinance library not installed. Please install with: pip install yfinance")
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching historical data for {ticker}: {str(e)}")
+            
+            # Try to use RapidAPI as fallback
+            if self.use_rapidapi:
+                try:
+                    return self._get_historical_data_rapidapi(ticker, period, interval)
+                except Exception as e2:
+                    logger.error(f"Error fetching historical data from RapidAPI: {str(e2)}")
+            
+            return None
+    
+    def _get_historical_data_rapidapi(self, ticker: str, period: str, interval: str) -> Optional[pd.DataFrame]:
+        """Get historical data using RapidAPI
+        
+        Args:
+            ticker: Ticker symbol
+            period: Data period
+            interval: Data interval
+            
+        Returns:
+            Pandas DataFrame with historical data or None if data cannot be fetched
+        """
+        import pandas as pd
+        
+        self._handle_rate_limits()
+        
+        # Convert period to start/end dates
+        end_date = datetime.now()
+        
+        if period == "1d":
+            start_date = end_date - timedelta(days=1)
+        elif period == "5d":
+            start_date = end_date - timedelta(days=5)
+        elif period == "1mo":
+            start_date = end_date - timedelta(days=30)
+        elif period == "3mo":
+            start_date = end_date - timedelta(days=90)
+        elif period == "6mo":
+            start_date = end_date - timedelta(days=180)
+        elif period == "1y":
+            start_date = end_date - timedelta(days=365)
+        elif period == "2y":
+            start_date = end_date - timedelta(days=730)
+        elif period == "5y":
+            start_date = end_date - timedelta(days=1825)
+        elif period == "10y":
+            start_date = end_date - timedelta(days=3650)
+        elif period == "ytd":
+            start_date = datetime(end_date.year, 1, 1)
+        else:  # "max" or any other value
+            start_date = end_date - timedelta(days=3650)  # Default to 10 years
+        
+        # Format dates for API
+        start_date_str = start_date.strftime("%Y-%m-%d")
+        end_date_str = end_date.strftime("%Y-%m-%d")
+        
+        # Map interval to API format
+        interval_map = {
+            "1m": "1m", "2m": "2m", "5m": "5m", "15m": "15m", "30m": "30m",
+            "60m": "60m", "90m": "90m", "1h": "1h",
+            "1d": "1d", "5d": "5d", "1wk": "1wk", "1mo": "1mo", "3mo": "3mo"
+        }
+        api_interval = interval_map.get(interval, "1d")
+        
+        url = f"{self.base_url}/stock/get-histories"
+        params = {
+            "symbol": ticker,
+            "region": "US",
+            "interval": api_interval,
+            "from": start_date_str,
+            "to": end_date_str
+        }
+        
+        try:
+            response = requests.get(url, headers=self.headers, params=params)
+            self._update_rate_limits(response.headers)
+            
+            if response.status_code != 200:
+                logger.error(f"Error fetching historical data: {response.status_code} - {response.text}")
+                return None
+            
+            data = response.json()
+            
+            # Extract historical data
+            history_data = data.get("prices", [])
+            
+            if not history_data:
+                logger.error(f"No historical data available for {ticker}")
+                return None
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(history_data)
+            
+            # Convert timestamp to datetime
+            if "date" in df.columns:
+                df["date"] = pd.to_datetime(df["date"], unit="s")
+                df.set_index("date", inplace=True)
+            
+            # Rename columns to match yfinance format
+            column_map = {
+                "open": "Open",
+                "high": "High",
+                "low": "Low",
+                "close": "Close",
+                "volume": "Volume",
+                "adjclose": "Adj Close"
+            }
+            df.rename(columns=column_map, inplace=True)
+            
+            # Cache the result
+            cache_key = f"historical_data_{ticker}_{period}_{interval}"
+            self._store_in_cache(cache_key, df)
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"Error fetching historical data from RapidAPI: {str(e)}")
+            return None 

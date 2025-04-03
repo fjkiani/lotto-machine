@@ -43,3 +43,15 @@ Thumbs.db
 
 # Txt files
 *.txt
+
+# Project specific
+cache/
+historical_cache/
+memory.db
+analysis_results/*.json
+
+# Logs
+*.log
+
+# Streamlit
+.streamlit/secrets.toml

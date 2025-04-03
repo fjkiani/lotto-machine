@@ -69,6 +69,34 @@ class AnalysisMemory:
         )
         ''')
         
+        # Create technical_indicators table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS technical_indicators (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker TEXT,
+            timestamp TEXT,
+            indicator_name TEXT,
+            indicator_category TEXT,
+            indicator_values TEXT,
+            indicator_signals TEXT
+        )
+        ''')
+        
+        # Create indicator_performance table to track prediction accuracy
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS indicator_performance (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            indicator_id INTEGER,
+            prediction_timestamp TEXT,
+            prediction_type TEXT,
+            prediction_value TEXT,
+            actual_outcome TEXT,
+            accuracy_score REAL,
+            verification_timestamp TEXT,
+            FOREIGN KEY (indicator_id) REFERENCES technical_indicators(id)
+        )
+        ''')
+        
         conn.commit()
         conn.close()
     
@@ -98,46 +126,274 @@ class AnalysisMemory:
         
         timestamp = datetime.now().isoformat()
         
-        # Extract key information
-        market_sentiment = "unknown"
-        recommendation = "unknown"
-        risk_level = "unknown"
+        # Extract key information from analysis data
+        market_sentiment = analysis_data.get('market_sentiment', 'neutral')
+        recommendation = analysis_data.get('recommendation', 'hold')
+        risk_level = analysis_data.get('risk_level', 'medium')
         
-        if "market_overview" in analysis_data and "sentiment" in analysis_data["market_overview"]:
-            market_sentiment = analysis_data["market_overview"]["sentiment"]
+        # Convert dictionaries to JSON strings
+        analysis_json = json.dumps(analysis_data)
+        feedback_json = json.dumps(feedback_data) if feedback_data else None
+        learning_points_json = json.dumps(learning_points) if learning_points else None
         
-        if "ticker_analysis" in analysis_data and ticker in analysis_data["ticker_analysis"]:
-            ticker_data = analysis_data["ticker_analysis"][ticker]
-            if "recommendation" in ticker_data:
-                recommendation = ticker_data["recommendation"]
-            if "risk_level" in ticker_data:
-                risk_level = ticker_data["risk_level"]
-        
-        # Store the analysis
         cursor.execute('''
         INSERT INTO analyses 
         (timestamp, ticker, current_price, analysis_type, market_sentiment, 
          recommendation, risk_level, analysis_data, feedback_data, learning_points)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            timestamp, 
-            ticker, 
-            current_price,
-            analysis_type,
-            market_sentiment,
-            recommendation,
-            risk_level,
-            json.dumps(analysis_data),
-            json.dumps(feedback_data) if feedback_data else None,
-            json.dumps(learning_points) if learning_points else None
-        ))
+        ''', (timestamp, ticker, current_price, analysis_type, market_sentiment,
+              recommendation, risk_level, analysis_json, feedback_json, learning_points_json))
         
         analysis_id = cursor.lastrowid
+        
+        # Store initial price history
+        cursor.execute('''
+        INSERT INTO price_history (analysis_id, timestamp, price)
+        VALUES (?, ?, ?)
+        ''', (analysis_id, timestamp, current_price))
+        
         conn.commit()
         conn.close()
         
-        logger.info(f"Stored analysis for {ticker} with ID {analysis_id}")
         return analysis_id
+    
+    def store_technical_indicators(self, ticker: str, indicators_data: Dict[str, Dict]) -> None:
+        """
+        Store technical indicator values in the database
+        
+        Args:
+            ticker: Ticker symbol
+            indicators_data: Dictionary of indicator data
+                {
+                    "indicator_name": {
+                        "category": "trend|momentum|volume|volatility",
+                        "values": {...},  # Latest calculated values
+                        "signals": {...}  # Latest signals
+                    },
+                    ...
+                }
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        timestamp = datetime.now().isoformat()
+        
+        for indicator_name, data in indicators_data.items():
+            category = data.get('category', 'unknown')
+            values = json.dumps(data.get('values', {}))
+            signals = json.dumps(data.get('signals', {}))
+            
+            cursor.execute('''
+            INSERT INTO technical_indicators
+            (ticker, timestamp, indicator_name, indicator_category, indicator_values, indicator_signals)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ''', (ticker, timestamp, indicator_name, category, values, signals))
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Stored technical indicators for {ticker}: {list(indicators_data.keys())}")
+    
+    def store_indicator_performance(self, indicator_id: int, prediction_type: str, 
+                                   prediction_value: str, actual_outcome: str, 
+                                   accuracy_score: float) -> None:
+        """
+        Store the performance of an indicator prediction
+        
+        Args:
+            indicator_id: ID of the technical indicator
+            prediction_type: Type of prediction (e.g., "price_direction", "support_level")
+            prediction_value: The predicted value
+            actual_outcome: The actual outcome
+            accuracy_score: Score representing prediction accuracy (0.0-1.0)
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        prediction_timestamp = datetime.now().isoformat()
+        
+        cursor.execute('''
+        INSERT INTO indicator_performance
+        (indicator_id, prediction_timestamp, prediction_type, prediction_value, 
+         actual_outcome, accuracy_score, verification_timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (indicator_id, prediction_timestamp, prediction_type, prediction_value,
+              actual_outcome, accuracy_score, prediction_timestamp))
+        
+        conn.commit()
+        conn.close()
+    
+    def get_technical_indicators_history(self, ticker: str, indicator_name: Optional[str] = None, 
+                                        limit: int = 10) -> List[Dict]:
+        """
+        Get historical technical indicator values for a ticker
+        
+        Args:
+            ticker: Ticker symbol
+            indicator_name: Optional name of specific indicator to retrieve
+            limit: Maximum number of records to retrieve
+            
+        Returns:
+            List of indicator records
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        if indicator_name:
+            cursor.execute('''
+            SELECT * FROM technical_indicators
+            WHERE ticker = ? AND indicator_name = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+            ''', (ticker, indicator_name, limit))
+        else:
+            cursor.execute('''
+            SELECT * FROM technical_indicators
+            WHERE ticker = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+            ''', (ticker, limit))
+        
+        rows = cursor.fetchall()
+        
+        results = []
+        for row in rows:
+            result = dict(row)
+            # Parse JSON strings
+            result['indicator_values'] = json.loads(result['indicator_values'])
+            result['indicator_signals'] = json.loads(result['indicator_signals'])
+            results.append(result)
+        
+        conn.close()
+        
+        return results
+    
+    def get_indicator_performance_metrics(self, ticker: str, indicator_name: Optional[str] = None) -> Dict:
+        """
+        Get performance metrics for indicators
+        
+        Args:
+            ticker: Ticker symbol
+            indicator_name: Optional name of specific indicator
+            
+        Returns:
+            Dictionary with performance metrics
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Join technical_indicators and indicator_performance tables
+        if indicator_name:
+            cursor.execute('''
+            SELECT ti.indicator_name, ip.prediction_type, 
+                   AVG(ip.accuracy_score) as avg_accuracy,
+                   COUNT(ip.id) as prediction_count
+            FROM technical_indicators ti
+            JOIN indicator_performance ip ON ti.id = ip.indicator_id
+            WHERE ti.ticker = ? AND ti.indicator_name = ?
+            GROUP BY ti.indicator_name, ip.prediction_type
+            ''', (ticker, indicator_name))
+        else:
+            cursor.execute('''
+            SELECT ti.indicator_name, ip.prediction_type, 
+                   AVG(ip.accuracy_score) as avg_accuracy,
+                   COUNT(ip.id) as prediction_count
+            FROM technical_indicators ti
+            JOIN indicator_performance ip ON ti.id = ip.indicator_id
+            WHERE ti.ticker = ?
+            GROUP BY ti.indicator_name, ip.prediction_type
+            ''', (ticker,))
+        
+        rows = cursor.fetchall()
+        
+        metrics = {}
+        for row in rows:
+            indicator = row['indicator_name']
+            if indicator not in metrics:
+                metrics[indicator] = {}
+            
+            metrics[indicator][row['prediction_type']] = {
+                'avg_accuracy': row['avg_accuracy'],
+                'prediction_count': row['prediction_count']
+            }
+        
+        conn.close()
+        
+        return metrics
+    
+    def generate_technical_context(self, ticker: str) -> str:
+        """
+        Generate context string with technical indicator history
+        
+        Args:
+            ticker: Ticker symbol
+            
+        Returns:
+            Context string for LLM prompt
+        """
+        # Get recent indicator history
+        indicators_history = self.get_technical_indicators_history(ticker, limit=5)
+        
+        # Get performance metrics
+        performance_metrics = self.get_indicator_performance_metrics(ticker)
+        
+        if not indicators_history:
+            return "No historical technical indicator data available."
+        
+        # Format the context
+        context = f"Historical Technical Indicators for {ticker}:\n\n"
+        
+        # Group by timestamp
+        by_timestamp = {}
+        for record in indicators_history:
+            timestamp = record['timestamp']
+            if timestamp not in by_timestamp:
+                by_timestamp[timestamp] = []
+            by_timestamp[timestamp].append(record)
+        
+        # Format each timestamp group
+        for timestamp, records in by_timestamp.items():
+            dt = datetime.fromisoformat(timestamp)
+            formatted_date = dt.strftime("%Y-%m-%d %H:%M:%S")
+            context += f"Date: {formatted_date}\n"
+            
+            for record in records:
+                indicator_name = record['indicator_name']
+                category = record['indicator_category']
+                values = record['indicator_values']
+                signals = record['indicator_signals']
+                
+                context += f"  {indicator_name} ({category}):\n"
+                
+                # Format values (show only the most recent values)
+                if isinstance(values, dict):
+                    for k, v in values.items():
+                        if isinstance(v, (list, dict)):
+                            # For complex values, just show the last few items
+                            if isinstance(v, list) and len(v) > 0:
+                                context += f"    {k}: {v[-3:]} (last 3 values)\n"
+                            elif isinstance(v, dict) and len(v) > 0:
+                                context += f"    {k}: {list(v.items())[-3:]} (last 3 items)\n"
+                        else:
+                            context += f"    {k}: {v}\n"
+                
+                # Format signals
+                if signals:
+                    context += f"    Signals: {signals}\n"
+                
+                # Add performance metrics if available
+                if indicator_name in performance_metrics:
+                    context += "    Performance:\n"
+                    for pred_type, metrics in performance_metrics[indicator_name].items():
+                        accuracy = metrics['avg_accuracy']
+                        count = metrics['prediction_count']
+                        context += f"      {pred_type}: {accuracy:.2f} accuracy over {count} predictions\n"
+            
+            context += "\n"
+        
+        return context
     
     def store_price_update(self, analysis_id: int, price: float) -> None:
         """
