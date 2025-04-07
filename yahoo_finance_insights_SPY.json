@@ -1,0 +1,1613 @@
+{
+  "finance": {
+    "result": {
+      "symbol": "SPY",
+      "instrumentInfo": {
+        "technicalEvents": {
+          "provider": "Trading Central",
+          "shortTermOutlook": {
+            "stateDescription": "Recent bearish events outweigh bullish events.",
+            "direction": "Bearish",
+            "score": 4,
+            "scoreDescription": "Very Strong Bearish Evidence"
+          },
+          "intermediateTermOutlook": {
+            "stateDescription": "All events are bearish.",
+            "direction": "Bearish",
+            "score": 3,
+            "scoreDescription": "Strong Bearish Evidence"
+          },
+          "longTermOutlook": {
+            "stateDescription": "All events are bearish.",
+            "direction": "Bearish",
+            "score": 2,
+            "scoreDescription": "Bearish Evidence"
+          }
+        },
+        "keyTechnicals": {
+          "provider": "Trading Central",
+          "support": 436.66,
+          "resistance": 584.32,
+          "stopLoss": 468.54073
+        },
+        "valuation": {
+          "provider": "Trading Central"
+        }
+      },
+      "events": [
+        {
+          "eventType": "Triple Moving Average Crossover",
+          "pricePeriod": "D",
+          "tradingHorizon": "S",
+          "tradeType": "S",
+          "imageUrl": "https://s.yimg.com/uc/fin/img/assets/generic.svg",
+          "startDate": 1743773400,
+          "endDate": 1743773400
+        }
+      ],
+      "reports": [
+        {
+          "id": "MS_0P000003RE_AnalystReport_1743812352000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2025-04-05T00:19:12Z",
+          "reportTitle": "Nvidia is a leading developer of graphics processing units. Traditionally, GPUs were used to enhance the experience on computing platforms, most notably in gaming applications on PCs. GPU use cases have since emerged as important semiconductors used in artificial intelligence. Nvidia not only offers AI GPUs, but also a software platform, Cuda, used for AI model development and training. Nvidia is also expanding its data center networking solutions, helping to tie GPUs together to handle complex workloads. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 130,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Tech Hardware Supply Chains Hit by Current Tariffs, Services Exempt Currently but Face Risks"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1743715312000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2025-04-03T21:21:52Z",
+          "reportTitle": "Nvidia is a leading developer of graphics processing units. Traditionally, GPUs were used to enhance the experience on computing platforms, most notably in gaming applications on PCs. GPU use cases have since emerged as important semiconductors used in artificial intelligence. Nvidia not only offers AI GPUs, but also a software platform, Cuda, used for AI model development and training. Nvidia is also expanding its data center networking solutions, helping to tie GPUs together to handle complex workloads. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 130,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Tech Hardware Supply Chains Hit by Current Tariffs, Services Exempt Currently but Face Risks"
+        },
+        {
+          "id": "ARGUS_43122_MarketUpdate_1743611941000",
+          "headHtml": "Market Update: RY, GOOGL",
+          "provider": "Argus Research",
+          "reportDate": "2025-04-02T16:39:01Z",
+          "reportTitle": "Markets are inching their way higher as we approach the hour that Wall Street will get more clarity on new tariffs. The White House says that details are coming at 4pm. Today is the day that President Trump has identified as Liberation Day. So far we've heard this means broader, sweeping tariffs on more countries, beyond Mexico, China, and Canada, where Trump has focused so far. The yield on the 10-year Treasury note is at 4.15%. Oil is $71 per barrel. Bitcoin is near $86,000.",
+          "reportType": "Market Update",
+          "tickers": [
+            "GOOGL",
+            "RY"
+          ],
+          "title": "Markets are inching their way higher as we approach the hour that Wall Street"
+        },
+        {
+          "id": "MS_0P000002HD_AnalystReport_1743207482000",
+          "headHtml": "Analyst Report: Alphabet Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-03-29T00:18:02Z",
+          "reportTitle": "Alphabet is a holding company that wholly owns internet giant Google. The California-based company derives slightly less than 90% of its revenue from Google services, the vast majority of which is advertising sales. Alongside online ads, Google services houses sales stemming from Google\u2019s subscription services (YouTube TV, YouTube Music among others), platforms (sales and in-app purchases on Play Store), and devices (Chromebooks, Pixel smartphones, and smart home products such as Chromecast). Google\u2019s cloud computing platform, or GCP, accounts for roughly 10% of Alphabet\u2019s revenue with the firm\u2019s investments in up-and-coming technologies such as self-driving cars (Waymo), health (Verily), and internet access (Google Fiber) making up the rest. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 237,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "GOOGL"
+          ],
+          "title": "Alphabet: If Blessed by the Regulators, Acquisition of Wiz Would Bolster Firm's Cloud Platform "
+        },
+        {
+          "id": "MS_0P000002HD_AnalystReport_1741647998000",
+          "headHtml": "Analyst Report: Alphabet Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-03-10T23:06:38Z",
+          "reportTitle": "Alphabet is a holding company that wholly owns internet giant Google. The California-based company derives slightly less than 90% of its revenue from Google services, the vast majority of which is advertising sales. Alongside online ads, Google services houses sales stemming from Google\u2019s subscription services (YouTube TV, YouTube Music among others), platforms (sales and in-app purchases on Play Store), and devices (Chromebooks, Pixel smartphones, and smart home products such as Chromecast). Google\u2019s cloud computing platform, or GCP, accounts for roughly 10% of Alphabet\u2019s revenue with the firm\u2019s investments in up-and-coming technologies such as self-driving cars (Waymo), health (Verily), and internet access (Google Fiber) making up the rest. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 237,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "GOOGL"
+          ],
+          "title": "We Forecast Autonomous Vehicles Will Be 50% of US and Canada Ride-Hails by 2035"
+        },
+        {
+          "id": "MS_0P00013K81_AnalystReport_1740041145000",
+          "headHtml": "Analyst Report: Alibaba Group Holding Limited",
+          "provider": "Morningstar",
+          "reportDate": "2025-02-20T08:45:45Z",
+          "reportTitle": "Alibaba is the world\u2019s largest online and mobile commerce company as measured by gross merchandise volume. It operates China\u2019s online marketplaces, including Taobao (consumer-to-consumer) and Tmall (business-to-consumer). The China commerce retail division is the most valuable cash flow-generating business at Alibaba. Additional revenue sources include China commerce wholesale, international commerce retail/wholesale, local consumer services, cloud computing, digital media and entertainment platforms, Cainiao logistics services, and innovation initiatives/other.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 128,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "BABA"
+          ],
+          "title": "Alibaba: Fair Value Estimate Up by 28% Due to Higher AI Adoption and Capital Returns to Shareholders"
+        },
+        {
+          "id": "ARGUS_42685_MarketOutlook_1739882097000",
+          "headHtml": "Daily Spotlight: Understanding AI Growth Opportunities",
+          "provider": "Argus Research",
+          "reportDate": "2025-02-18T12:34:57Z",
+          "reportTitle": "We expect S&P 500 earnings to grow 12% this year and like companies that increase their dividends at a 10%-plus rate. How does the AI marketplace stack up against those metrics? Pretty well. Argus has derived a model of the size and scope of the global AI industry, based on our coverage of major publicly traded players and most mid-tier players, along with our industry knowledge of private players. We estimate that global AI industry annual revenue amounted to $250 billion in 2024, and expect that to grow at a 40% CAGR through 2030, when total revenue is forecast to reach $1.8 trillion. The emergence of China's DeepSeek, which caused a broad selloff in AI stocks, is a reminder that this space is dynamic and unpredictable. DeepSeek is reportedly inexpensive and powerful in achieving certain AI tasks. While pricing is important, companies in the AI space prioritize relationships, continuity, security, and reliability. The top priority for companies using AI delivered as-a-service across cloud is to ensure that delivery is secure, fast, and reliable -- and adding new vendors entails risk. U.S. government policy is highly likely to prevent wide dissemination of Chinese AI models in enterprise technology implementations in the U.S., given risks of \"back doors\" to Chinese military and intelligence. Non-U.S. nations are largely following similar policies, which should inhibit acceptance of Chinese AI models worldwide. Finally, AI hardware leaders such as Nvidia and AMD also offer GPU software libraries, model training, and inference services tailored to specific enterprise AI applications. The AI market is large and growing, and new entrants are expected to continue to disrupt the market.",
+          "reportType": "Market Outlook",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Understanding AI Growth Opportunities"
+        },
+        {
+          "id": "MS_0P0000006A_AnalystReport_1738726077000",
+          "headHtml": "Analyst Report: Advanced Micro Devices, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-02-05T03:27:57Z",
+          "reportTitle": "Advanced Micro Devices designs a variety of digital semiconductors for markets such as PCs, gaming consoles, data centers, industrial, and automotive applications. AMD\u2019s traditional strength was in central processing units and graphics processing units used in PCs and data centers. Additionally, the firm supplies the chips found in prominent game consoles such as the Sony PlayStation and Microsoft Xbox. In 2022, the firm acquired field-programmable gate array leader Xilinx to diversify its business and augment its opportunities in key end markets such as data center and automotive. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 140,
+          "targetPriceStatus": "Decreased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMD"
+          ],
+          "title": "AMD Earnings: Cutting Our Fair Value Estimate to $140 From $160 Amid a Weak AI GPU Forecast"
+        },
+        {
+          "id": "MS_0P000003UP_AnalystReport_1737519763000",
+          "headHtml": "Analyst Report: Netflix, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-01-22T04:22:43Z",
+          "reportTitle": "Netflix\u2019s relatively simple business model involves only one business, its streaming service. It has the biggest television entertainment subscriber base in both the United States and the collective international market, with more than 300 million subscribers globally. Netflix has exposure to nearly the entire global population outside of China. The firm has traditionally avoided a regular slate of live programming or sports content, instead focusing on on-demand access to episodic television, movies, and documentaries. The firm introduced ad-supported subscription plans in 2022, giving the firm exposure to the advertising market in addition to the subscription fees that have historically accounted for nearly all its revenue. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 700,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NFLX"
+          ],
+          "title": "Netflix Earnings: Member Additions Blow out and Sales and Profit Growth Stays High; FVE up by 27% "
+        },
+        {
+          "id": "MS_0P000003UP_AnalystReport_1736898826000",
+          "headHtml": "Analyst Report: Netflix, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-01-14T23:53:46Z",
+          "reportTitle": "Netflix\u2019s relatively simple business model involves only one business, its streaming service. It has the biggest television entertainment subscriber base in both the United States and the collective international market, with more than 280 million subscribers globally. Netflix has exposure to nearly the entire global population outside of China. The firm has traditionally avoided live programming or sports content, instead focusing on on-demand access to episodic television, movies, and documentaries. The firm recently began introducing ad-supported subscription plans, giving the firm exposure to the advertising market in addition to the subscription fees that have historically accounted for nearly all its revenue. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 550,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NFLX"
+          ],
+          "title": "Netflix Earnings: Signs of Subscriber Growth Normalization, but Sales and Margins Remain Impressive"
+        },
+        {
+          "id": "MS_0P0000W3KZ_AnalystReport_1736442565000",
+          "headHtml": "Analyst Report: Meta Platforms, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-01-09T17:09:25Z",
+          "reportTitle": "Meta is the largest social media company in the world, boasting close to 4 billion monthly active users worldwide. The firm\u2019s \u201cFamily of Apps,\u201d its core business, consists of Facebook, Instagram, Messenger, and WhatsApp. End users can leverage these applications for a variety of different purposes, from keeping in touch with friends to following celebrities and running digital businesses for free. Meta packages customer data, gleaned from its application ecosystem and sells ads to digital advertisers. While the firm has been investing heavily in its Reality Labs business, it remains a very small part of Meta\u2019s overall sales. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 560,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "META"
+          ],
+          "title": "Meta: Rollback of Content Moderation Features Should Not Affect Firm's Financials"
+        },
+        {
+          "id": "MS_0P000000TU_AnalystReport_1733959065000",
+          "headHtml": "Analyst Report: The Boeing Company",
+          "provider": "Morningstar",
+          "reportDate": "2024-12-11T23:17:45Z",
+          "reportTitle": "Boeing is a major aerospace and defense firm. It operates in three segments: commercial airplanes; defense, space, and security; and global services. Boeing's commercial airplanes segment competes with Airbus in the production of aircraft that can carry more than 130 passengers. Boeing's defense, space, and security segment competes with Lockheed, Northrop, and several other firms to create military aircraft, satellites, and weaponry. Global services provides aftermarket support to airlines. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 191,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "BA"
+          ],
+          "title": "Does a Trump Administration \"Department of Government Efficiency\" Imperil US Defense Sector Primes?"
+        },
+        {
+          "id": "MS_0P00013K81_AnalystReport_1731882306000",
+          "headHtml": "Analyst Report: Alibaba Group Holding Limited",
+          "provider": "Morningstar",
+          "reportDate": "2024-11-17T22:25:06Z",
+          "reportTitle": "Alibaba is the world\u2019s largest online and mobile commerce company as measured by gross merchandise volume. It operates China\u2019s online marketplaces, including Taobao (consumer-to-consumer) and Tmall (business-to-consumer). The China commerce retail division is the most valuable cash flow-generating business at Alibaba. Additional revenue sources include China commerce wholesale, international commerce retail/wholesale, local consumer services, cloud computing, digital media and entertainment platforms, Cainiao logistics services, and innovation initiatives/other.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 100,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "BABA"
+          ],
+          "title": "Alibaba Earnings: Results in Line; Shares Fairly Valued"
+        },
+        {
+          "id": "MS_0P000000TU_AnalystReport_1731346379000",
+          "headHtml": "Analyst Report: The Boeing Company",
+          "provider": "Morningstar",
+          "reportDate": "2024-11-11T17:32:59Z",
+          "reportTitle": "Boeing is a major aerospace and defense firm. It operates in three segments: commercial airplanes; defense, space, and security; and global services. Boeing's commercial airplanes segment competes with Airbus in the production of aircraft that can carry more than 130 passengers. Boeing's defense, space, and security segment competes with Lockheed, Northrop, and several other firms to create military aircraft, satellites, and weaponry. Global services provides aftermarket support to airlines. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 191,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "BA"
+          ],
+          "title": "US and EU Aerospace Sector May Face Trade and Regulatory Impacts Under Trump Administration"
+        },
+        {
+          "id": "ARGUS_6302_AnalystReport_1730980799000",
+          "headHtml": "Analyst Report: Palantir Technologies Inc",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-07T11:59:59Z",
+          "reportTitle": "Palantir develops and provides software that enables customers from government agencies to commercial enterprises to integrate data for decision-making and operations at scale. The company initially provided its software to the U.S. intelligence services before broadening its customer base. In 2023, 55% of its revenue was generated by its government segment and 45% from its commercial segment; 38% of revenue was generated outside the U.S. \r\n\r\nPalantir's class A shares trade publicly under the symbol PLTR. Palantir's super-voting class B and class F shares, held by insiders and founders, do not trade publicly. The company is effectively controlled by founders Alexander Karp, Stephen Cohen, and Peter Thiel through the super-voting class F shares that represent a 49.99% voting interest. Palantir was founded in 2003 and went public at $10 per share on September 30, 2020.",
+          "reportType": "Analyst Report",
+          "targetPriceStatus": "Decreased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "PLTR"
+          ],
+          "title": "Downgrading to HOLD"
+        },
+        {
+          "id": "MS_0P0001KOSE_AnalystReport_1730775852000",
+          "headHtml": "Analyst Report: Palantir Technologies Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-11-05T03:04:12Z",
+          "reportTitle": "Palantir is an analytical software company that focuses on leveraging data to create efficiencies in its clients\u2019 organizations. The firm serves commercial and government clients via its Foundry and Gotham platforms, respectively. The Denver-based company was founded in 2003 and went public in 2020. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 21,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "PLTR"
+          ],
+          "title": "Palantir Earnings: AI Flame Continues to Burn Bright, but Shares Are Overheated"
+        },
+        {
+          "id": "MS_0P0000W3KZ_AnalystReport_1730379309000",
+          "headHtml": "Analyst Report: Meta Platforms, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-10-31T12:55:09Z",
+          "reportTitle": "Meta is the largest social media company in the world, boasting close to 4 billion monthly active users worldwide. The firm\u2019s \u201cFamily of Apps,\u201d its core business, consists of Facebook, Instagram, Messenger, and WhatsApp. End users can leverage these applications for a variety of different purposes, from keeping in touch with friends to following celebrities and running digital businesses for free. Meta packages customer data, gleaned from its application ecosystem and sells ads to digital advertisers. While the firm has been investing heavily in its Reality Labs business, it remains a very small part of Meta\u2019s overall sales. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 560,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "META"
+          ],
+          "title": "Meta Earnings: Powerful Advertising Engine Continues to Chug Along"
+        },
+        {
+          "id": "MS_0P0000OQN8_AnalystReport_1729752283000",
+          "headHtml": "Analyst Report: Tesla, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-10-24T06:44:43Z",
+          "reportTitle": "Tesla is a vertically integrated battery electric vehicle automaker and developer of autonomous driving software. The company has multiple vehicles in its fleet, which include luxury and midsize sedans, crossover SUVs, a light truck, and a semi truck. Tesla also plans to begin selling more affordable vehicles, a sports car, and a robotaxi. Global deliveries in 2023 were a little over 1.8 million vehicles. The company sells batteries for stationary storage for residential and commercial properties including utilities and solar panels and solar roofs for energy generation. Tesla also owns a fast-charging network. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 210,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "TSLA"
+          ],
+          "title": "Tesla Earnings: Margin Recovery Underway as Long-Term Objectives Intact"
+        },
+        {
+          "id": "MS_0P000003UP_AnalystReport_1729223060000",
+          "headHtml": "Analyst Report: Netflix, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-10-18T03:44:20Z",
+          "reportTitle": "Netflix\u2019s relatively simple business model involves only one business, its streaming service. It has the biggest television entertainment subscriber base in both the United States and the collective international market, with more than 280 million subscribers globally. Netflix has exposure to nearly the entire global population outside of China. The firm has traditionally avoided live programming or sports content, instead focusing on on-demand access to episodic television, movies, and documentaries. The firm recently began introducing ad-supported subscription plans, giving the firm exposure to the advertising market in addition to the subscription fees that have historically accounted for nearly all its revenue. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 550,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NFLX"
+          ],
+          "title": "Netflix Earnings: Signs of Subscriber Growth Normalization, but Sales and Margins Remain Impressive"
+        },
+        {
+          "id": "MS_0P000000TU_AnalystReport_1725939606000",
+          "headHtml": "Analyst Report: The Boeing Company",
+          "provider": "Morningstar",
+          "reportDate": "2024-09-10T03:40:06Z",
+          "reportTitle": "Boeing is a major aerospace and defense firm. It operates in three segments: commercial airplanes; defense, space, and security; and global services. Boeing's commercial airplanes segment competes with Airbus in the production of aircraft that can carry more than 130 passengers. Boeing's defense, space, and security segment competes with Lockheed, Northrop, and several other firms to create military aircraft, satellites, and weaponry. Global services provides aftermarket support to airlines. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 219,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "BA"
+          ],
+          "title": "Boeing: Machinists' Union Contract Terms Rational, Spirit Takeover in 2025; Fair Value Up $1 to $219"
+        },
+        {
+          "id": "MS_0P00013K81_AnalystReport_1723784676000",
+          "headHtml": "Analyst Report: Alibaba Group Holding Limited",
+          "provider": "Morningstar",
+          "reportDate": "2024-08-16T05:04:36Z",
+          "reportTitle": "Alibaba is the world\u2019s largest online and mobile commerce company as measured by gross merchandise volume. It operates China\u2019s online marketplaces, including Taobao (consumer-to-consumer) and Tmall (business-to-consumer). The China commerce retail division is the most valuable cash flow-generating business at Alibaba. Additional revenue sources include China commerce wholesale, international commerce retail/wholesale, local consumer services, cloud computing, digital media and entertainment platforms, Cainiao logistics services, and innovation initiatives/other.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 100,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "BABA"
+          ],
+          "title": "Alibaba Earnings: Higher Sales Growth Offset by Increasing Investments; Valuation Raised by 4%"
+        },
+        {
+          "id": "ARGUS_3592_AnalystReport_1722597055000",
+          "headHtml": "Analyst Report: Meta Platforms Inc",
+          "provider": "Argus Research",
+          "reportDate": "2024-08-02T11:10:55Z",
+          "reportTitle": "Meta Platforms operates the world's largest family of social networking websites, including the flagship Facebook site, Instagram, Facebook Messenger, WhatsApp, Reels and Threads. The sites enable users to communicate with friends and family by posting to the site; commenting on others' posts; sharing photographs, website links, and videos; and messaging and playing games. The company also partners with application developers to add functionality to the sites, and allows users to pay for virtual goods and services through its Payments function. Meta derives about 55% of its revenue from outside the U.S. and Canada. Facebook/Meta went public on May 18, 2012. Meta Platforms changed its ticker from FB to META on June 9, 2022.",
+          "reportType": "Analyst Report",
+          "targetPrice": 600,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "META"
+          ],
+          "title": "Raising target price to $600"
+        },
+        {
+          "id": "MS_0P0000OQN8_AnalystReport_1721800677000",
+          "headHtml": "Analyst Report: Tesla, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-07-24T05:57:57Z",
+          "reportTitle": "Tesla is a vertically integrated battery electric vehicle automaker and developer of autonomous driving software. The company has multiple vehicles in its fleet, which include luxury and midsize sedans, crossover SUVs, a light truck, and a semi-truck. Tesla also plans to begin selling more affordable vehicles, and a sports car. Global deliveries in 2023 were a little over 1.8 million vehicles. The company also sells batteries for stationary storage for residential and commercial properties including utilities and solar panels and solar roofs for energy generation. Tesla also owns a fast-charging network. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "TSLA"
+          ],
+          "title": "Tesla Earnings: Affordable Vehicle Still on Track for 2025 Launch and 2026 Ramp"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1718755251000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2024-06-19T00:00:51Z",
+          "reportTitle": "Nvidia is a leading developer of graphics processing units. Traditionally, GPUs were used to enhance the experience on computing platforms, most notably in gaming applications on PCs. GPU use cases have since emerged as important semiconductors used in artificial intelligence. Nvidia not only offers AI GPUs, but also a software platform, Cuda, used for AI model development and training. Nvidia is also expanding its data center networking solutions, helping to tie GPUs together to handle complex workloads. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 105,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "$105 Fair Value Estimate After Nvidia Completes a 10/1 Split"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1718031282000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2024-06-10T14:54:42Z",
+          "reportTitle": "Nvidia is a leading developer of graphics processing units. Traditionally, GPUs were used to enhance the experience on computing platforms, most notably in gaming applications on PCs. GPU use cases have since emerged as important semiconductors used in artificial intelligence. Nvidia not only offers AI GPUs, but also a software platform, Cuda, used for AI model development and training. Nvidia is also expanding its data center networking solutions, helping to tie GPUs together to handle complex workloads. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 105,
+          "targetPriceStatus": "Decreased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "$105 Fair Value Estimate After Nvidia Completes a 10/1 Split"
+        },
+        {
+          "id": "ARGUS_3656_AnalystReport_1716462318000",
+          "headHtml": "Analyst Report: NVIDIA Corp",
+          "provider": "Argus Research",
+          "reportDate": "2024-05-23T11:05:18Z",
+          "reportTitle": "Nvidia Corp., based in Santa Clara, California, is a visual computing company with worldwide operations and markets. The company operates through two segments, Graphics and Compute & Networking. The company's four main markets are gaming, professional visualization, data center, and automotive. In calendar 2020, Nvidia completed the acquisition of data-center connectivity leader Mellanox.",
+          "reportType": "Analyst Report",
+          "targetPrice": 1100,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Reaffirming BUY and raising target price to $1,100"
+        },
+        {
+          "id": "MS_0P000003UP_AnalystReport_1713542687000",
+          "headHtml": "Analyst Report: Netflix, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-04-19T16:04:47Z",
+          "reportTitle": "Netflix\u2019s relatively simple business model involves only one business, its streaming service. It has the biggest television entertainment subscriber base in both the United States and the collective international market, with almost 250 million subscribers globally. Netflix has exposure to nearly the entire global population outside of China. The firm has traditionally avoided live programming or sports content, instead focusing on on-demand access to episodic television, movies, and documentaries. The firm recently began introducing ad-supported subscription plans, giving the firm exposure to the advertising market in addition to the subscription fees that have historically accounted for nearly all its revenue. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 440,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NFLX"
+          ],
+          "title": "Netflix Earnings: Fantastic Period Dampened by Likelihood of Growth Deceleration"
+        },
+        {
+          "id": "MS_0P000003UP_AnalystReport_1713493671000",
+          "headHtml": "Analyst Report: Netflix, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-04-19T02:27:51Z",
+          "reportTitle": "Netflix\u2019s relatively simple business model involves only one business, its streaming service. It has the biggest television entertainment subscriber base in both the United States and the collective international market, with almost 250 million subscribers globally. Netflix has exposure to nearly the entire global population outside of China. The firm has traditionally avoided live programming or sports content, instead focusing on on-demand access to episodic television, movies, and documentaries. The firm recently began introducing ad-supported subscription plans, giving the firm exposure to the advertising market in addition to the subscription fees that have historically accounted for nearly all its revenue. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 440,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NFLX"
+          ],
+          "title": "Netflix Earnings: Fantastic Period Dampened by Likelihood of Growth Deceleration"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1710817483000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2024-03-19T03:04:43Z",
+          "reportTitle": "Nvidia is a leading developer of graphics processing units. Traditionally, GPUs were used to enhance the experience on computing platforms, most notably in gaming applications on PCs. GPU use cases have since emerged as important semiconductors used in artificial intelligence. Nvidia not only offers AI GPUs, but also a software platform, Cuda, used for AI model development and training. Nvidia is also expanding its data center networking solutions, helping to tie GPUs together to handle complex workloads. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 910,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia: Blackwell Platform, Higher Capex Should Drive Growth; Raising Fair Value by 25% to $910"
+        },
+        {
+          "id": "ARGUS_39400_MarketOutlook_1710414858000",
+          "headHtml": "Daily Spotlight: Where to Look for AI Investment Opportunities",
+          "provider": "Argus Research",
+          "reportDate": "2024-03-14T11:14:18Z",
+          "reportTitle": "Determining a realistic estimate for the size of the Artificial Intelligence industry is a challenge, as there is simply no measurable unit of AI output comparable to barrels of oil or tons of steel. As well, much of the AI development occurs within laboratories and at universities - and results are measured in tangible progress against AI objectives, not dollars or units of output. In the corporate world, nearly all pure-play AI companies service micro-niches, have little measurable revenue, and are deeply unprofitable. Argus believes that much of the revenue and most of the profitability from the AI industry is attributable to several giant U.S. and a few international companies. These primarily operate in growth sectors such as Technology, Communication Services, and Consumer Discretionary. Key companies include Amazon, Microsoft, Apple, Meta Platforms, IBM, Alphabet, Salesforce, Nvidia, and Qualcomm in the U.S. China has Baidu, Tencent, and Alibaba all developing AI solutions. There is also significant activity among companies pursuing advances in IoT, vehicle electrification, autonomous driving, automation, and connectivity for manufacturing, warehousing, construction, and other areas. Argus has derived a model of the size and scope of the global AI industry, based on our coverage of major publicly traded players and most of the mid-tier players, along with our industry knowledge of private players. We estimate the global industry annual revenue amounted to $90-$100 billion in 2021, and expect that to grow at a 40% CAGR through 2030, when it is expected to reach $1.8 trillion. Annual growth is expected to decelerate from the low- to mid-40% range in the immediate years, to the mid-30% range for years toward the end of the survey period.",
+          "reportType": "Market Outlook",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Where to Look for AI Investment Opportunities"
+        },
+        {
+          "id": "ARGUS_39400_MarketOutlook_1710413958000",
+          "headHtml": "Daily Spotlight: Where to Look for AI Investment Opportunities",
+          "provider": "Argus Research",
+          "reportDate": "2024-03-14T10:59:18Z",
+          "reportTitle": "Determining a realistic estimate for the size of the Artificial Intelligence industry is a challenge, as there is simply no measurable unit of AI output comparable to barrels of oil or tons of steel. As well, much of the AI development occurs within laboratories and at universities - and results are measured in tangible progress against AI objectives, not dollars or units of output. In the corporate world, nearly all pure-play AI companies service micro-niches, have little measurable revenue, and are deeply unprofitable. Argus believes that much of the revenue and most of the profitability from the AI industry is attributable to several giant U.S. and a few international companies. These primarily operate in growth sectors such as Technology, Communication Services, and Consumer Discretionary. Key companies include Amazon, Microsoft, Apple, Meta Platforms, IBM, Alphabet, Salesforce, Nvidia, and Qualcomm in the U.S. China has Baidu, Tencent, and Alibaba all developing AI solutions. There is also significant activity among companies pursuing advances in IoT, vehicle electrification, autonomous driving, automation, and connectivity for manufacturing, warehousing, construction, and other areas. Argus has derived a model of the size and scope of the global AI industry, based on our coverage of major publicly traded players and most of the mid-tier players, along with our industry knowledge of private players. We estimate the global industry annual revenue amounted to $90-$100 billion in 2021, and expect that to grow at a 40% CAGR through 2030, when it is expected to reach $1.8 trillion. Annual growth is expected to decelerate from the low- to mid-40% range in the immediate years, to the mid-30% range for years toward the end of the survey period.",
+          "reportType": "Market Outlook",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Where to Look for AI Investment Opportunities"
+        },
+        {
+          "id": "MS_0P00013K81_AnalystReport_1707411717000",
+          "headHtml": "Analyst Report: Alibaba Group Holding Limited",
+          "provider": "Morningstar",
+          "reportDate": "2024-02-08T17:01:57Z",
+          "reportTitle": "Alibaba is the world\u2019s largest online and mobile commerce company as measured by gross merchandise volume. It operates China\u2019s online marketplaces, including Taobao (consumer-to-consumer) and Tmall (business-to-consumer). The China commerce retail division is the most valuable cash-flow-generating business at Alibaba. Additional revenue sources include China commerce wholesale, international commerce retail/wholesale, local consumer services, cloud computing, digital media and entertainment platforms, Cainiao logistics services, and innovation initiatives/other.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 94,
+          "targetPriceStatus": "Decreased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "BABA"
+          ],
+          "title": "Alibaba Earnings: Increased Investments Bring Uncertainty to Margins; Fair Value Estimate Cut "
+        },
+        {
+          "id": "MS_0P0000W3KZ_AnalystReport_1706917925000",
+          "headHtml": "Analyst Report: Meta Platforms, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-02-02T23:52:05Z",
+          "reportTitle": "Meta is the world\u2019s largest online social network, with nearly 4 billion family of apps monthly active users. Users engage with each other in different ways, exchanging messages and sharing news events, photos, and videos. The firm\u2019s ecosystem consists mainly of the Facebook app, Instagram, Messenger, WhatsApp, and many features surrounding these products. Users can access Facebook on mobile devices and desktops. Advertising revenue represents more than 90% of the firm\u2019s total revenue, with more than 45% coming from the U.S. and Canada and over 20% from Europe. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 400,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "META"
+          ],
+          "title": "Meta Earnings: Wide-Moat Meta Surpassed Expectations Again, but the Shares Are Overvalued"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1706848322000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-02-02T04:32:02Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 185,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: Advertising Shines, E-Commerce Is Still Improving, and Margins Are Impressive"
+        },
+        {
+          "id": "MS_0P0000006A_AnalystReport_1706672986000",
+          "headHtml": "Analyst Report: Advanced Micro Devices, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-01-31T03:49:46Z",
+          "reportTitle": "Advanced Micro Devices designs a variety of digital semiconductors for markets such as PCs, gaming consoles, data centers, industrial, and automotive applications, among others. AMD\u2019s traditional strength was in central processing units, CPUs, and graphics processing units, or GPUs, used in PCs and data centers. Additionally, the firm supplies the chips found in prominent game consoles such as the Sony PlayStation and Microsoft Xbox. In 2022, the firm acquired field-programmable gate array, or FPGA, leader Xilinx to diversify its business and augment its opportunities in key end markets such as the data center and automotive. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 145,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AMD"
+          ],
+          "title": "AMD Earnings: Raising Valuation to $145 From $125 as AI GPU Revenue Is on the Rise"
+        },
+        {
+          "id": "MS_0P000003UP_AnalystReport_1702944596000",
+          "headHtml": "Analyst Report: Netflix, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-12-19T00:09:56Z",
+          "reportTitle": "Netflix\u2019s relatively simple business model involves only one business, its streaming service. It has the biggest television entertainment subscriber base in both the United States and the collective international market, with almost 250 million subscribers globally. Netflix has exposure to nearly the entire global population outside of China. The firm has traditionally avoided live programming or sports content, instead focusing on on-demand access to episodic television, movies, and documentaries. The firm recently began introducing ad-supported subscription plans, giving the firm exposure to the advertising market in addition to the subscription fees that have historically accounted for nearly all its revenue. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 410,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NFLX"
+          ],
+          "title": "Netflix: We Expect the Firm\u2019s Lead on Competitors to Continue"
+        },
+        {
+          "id": "MS_0P00013K81_AnalystReport_1700208110000",
+          "headHtml": "Analyst Report: Alibaba Group Holding Limited",
+          "provider": "Morningstar",
+          "reportDate": "2023-11-17T08:01:50Z",
+          "reportTitle": "Alibaba is the world\u2019s largest online and mobile commerce company as measured by gross merchandise volume (CNY 8.3 trillion for the fiscal year ended March 2022). It operates China\u2019s online marketplaces, including Taobao (consumer-to-consumer) and Tmall (business-to-consumer). Alibaba's China commerce retail division accounted for 67% of revenue in the year ended March 2022. Additional revenue sources include China commerce wholesale (2%), international commerce retail/wholesale (5%/2%), local consumer services (5%), cloud computing (9%), digital media and entertainment platforms (4%), Cainiao logistics services (5%), and innovation initiatives/other (1%).  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 128,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "BABA"
+          ],
+          "title": "Alibaba Earnings: Cloud Spinoff Halt a Surprise, Size and Timing of Capital Returns Uncertain"
+        },
+        {
+          "id": "MS_0P0000006A_AnalystReport_1699053991000",
+          "headHtml": "Analyst Report: Advanced Micro Devices, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-11-03T23:26:31Z",
+          "reportTitle": "Advanced Micro Devices designs a variety of digital semiconductors for markets such as PCs, gaming consoles, data centers, industrial, and automotive applications, among others. AMD\u2019s traditional strength was in central processing units, CPUs, and graphics processing units, or GPUs, used in PCs and data centers. Additionally, the firm supplies the chips found in prominent game consoles such as the Sony PlayStation and Microsoft Xbox. In 2022, the firm acquired field-programmable gate array, or FPGA, leader Xilinx to diversify its business and augment its opportunities in key end markets such as the data center and automotive. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 125,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMD"
+          ],
+          "title": "AMD Earnings: Embedded Chip Weakness Leads to a Soft Forecast, but AI Roadmap Is on Track"
+        },
+        {
+          "id": "ARGUS_2707_AnalystReport_1698921146000",
+          "headHtml": "Analyst Report: Advanced Micro Devices Inc.",
+          "provider": "Argus Research",
+          "reportDate": "2023-11-02T10:32:26Z",
+          "reportTitle": "Advanced Micro Devices is the number-two player in x86-based microprocessors, behind Intel, and -- with the 2008 acquisition of ATI -- a top player in graphic processors. In 2021, Advanced Micro Devices acquired Xilinx, expanding its presence in embedded computing and data center.",
+          "reportType": "Analyst Report",
+          "targetPrice": 170,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMD"
+          ],
+          "title": "Generative AI spotlight, improving PC demand"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1698377759000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-10-27T03:35:59Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 155,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: E-Commerce Improves, AWS Stabilizes, and Margins Surge"
+        },
+        {
+          "id": "MS_0P000003UP_AnalystReport_1697685897000",
+          "headHtml": "Analyst Report: Netflix, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-10-19T03:24:57Z",
+          "reportTitle": "Netflix's primary business is a streaming video on demand service now available in almost every country worldwide except China. The firm primarily generates revenue from subscriptions to its eponymous service. Netflix delivers original and third-party digital video content to PCs, internet-connected TVs, and consumer electronic devices, including tablets, video game consoles, Apple TV, Roku, and Chromecast. Netflix is the largest SVOD platform in the world with over 220 million subscribers globally. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 350,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NFLX"
+          ],
+          "title": "Netflix Earnings: Stellar Results Show Durable Strengths but Also Some Tailwinds That Should Subside"
+        },
+        {
+          "id": "MS_0P0000OQN8_AnalystReport_1697680425000",
+          "headHtml": "Analyst Report: Tesla, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-10-19T01:53:45Z",
+          "reportTitle": "Founded in 2003 and based in Palo Alto, California, Tesla is a vertically integrated sustainable energy company that also aims to transition the world to electric mobility by making electric vehicles. The company sells solar panels and solar roofs for energy generation plus batteries for stationary storage for residential and commercial properties including utilities. Tesla has multiple vehicles in its fleet, which include luxury and midsize sedans and crossover SUVs. The company also plans to begin selling more affordable sedans and small SUVs, a light truck, a semi truck, and a sports car. Global deliveries in 2022 were a little over 1.3 million vehicles. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 210,
+          "targetPriceStatus": "Decreased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "TSLA"
+          ],
+          "title": "Tesla Earnings: Price Cuts Weigh on Margins While Cybertruck Launch Officially Scheduled"
+        },
+        {
+          "id": "ARGUS_37649_MarketOutlook_1694602483000",
+          "headHtml": "Daily Spotlight: Argus Adjusts Sector Ratings",
+          "provider": "Argus Research",
+          "reportDate": "2023-09-13T10:54:43Z",
+          "reportTitle": "We have adjusted our recommended sector allocations for the third quarter of 2023. We raised Communication Services to Over-Weight from Market-Weight. This \"barbell\" sector contains high-growth, low-income social media stocks on one end and low-growth, high-income telecom services stocks on the other. Hybrid cloud is emerging as the key delivery mechanism for AI-as-a-service. Social media stocks offering hybrid cloud services are positioned to benefit from the AI wave, in our view. As well, telecom stocks are likely near the end of mobile device weakness and are positioned for improved customer ARPU as the next generation of 5G smartphones launch in fall 2023. We have lowered Materials to Market-Weight from Over-Weight. Even as energy prices recover, many commodity prices have remained weak or weakened further. Most are traded in U.S. dollars. The dollar is inversely correlated to commodities, and long-term dollar strength is weighing on commodity prices. Elsewhere, demand from China remains sluggish as the lifting of zero-tolerance COVID restrictions has failed to stimulate the economy. Our current Over-Weight sectors are Communication Services, Financial Services, Consumer Discretionary and Technology. Our current Market-Weight sectors are Basic Materials, Industrials, Healthcare, Real Estate, and Utilities. Our Under-Weight sectors are Energy and Consumer Staples. We suggest that advisors and investors leverage this consistent and comprehensive process to adjust sector weightings within diversified equity portfolios, with a primary focus on the largest sectors.",
+          "reportType": "Market Outlook",
+          "tickers": [
+            "NFLX"
+          ],
+          "title": "Argus Adjusts Sector Ratings"
+        },
+        {
+          "id": "MS_0P0000006A_AnalystReport_1692342459000",
+          "headHtml": "Analyst Report: Advanced Micro Devices, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-08-18T07:07:39Z",
+          "reportTitle": "Advanced Micro Devices designs microprocessors for the computer and consumer electronics industries. The majority of its sales are in the personal computer and data center markets via CPUs and GPUs. Additionally, the firm supplies the chips found in prominent game consoles such as the Sony PlayStation and Microsoft Xbox. AMD acquired graphics processor and chipset maker ATI in 2006 in an effort to improve its positioning in the PC food chain. In 2009, the firm spun out its manufacturing operations to form the foundry GlobalFoundries. In 2022, the firm acquired field-programmable gate array leader Xilinx to diversify its business and augment its opportunities in key end markets such as the data center and automotive. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 130,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMD"
+          ],
+          "title": "Advanced Micro Devices Earnings: Squarely in AI Accelerator Mix; Maintain Valuation"
+        },
+        {
+          "id": "MS_0P00013K81_AnalystReport_1691719321000",
+          "headHtml": "Analyst Report: Alibaba Group Holding Limited",
+          "provider": "Morningstar",
+          "reportDate": "2023-08-11T02:02:01Z",
+          "reportTitle": "Alibaba is the world\u2019s largest online and mobile commerce company as measured by gross merchandise volume (CNY 8.3 trillion for the fiscal year ended March 2022). It operates China\u2019s online marketplaces, including Taobao (consumer-to-consumer) and Tmall (business-to-consumer). Alibaba's China commerce retail division accounted for 67% of revenue in the year ended March 2022. Additional revenue sources include China commerce wholesale (2%), international commerce retail/wholesale (5%/2%), local consumer services (5%), cloud computing (9%), digital media and entertainment platforms (4%), Cainiao logistics services (5%), and innovation initiatives/other (1%).  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 128,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "BABA"
+          ],
+          "title": "Alibaba Earnings: Strong Beat on Results; Near-Term Choppy Recovery in the Chinese Businesses"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1691161742000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-08-04T15:09:02Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: AWS Stabilizing, Margins Strengthening, and E-Commerce Demand Improving"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1691115642000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-08-04T02:20:42Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: AWS Stabilizing, Margins Strengthening, and E-commerce Demand Improving"
+        },
+        {
+          "id": "MS_0P0000W3KZ_AnalystReport_1690427382000",
+          "headHtml": "Analyst Report: Meta Platforms, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-07-27T03:09:42Z",
+          "reportTitle": "Meta is the world\u2019s largest online social network, with 3.8 billion family of apps monthly active users. Users engage with each other in different ways, exchanging messages and sharing news events, photos, and videos. The firm\u2019s ecosystem consists mainly of the Facebook app, Instagram, Messenger, WhatsApp, and many features surrounding these products. Users can access Facebook on mobile devices and desktops. Advertising revenue represents more than 90% of the firm\u2019s total revenue, with more than 45% coming from the U.S. and Canada and over 20% from Europe.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 311,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "META"
+          ],
+          "title": "Meta Earnings: Meta Flywheel Turn Is Accelerating, but Most of the Benefits Are Priced In"
+        },
+        {
+          "id": "MS_0P0000W3KZ_AnalystReport_1689132459000",
+          "headHtml": "Analyst Report: Meta Platforms, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-07-12T03:27:39Z",
+          "reportTitle": "Meta is the world\u2019s largest online social network, with 3.8 billion family of apps monthly active users. Users engage with each other in different ways, exchanging messages and sharing news events, photos, and videos. The firm\u2019s ecosystem consists mainly of the Facebook app, Instagram, Messenger, WhatsApp, and many features surrounding these products. Users can access Facebook on mobile devices and desktops. Advertising revenue represents more than 90% of the firm\u2019s total revenue, with more than 45% coming from the U.S. and Canada and over 20% from Europe.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 278,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "META"
+          ],
+          "title": "Meta Platforms: Threads Is Growing the Fastest, but Impact on Meta\u2019s Fair Value Likely Not Material"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1685087873000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2023-05-26T07:57:53Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including PC gaming and data centers. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 300,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia Might Be the Biggest Winner in the Rise of ChatGPT and Generative AI"
+        },
+        {
+          "id": "ARGUS_3656_AnalystReport_1685036962000",
+          "headHtml": "Analyst Report: NVIDIA Corp",
+          "provider": "Argus Research",
+          "reportDate": "2023-05-25T17:49:22Z",
+          "reportTitle": "Nvidia Corp., based in Santa Clara, California, is a visual computing company with worldwide operations and markets. The company operates through two segments, Graphics and Compute & Networking. The company's four main markets are gaming, professional visualization, data center, and automotive. In calendar 2020, Nvidia completed the acquisition of data-center connectivity leader Mellanox.",
+          "reportType": "Analyst Report",
+          "targetPrice": 450,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Reaffirming BUY and raising target to $450"
+        },
+        {
+          "id": "ARGUS_3656_AnalystReport_1684987200000",
+          "headHtml": "Analyst Report: NVIDIA Corp",
+          "provider": "Argus Research",
+          "reportDate": "2023-05-25T04:00:00Z",
+          "reportTitle": "Nvidia Corp., based in Santa Clara, California, is a visual computing company with worldwide operations and markets. The company operates through two segments, Graphics and Compute & Networking. The company's four main markets are gaming, professional visualization, data center, and automotive. In calendar 2020, Nvidia completed the acquisition of data-center connectivity leader Mellanox.",
+          "reportType": "Analyst Report",
+          "targetPrice": 450,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Reaffirming BUY and raising target to $450"
+        },
+        {
+          "id": "MS_0P0000006A_AnalystReport_1683104114000",
+          "headHtml": "Analyst Report: Advanced Micro Devices, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-05-03T08:55:14Z",
+          "reportTitle": "Advanced Micro Devices designs microprocessors for the computer and consumer electronics industries. The majority of its sales are in the personal computer and data center markets via CPUs and GPUs. Additionally, the firm supplies the chips found in prominent game consoles such as the Sony PlayStation and Microsoft Xbox. AMD acquired graphics processor and chipset maker ATI in 2006 in an effort to improve its positioning in the PC food chain. In 2009, the firm spun out its manufacturing operations to form the foundry GlobalFoundries. In 2022, the firm acquired field-programmable gate array leader Xilinx to diversify its business and augment its opportunities in key end markets such as the data center and automotive. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 115,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMD"
+          ],
+          "title": "AMD Earnings: Soft Guidance Doesn\u2019t Deter Our Positive Thesis on Cloud Growth"
+        },
+        {
+          "id": "MS_0P0000W3KZ_AnalystReport_1682601196000",
+          "headHtml": "Analyst Report: Meta Platforms, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-04-27T13:13:16Z",
+          "reportTitle": "Meta is the world\u2019s largest online social network, with 3.8 billion family of apps monthly active users. Users engage with each other in different ways, exchanging messages and sharing news events, photos, and videos. The firm\u2019s ecosystem consists mainly of the Facebook app, Instagram, Messenger, WhatsApp, and many features surrounding these products. Users can access Facebook on mobile devices and desktops. Advertising revenue represents more than 90% of the firm\u2019s total revenue, with more than 45% coming from the U.S. and Canada and over 20% from Europe.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 278,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "META"
+          ],
+          "title": "Meta Earnings: Reels Monetization Becoming a Reality While Network Effect Remains Intact"
+        },
+        {
+          "id": "ARGUS_3630_AnalystReport_1682012119000",
+          "headHtml": "Analyst Report: Tesla Inc",
+          "provider": "Argus Research",
+          "reportDate": "2023-04-20T17:35:19Z",
+          "reportTitle": "Tesla Inc. manufactures and sells electric vehicles, and energy generation and storage systems. The company was founded in 2003 and went public in June 2010 (initial public offering at $17 per share on June 29, 2010). Tesla has approximately 49,000 employees. It recently moved its headquarters to Austin, Texas, from Palo Alto, California.",
+          "reportType": "Analyst Report",
+          "targetPrice": 222,
+          "targetPriceStatus": "Decreased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "TSLA"
+          ],
+          "title": "Reaffirming BUY despite a weaker margin outlook"
+        },
+        {
+          "id": "MS_0P0000OQN8_AnalystReport_1681953140000",
+          "headHtml": "Analyst Report: Tesla, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-04-20T01:12:20Z",
+          "reportTitle": "Founded in 2003 and based in Palo Alto, California, Tesla is a vertically integrated sustainable energy company that also aims to transition the world to electric mobility by making electric vehicles. The company sells solar panels and solar roofs for energy generation plus batteries for stationary storage for residential and commercial properties including utilities. Tesla has multiple vehicles in its fleet, which include luxury and midsize sedans and crossover SUVs. The company also plans to begin selling more affordable sedans and small SUVs, a light truck, a semi truck, and a sports car. Global deliveries in 2022 were a little over 1.3 million vehicles. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 215,
+          "targetPriceStatus": "Decreased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "TSLA"
+          ],
+          "title": "Tesla Earnings: Stock Dives After Management's Price Cuts Weigh on Profit Margins"
+        },
+        {
+          "id": "MS_0P000003UP_AnalystReport_1681879936000",
+          "headHtml": "Analyst Report: Netflix, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-04-19T04:52:16Z",
+          "reportTitle": "Netflix's primary business is a streaming video on demand service now available in almost every country worldwide except China. The firm primarily generates revenue from subscriptions to its eponymous service. Netflix delivers original and third-party digital video content to PCs, internet-connected TVs, and consumer electronic devices, including tablets, video game consoles, Apple TV, Roku, and Chromecast. Netflix is the largest SVOD platform in the world with over 220 million subscribers globally. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 315,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NFLX"
+          ],
+          "title": "Netflix Earnings: Uneventful Quarter Overshadowed by Rollout of Paid Sharing, aka Password Crackdown"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1677198458000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2023-02-24T00:27:38Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including PC gaming and data centers. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia Well Positioned to Benefit From ChatGPT and Other Large Language Models; $200 FVE"
+        },
+        {
+          "id": "ARGUS_3656_AnalystReport_1677177255000",
+          "headHtml": "Analyst Report: NVIDIA Corp",
+          "provider": "Argus Research",
+          "reportDate": "2023-02-23T18:34:15Z",
+          "reportTitle": "Nvidia Corp., based in Santa Clara, California, is a visual computing company with worldwide operations and markets. The company operates through two segments, Graphics and Compute & Networking. The company's four main markets are gaming, professional visualization, data center, and automotive. In calendar 2020, Nvidia completed the acquisition of data-center connectivity leader Mellanox.",
+          "reportType": "Analyst Report",
+          "targetPrice": 275,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Reaffirming BUY and raising target to $275"
+        },
+        {
+          "id": "ARGUS_35430_StockPicks_1675083671000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2023-01-30T13:01:11Z",
+          "reportTitle": "One silver lining of a down market is that stocks become more affordable. During the very tough 2022 for almost all equities, the Technology sector was one of the hardest hit groups. Many Tech stocks, which are traditionally growth stocks, now offer both growth and value characteristics. When stock values pull back, especially far back, it usually is not a good time for investors to retreat. Rather, we advise that shareholders look for companies with strong managements, desirable products or services, and solid track records. For this week's list, we did exactly that in beaten-down Technology. We used the Argus Research Screening Tool and applied the following criteria: the stocks must be in the Technology sector; must be rated BUY at Argus; must carry an Argus Financial Strength rating of Medium-High or High; and must trade at least 30% below their 52-week high. Here are the top 10 results, suggesting attractive valuations.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "SHOP",
+            "PYPL",
+            "FIS",
+            "NVDA",
+            "ADBE",
+            "LYFT",
+            "AMD",
+            "HUBS",
+            "MRVL"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 01/30/2023: Fire Sale on Beaten-Down Tech"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1674001559000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2023-01-18T00:25:59Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Near-Term Gaming and Data Center Headwinds Look Manageable for Nvidia; Shares Undervalued"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1671495682000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-12-20T00:21:22Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Near-Term Gaming and Data Center Headwinds Look Manageable for Nvidia; Shares Undervalued"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1670978470000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-12-14T00:41:10Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Near-Term Gaming and Data Center Headwinds Look Manageable for Nvidia; Shares Undervalued"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1668796848000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-11-18T18:40:48Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Near-Term Gaming and Data Center Headwinds Look Manageable for Nvidia; Shares Undervalued"
+        },
+        {
+          "id": "ARGUS_3656_AnalystReport_1668773722000",
+          "headHtml": "Analyst Report: NVIDIA Corp",
+          "provider": "Argus Research",
+          "reportDate": "2022-11-18T12:15:22Z",
+          "reportTitle": "Nvidia Corp., based in Santa Clara, California, is a visual computing company with worldwide operations and markets. The company operates through two segments, Graphics and Compute & Networking. The company's four main markets are gaming, professional visualization, data center, and automotive. In calendar 2020, Nvidia completed the acquisition of data-center connectivity leader Mellanox.",
+          "reportType": "Analyst Report",
+          "targetPrice": 225,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Reaffirming BUY and $225 target"
+        },
+        {
+          "id": "ARGUS_34700_TechnicalAnalysis_1668168269000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2022-11-11T12:04:29Z",
+          "reportTitle": "When there are about 11 of 12 (guesstimate) hotter-than-expected CPI reports, the odds increase that eventually a cooler-than-expected report will print. It is amazing what the markets did on Thursday based on year-over-year CPI of 7.7%. Stocks soared along with Treasuries and metals, while the U.S. dollar (USD) got slammed. Even Bitcoin and Ethereum rallied sharply after their recent gashing.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "NVDA",
+            "BMI"
+          ],
+          "title": "When there are about 11 of 12 (guesstimate) hotter-than-expected CPI reports, the odds increase that eventually a cooler-than-expected report will print."
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1666740862000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-10-25T23:34:22Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Latest U.S. Govt. License Requirement for Nvidia\u2019s Data Center GPUs Sold to China Could Be Troubling"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1665791006000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-10-14T23:43:26Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Latest U.S. Govt. License Requirement for Nvidia\u2019s Data Center GPUs Sold to China Could Be Troubling"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1662006471000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-09-01T04:27:51Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Latest U.S. Govt. License Requirement for Nvidia\u2019s Data Center GPUs Sold to China Could Be Troubling"
+        },
+        {
+          "id": "ARGUS_3656_AnalystReport_1661965281000",
+          "headHtml": "Analyst Report: NVIDIA Corp",
+          "provider": "Argus Research",
+          "reportDate": "2022-08-31T17:01:21Z",
+          "reportTitle": "Nvidia Corp., based in Santa Clara, California, is a visual computing company with worldwide operations and markets. The company operates through two segments, Graphics and Compute & Networking. The company's four main markets are gaming; professional visualization; data center and automotive. In calendar 2020, Nvidia completed the acquisition of data-center connectivity leader Mellanox.",
+          "reportType": "Analyst Report",
+          "targetPrice": 225,
+          "targetPriceStatus": "Decreased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Consumer challenges to continue"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1661557268000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-08-26T23:41:08Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia Isn\u2019t Out of the Game as Near-Term Headwinds Don\u2019t Discourage Our Positive Long-Term Outlook"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1661392673000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-08-25T01:57:53Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia Isn\u2019t Out of the Game as Near-Term Headwinds Don\u2019t Discourage Our Positive Long-Term Outlook"
+        },
+        {
+          "id": "ARGUS_3656_AnalystReport_1661273822000",
+          "headHtml": "Analyst Report: NVIDIA Corp",
+          "provider": "Argus Research",
+          "reportDate": "2022-08-23T16:57:02Z",
+          "reportTitle": "Nvidia Corp., based in Santa Clara, California, is a visual computing company with worldwide operations and markets. The company operates through two segments, Graphics and Compute & Networking. The company's four main markets are gaming; professional visualization; data center and automotive. In calendar 2020, Nvidia completed the acquisition of data-center connectivity leader Mellanox.",
+          "reportType": "Analyst Report",
+          "targetPrice": 280,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Cutting estimates, reiterating BUY"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1659972299000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-08-08T15:24:59Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia's Warning Doesn't Alter Our Long-Term Positive Outlook; Shares Undervalued"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1658360811000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-07-20T23:46:51Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Demand Headwinds Finally Catch Up to Nvidia; Shares Look Attractive Relative to Unchanged $200 FVE"
+        },
+        {
+          "id": "ARGUS_33330_TechnicalAnalysis_1656313583000",
+          "headHtml": "Technical Assessment: Bearish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2022-06-27T07:06:23Z",
+          "reportTitle": "Well that was quite the reversal! The S&P 500 dropped 5.8% for the week ending June 10, the worst weekly performance since March 2020 (during the pandemic). But last week, the \"500\" regained that entire loss and then some, surging 6.5%. Such a move has been rare historically and has been quite bullish for stock returns according to data on www.quantifiableedges.com.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "NVDA",
+            "MNST"
+          ],
+          "title": "Well that was quite the reversal!"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1655161594000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-06-13T23:06:34Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Demand Headwinds Finally Catch Up to Nvidia; Shares Look Attractive Relative to Unchanged $200 FVE"
+        },
+        {
+          "id": "ARGUS_33113_MarketOutlook_1654247989000",
+          "headHtml": "Daily Spotlight: 390,000 New Jobs in May",
+          "provider": "Argus Research",
+          "reportDate": "2022-06-03T09:19:49Z",
+          "reportTitle": "The U.S. economy generated 390,000 new jobs in May, ahead of consensus expectations. Turning to other data points, the unemployment rate was steady at 3.6%, and the number of unemployed persons was 6.0 million, up from 5.9 million in the prior month as workers reenter the workforce. Average hourly earnings increased 10 cents month-to-month and are now 5.2% higher year-over-year, compared to 5.5% last month. Revisions to the jobs totals in the two prior months subtracted 22,000 jobs from the economy. In May, jobs gains occurred in leisure and hospitality, professional and business services, and transportation and warehousing. Employment in retail trade declined. The report indicates that the consumer segment of the economy is likely to remain on a growth track, despite the impact of the Federal Reserve interest-rate hikes, the Russian invasion of Ukraine, and higher prices at the gas pump.",
+          "reportType": "Market Outlook",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "390,000 New Jobs in May"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1653607195000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-05-26T23:19:55Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Demand Headwinds Finally Catch Up to Nvidia; Shares Look Attractive Relative to Unchanged $200 FVE"
+        },
+        {
+          "id": "ARGUS_3656_AnalystReport_1653572459000",
+          "headHtml": "Analyst Report: NVIDIA Corp",
+          "provider": "Argus Research",
+          "reportDate": "2022-05-26T13:40:59Z",
+          "reportTitle": "Nvidia Corp., based in Santa Clara, California, is a visual computing company with worldwide operations and markets. The company operates through two segments, Graphics and Compute & Networking. The company's four main markets are gaming; professional visualization; data center; and automotive. In calendar 2020, Nvidia completed the acquisition of data center connectivity leader Mellanox.",
+          "reportType": "Analyst Report",
+          "targetPrice": 280,
+          "targetPriceStatus": "Decreased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Slowing but still-strong growth; reiterating BUY"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1653531322000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-05-26T02:15:22Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's products. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Demand Headwinds Finally Catch Up to Nvidia; Shares Look Attractive Relative to Unchanged $200 FVE"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1652658119000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-05-15T23:41:59Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's graphics processing units. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "We Like Wide-Moat, Positive-Trend ASML and Nvidia to Help Investors Ride Out Choppy Waters"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1649373555000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-04-07T23:19:15Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's graphics processing units. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia\u2019s Ambitious Outlook at 2022 Investor Day Underpinned by Enviable GPU Dominance"
+        },
+        {
+          "id": "ARGUS_3656_AnalystReport_1648711574000",
+          "headHtml": "Analyst Report: NVIDIA Corp",
+          "provider": "Argus Research",
+          "reportDate": "2022-03-31T07:26:14Z",
+          "reportTitle": "Nvidia Corp., based in Santa Clara, California, is a visual computing company with worldwide operations and markets. The company operates through two segments, Graphics and Compute & Networking. The company's four main markets are gaming; professional visualization; data center; and automotive. In calendar 2020, Nvidia completed the acquisition of data center connectivity leader Mellanox.",
+          "reportType": "Analyst Report",
+          "targetPrice": 380,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "GTC highlights AI leadership; reiterating BUY"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1647994455000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-03-23T00:14:15Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's graphics processing units. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia\u2019s Ambitious Outlook at 2022 Investor Day Underpinned by Enviable GPU Dominance"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1647645068000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-03-18T23:11:08Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's graphics processing units. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia Shows No Signs of Slowing Down as Datacenter Business Spearheads Growth, Raising FVE to $200"
+        },
+        {
+          "id": "ARGUS_32348_TechnicalAnalysis_1646895394000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2022-03-10T06:56:34Z",
+          "reportTitle": "Since January 27 (or for the past 28 trading days), the S&P 500 has gained at least 1.45% eight times in a single day, the highest being yesterday -- when the \"500\" exploded by 2.6%. The index also has witnessed seven days with at least a 1.55% decline -- with the largest being a 2.95% drop on March 7. So in 15 of the past 28 trading sessions, we have seen both abnormal gains and losses.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "NVDA",
+            "TRV"
+          ],
+          "title": "Since January 27 (or for the past 28 trading days), the S&P 500 has gained at least 1.45% eight times in a single day, the highest being yesterday -- when the \"500\" exploded by 2.6%."
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1645229294000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-02-19T00:08:14Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's graphics processing units. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia Shows No Signs of Slowing Down as Datacenter Business Spearheads Growth, Raising FVE to $200"
+        },
+        {
+          "id": "ARGUS_3656_AnalystReport_1645105700000",
+          "headHtml": "Analyst Report: NVIDIA Corp",
+          "provider": "Argus Research",
+          "reportDate": "2022-02-17T13:48:20Z",
+          "reportTitle": "Nvidia Corp., based in Santa Clara, California, is a visual computing company with worldwide operations and markets. The company operates through two segments, Graphics and Compute & Networking. The company's four main markets are gaming; professional visualization; data center; and automotive. In calendar 2020, Nvidia completed the acquisition of data center connectivity leader Mellanox.",
+          "reportType": "Analyst Report",
+          "targetPrice": 380,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Strong FY22 finish, no ARM deal; reiterating BUY"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1645070092000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-02-17T03:54:52Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's graphics processing units. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia Shows No Signs of Slowing Down as Datacenter Business Spearheads Growth, Raising FVE to $200"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1644353856000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-02-08T20:57:36Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's graphics processing units. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 187,
+          "targetPriceStatus": "Decreased",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia Abandoning ARM Deal; We Think Nvidia Remains Well Positioned in AI and Gaming; FVE to $187"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1644293053000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-02-08T04:04:13Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's graphics processing units. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 194,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia Reportedly Abandoning ARM Deal; We Think GPU Leader Remains Well Positioned in AI and Gaming"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1643847907000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-02-03T00:25:07Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's graphics processing units. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 194,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia's Pursuit of ARM Looks Increasingly Unlikely With U.S. FTC Lawsuit; FVE Down to $194"
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1642810468000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2022-01-22T00:14:28Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's graphics processing units. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 194,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia's Pursuit of ARM Looks Increasingly Unlikely With U.S. FTC Lawsuit; FVE Down to $194"
+        },
+        {
+          "id": "ARGUS_31735_TechnicalAnalysis_1640589643000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2021-12-27T07:20:43Z",
+          "reportTitle": "The stock market staged a modest rally last week, with the DJIA inching higher while the Nasdaq rallied sharply. The Dow was up less than 0.2%, the Nasdaq was up over 3%, and the S&P 500 split the difference with a 1.2% gain. Dread of Omicron has given way to \"it's just a cold\" thinking, which may be as delusional as regarding Omicron as the next plague.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "AA",
+            "NVDA"
+          ],
+          "title": "The stock market staged a modest rally last week, with the DJIA inching higher while the Nasdaq rallied sharply."
+        },
+        {
+          "id": "MS_0P000003RE_AnalystReport_1638830984000",
+          "headHtml": "Analyst Report: NVIDIA Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2021-12-06T22:49:44Z",
+          "reportTitle": "Nvidia is the top designer of discrete graphics processing units that enhance the experience on computing platforms. The firm's chips are used in a variety of end markets, including high-end PCs for gaming, data centers, and automotive infotainment systems. In recent years, the firm has broadened its focus from traditional PC graphics applications such as gaming to more complex and favorable opportunities, including artificial intelligence and autonomous driving, which leverage the high-performance capabilities of the firm's graphics processing units. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 194,
+          "targetPriceStatus": "Decreased",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Nvidia's Pursuit of ARM Looks Increasingly Unlikely With U.S. FTC Lawsuit; FVE Down to $194"
+        },
+        {
+          "id": "ARGUS_31556_MarketOutlook_1638523429000",
+          "headHtml": "Daily Spotlight: Jobs Growth Stalls in November",
+          "provider": "Argus Research",
+          "reportDate": "2021-12-03T09:23:49Z",
+          "reportTitle": "The U.S. economy added 210,000 jobs in November, well below the 546,000 jobs created in October as well as consensus expectations for 500,000 jobs. The unemployment rate dropped four-tenths of a percent to 4.2%. The number of unemployed persons was down to 6.9 million in October -- still about 20% higher than the level prior to the pandemic.  Average hourly earnings increased $0.08 month-to-month and are 4.8% higher year-over-year. Revisions to the two prior months added another 82,000 jobs to the economy. In November, job gains occurred in professional and business services, transportation and warehousing, construction, and manufacturing. Retail was lower. The report was a surprise to Wall Street, which was anticipating the economy would be building on the previous months' gains as the impact of the Delta variant faded. Now, in coming months, jobs growth may be suppressed by rising COVID-19 cases due to the Omicron variant. Stock futures are modestly higher on the news and bond yields have ticked lower.",
+          "reportType": "Market Outlook",
+          "tickers": [
+            "NVDA"
+          ],
+          "title": "Jobs Growth Stalls in November"
+        },
+        {
+          "id": "MS_0P000003IJ_AnalystReport_1635378493000",
+          "headHtml": "Analyst Report: McDonald's Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2021-10-27T23:48:13Z",
+          "reportTitle": "McDonald\u2019s is the largest restaurant owner-operator in the world, with trailing 12 month system sales of $109 billion (as of the third quarter of 2021) across 39,680 stores and 119 countries. McDonald\u2019s pioneered the franchise model, building its impressive footprint through partnerships with independent restaurant franchisees around the world. The firm earns nearly 60% of its revenue from franchise royalty fees and lease payments, with the remainder coming from company-operated stores across its three core segments: the United States, internationally operated markets, and international developmental/licensed markets. McDonald\u2019s owns 55% of the real estate and 80% of the buildings in its franchise system, offering it substantial leverage in maintaining quality standards and consistency. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 240,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "MCD"
+          ],
+          "title": "International Strength and Pricing Power Should See McDonald's Through Near-Term Turbulence"
+        },
+        {
+          "id": "MS_0P000003IJ_AnalystReport_1635350351000",
+          "headHtml": "Analyst Report: McDonald's Corporation",
+          "provider": "Morningstar",
+          "reportDate": "2021-10-27T15:59:11Z",
+          "reportTitle": "McDonald\u2019s Corporation is the largest restaurant owner-operator in the world, with 2020 systemwide sales of $93 billion across 39,000 stores and 119 countries. McDonald\u2019s revolutionized the restaurant industry with a cheap and fast core menu, building its impressive footprint through partnerships with independent restaurant franchisees. The firm earns 57% of its revenue from franchise royalty fees and lease payments, with the remainder coming from company-operated stores across its three core segments: the United States, internationally operated markets, and international developmental/licensed. McDonald\u2019s owns 55% of the real estate and 80% of the buildings in its franchise system, offering it substantial leverage in maintaining quality standards and consistency across markets. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 234,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "MCD"
+          ],
+          "title": "Broad Strength and Elevated Off-Premises Sales Augur Well for McDonald's; Shares Fairly Priced"
+        },
+        {
+          "id": "MS_0P00000031_AnalystReport_1634848521000",
+          "headHtml": "Analyst Report: AT&T Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2021-10-21T20:35:21Z",
+          "reportTitle": "Wireless is AT&T\u2019s largest business, contributing about 40% of revenue. The firm is the third-largest U.S. wireless carrier, connecting 66 million postpaid and 17 million prepaid phone customers. WarnerMedia contributes a bit less than 20% of revenue with media assets that include HBO, the Turner cable networks, and the Warner Brothers studios. AT&T plans to spin Warner off and merge it with Discovery to create a new stand-alone media firm. The firm recently sold a 30% stake in its traditional television business, which serves 15 million customers and generates about 17% of sales. This business will be removed from AT&T's financials going forward. Fixed-line telecom services provided to businesses and consumers account for about 20% of revenue, serving about 15 million broadband customers. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 36,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "T"
+          ],
+          "title": "AT&T Delivers Solid Customer Growth During Q3 as Content and Network Investments Ramp Up"
+        }
+      ],
+      "sigDevs": [],
+      "secReports": [
+        {
+          "id": "0001193125-25-013181_884394",
+          "type": "Periodic Reports",
+          "title": "485BPOS : Periodic Reports",
+          "description": "Post-effective amendment filed pursuant to Securities Act Rule 485(b) (this filing cannot be submitted as a 1940 Act only filing)",
+          "filingDate": 1737936000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000884394/000119312525013181/thumbnail.png",
+          "formType": "485BPOS"
+        },
+        {
+          "id": "0001193125-24-266771_884394",
+          "type": "Periodic Reports",
+          "title": "N-30D : Periodic Reports",
+          "description": "Initial annual and semi-annual reports mailed to investment company shareholders pursuant to Rule 30e-1 (other than those required to be submitted as part of Form NCSR.)",
+          "filingDate": 1732665600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000884394/000119312524266771/thumbnail.png",
+          "formType": "N-30D"
+        },
+        {
+          "id": "0001193125-24-150143_884394",
+          "type": "Periodic Reports",
+          "title": "N-30D : Periodic Reports",
+          "description": "Initial annual and semi-annual reports mailed to investment company shareholders pursuant to Rule 30e-1 (other than those required to be submitted as part of Form NCSR.)",
+          "filingDate": 1717027200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000884394/000119312524150143/thumbnail.png",
+          "formType": "N-30D"
+        },
+        {
+          "id": "0001193125-24-016801_884394",
+          "type": "Periodic Reports",
+          "title": "485BPOS : Periodic Reports",
+          "description": "Post-effective amendment filed pursuant to Securities Act Rule 485(b) (this filing cannot be submitted as a 1940 Act only filing)",
+          "filingDate": 1706227200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000884394/000119312524016801/thumbnail.png",
+          "formType": "485BPOS"
+        },
+        {
+          "id": "0001193125-23-156674_884394",
+          "type": "Periodic Reports",
+          "title": "N-30D : Periodic Reports",
+          "description": "Initial annual and semi-annual reports mailed to investment company shareholders pursuant to Rule 30e-1 (other than those required to be submitted as part of Form NCSR.)",
+          "filingDate": 1685404800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000884394/000119312523156674/thumbnail.png",
+          "formType": "N-30D"
+        },
+        {
+          "id": "0001193125-23-017786_884394",
+          "type": "Periodic Reports",
+          "title": "485BPOS : Periodic Reports",
+          "description": "Post-effective amendment filed pursuant to Securities Act Rule 485(b) (this filing cannot be submitted as a 1940 Act only filing)",
+          "filingDate": 1674777600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000884394/000119312523017786/thumbnail.png",
+          "formType": "485BPOS"
+        },
+        {
+          "id": "0001193125-22-293237_884394",
+          "type": "Periodic Reports",
+          "title": "N-30D : Periodic Reports",
+          "description": "Initial annual and semi-annual reports mailed to investment company shareholders pursuant to Rule 30e-1 (other than those required to be submitted as part of Form NCSR.)",
+          "filingDate": 1669593600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000884394/000119312522293237/thumbnail.png",
+          "formType": "N-30D"
+        },
+        {
+          "id": "0001193125-22-161896_884394",
+          "type": "Periodic Reports",
+          "title": "N-30D : Periodic Reports",
+          "description": "Initial annual and semi-annual reports mailed to investment company shareholders pursuant to Rule 30e-1 (other than those required to be submitted as part of Form NCSR.)",
+          "filingDate": 1653609600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000884394/000119312522161896/thumbnail.png",
+          "formType": "N-30D"
+        },
+        {
+          "id": "0001193125-22-021640_884394",
+          "type": "Periodic Reports",
+          "title": "485BPOS : Periodic Reports",
+          "description": "Post-effective amendment filed pursuant to Securities Act Rule 485(b) (this filing cannot be submitted as a 1940 Act only filing)",
+          "filingDate": 1643328000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000884394/000119312522021640/thumbnail.png",
+          "formType": "485BPOS"
+        }
+      ]
+    },
+    "error": null
+  }
+}

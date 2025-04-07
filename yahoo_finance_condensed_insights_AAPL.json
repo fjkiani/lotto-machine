@@ -1,0 +1,70 @@
+{
+  "technical_events": {
+    "short_term": "Bearish - Very Strong Bearish Evidence",
+    "mid_term": "Bearish - Strong Bearish Evidence",
+    "long_term": "Bearish - Strong Bearish Evidence"
+  },
+  "key_technicals": {
+    "support": 173.57,
+    "resistance": 227.82,
+    "stop_loss": 158.222269
+  },
+  "valuation": {
+    "description": "Near Fair Value",
+    "provider": "Trading Central"
+  },
+  "recommendation": {
+    "provider": "Argus Research",
+    "rating": "",
+    "target_price": "",
+    "title": "Argus Quick Note: Weekly Stock List for 03/31/2025: Ranking the Magnificent 7",
+    "date": "2025-03-31T16:15:15Z"
+  },
+  "upcoming_events": {
+    "events": [
+      {
+        "type": "Double Moving Average Crossover",
+        "start_date": 1743687000,
+        "end_date": 1743687000
+      }
+    ]
+  },
+  "risk": {},
+  "reports": [
+    {
+      "provider": "Argus Research",
+      "rating": "",
+      "target_price": "",
+      "title": "Argus Quick Note: Weekly Stock List for 03/31/2025: Ranking the Magnificent 7",
+      "date": "2025-03-31T16:15:15Z"
+    },
+    {
+      "provider": "Morningstar",
+      "rating": "Neutral",
+      "target_price": 200,
+      "title": "Apple: $500 Billion US Investment Is a Tariff-Avoiding Ploy That We Expect to Succeed",
+      "date": "2025-03-13T23:11:55Z"
+    },
+    {
+      "provider": "Morningstar",
+      "rating": "Bearish",
+      "target_price": 200,
+      "title": "Apple: $500 Billion US Investment Is a Tariff-Avoiding Ploy That We Expect to Succeed",
+      "date": "2025-02-24T15:48:34Z"
+    },
+    {
+      "provider": "Morningstar",
+      "rating": "Bearish",
+      "target_price": 200,
+      "title": "Apple: iPhone 16e Meets Our Expectations, and We See C1 Modem as Impressive",
+      "date": "2025-02-19T20:04:05Z"
+    },
+    {
+      "provider": "Argus Research",
+      "rating": "",
+      "target_price": "",
+      "title": "February Can Be a Tough Month",
+      "date": "2025-02-04T12:00:05Z"
+    }
+  ]
+}

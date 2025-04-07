@@ -1,0 +1,2351 @@
+{
+  "finance": {
+    "result": {
+      "symbol": "AAPL",
+      "instrumentInfo": {
+        "technicalEvents": {
+          "provider": "Trading Central",
+          "sector": "Technology",
+          "shortTermOutlook": {
+            "stateDescription": "Recent bearish events outweigh bullish events.",
+            "direction": "Bearish",
+            "score": 4,
+            "scoreDescription": "Very Strong Bearish Evidence",
+            "sectorDirection": "Bearish",
+            "sectorScore": 4,
+            "sectorScoreDescription": "Very Strong Bearish Evidence",
+            "indexDirection": "Bearish",
+            "indexScore": 4,
+            "indexScoreDescription": "Very Strong Bearish Evidence"
+          },
+          "intermediateTermOutlook": {
+            "stateDescription": "All events are bearish.",
+            "direction": "Bearish",
+            "score": 3,
+            "scoreDescription": "Strong Bearish Evidence",
+            "sectorDirection": "Bearish",
+            "sectorScore": 3,
+            "sectorScoreDescription": "Strong Bearish Evidence",
+            "indexDirection": "Bearish",
+            "indexScore": 3,
+            "indexScoreDescription": "Strong Bearish Evidence"
+          },
+          "longTermOutlook": {
+            "stateDescription": "All events are bearish.",
+            "direction": "Bearish",
+            "score": 3,
+            "scoreDescription": "Strong Bearish Evidence",
+            "sectorDirection": "Bearish",
+            "sectorScore": 2,
+            "sectorScoreDescription": "Bearish Evidence",
+            "indexDirection": "Bearish",
+            "indexScore": 2,
+            "indexScoreDescription": "Bearish Evidence"
+          }
+        },
+        "keyTechnicals": {
+          "provider": "Trading Central",
+          "support": 173.57,
+          "resistance": 227.82,
+          "stopLoss": 158.222269
+        },
+        "valuation": {
+          "color": 0.5,
+          "description": "Near Fair Value",
+          "discount": "1%",
+          "provider": "Trading Central"
+        }
+      },
+      "companySnapshot": {
+        "sectorInfo": "Technology",
+        "company": {
+          "innovativeness": 0.9981,
+          "hiring": 0.9512999999999999,
+          "sustainability": 0.42469999999999997,
+          "insiderSentiments": 0.2458,
+          "earningsReports": 0.8912,
+          "dividends": 0.042800000000000005
+        },
+        "sector": {
+          "innovativeness": 0.5,
+          "hiring": 0.5,
+          "sustainability": 0.5,
+          "insiderSentiments": 0.5,
+          "earningsReports": 0.5,
+          "dividends": 0.5
+        }
+      },
+      "recommendation": {
+        "targetPrice": 280,
+        "provider": "Argus Research",
+        "rating": "BUY"
+      },
+      "upsell": {
+        "msBullishSummary": [
+          "Apple offers an expansive ecosystem of tightly integrated hardware, software, and services, which locks in customers and generates strong profitability.",
+          "We like Apple\u2019s move to in-house chip development, which we think has accelerated its product development and increased its differentiation. ",
+          "Apple has a stellar balance sheet and sends great amounts of cash flow back to shareholders."
+        ],
+        "msBearishSummary": [
+          "Apple is prone to consumer spending and preferences, which creates cyclicality and opens the firm up to disruption.",
+          "Apple\u2019s supply chain is highly concentrated in China and Taiwan, which opens up the firm to geopolitical risk. Attempts to diversify into other regions may pressure profitability or efficiency.",
+          "Regulators have a keen eye on Apple, and recent regulations have chipped away at parts of Apple\u2019s sticky ecosystem. "
+        ],
+        "companyName": "Apple Inc.",
+        "msBullishBearishSummariesPublishDate": 1741907515000,
+        "upsellReportType": "MORNINGSTAR_ANALYST"
+      },
+      "upsellSearchDD": {
+        "researchReports": {
+          "reportId": "MS_0P000000GY_AnalystReport_1741907515000",
+          "provider": "Morningstar",
+          "title": "Apple: $500 Billion US Investment Is a Tariff-Avoiding Ploy That We Expect to Succeed",
+          "reportDate": "2025-03-13T23:11:55Z",
+          "summary": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "investmentRating": "Neutral"
+        }
+      },
+      "events": [
+        {
+          "eventType": "Double Moving Average Crossover",
+          "pricePeriod": "D",
+          "tradingHorizon": "I",
+          "tradeType": "S",
+          "imageUrl": "https://s.yimg.com/uc/fin/img/assets/generic.svg",
+          "startDate": 1743687000,
+          "endDate": 1743687000
+        }
+      ],
+      "reports": [
+        {
+          "id": "ARGUS_43096_StockPicks_1743437715000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2025-03-31T16:15:15Z",
+          "reportTitle": "Which of the market-dominant and so-called \"Magnificent 7\" stocks might be the best investments? During the first phase of unbridled AI enthusiasm, all of the Mag 7 were loved as their opportunity appeared to be almost unlimited. The market is now more skeptical toward perceived AI winners, which has led to a natural tendency to rank the group on their go-forward prospects. We see Amazon moving up in the ranks, while Nvidia continues to command the top spot.  All the Mag 7 names have something in common. They are all dominant in at least one core competency; and they have leveraged the immense cash flows thrown off by their core competencies to invest in and develop the generative AI opportunity. \"Ranking\" the Mag 7 on their intermediate-term prospects, therefore, involves assessing each company's ability to defend and nurture its core business while using that strength to gain share within the AI ecosystem. For this week's list, we analyze and rank the Mag 7 (from top to bottom) on their apparent intermediate-term prospects. We expect our rankings for the Mag 7 to be fluid, but do not foresee any movement in first or last place.* Nvidia (NVDA): We continue to put Nvidia at the top of the Mag 7 list. Unlike the other six names, Nvidia's core competency is artificial intelligence. The need for realistic rendering in GPU-based gaming, Nvidia's founding business, laid the groundwork for the applications acceleration and the massively parallel computing that are cornerstones of training large language models (LLMs) and enabling inference. We rank Nvidia number one based on the evidence in the company's own growth numbers, which are stellar. In its recent fiscal 4Q25, revenue of $39 billion grew 78% annually. At its GTC event in March 2025, Nvidia forecast that data-center revenue would exceed $1 trillion annually in the next few years, and that the entire global industrial infrastructure represented a $50 trillion opportunity for AI renewal. Nvidia also provides much more than its industry leading GPUs, including its CUDA software library, and is \"turbo-charging\" agentic AI development with open-reasoning models, platforms, and partnerships. The best evidence of Nvidia's momentum is the growth of the enterprise infrastructure companies using Nvidia solutions to support the mainstreaming of AI. Micron's data-center revenue tripled year over year and now exceeds 50% of total company revenue. Micron increased the TAM for its high-bandwidth memory (HBM) opportunity to $35 billion as of March 2025, up from $20 billion approximately half a year ago. Among the leading U.S.-based GPU server providers, Dell Technologies posted $10 billion in AI sever revenue in FY25 and expects $15 billion in FY26. Hewlett-Packard Enterprise exited fiscal 1Q25 with $8.3 billion in cumulative AI systems and services orders. The leaders in data center interconnects (DCIs), Broadcom and Marvell, are both reporting explosive growth in these categories. * Meta Platforms (META): Meta Platforms in second place because it has been among the most successful in leveraging its core competency (social media) into a leadership role in building LLMs, including multi-modal models. Snap has a limited opportunity, and X is stunted by self-inflicted wounds and perceived Musk contagion. Only Asia-based companies such as ByteDance (TikTok) represent a real threat. We see some risk to the core business from seemingly endless EU and U.S. congressional opposition; and Meta's social-media cornerstones (Facebook, Instagram, and WhatsApp) could be carved cleanly in three. We do not see that happening, however. Meta has successfully pivoted from the Zuckerberg's expensive obsession with the metaverse to the more-practical and fast-developing AI opportunity. Unlike AWS, Microsoft Azure, and Google Cloud, Meta is successfully enabling and advancing leading LLMs even though it is not a major provider of hybrid cloud services. We see Meta first and foremost deploying AI internally to improve operating efficiency and personal targeting so as to optimize the company's social media user base, which exceeds 3.3 billion. Facebook Reality Labs, which houses Meta's Gen AI business, posted revenue of $2.1 billion in 2024, just 1% of total Meta revenue. Currently, this is mainly a hardware-based business (Quest VR headsets, Ray-Ban AR glasses), but we see long-term growth opportunity as Meta's Llama LLMs go mainstream. Much as Apple capitalized on the vast iOS installed base and targeted the individual with iCloud, Meta could offer a personalized AI offering to its more-than three billion users.* Amazon.com (AMZN): In third place is Amazon. Amazon's online retail operations and particularly its Prime business are without a global peer. The combined retail operating margin (Americas and International) for 4Q24 was 6.1%, by far the highest in our model going back to company's inception. Prime's media is now rivaling Netflix in content quality and volume.  AWS is the leading CSP globally, and its rising margins and cash flows are funding the company's Gen AI opportunity. Amazon was quick to replace the head of AWS in May 2024 when the board perceived that the company was lagging in Gen AI. AWS is at a $110 billion annual revenue run rate and margins are at or near record highs. Both internally and in partnership with Anthropic and others, AI has produced Bedrock Marketplace, where clients can choose from over 100 LLMs; Trainium and Trainium 2 accelerators; and Amazon Nova, an extensive family of foundational models. * Apple (AAPL): Fourth place goes to Apple. Apple's core competency is global leadership in technology devices and services. Apple has been somewhat disappointing in its early efforts in AI. The company is even going outside its usual reliance on internal capabilities to enlist support from companies such as OpenAI. But we have long regarded Apple as a product perfector, not a product pioneer; early iteration mobile phones such as DynaTAC and StarTAC amazed, but they are long gone while iPhone grows in dominance. Investors are also concerned about Apple's declining China sales. Yet in the most-recent fiscal 1Q25, Apple grew revenue in all other regions. The company's massive iOS installed base exceeds 2.2 billion, providing fertile ground for continued growth in services.* Microsoft (MSFT): In the fifth spot is Microsoft. Microsoft has leveraged is core competency in enterprise software into Azure, the number two CSP behind AWS. Like all of the companies mentioned above that are not named Nvidia, Microsoft is challenged in getting sufficient supply of advanced Blackwell products to build and run its most-advanced models. Microsoft's cloud business has never been as profitable as AWS, although that may partly be due to which assets are allocated to the cloud division. Microsoft has had a few missteps in rolling out its Gen AI models, and both CNBC and Invezz recently questioned whether Microsoft was becoming an AI laggard. We note, however, that Microsoft Copilot has seen meaningful share gains and represents the first real threat to our sixth-place company.* Alphabet (GOOGL): Ranked sixth is Alphabet. Alphabet, of course, used to be named Google, and that name has been synonymous with internet search for decades. AI-assisted products such as Copilot and OpenAI's SearchGPT may be starting to cut into Google's search dominance. With many enterprises and consumers using Microsoft Edge as their browsers, Copilot \"conveniently\" pops up atop many searches. Google is seen as a pioneer in AI, created technologies underpinning early LLMs, and was a leader in the space until OpenAI exploded on the scene. After the hasty and flubbed Bard launch, Google Cloud has done much better with Gemini. Alphabet, like Meta, has been a particular target of U.S. and EU regulators. In August 2024, Alphabet was named a monopolist in a case brought by the Justice Department and 37 states. Breaking up Alphabet, however, would cleave the one big profitable business of Google Search and perhaps YouTube from all the expensive and unprofitable growth areas in Other Bets, including Waymo, Google Cloud, and the AI initiative. * Tesla (TSLA): At the tail end of the Mag 7 ranking is Tesla, whose core competency is electric vehicles. This space is becoming crowded, and China's BYD is much bigger and has developed fast-charging technology that is currently unmatched. The U.S. under President Biden sought to protect Tesla and U.S. EVs with massive tariffs on EV imports. Tesla CEO Elon Musk and President Trump are in sync, although the current president previously disparaged EVs in favor of internal combustion engines (ICE) vehicles. Tesla, like X (the former Twitter), is suffering some level of Musk contagion, although the number of users reselling their cars due to perceptions about Musk is not yet a major impediment. Instead, we see Tesla at risk from commoditization of EVs and competition from rivals, both domestic and foreign. While we did not incorporate valuation into our rankings, these companies are not hugely expensive due to the recent correction in growth sectors and the generally strong operating prospects for core businesses.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "MSFT",
+            "META",
+            "GOOGL",
+            "NVDA",
+            "AAPL",
+            "TSLA",
+            "AMZN"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 03/31/2025: Ranking the Magnificent 7"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1741907515000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-03-13T23:11:55Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: $500 Billion US Investment Is a Tariff-Avoiding Ploy That We Expect to Succeed"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1740412114000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-02-24T15:48:34Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: $500 Billion US Investment Is a Tariff-Avoiding Ploy That We Expect to Succeed"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1739995445000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-02-19T20:04:05Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: iPhone 16e Meets Our Expectations, and We See C1 Modem as Impressive"
+        },
+        {
+          "id": "ARGUS_42563_MarketOutlook_1738670405000",
+          "headHtml": "Daily Spotlight: February Can Be a Tough Month",
+          "provider": "Argus Research",
+          "reportDate": "2025-02-04T12:00:05Z",
+          "reportTitle": "We have studied the monthly, quarterly, and annual returns in the stock market since 1980. February is not one of the best months. On average, stocks rise less than 0.2% in the shortest month of the year. Only the months of August and September have generated weaker average returns. There have been some strong Februarys, including 7% gains in 1986, 1991, and 1998, as well as a 5.5% surge in 2015. But there have been some clunkers as well: a 6% drop in 1982; a 9% plunge in 2001 during the \"dot-com\" bust; an 11% collapse near the bottom of the Great Recession and bear market in 2009; and, of course, the 20% bomb in February 2020, as the coronavirus began to spread around the world and the economy tumbled into a recession. Last year was better, with a 5.2% gain during the month. This time around, February is starting off with a bit of positive momentum, as January's returns were strong. Earnings season continues and, as usual, companies are outperforming Street expectations. However, equity investors got a surprise recently from the DeepSeek news that the domestic artificial intelligence industry may face some challenging competition. While we continue to think that the general fundamentals for stocks are positive (profits are rising, valuations are reasonable, the economy is growing, and rates are headed lower, in our view), we still suggest that equity investors focus on well-managed companies with clear growth prospects and clean balance sheets -- especially in February.",
+          "reportType": "Market Outlook",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "February Can Be a Tough Month"
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1738325393000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2025-01-31T12:09:53Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software, and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones, and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 280,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Top-line growth despite China weakness"
+        },
+        {
+          "id": "ARGUS_42534_MarketSummary_1738324493000",
+          "headHtml": "Market Digest: TEVA, AAPL, CMA, FCX, FLEX, LAZ, TMUS, MA",
+          "provider": "Argus Research",
+          "reportDate": "2025-01-31T11:54:53Z",
+          "reportTitle": "U.S. stocks closed higher on Thursday after a down day on Wednesday. The Dow closed up 4%, the S&P 500 gained 0.5% and the Nasdaq closed 0.3% higher. The first reading on 4Q GDP showed that the U.S. economy grew 2.3%, less than the 2.6% expected by the Street.",
+          "reportType": "Market Summary",
+          "tickers": [
+            "TMUS",
+            "AAPL",
+            "LAZ",
+            "MA",
+            "CMA",
+            "FLEX",
+            "FCX",
+            "TEVA"
+          ],
+          "title": "U.S. stocks closed higher on Thursday after a down day on Wednesday. The Dow"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1738285612000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-01-31T01:06:52Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple Earnings: Soft Start to Fiscal 2025 Aligns With Our Thesis for Slowing iPhone Growth"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1738089477000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-01-28T18:37:57Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "AI DeepSeek Coverage Summary: Maintaining Our Fair Values; Pullback Was Healthy"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1738020681000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-01-27T23:31:21Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "DeepSeek R1 Model Doesn't Alter Our Valuations or Forecasts for Technology Hardware Stocks"
+        },
+        {
+          "id": "ARGUS_42351_StockPicks_1736778938000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2025-01-13T14:35:38Z",
+          "reportTitle": "The Argus team of analysts has presented its Best Picks for 2025. Each analyst surveyed their coverage universe, reviewed forward-looking indicators for those companies, and made decisions about which seemingly have the most growth and investment promise for the year. Our team is deeply experienced, as each analyst has spent on average 25 years on Wall Street and 15 years at Argus Research. As such, they are well-versed in our proprietary fundamental six-point valuation process and have deep knowledge of the sectors they cover. They also have solid relationships with many of the management teams they cover. The Argus Investment Policy Committee, made up of our most senior staff, is comprised of Jim Kelleher, CFA, our director of research; President John Eade; Senior Fixed-Income Analyst Kevin Heal, Director of Financial Institutions Research Steve Biggar, and Chris Graja, CFA, our senior economist. The committee provides macro outlooks for the economy, interest rates, earnings, and the stock market. Here is the Argus Best Picks list for 2025.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "NFLX",
+            "TGT",
+            "NVDA",
+            "AAPL",
+            "COP",
+            "MS",
+            "ICE",
+            "PKG",
+            "KIM",
+            "DAL",
+            "CAVA",
+            "BX",
+            "SJM",
+            "PH",
+            "LLY",
+            "GEHC",
+            "UPS",
+            "SO",
+            "CMG",
+            "AMZN",
+            "CRM"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 01/13/2025: Argus' Best Picks for 2025"
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1736164899000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2025-01-06T12:01:39Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software, and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones, and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 280,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Raising target price to $280, raising estimates"
+        },
+        {
+          "id": "ARGUS_42286_MarketSummary_1736163999000",
+          "headHtml": "Market Digest: AAPL, KMX, NFLX, ROK, THO, TMO, TRGP",
+          "provider": "Argus Research",
+          "reportDate": "2025-01-06T11:46:39Z",
+          "reportTitle": "Monday Tee Up: Jobs and Economic Data Galore It's back to business this week, with a full slate of economic data that includes the jobs report on Friday. Yet it's not a full trading week as markets will be closed on Thursday, which is a National Day of Mourning for former President Jimmy Carter. Last week, the Dow Jones Industrial Average fell 0.6%, while the S&P 500 and the Nasdaq both dropped 0.5%. Over the two days of trading so far in 2025, the Dow is higher by 0.44%, the S&P is up 1%, and the Nasdaq has popped 2%. On the economic calendar, the big day this week is Friday, with the December jobs report due from the Labor Department. In December, Nonfarm Payrolls clocked in at 227,000. For January, the consensus is 150,000. Our forecast is 125,000. The Unemployment Rate was 4.2% in December, and is not expected to change. In other economic news, Factory Orders will be reported on Monday; Job Openings and the Trade Deficit on Tuesday; and the private payrolls ADP employment report and the minutes of the last Federal Reserve rate meeting will be released on Wednesday.  Argus Chief Economist Chris Graja's Call of the Week is the Average Hourly Earnings component of the jobs report, on which Chris offered the following: 'Average hourly earnings shouldn't be overlooked. The Street and Argus are looking for 4% growth. That's good news for workers. But how does a FOMC member reconcile 4% wage growth with 2% inflation target? The answer is labor productivity that grew a strong 2.2% in 3Q. When workers are producing more, they can be paid more without stoking inflation. Federal Reserve Chairman Jerome Powell actually addressed the issue in his press conference after the last FOMC meeting. He said that wages are 'still a bit above what would be sustainable if productivity were to revert to its longer-run trend.' But he added that 'if you take into account the high productivity readings we've had, then wages are already at a sustainable level relative to 2% inflation.' The next quarterly report on labor productivity is due on February 6. The 20-year average is about 1.7%.'  The new earnings season kicks off in mid-January, with the big banks reporting first. For 2025, Argus forecasts 12% EPS growth for S&P 500 companies. This follows a higher-than-expected 9% for 2024. There are a few companies on the earnings calendar this week, including Jefferies Financial Group and Albertsons on Wednesday; and Delta Air Lines, Constellation Brands, and Walgreens Boots Alliance on Friday. Also on the corporate front, the Consumer Electronics Show, or CES, is this week in Las Vegas, with Nvidia CEO Jensen Huang slated to speak. Last week, mortgage rates inched closer to 7% and climbed another 6 basis points (bps), with the average 30-year fixed-rate mortgage now at 6.91%, according to FreddieMac. Gas prices dropped two cents, with the average price of regular gas now at $3.00 per gallon. The Atlanta Fed GDPNow indicator is forecasting for 4Q and calls for expansion of 2.4%. The Cleveland Fed CPINow indicator is forecasting for December and is at 2.86%. Looking ahead, the Federal Reserve meets again at the end of January, with a rate decision on January 29. Odds for a rate cut at that meeting are at 11%, according to the CME FedWatch rate tool. The next rate decision after that comes on March 19.",
+          "reportType": "Market Summary",
+          "tickers": [
+            "TRGP",
+            "NFLX",
+            "AAPL",
+            "TMO",
+            "KMX",
+            "THO",
+            "ROK"
+          ],
+          "title": "Monday Tee Up: Jobs and Economic Data Galore\n\nIt's back to business this week,"
+        },
+        {
+          "id": "ARGUS_42153_TechnicalAnalysis_1734523425000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-12-18T12:03:45Z",
+          "reportTitle": "As we enter one of the most-positive times of the year for the stock market, from December 19, 2024, until January 2, 2025, we note that the market has not been kind to average stock as well as many sectors since the latter part of November. Some blame it on tax-loss selling, which is probable. But there are sectors and indices falling from all-time highs, or at least 2024 highs, so there can?t be any tax selling there. NYSE breadth on Tuesday was -1,611 as the streak of weak breadth continues. The 12-day NYSE advances/total issues is down to 39%, one of the weakest readings over the past two years. And, once again, the weakest indices were the NYSE, S&P 400, and S&P 600.   We see some interesting Commitment of Traders (COT) data as well as some disturbing da-ta (it just depends on which market). We mentioned previously that the major index combined hedger position was quite bearish -- and when we look at two of its index components, we find that the S&P 500 and the Nasdaq 100 hedgers positions are both bearish as the smart money hedgers are at or near their most-negative futures positions. At the same time, large speculators (hedge funds, momentum junkies) are extremely bullish in their futures positions. Large specs tend to be right during a big part of moves higher and lower, but are mostly wrong at major turning points.   In the commodity world, the COT data remains bearish for gold and silver but is fairly bullish for copper. Data remains bullish for the U.S. dollar as well as the euro, but fairly bearish for the yen. It is quite bullish for natural gas and mildly bullish for WTI. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "AAPL",
+            "WWW"
+          ],
+          "title": "As we enter one of the most-positive times of the year for the stock market, from December 19, 2024, until January 2, 2025, we note that the market has not been kind to average stock as well as many sectors since the latter part of November."
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1733516533000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-12-06T20:22:13Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: Reports of Modem Development Fit With Our Long-Term Margin Expansion Thesis"
+        },
+        {
+          "id": "ARGUS_41991_ThematicPortfolio_1732899600000",
+          "headHtml": "The Argus ESG Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-29T17:00:00Z",
+          "reportTitle": "Sustainable Impact Investing, or ESG investing, is gaining traction not only with Argus Research clients but also with the global investment community. BlackRock CEO Lawrence Fink, who oversees approximately $9 trillion in assets, announced in January 2020 that his firm would be investing in companies that are making progress on sustainability. He doubled down in his January 2021 letter, calling on company managements to disclose their plans for making their businesses \"compatible with a net-zero economy\" by 2050. As assets have flowed in over the past 40 years, Sustainable Impact Investing has evolved. The discipline, originally known as Socially Responsible Investing, focused at first on excluding companies that conducted business in South Africa, or participated in industries such as tobacco, alcohol, and firearms. Performance of these initial strategies lagged, and the approach has been modified. Now, instead of merely identifying industries to avoid, the discipline promotes \"sustainable\" business practices across all industries that can have an \"impact\" on global issues such as climate, hunger, poverty, disease, shelter, and workers' rights.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "TT",
+            "GOOGL",
+            "AAPL",
+            "NDAQ",
+            "AVGO",
+            "INTU",
+            "JPM",
+            "UNH",
+            "DHR",
+            "TFC",
+            "MSFT",
+            "MA",
+            "LLY",
+            "LRCX",
+            "UPS",
+            "SPGI",
+            "TRV",
+            "GE",
+            "KLAC",
+            "NVDA",
+            "BSX",
+            "AEP",
+            "GS",
+            "ECL",
+            "TMUS",
+            "LMT",
+            "HPE",
+            "ETN",
+            "AMZN",
+            "WMT"
+          ],
+          "title": "The Argus ESG Model Portfolio"
+        },
+        {
+          "id": "ARGUS_41938_TechnicalAnalysis_1732622317000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-26T11:58:37Z",
+          "reportTitle": "The stock market continues to push higher, although the S&P 500 (SPX) failed to hold 6,000 for the fifth time since November 8. Once again, breadth was good and leadership was provided by the S&P 600 Small-Caps, which popped 1.8%, and the S&P 400 Mid-Caps, which tacked on 1.5%. The most-concentrated mega-cap indices -- such as the Nasdaq 100 (QQQ) and S&P 100 -- lagged again, posting only minor gains.   A few markets moved quite a bit, with the iShares 20+ Year Treasury Bond ETF (TLT) rising 2.5% and the 10-year yield dropping about 15 basis points to 4.26%. We previously suggested that the 10-year had reached an important level and a possible inflection point -- and with yesterday's action, we got our confirmation. Gold and silver futures plunged over 3%, while Bitcoin also fell over 3% to below $95,000; as expected, the big round number of $100,000 has provided a ceiling.     Looking at a few of pieces of option data, the OEX open-interest ratio, which is total put open-interest divided by total call open-interest, remains very low. This is a non-contrarian sentiment indicator, as OEX option traders usually are quite good at identifying turning points in the market. When this ratio rises, OEX traders are becoming more bearish and vice versa -- and it's often a good idea to follow these astute investors.   The CBOE equity-only put/call ratio is a contrarian sentiment reading, and the five-day has been very low for over the past two months, indicating a big appetite by smaller investors for call options. While this is concerning, generally we do not get a pullback or a correction until these investors re-verse course. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "AA",
+            "AAPL"
+          ],
+          "title": "The stock market continues to push higher, although the S&P 500 (SPX) failed to hold 6,000 for the fifth time since November 8."
+        },
+        {
+          "id": "MS_1253796_StockPicks_1732542315000",
+          "headHtml": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover",
+          "provider": "Morningstar",
+          "reportDate": "2024-11-25T13:45:15Z",
+          "reportTitle": "In this edition, we uncover hidden SaaS profits; we see who is the top dog in animal health moats; and AI exuberance has overripened Apple's valuation; and Scor, Bilibili, and Target.\n\n\n\n",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "TGT",
+            "AAPL",
+            "ELAN",
+            "ZTS",
+            "BILI",
+            "PFE",
+            "WMT"
+          ],
+          "title": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover"
+        },
+        {
+          "id": "ARGUS_41927_StockPicks_1732539683000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-25T13:01:23Z",
+          "reportTitle": "Volatility in the stock market during the third quarter gave institutional investors a chance to buy the dips. Taking a look at 13F filings from well-known institutional portfolios, we see that the big guns were busy adding new companies to their portfolios or expanding existing holdings. Buying occurred across a range of sectors. Vickers Stock Research, a subsidiary of Argus Research Group, analyzes insider trading and institutional stock ownership. Form 13-Fs, which institutions must file to report their holdings, are due 45 days after the end of calendar quarters and have come in for 3Q24. We review 13Fs of major institutional investors, including activists, to see what they are buying and to look for trends. Activist investing is now less about generating a short-term return and more about achieving long-term returns through an active management/investor partnerships. Based on data from Vickers, the following is a list of select purchases made in the third quarter by some high-profile money managers, including the Argus Research investment ratings.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "NVDA",
+            "AAPL",
+            "C",
+            "BAC",
+            "MRK",
+            "ORCL",
+            "NKE",
+            "DIS",
+            "DPZ",
+            "AMD",
+            "SCHW",
+            "GILD",
+            "AMZN"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 11/25/2024: 13Fs (What are the Big Guns Buying?)"
+        },
+        {
+          "id": "ARGUS_41876_TopBottomInsiderActivity_1732101069000",
+          "headHtml": "Daily \u2013 Vickers Top Buyers & Sellers for 11/20/2024",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-20T11:11:09Z",
+          "reportTitle": "The Vickers Top Buyers & Sellers is a daily report that identifies the five companies the largest insider purchase transactions based on the dollar value of the transactions as well as the five companies the largest insider sales transactions based on the dollar value of the transactions.",
+          "reportType": "Top/Bottom Insider Activity",
+          "tickers": [
+            "EVR",
+            "ZETA",
+            "AAPL",
+            "WGS",
+            "SLGN",
+            "BRKR",
+            "AZTA",
+            "CGBD",
+            "RCL",
+            "ZI"
+          ],
+          "title": "Daily \u2013 Vickers Top Buyers & Sellers for 11/20/2024"
+        },
+        {
+          "id": "ARGUS_41731_MarketOutlook_1730809103000",
+          "headHtml": "Daily Spotlight: Investors Generally Like November",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-05T12:18:23Z",
+          "reportTitle": "The long-term upward trajectory in the U.S. stock market has its foundation in the country's democratic political system (remember to vote today!) and its market-based, capitalist economic system.  In theory, the stock market efficiently allocates the nation's capital to generate solid investment returns. Theory typically turns into reality in November, which since 1980 has been the best month for equity performance, with an average 2.1% gain, ahead of April (+1.60%), July (+1.4%) December (+1.3%), and October (+1.3%). November's batting average is high as well: stocks advance during the month 72% of the time. The best Novembers have been 1980 (+10.2%), 2001 (+7.5%), 1996 (+7.3%), 1985 (+6.5%), 1998 (+5.9%), and 2002 (+5.1%). But there have been some clunkers: 2000 (-8%), 2008 (-7.5%) and 1987 (-5.9%).  Last year, the S&P 500 rose an impressive 8.9% for the month.  What about during presidential-election years?  Good question. The track record is even more impressive here. For the 11 election-year Novembers since 1980, stocks have, on average, climbed 2.6%. November usually starts off at a fast pace, as nonfarm payrolls are reported and many companies are still reporting 3Q earnings. This year, the Fed meets this week and will likely lower rates again. The presidential election will undoubtedly be close, and may take a few days to produce an eventual winner -- but that doesn't have dent November's long-time track record.",
+          "reportType": "Market Outlook",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Investors Generally Like November"
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1730459903000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-01T11:18:23Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software, and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones, and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 250,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Return to growth as services shine"
+        },
+        {
+          "id": "ARGUS_41699_MarketSummary_1730459003000",
+          "headHtml": "Market Digest: AAPL, AMGN, AMP, BBY, CTSH, EPD, MCO, UNP, MA, VRSK, PPC, GEHC",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-01T11:03:23Z",
+          "reportTitle": "U.S. stocks fell on Thursday on disappointing results from Tech companies. Both the S&P 500 and the Nasdaq posted their largest one-day losses since the beginning of September. The S&P 500 was down 1.9%, the Nasdaq lost 2.8% and the Dow fell 0.9%. Both crude oil and gold traded higher.",
+          "reportType": "Market Summary",
+          "tickers": [
+            "AAPL",
+            "PPC",
+            "AMP",
+            "MA",
+            "UNP",
+            "GEHC",
+            "MCO",
+            "EPD",
+            "BBY",
+            "CTSH",
+            "VRSK",
+            "AMGN"
+          ],
+          "title": "U.S. stocks fell on Thursday on disappointing results from Tech companies."
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1730420173000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-11-01T00:16:13Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple Earnings: Our Valuation Rises to Reflect Stronger Long-Term Growth, but Less of an AI Impact"
+        },
+        {
+          "id": "ARGUS_41666_ThematicPortfolio_1730220145000",
+          "headHtml": "The Argus Innovation Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2024-10-29T16:42:25Z",
+          "reportTitle": "The United States economy is full of innovation. It has to be. Manufacturing industries that dominated the economy decades ago - textiles, televisions, even automobiles to a large degree - have moved overseas, where labor and materials costs are lower. Yet the U.S. economy, even during the pandemic and the current period of high inflation, has expanded to record levels. If U.S. corporations weren't innovating, creating new products (such as vaccines and AI) and services (such as Zoom calls) and moving into new markets, the domestic economy would not be growing, and capital would not be flooding into the country. The current high level of the U.S. dollar relative to currencies around the world attests to the confidence that global investors have in the durable and innovative U.S. economy.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "TRGP",
+            "BLK",
+            "AMAT",
+            "GOOGL",
+            "AAPL",
+            "ADI",
+            "JPM",
+            "AXON",
+            "URI",
+            "COST",
+            "V",
+            "LLY",
+            "SPGI",
+            "PANW",
+            "META",
+            "NVDA",
+            "SYK",
+            "BSX",
+            "ORCL",
+            "PWR",
+            "LEN",
+            "NOW",
+            "ADBE",
+            "SCHW",
+            "RCL",
+            "ISRG",
+            "AMZN",
+            "CRM",
+            "ODFL"
+          ],
+          "title": "The Argus Innovation Model Portfolio"
+        },
+        {
+          "id": "ARGUS_41490_TechnicalAnalysis_1728644567000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-10-11T11:02:47Z",
+          "reportTitle": "Since bottoming on September 16, the five- and 10-year Treasury yields have spiked higher. We have seen the same action from the two-year, which bottomed on September 24. Let's not forget, the FOMC cut the fed funds rate on September 18. We were looking for a jump in rates after the Fed cut, which was certainly a non-consensus call.   The 10-year jumped to 4.12% on Thursday from an intraday low of 3.6% on September 17, or by 52 basis points (bps). The 10-year is closing in on some key levels including Fibonacci retracements at 4.14% and 4.17%. In addition, the 10-year is near a trendline off the peaks since late April that lies at 4.14% when looking out a week. Other key levels include 4.18% or the location of the 40-week exponential moving average (EMA); the next key retracement level is 4.3%.   The five-year hit 3.97% yesterday, up from 3.39%, or by 58 bps. Immediate key overhead levels for the five-year run from 4% to 4.24% and include the 200-day simple moving average, the 50-week EMA, and some FIBO retracement levels. The two-year closed near 4% on Wednesday, up from an intraday low of 3.5% on September 25. Key levels above start at 4.1% and run up to 4.4%.   On Wednesday, the iShares 20+ Year Treasury Bond (TLT) hit key chart, moving-average, and FIBO retracement support at 93.40 and bounced. The next key support level is 91.60.   We still believe that once this pullback ends, we will see another rally to recovery highs -- with yields falling to 3.25% for the five- and 10-year and down to 3% for the two-year. The COT data remains very bullish for the two-, five-, and 10-year. While not perfect, this setup has worked well in the past. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "AAPL",
+            "HPQ"
+          ],
+          "title": "Since bottoming on September 16, the five- and 10-year Treasury yields have spiked higher."
+        },
+        {
+          "id": "ARGUS_41262_TechnicalAnalysis_1726744358000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-09-19T11:12:38Z",
+          "reportTitle": "The Federal Reserve cut the fed funds rate by 50 basis points (bps), energizing buyers for about 45 minutes yesterday. Then, as often happens, investors faded the first move, stocks were lower into the close, and currently the futures market is through the roof. End of day, the Fed's target is now 4.75%-5.25%. By the last 2024 meeting on December 18, there is a 50% probability that the funds range will be 4.00%-4.25% and a 32% chance the target will be 4.25%-4.50%. Treasury yields across the curve ticked higher, mostly in the five- and 10-year yields, which rose 30 to 40 bps. Market yields have been falling since April in anticipation of a slowing economy and the rate.   We are now in the last half of September, and the next two weeks historically are the worst of the year for stocks. Did we front-load those losses during the first four trading days of the month or does the market have pain ahead? Short term, it's hard to get a good feel for what will play out. But we feel confident that the fourth quarter will be kind to investors. The last quarter of the year, especially the months of November and December, are typically two of the strongest months of the year.   The other nagging question (and keeping in mind that there are multiple economic reports ahead, 3Q EPS reports in October, and a presidential election in November) is the following. What will lead the market into the end of the year? Over the past three months, leadership has come from Real Estate, Utilities, Financial, Consumer Staples, Industrials, Healthcare, and Consumer Discretionary. That is a broad group. Information Technology is the only sector that has been down over the past three months. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "AAPL",
+            "PWR"
+          ],
+          "title": "The Federal Reserve cut the fed funds rate by 50 basis points (bps), energizing buyers for about 45 minutes yesterday."
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1726159215000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2024-09-12T16:40:15Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software, and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones, and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 250,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Consumer-friendly pricing, limited AI in new iPhone"
+        },
+        {
+          "id": "ARGUS_41198_MarketUpdate_1726158315000",
+          "headHtml": "Market Update: AAPL, BYND",
+          "provider": "Argus Research",
+          "reportDate": "2024-09-12T16:25:15Z",
+          "reportTitle": "The major indices are flat and trying to find the positive after taking in more inflation and employment data. Inflation, this time on the wholesale side, came in mostly as expected. Weekly jobless claims edged up just a hair.",
+          "reportType": "Market Update",
+          "tickers": [
+            "AAPL",
+            "BYND"
+          ],
+          "title": "The major indices are flat and trying to find the positive after"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1725940863000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-09-10T04:01:03Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 185,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: iPhone 16 Event Affirms Our Confidence in Strong Fiscal 2025 Growth Despite Overvalued Shares"
+        },
+        {
+          "id": "ARGUS_41034_TechnicalAnalysis_1724756026000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-08-27T10:53:46Z",
+          "reportTitle": "The last Monday of August was a mixed bag. The Nasdaq and the Nasdaq 100 were dragged down from the start due to a tough day for semiconductors. The iShares Semiconductor ETF (SOXX) fell 2.5% and is sitting on short-term support from its 10- and 21-day exponential moving averages. The SOXX has had a nice recovery since the August 5 intraday low -- and with Nvidia reporting after Wednesday's close, it's not surprising that some anxiety is building in front of the numbers. Discretionary also fell due to weakness in Tesla.  Energy led the 11 S&P 500 sectors, as crude oil (WTI) bounced for a third day. Crude is back up to $77/barrel from a low last week of $71.46. The oil chart is a mess, with prices chopping around from the low $60s to the mid-$90s since the summer of 2022. Other sector strength was seen from the defensive Staples and Utilities groups, with minor gains in Materials, Financials, and Communication Services.   A fair amount of people in the financial world have said that the S&P 500's almost full recovery from the pullback in the second half of July into early August has been too fast. But quick recoveries and \"V\" bottoms generally are quite bullish and often lead to additional all-time highs. On the weekly charts, we had quick recoveries in the latter part of 2023 and in April/May of this year. And let's not forget the recovery from the pandemic, the recovery in early 2019, the recovery in 2014, and the several recoveries in 2012. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "AAPL",
+            "REGN"
+          ],
+          "title": "The last Monday of August was a mixed bag."
+        },
+        {
+          "id": "ARGUS_41021_StockPicks_1724673685000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2024-08-26T12:01:25Z",
+          "reportTitle": "Vickers Stock Research, a subsidiary of Argus Research Group, analyzes insider trading and institutional stock ownership. Form 13Fs, which institutions must file to report their holdings, are due 45 days after the end of calendar quarters and have come in for 2Q24. We review 13Fs of major institutional investors, including activists, to see what they are buying and to look for trends. Activist investing is now less about generating a short-term return and more about achieving long-term returns through an active management/investor partnership. The stock-market volatility during 2Q gave those institutional investors a chance to buy a dip. Taking a look at the 13Fs from well-known institutional portfolios, we see that the big guns were busy, either adding new holdings or increasing existing holdings. Buying was across a variety of sectors. Based on Vickers data, the following are select purchases made in 2Q by some high-profile money managers. We also list one significant sale (of Apple by Berkshire) and also note if the holding is now 4% or more of the total portfolio.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "PYPL",
+            "AAPL",
+            "AVGO",
+            "ULTA",
+            "NKE",
+            "ACN",
+            "DIS",
+            "SHOP",
+            "OXY",
+            "TSLA",
+            "TMO",
+            "ADBE",
+            "GE",
+            "CB",
+            "CRM"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 08/26/2024: Inside the Minds of the Big Guns"
+        },
+        {
+          "id": "ARGUS_40849_TopBottomInsiderActivity_1723113596000",
+          "headHtml": "Daily \u2013 Vickers Top Buyers & Sellers for 08/08/2024",
+          "provider": "Argus Research",
+          "reportDate": "2024-08-08T10:39:56Z",
+          "reportTitle": "The Vickers Top Buyers & Sellers is a daily report that identifies the five companies the largest insider purchase transactions based on the dollar value of the transactions as well as the five companies the largest insider sales transactions based on the dollar value of the transactions.",
+          "reportType": "Top/Bottom Insider Activity",
+          "tickers": [
+            "AAPL",
+            "PBF",
+            "NINE",
+            "TALO",
+            "RHP",
+            "ABBV",
+            "SLNO",
+            "LH",
+            "CRK",
+            "AVB"
+          ],
+          "title": "Daily \u2013 Vickers Top Buyers & Sellers for 08/08/2024"
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1722620474000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2024-08-02T17:41:14Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software, and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones, and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 250,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Return to growth as services shine; raising target price"
+        },
+        {
+          "id": "ARGUS_40801_MarketUpdate_1722619574000",
+          "headHtml": "Market Update: AAPL, AMZN, AVY, ETD, SO, MDLZ, DD, SQ",
+          "provider": "Argus Research",
+          "reportDate": "2024-08-02T17:26:14Z",
+          "reportTitle": "Stocks are widely lower, continuing yesterday's slide and on the back of this morning's surprise Jobs report. The Unemployment Rate ticked up to 4.3% for July from 4.1% the month before. Nonfarm Payrolls printed at 114,000, much lower than the expected and the month before. These weak labor numbers raise questions: Did the Fed wait too long before pivoting to easing monetary policy? Will they enact a larger cut in September, perhaps 50 bps instead of the expected 25 bps? Is the desired soft landing still possible? We note that the recent GDP report gives us confidence that the U.S. economy has avoided a recession. And more data keeps coming. Deep breathes. Every day we recalibrate.",
+          "reportType": "Market Update",
+          "tickers": [
+            "DD",
+            "MDLZ",
+            "AAPL",
+            "AVY",
+            "ETD",
+            "XYZ",
+            "SO",
+            "AMZN"
+          ],
+          "title": "Stocks are widely lower, continuing yesterday's slide and on the back of this"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1722562359000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-08-02T01:32:39Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 185,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple Earnings: Higher iPhone Forecast Lifts Valuation to $185 From $170; Shares Still Out of Reach"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1721343027000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-07-18T22:50:27Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 170,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: Generative AI Announcements Fit With Our Expectations and We Maintain Our Valuation"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1721172566000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-07-16T23:29:26Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 170,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: Generative AI Announcements Fit With Our Expectations and We Maintain Our Valuation"
+        },
+        {
+          "id": "ARGUS_40416_TechnicalAnalysis_1719399820000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-06-26T11:03:40Z",
+          "reportTitle": "The minor change in character in the stock market lasted three to five days, depending on how it is measured. After three down days, that was enough for the \"king of the hill\" and investors swooped in and catapulted Nvidia (NVDA) to a 6.7% pop on June 25. The stock is now just 7% from its recent all-time closing high. While other semiconductor stocks rose as well, their gains were muted -- with most of the heavyweights gaining 2%-3%. ARM Holdings Plc (ARM) was the exception, reclaiming 6.4%.   So was that it for the great semiconductor decline in 2024? Bullishly, most of the big stocks held initial support from their 21-day exponential averages. In addition, the semis quickly worked off extreme momentum divergences on a daily basis. But many remain overbought on a weekly basis and have traced out weekly bearish divergences (some quite glaring). From a technical basis, we would prefer (and lean toward) more sideways-to-down price action in the coming weeks before the next leg higher. Seasonally, the summer-to-fall period has been the worst for semiconductors and technology in general.     As for the areas of the market that had benefited recently, June 25 was not a pretty day. The S&P MidCap 400 declined 1%, while the S&P SmallCap 600 fell 0.9%. Looking at sectors, Real Estate (XLRE), Materials (XLB), and Utilities (XLU) all dropped at least 1%, with Financials (XLF) and Industrials (XLI) giving back 0.8%. NYSE breadth was -1,000, while advancing issues/total issues and up volume/total volume was fairly weak at only 33%. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "OXY",
+            "AAPL"
+          ],
+          "title": "The minor change in character in the stock market lasted three to five days, depending on how it is measured."
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1718188301000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2024-06-12T10:31:41Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software, and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones, and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 230,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple Intelligence to be on iPhone, iPad, Mac"
+        },
+        {
+          "id": "ARGUS_40272_MarketSummary_1718187401000",
+          "headHtml": "Market Digest: AAPL, EIX",
+          "provider": "Argus Research",
+          "reportDate": "2024-06-12T10:16:41Z",
+          "reportTitle": "With the S&P 500 (SPX), Nasdaq 100, Nasdaq, and S&P 100 all hitting all-time closing highs (ATHs) recently, the presumption is that market sentiment is as hot as the temperatures in the Southwest U.S. (In the event you don't watch one of the many weather channels, it's sizzling -- but they say it's a dry heat.) ",
+          "reportType": "Market Summary",
+          "tickers": [
+            "AAPL",
+            "EIX"
+          ],
+          "title": "With the S&P 500 (SPX), Nasdaq 100, Nasdaq, and S&P 100 all hitting all-time"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1718055462000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-06-10T21:37:42Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 170,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: Generative AI Announcements Fit With Our Expectations and We Maintain Our Valuation"
+        },
+        {
+          "id": "ARGUS_40194_TopBottomInsiderActivity_1717496720000",
+          "headHtml": "Daily \u2013 Vickers Top Buyers & Sellers for 06/04/2024",
+          "provider": "Argus Research",
+          "reportDate": "2024-06-04T10:25:20Z",
+          "reportTitle": "The Vickers Top Buyers & Sellers is a daily report that identifies the five companies the largest insider purchase transactions based on the dollar value of the transactions as well as the five companies the largest insider sales transactions based on the dollar value of the transactions.",
+          "reportType": "Top/Bottom Insider Activity",
+          "tickers": [
+            "RS",
+            "LTH",
+            "AAPL",
+            "VITL",
+            "LLY",
+            "TMCI",
+            "XRAY",
+            "PFLT",
+            "DKS",
+            "LEG"
+          ],
+          "title": "Daily \u2013 Vickers Top Buyers & Sellers for 06/04/2024"
+        },
+        {
+          "id": "ARGUS_40169_TechnicalAnalysis_1717152597000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-05-31T10:49:57Z",
+          "reportTitle": "Thursday was -- yet again this week -- a tough day for the stock market. But while the session saw weakness in the mega-cap indices, there was nice strength in some of smaller caps. In addition, we finally had a decent day for market breadth, which has been weak of late. Talk about a confused market! The S&P 500 (SPX) fell 0.6%, while the Nasdaq and the Nasdaq 100 both gave back about 1.1%. The S&P MidCap 400 bounced 1% and the S&P SmallCap 600 rallied 1.2% after recent weakness.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "AAPL",
+            "XYL"
+          ],
+          "title": "Thursday was -- yet again this week -- a tough day for the stock market."
+        },
+        {
+          "id": "ARGUS_40141_ThematicPortfolio_1716993465000",
+          "headHtml": "The Argus ESG Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2024-05-29T14:37:45Z",
+          "reportTitle": "Sustainable Impact Investing, or ESG investing, is gaining traction not only with Argus Research clients but also with the global investment community. BlackRock CEO Lawrence Fink, who oversees approximately $9 trillion in assets, announced in January 2020 that his firm would be investing in companies that are making progress on sustainability. He doubled down in his January 2021 letter, calling on company managements to disclose their plans for making their businesses \"compatible with a net-zero economy\" by 2050. As assets have flowed in over the past 40 years, Sustainable Impact Investing has evolved. The discipline, originally known as Socially Responsible Investing, focused at first on excluding companies that conducted business in South Africa, or participated in industries such as tobacco, alcohol, and firearms. Performance of these initial strategies lagged, and the approach has been modified. Now, instead of merely identifying industries to avoid, the discipline promotes \"sustainable\" business practices across all industries that can have an \"impact\" on global issues such as climate, hunger, poverty, disease, shelter, and workers' rights.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "TT",
+            "GOOGL",
+            "AAPL",
+            "AVGO",
+            "INTU",
+            "JPM",
+            "MRK",
+            "DHR",
+            "TFC",
+            "MSFT",
+            "MA",
+            "QCOM",
+            "LLY",
+            "SPGI",
+            "TRV",
+            "GE",
+            "KLAC",
+            "NVDA",
+            "COP",
+            "BSX",
+            "RSG",
+            "GS",
+            "ECL",
+            "TMUS",
+            "CTAS",
+            "ETN",
+            "AMZN",
+            "WMT"
+          ],
+          "title": "The Argus ESG Model Portfolio"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1716334052000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-05-21T23:27:32Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 170,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: We Expect New Models and New Chip to Spur Return to iPad Growth, in Line With Our Thesis"
+        },
+        {
+          "id": "ARGUS_39967_TechnicalAnalysis_1715338854000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-05-10T11:00:54Z",
+          "reportTitle": "In the metals space, the iShares Silver Trust ETF (SLV) looks interesting, at least from a short-term technical perspective. SLV hit an intraday high of $27.24 on April 12, the day that both SLV and the SPDR Gold Shares (GLD) reversed sharply lower on huge volume. SLV fell to an intraday low of $23.87 on May 3, or just over 12% and right back to its 50-day exponential average as well as to a 50% retracement of the rally from late February until April 12.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "AAPL",
+            "LHX"
+          ],
+          "title": "In the metals space, the iShares Silver Trust ETF (SLV) looks interesting, at least from a short-term technical perspective."
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1715098936000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-05-07T16:22:16Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 170,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: We Expect New Models and New Chip to Spur Return to iPad Growth, in Line With Our Thesis"
+        },
+        {
+          "id": "ARGUS_39911_StockPicks_1714995528000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2024-05-06T11:38:48Z",
+          "reportTitle": "Innovation may be hard to define but, to borrow from former U.S. Supreme Court Justice Potter Stewart, you know it when you see it.  The United States economy is full of innovation. It has to be. Manufacturing industries that dominated the economy decades ago - textiles, televisions, even automobiles, to a large degree - have moved overseas, where costs are lower. Yet the U.S. economy is at its largest point in history and still growing.  If U.S. corporations weren't innovating, creating new products and services, and moving into new markets and applications, the domestic economy would be contracting, not expanding, and capital would not be flooding into the country. Particularly at this juncture of the market and economic cycles, when uncertainty is high due to high inflation and rising interest rates, we look to innovative companies to navigate the challenges. At Argus, a 90-year-old independent research firm that has innovated a time or two in its long history, we have focused on four types of innovative companies: Industry Disruptors; First to Market; New Product Specialists; and Product & Process Perfectors. Here are some examples of companies, featured in our Innovation Theme Model Portfolio.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "GOOGL",
+            "NVDA",
+            "META",
+            "AAPL",
+            "SYK",
+            "AXON",
+            "ORCL",
+            "CBOE",
+            "URI",
+            "COST",
+            "MCK",
+            "NOW",
+            "LYFT",
+            "SCHW",
+            "CRM"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 05/06/2024: Innovative Companies"
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1714762459000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2024-05-03T18:54:19Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software, and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones, and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 230,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "iPhone slowdown but services strength, huge buyback"
+        },
+        {
+          "id": "ARGUS_39900_MarketUpdate_1714761559000",
+          "headHtml": "Market Update: BKNG, AAPL, IPG, MCO, TECH, QRVO, SQ, CARR",
+          "provider": "Argus Research",
+          "reportDate": "2024-05-03T18:39:19Z",
+          "reportTitle": "U.S. stocks rose on Thursday ahead of the April jobs report due out on Friday. Apple (AAPL) rose 6% after hours when it announced a $110 billion stock buyback plan. The two-year Treasury yield fell to 4.889% while the 10-year yield was down to 4.58%. The Dow was up 0.9%, the S&P 500 gained 0.9% and the Nasdaq rose 1.5%. Crude oil traded above $79 per barrel and gold rose $3 to $2313 per ounce.",
+          "reportType": "Market Update",
+          "tickers": [
+            "TECH",
+            "CARR",
+            "IPG",
+            "AAPL",
+            "MCO",
+            "XYZ",
+            "QRVO",
+            "BKNG"
+          ],
+          "title": "U.S. stocks rose on Thursday ahead of the April jobs report due out on Friday."
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1714697299000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-05-03T00:48:19Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 170,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple Earnings: Higher Medium-Term iPhone Forecast Brings Our Valuation Up to $170 From $160"
+        },
+        {
+          "id": "ARGUS_39788_ThematicPortfolio_1713887664000",
+          "headHtml": "The Argus Innovation Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2024-04-23T15:54:24Z",
+          "reportTitle": "The United States economy is full of innovation. It has to be. Manufacturing industries that dominated the economy decades ago - textiles, televisions, even automobiles to a large degree - have moved overseas, where labor and materials costs are lower. Yet the U.S. economy, even during the pandemic and the current period of high inflation, has expanded to record levels. If U.S. corporations weren't innovating, creating new products (such as vaccines and AI) and services (such as Zoom calls) and moving into new markets, the domestic economy would not be growing, and capital would not be flooding into the country. The current high level of the U.S. dollar relative to currencies around the world attests to the confidence that global investors have in the durable and innovative U.S. economy.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "GOOGL",
+            "AMAT",
+            "AAPL",
+            "CVX",
+            "ADI",
+            "AXON",
+            "URI",
+            "COST",
+            "V",
+            "LLY",
+            "SPGI",
+            "PANW",
+            "NVDA",
+            "META",
+            "SYK",
+            "BSX",
+            "ORCL",
+            "CBOE",
+            "PWR",
+            "MCK",
+            "NOW",
+            "LYFT",
+            "ADBE",
+            "SCHW",
+            "MCHP",
+            "ISRG",
+            "AMZN",
+            "ODFL",
+            "CRM"
+          ],
+          "title": "The Argus Innovation Model Portfolio"
+        },
+        {
+          "id": "ARGUS_39692_TechnicalAnalysis_1713177949000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-04-15T10:45:49Z",
+          "reportTitle": "After many months of a strong market, but many bearish momentum divergences, the S&P 500 (SPX) finally cracked (a bit) and is currently testing its 50-day average. This is the first time the SPX has touched its 50-day since early November. It is also the first time since the pullback last summer that the 50-day relative strength index (RSI) has fallen below 50, a sign of at least some short-term trouble. A sustained break below the 50-day average would most likely open the door to the 4,800 region -- where the bottom of the bullish channel comes in, as does a 38.2% retracement of the rally since October.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "ITRI",
+            "AAPL"
+          ],
+          "title": "After many months of a strong market, but many bearish momentum divergences, the S&P 500 (SPX) finally cracked (a bit) and is currently testing its 50-day average."
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1711127989000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2024-03-22T17:19:49Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software, and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones, and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 230,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Legal battles and an AI tie-up"
+        },
+        {
+          "id": "ARGUS_39489_MarketUpdate_1711127089000",
+          "headHtml": "Market Update: AAPL, ADM, FDX, KR, NKE, WTRG",
+          "provider": "Argus Research",
+          "reportDate": "2024-03-22T17:04:49Z",
+          "reportTitle": "U.S. markets were mixed on Friday morning, but are still on track for gains for the week. On the earnings front, FedEx (FDX) rose 7% on an earnings beat, while Nike (NKE) was down about 7% on a weak outlook. The Dow was down 0.5%, the S&P 500 fell 0.1% and the Nasdaq gained less than 0.1%. Crude oil traded above $80 per barrel, while gold fell $16 to $2169 per ounce.",
+          "reportType": "Market Update",
+          "tickers": [
+            "AAPL",
+            "KR",
+            "NKE",
+            "ADM",
+            "WTRG",
+            "FDX"
+          ],
+          "title": "U.S. markets were mixed on Friday morning, but are still on track for gains"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1711042614000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-03-21T17:36:54Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 160,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: We're Comfortable With Our Thesis in Light of Antitrust Lawsuit"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1709685379000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-03-06T00:36:19Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 160,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple Earnings: Good Profits Offset Headwinds to iPhone and China Sales; Maintaining $160 Valuation"
+        },
+        {
+          "id": "ARGUS_39280_TopBottomInsiderActivity_1709552011000",
+          "headHtml": "Daily \u2013 Vickers Top Buyers & Sellers for 03/04/2024",
+          "provider": "Argus Research",
+          "reportDate": "2024-03-04T11:33:31Z",
+          "reportTitle": "The Vickers Top Buyers & Sellers is a daily report that identifies the five companies the largest insider purchase transactions based on the dollar value of the transactions as well as the five companies the largest insider sales transactions based on the dollar value of the transactions.",
+          "reportType": "Top/Bottom Insider Activity",
+          "tickers": [
+            "SPHR",
+            "AAPL",
+            "ACT",
+            "AMN",
+            "AMR",
+            "OKE",
+            "GTES",
+            "ABBV",
+            "PRGO"
+          ],
+          "title": "Daily \u2013 Vickers Top Buyers & Sellers for 03/04/2024"
+        },
+        {
+          "id": "ARGUS_39013_StockPicks_1707134957000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2024-02-05T12:09:17Z",
+          "reportTitle": "This weekend, in Vegas, it's the Chiefs versus the 49ers. Usher is the halftime show; Tom Brady appears in a commercial; and Taylor Swift fans add a whole new demographic to the fan base. But aside from all that, there is big money at stake. For our list this week, we present possible ways to invest in the Super Bowl.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "DKNG",
+            "MDLZ",
+            "UAL",
+            "AAPL",
+            "JBLU",
+            "KO",
+            "PARA",
+            "HCA",
+            "WYNN",
+            "K",
+            "AAL",
+            "DAL",
+            "BUD",
+            "HLT",
+            "MGM",
+            "EBAY",
+            "WFC",
+            "UL",
+            "GAP",
+            "SCHW",
+            "PEP",
+            "UBER",
+            "CRM",
+            "MAR"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 02/05/2024: Super Bowl Stocks"
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1706875524000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2024-02-02T12:05:24Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 230,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "iPhone achieves top smartphone market share"
+        },
+        {
+          "id": "ARGUS_38996_MarketSummary_1706874624000",
+          "headHtml": "Market Digest: AAPL, CLS, EQR, GSK, TT, KMB, PH, DEO",
+          "provider": "Argus Research",
+          "reportDate": "2024-02-02T11:50:24Z",
+          "reportTitle": "Stocks closed higher on Thursday as investors digested new economic data. The January ISM Manufacturing PMI index registered a reading of 49.1, up from 47.1 in December, with growth in new orders, production, and prices, while backlogs, employment and inventories contracted. The S&P Global's reading of 50.7 is up from 47.9 in December, with an increase in new orders, and both input and output prices and employment increased fractionally. U.S. construction spending rose 0.9% in December, following a 0.4% increase in November. Meta Platforms (META) reported after the close and was up more than 14% within an hour after releasing results. Likewise, Amazon.com (AMZN) rose nearly 13%. The S&P 500 closed up 1.3%, the Dow 0.1% and the Nasdaq gained 1.3%. Crude oil fell to just below $73 per barrel, while gold was up $5 to $2072 per ounce.",
+          "reportType": "Market Summary",
+          "tickers": [
+            "TT",
+            "KMB",
+            "AAPL",
+            "EQR",
+            "PH",
+            "GSK",
+            "DEO"
+          ],
+          "title": "Stocks closed higher on Thursday as investors digested new economic data."
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1706841073000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-02-02T02:31:13Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 160,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple Earnings: Good Profits Offset Headwinds to iPhone and China Sales; Maintaining $160 Valuation"
+        },
+        {
+          "id": "ARGUS_38462_TechnicalAnalysis_1701863598000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2023-12-06T11:53:18Z",
+          "reportTitle": "Treasury yields continue to provide an impetus for further equity strength, as the 10-year yield fell to 4.17% on Tuesday from 5% in late October, the five-year dropped to 4.14% from 5%, and the two-year hit 4.57% from 5.24% in mid-October. Key technical levels for the five- and 10-year start at 4.2% and run down to 4%; for the two-year, the next key level is at 4.25%.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "AAPL",
+            "MKTX"
+          ],
+          "title": "Treasury yields continue to provide an impetus for further equity strength, as the 10-year yield fell to 4.17% on Tuesday from 5% in late October, the five-year dropped to 4.14% from 5%, and the two-year hit 4.57% from 5.24% in mid-October."
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1701381053000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-11-30T21:50:53Z",
+          "reportTitle": "Apple is among the largest companies in the world, with a broad portfolio of hardware and software products targeted at consumers and businesses. Apple\u2019s iPhone makes up a majority of the firm sales, and Apple\u2019s other products like Mac, iPad, and Watch are designed around the iPhone as the focal point of an expansive software ecosystem. Apple has progressively worked to add new applications, like streaming video, subscription bundles, and augmented reality. The firm designs its own software and semiconductors while working with subcontractors like Foxconn and TSMC to build its products and chips. Slightly less than half of Apple\u2019s sales come directly through its flagship stores, with a majority of sales coming indirectly through partnerships and distribution. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 160,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple\u2019s Ecosystem of Integrated Hardware and Software Is Differentiated and Merits a Wide Moat"
+        },
+        {
+          "id": "ARGUS_38393_ThematicPortfolio_1701197712000",
+          "headHtml": "The Argus ESG Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2023-11-28T18:55:12Z",
+          "reportTitle": "Sustainable Impact Investing, or ESG investing, is gaining traction not only with Argus Research clients but also with the global investment community. BlackRock CEO Lawrence Fink, who oversees approximately $9 trillion in assets, announced in January 2020 that his firm would be investing in companies that are making progress on sustainability. He doubled down in his January 2021 letter, calling on company managements to disclose their plans for making their businesses \"compatible with a net-zero economy\" by 2050. As assets have flowed in over the past 40 years, Sustainable Impact Investing has evolved. The discipline, originally known as Socially Responsible Investing, focused at first on excluding companies that conducted business in South Africa, or participated in industries such as tobacco, alcohol, and firearms. Performance of these initial strategies lagged, and the approach has been modified. Now, instead of merely identifying industries to avoid, the discipline promotes \"sustainable\" business practices across all industries that can have an \"impact\" on global issues such as climate, hunger, poverty, disease, shelter, and workers' rights.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "TT",
+            "GOOGL",
+            "DE",
+            "AAPL",
+            "AVGO",
+            "JPM",
+            "DLR",
+            "ADP",
+            "MSFT",
+            "ABT",
+            "MA",
+            "QCOM",
+            "LLY",
+            "SPGI",
+            "TRV",
+            "CME",
+            "KLAC",
+            "NVDA",
+            "COP",
+            "BSX",
+            "VRTX",
+            "ECL",
+            "TMUS",
+            "CTAS",
+            "HD",
+            "ETN",
+            "WMT",
+            "CRM",
+            "MRVL"
+          ],
+          "title": "The Argus ESG Model Portfolio"
+        },
+        {
+          "id": "ARGUS_38393_ThematicPortfolio_1701196812000",
+          "headHtml": "The Argus ESG Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2023-11-28T18:40:12Z",
+          "reportTitle": "Sustainable Impact Investing, or ESG investing, is gaining traction not only with Argus Research clients but also with the global investment community. BlackRock CEO Lawrence Fink, who oversees approximately $9 trillion in assets, announced in January 2020 that his firm would be investing in companies that are making progress on sustainability. He doubled down in his January 2021 letter, calling on company managements to disclose their plans for making their businesses \"compatible with a net-zero economy\" by 2050. As assets have flowed in over the past 40 years, Sustainable Impact Investing has evolved. The discipline, originally known as Socially Responsible Investing, focused at first on excluding companies that conducted business in South Africa, or participated in industries such as tobacco, alcohol, and firearms. Performance of these initial strategies lagged, and the approach has been modified. Now, instead of merely identifying industries to avoid, the discipline promotes \"sustainable\" business practices across all industries that can have an \"impact\" on global issues such as climate, hunger, poverty, disease, shelter, and workers' rights.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "TT",
+            "GOOGL",
+            "DE",
+            "AAPL",
+            "AVGO",
+            "JPM",
+            "DLR",
+            "ADP",
+            "MSFT",
+            "ABT",
+            "MA",
+            "QCOM",
+            "LLY",
+            "SPGI",
+            "TRV",
+            "CME",
+            "KLAC",
+            "NVDA",
+            "COP",
+            "BSX",
+            "VRTX",
+            "ECL",
+            "TMUS",
+            "CTAS",
+            "HD",
+            "ETN",
+            "WMT",
+            "CRM",
+            "MRVL"
+          ],
+          "title": "The Argus ESG Model Portfolio"
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1699032129000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2023-11-03T17:22:09Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 230,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Revenue down, cautious guidance"
+        },
+        {
+          "id": "ARGUS_38180_MarketUpdate_1699031229000",
+          "headHtml": "Market Update: NLY, AAPL, BAX, IP, MAR, NFG, OGE, NCLH, LIN, SQ, CLF",
+          "provider": "Argus Research",
+          "reportDate": "2023-11-03T17:07:09Z",
+          "reportTitle": "Stocks rose strongly on Friday morning after lower-than-expected employment growth raised the likelihood of an end to the Fed's rate hike campaign. The Labor Department said that the U.S. economy added 150,000 payroll jobs in October, down from a revised 297,000 in September and below the Reuters consensus forecast of 180,000. In other signs of a cooling labor market, the unemployment rate edged up to 3.9% from 3.8% a month earlier and annual growth in average hourly earnings slowed to 4.1% from 4.3%. The Dow rose 0.7%, the S&P 0.9%, and the Nasdaq 1.2%. Crude oil traded near $82 per barrel, while gold rose $8 to $2002 per ounce.",
+          "reportType": "Market Update",
+          "tickers": [
+            "LIN",
+            "AAPL",
+            "NCLH",
+            "IP",
+            "XYZ",
+            "BAX",
+            "NLY",
+            "OGE",
+            "CLF",
+            "NFG",
+            "MAR"
+          ],
+          "title": "Stocks rose strongly on Friday morning after lower-than-expected employment"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1699011820000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-11-03T11:43:40Z",
+          "reportTitle": "Apple designs a wide variety of consumer electronic devices, including smartphones (iPhone), tablets (iPad), PCs (Mac), smartwatches (Apple Watch), and AirPods, among others. In addition, Apple offers its customers a variety of services such as Apple Music, iCloud, Apple Care, Apple TV+, Apple Arcade, Apple Fitness, Apple Card, and Apple Pay, among others. Apple's products include internally developed software and semiconductors, and the firm is well known for its integration of hardware, software, semiconductors, and services. Apple's products are distributed online as well as through company-owned stores and third-party retailers.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple Earnings: Steady iPhone Demand, While Services and Gross Margins Steal the Show"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1698981602000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-11-03T03:20:02Z",
+          "reportTitle": "Apple designs a wide variety of consumer electronic devices, including smartphones (iPhone), tablets (iPad), PCs (Mac), smartwatches (Apple Watch), and AirPods, among others. In addition, Apple offers its customers a variety of services such as Apple Music, iCloud, Apple Care, Apple TV+, Apple Arcade, Apple Fitness, Apple Card, and Apple Pay, among others. Apple's products include internally developed software and semiconductors, and the firm is well known for its integration of hardware, software, semiconductors, and services. Apple's products are distributed online as well as through company-owned stores and third-party retailers.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple Earnings: Steady iPhone Demand, While Services and Gross Margins Steal the Show"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1698968579000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-11-02T23:42:59Z",
+          "reportTitle": "Apple designs a wide variety of consumer electronic devices, including smartphones (iPhone), tablets (iPad), PCs (Mac), smartwatches (Apple Watch), and AirPods, among others. In addition, Apple offers its customers a variety of services such as Apple Music, iCloud, Apple Care, Apple TV+, Apple Arcade, Apple Fitness, Apple Card, and Apple Pay, among others. Apple's products include internally developed software and semiconductors, and the firm is well known for its integration of hardware, software, semiconductors, and services. Apple's products are distributed online as well as through company-owned stores and third-party retailers.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: We\u2019re Pleased With iPhone 15 and Watch Innovations, but Shares Are Still Rich"
+        },
+        {
+          "id": "ARGUS_38127_StockPicks_1698664887000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2023-10-30T11:21:27Z",
+          "reportTitle": "Investing in the Cloud is not for the faint of heart -- but we see upside. Alphabet lost a steep 10% in one day last week after investors expressed their disappointment over growth in its cloud business. That same day, Microsoft surged after reporting better-than-expected growth in its Azure OpenAI cloud service. The race is on, and some will win and some will lose along the way. But the potential pie is big. In the internet era, in which digital commerce complements or has supplanted physical commerce, the information technology needs of all enterprises have grown. The traditional on-premises approach has been rendered inefficient, given that a user's IT needs may fluctuate at any time. Into this void, the Cloud has arrived. In Cloud services models, an enterprise's IT needs can be matched and scaled in real time. Through the Cloud, enterprises consume only as much computing, storage, and networking bandwidth as they need. For a major event, this allows massive scaling of IT resources beyond the restraints of on-premises implementation. For periods in which operations are steady, the Cloud services model allows for a needs-only application. The leading providers of Cloud services tend to be large Technology and Communication Services companies that provide many goods and services distinct from or adjacent to their Cloud businesses. Growth has been impressive for this group. Collectively, participants in the Cloud eco-system grew revenue at a 19% compound annual growth rate from 2016 to 2022. Still, the line isn't straight up.  While Cloud services grew at a 23% growth rate from 2020 to 2021, the average growth rate slowed to 15.3% for 2022.  This slowdown in revenue growth reflected impediments to normal business activity from the supply-chain crisis, inflation, and rising interest rates. Even so, demand for Cloud services has held up relatively well, given that Cloud transition is a long-tailed process and that Cloud transformation has become an imperative. Here is a list of U.S.-based companies followed by Argus and that we think are in position to take advantage of this secular trend.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "MSFT",
+            "GOOGL",
+            "NTAP",
+            "META",
+            "AAPL",
+            "NOW",
+            "AMZN",
+            "CRM"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 10/30/2023: Investing in the Cloud"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1698363477000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-10-26T23:37:57Z",
+          "reportTitle": "Apple designs a wide variety of consumer electronic devices, including smartphones (iPhone), tablets (iPad), PCs (Mac), smartwatches (Apple Watch), and AirPods, among others. In addition, Apple offers its customers a variety of services such as Apple Music, iCloud, Apple Care, Apple TV+, Apple Arcade, Apple Fitness, Apple Card, and Apple Pay, among others. Apple's products include internally developed software and semiconductors, and the firm is well known for its integration of hardware, software, semiconductors, and services. Apple's products are distributed online as well as through company-owned stores and third-party retailers.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: We\u2019re Pleased With iPhone 15 and Watch Innovations, but Shares Are Still Rich"
+        },
+        {
+          "id": "ARGUS_38102_ThematicPortfolio_1698327961000",
+          "headHtml": "The Argus Innovation Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2023-10-26T13:46:01Z",
+          "reportTitle": "Innovation may be hard to define. But to borrow from former U.S. Supreme Court Justice Potter Stewart, you know it when you see it. The United States economy is full of innovation. It has to be. Manufacturing industries that dominated the economy decades ago - textiles, televisions, even automobiles to a large degree - have moved overseas, where labor and materials costs are lower. Yet the U.S. economy, even during the pandemic and the current period of high inflation, has expanded to record levels. If U.S. corporations weren't innovating, creating new products (such as vaccines) and services (such as Zoom calls) and moving into new markets and applications, the domestic economy would not be growing, and capital would not be flooding into the country. The current high level of the U.S. dollar relative to currencies around the world attests to the confidence that global investors have in the durable and innovative U.S. economy.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "AMAT",
+            "GOOGL",
+            "AAPL",
+            "CVX",
+            "ADI",
+            "URI",
+            "COST",
+            "V",
+            "LLY",
+            "SPGI",
+            "PANW",
+            "NVDA",
+            "META",
+            "NOC",
+            "SYK",
+            "BSX",
+            "MSCI",
+            "PWR",
+            "CBOE",
+            "HOLX",
+            "MCK",
+            "NOW",
+            "ADBE",
+            "SCHW",
+            "MCHP",
+            "ISRG",
+            "AMZN",
+            "ODFL",
+            "CRM"
+          ],
+          "title": "The Argus Innovation Model Portfolio"
+        },
+        {
+          "id": "ARGUS_37814_MarketOutlook_1695898728000",
+          "headHtml": "Daily Spotlight: Final 2Q23 GDP Report Due Today",
+          "provider": "Argus Research",
+          "reportDate": "2023-09-28T10:58:48Z",
+          "reportTitle": "The Commerce Department will update its forecast for 2Q23 GDP this morning. Last month, in its second estimate, the government indicated that 2Q GDP rose at an annualized 2.1% pace, up slightly from the 2.0% growth rate in 1Q23. We think that rate will hold steady, though we note that any surprise is likely to occur on the upside. As is typically the case, the report will indicate areas of strength and weakness in the economy.  On the positive side, the consumer appears to be in good shape, with Personal Consumption Expenditures expanding at a 1%-2% pace, driven by spending on Services. Companies continue to invest in R&D projects and software, as Investments into Intellectual Property are advancing at a rate that is faster than overall GDP growth. Government spending has picked up as well during the past year. On the downside, Residential Investment has weakened as interest rates have risen, though the sector seems to be bottoming; and Exports of Goods have been challenged by the strong dollar. The GDP report also includes an inflation measure, the PCE Price Index. This index, excluding food and energy, is rising at a 3.7% pace, well ahead the Federal Reserve's inflation target of 2.0%.  We don't expect the results of this report to move the markets much, as the data is already almost three months old. The first report on 3Q23 GDP will come out later in October. The current reading of the Atlanta Fed's GDPNow indicator is 4.9%. The current Argus forecast, last published in our Viewpoint report, is not quite as aggressive at 4.0%, but still likely reflects the high-water-mark for GDP growth in 2023.",
+          "reportType": "Market Outlook",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Final 2Q23 GDP Report Due Today"
+        },
+        {
+          "id": "ARGUS_37768_StockPicks_1695643254000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2023-09-25T12:00:54Z",
+          "reportTitle": "The growth prospects for the artificial intelligence (AI) universe are impressive, yet hard to determine. Argus has derived a model of the size and scope of the global AI industry, based on our coverage of the major publicly-traded players and most of the mid-tier players, along with our industry analysts' knowledge of private players. We estimate the global AI industry amounted to about $90-$100 billion in 2021, and expect it to grow at a 40% CAGR through 2030, when it is expected to reach $1.8 trillion in annual revenue. We expect annual growth to decelerate from the low- to mid-40% range in immediate years to the mid-30% range for years toward the end of the survey period. But determining a realistic estimate for the size of the industry is a challenge. Even for an industry that promises to redefine measuring tools, there is no measurable unit of AI output comparable to barrels of oil or tons of steel. As well, much of AI development occurs within labs and at universities, and the output is measured in tangible progress against objectives, not dollars or units of output. In the corporate world, nearly all the AI pure-play companies service micro-niches, have little measurable revenue, and are deeply unprofitable. For our list this week, we take a big picture view of three areas where AI applications are developing. In Big Tech, we believe much of the revenue and most of the profitability from AI is attributable to several giant U.S. and a few international companies that operate primarily in growth sectors such as Technology, Communication Services, and Consumer Discretionary. Next, we note that China is also a hub of AI development, with companies like Alibaba, Baidu, and Tencent (though Argus follows only Alibaba). Finally, Niche Tech has significant AI activity among companies pursuing advances in IoT, vehicle electrification, autonomous driving, automation and connectivity solutions for manufacturing, warehousing, construction, and other areas. Here are featured companies followed by Argus in those three categories.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "BABA",
+            "DE",
+            "NVDA",
+            "GOOGL",
+            "META",
+            "AAPL",
+            "GM",
+            "F",
+            "HON",
+            "ROK",
+            "MSFT",
+            "QCOM",
+            "IBM",
+            "AMZN",
+            "CRM"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 09/25/2023: Where to Look for AI Opportunities"
+        },
+        {
+          "id": "MS_1181210_StockPicks_1694825109000",
+          "headHtml": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover",
+          "provider": "Morningstar",
+          "reportDate": "2023-09-16T00:45:09Z",
+          "reportTitle": "In this edition, global EV adoption rate to rise; patience will be rewarded for U.S. REIT investors; key takeaways from renewable energy conference; and Fortrea Holdings, Apple, and Bristol-Myers Squibb.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "FTRE",
+            "AAPL",
+            "TSLA",
+            "JNJ"
+          ],
+          "title": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover"
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1694623467000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2023-09-13T16:44:27Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 230,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "New iPhone focuses on function over dazzle"
+        },
+        {
+          "id": "ARGUS_37653_MarketUpdate_1694622567000",
+          "headHtml": "Market Update: AAPL, COST, IART",
+          "provider": "Argus Research",
+          "reportDate": "2023-09-13T16:29:27Z",
+          "reportTitle": "U.S. equities rose on Wednesday morning. The Labor Department said that its all-items consumer price index rose 3.7% on a year-over-year basis in August, up from a 3.2% year-over-year increase in and slightly above the consensus forecast of 3.6%. Rising energy prices drove the increase. Excluding food and energy prices, the core CPI rose 4.3% from the prior year, down from 4.7% in July. The S&P 500 rose 0.3%, the Dow 0.2% and the Nasdaq was up 0.5%. Crude oil is trading near $89 per barrel, while gold traded at $1935 per ounce.",
+          "reportType": "Market Update",
+          "tickers": [
+            "AAPL",
+            "COST",
+            "IART"
+          ],
+          "title": "U.S. equities rose on Wednesday morning. The Labor Department said that its"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1694554934000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-09-12T21:42:14Z",
+          "reportTitle": "Apple designs a wide variety of consumer electronic devices, including smartphones (iPhone), tablets (iPad), PCs (Mac), smartwatches (Apple Watch), and AirPods, among others. In addition, Apple offers its customers a variety of services such as Apple Music, iCloud, Apple Care, Apple TV+, Apple Arcade, Apple Fitness, Apple Card, and Apple Pay, among others. Apple's products include internally developed software and semiconductors, and the firm is well known for its integration of hardware, software, semiconductors, and services. Apple's products are distributed online as well as through company-owned stores and third-party retailers.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: We\u2019re Pleased With iPhone 15 and Watch Innovations, but Shares Are Still Rich"
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1691171066000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2023-08-04T17:44:26Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 230,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Services strong as device sales remain soft"
+        },
+        {
+          "id": "ARGUS_37274_MarketUpdate_1691171066000",
+          "headHtml": "Market Update: ILMN, AAPL, AMZN, ECL, ETR, KIM, MDT, PRU, SQ",
+          "provider": "Argus Research",
+          "reportDate": "2023-08-04T17:44:26Z",
+          "reportTitle": "Stocks recouped some of their recent losses on Friday morning following the government's July employment report. The Labor Department said that the U.S. economy added 187,000 payroll jobs in July, up from a revised 185,000 in June but below the Reuters consensus of 200,000. The unemployment rate ticked lower to 3.5% from 3.6% in June, and wage growth was stronger than expected. Average hourly earnings rose 4.4% from the prior year, above the consensus forecast of 4.2%. The Dow rose 0.6%, the S&P 0.6%, and the Nasdaq 0.8%. Crude oil rose 1% to $82.50 per barrel, while gold rose $8 to $1977 per ounce.",
+          "reportType": "Market Update",
+          "tickers": [
+            "ETR",
+            "AAPL",
+            "PRU",
+            "ILMN",
+            "XYZ",
+            "MDT",
+            "AMZN",
+            "KIM",
+            "ECL"
+          ],
+          "title": "Stocks recouped some of their recent losses on Friday morning"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1691161580000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-08-04T15:06:20Z",
+          "reportTitle": "Apple designs a wide variety of consumer electronic devices, including smartphones (iPhone), tablets (iPad), PCs (Mac), smartwatches (Apple Watch), and AirPods, among others. In addition, Apple offers its customers a variety of services such as Apple Music, iCloud, Apple Care, Apple TV+, Apple Arcade, Apple Fitness, Apple Card, and Apple Pay, among others. Apple's products include internally developed software and semiconductors, and the firm is well known for its integration of hardware, software, semiconductors, and services. Apple's products are distributed online as well as through company-owned stores and third-party retailers.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple Earnings: Steady Business Conditions as Next Wave of iPhones Is on Deck; Maintain Valuation"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1691110030000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-08-04T00:47:10Z",
+          "reportTitle": "Apple designs a wide variety of consumer electronic devices, including smartphones (iPhone), tablets (iPad), PCs (Mac), smartwatches (Apple Watch), and AirPods, among others. In addition, Apple offers its customers a variety of services such as Apple Music, iCloud, Apple Care, Apple TV+, Apple Arcade, Apple Fitness, Apple Card, and Apple Pay, among others. Apple's products include internally developed software and semiconductors, and the firm is well known for its integration of hardware, software, semiconductors, and services. Apple's products are distributed online as well as through company-owned stores and third-party retailers.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple Earnings: Steady Business Conditions as Next Wave of iPhones Are on Deck; Maintain Valuation"
+        },
+        {
+          "id": "MS_1167555_StockPicks_1689983111000",
+          "headHtml": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover",
+          "provider": "Morningstar",
+          "reportDate": "2023-07-21T23:45:11Z",
+          "reportTitle": "In this edition, streaming services changing their channels; BRP looks promising; China's AI is calling; and Autoliv, Sirius XM, and American Express.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "BABA",
+            "NFLX",
+            "GOOG",
+            "GOOGL",
+            "AAPL",
+            "PARA",
+            "BWIN",
+            "BIDU",
+            "BAIDF",
+            "TCTZF",
+            "DIS",
+            "CMCSA",
+            "WBD",
+            "AXP",
+            "AMZN"
+          ],
+          "title": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover"
+        },
+        {
+          "id": "ARGUS_36915_MarketOutlook_1688037490000",
+          "headHtml": "Daily Spotlight: Final 1Q GDP Report Out Today",
+          "provider": "Argus Research",
+          "reportDate": "2023-06-29T11:18:10Z",
+          "reportTitle": "The Commerce Department will update its forecast for GDP this morning. Last month, in its last estimate, the government indicated that 1Q GDP rose at an annualized 1.3% pace, down from 2.6% growth in 4Q22. We think that will hold steady, though we note that any surprise is likely to occur on the upside. As is typically the case, the report will indicate areas of strength and weakness in the economy. On the positive side, the consumer appears to be in good shape, with Personal Consumption Expenditures expanding at a 1%-2% pace, driven by spending on services and, more recently, on durable goods. Companies continue to invest in R&D projects and software, as investments into intellectual property are advancing at a high-single-digit rate. Government spending has picked up as well. On the downside, residential investment has declined sharply as interest rates have risen, though the sector seems to be bottoming; and exports of goods have been challenged by the strong dollar. The GDP report also includes an inflation measure, the PCE Price Index. This index, excluding food and energy, is rising at a 5.0% pace, well ahead the Federal Reserve's inflation target of 2.0%. We don't expect the results of this report to move the markets much, as the data is almost three months old.  The first report on 2Q23 GDP will come out in late July. The current reading of the Atlanta Fed's GDPNow indicator is 1.9%. The current Argus forecast, last published in our Viewpoint report, is a bit more aggressive at 2.5%, due in part to expectations for continued consumer sector strength.",
+          "reportType": "Market Outlook",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Final 1Q GDP Report Out Today"
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1686071155000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2023-06-06T17:05:55Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 230,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Mixed Realty (MR) headset at WWDC 2023"
+        },
+        {
+          "id": "ARGUS_36689_MarketUpdate_1686070255000",
+          "headHtml": "Market Update: AAPL, BJ, ETR, LDOS",
+          "provider": "Argus Research",
+          "reportDate": "2023-06-06T16:50:55Z",
+          "reportTitle": "Stocks edged higher on Tuesday morning, led by gains in the Financial and Consumer Discretionary sectors. The World Bank issued mixed forecasts for the global economy. It expects global GDP to increase 2.1% this year, up from its prior forecast of 1.7% but down from 3.1% growth in 2022. The revision included a higher growth forecast for the U.S., to 1.1% from 0.5%, and for China, to 5.6% from 4.3%. At the same time, the bank cut its global growth forecast for 2024 to 2.4% from 2.7%. The Dow was flat, the S&P rose 0.2%, and the Nasdaq rose 0.3%. Crude oil traded near $72 per barrel, while gold rose slightly to $1975 per ounce.",
+          "reportType": "Market Update",
+          "tickers": [
+            "ETR",
+            "AAPL",
+            "BJ",
+            "LDOS"
+          ],
+          "title": "Stocks edged higher on Tuesday morning, led by gains"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1686013770000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-06-06T01:09:30Z",
+          "reportTitle": "Apple designs a wide variety of consumer electronic devices, including smartphones (iPhone), tablets (iPad), PCs (Mac), smartwatches (Apple Watch), and AirPods, among others. In addition, Apple offers its customers a variety of services such as Apple Music, iCloud, Apple Care, Apple TV+, Apple Arcade, Apple Fitness, Apple Card, and Apple Pay, among others. Apple's products include internally developed software and semiconductors, and the firm is well known for its integration of hardware, software, semiconductors, and services. Apple's products are distributed online as well as through company-owned stores and third-party retailers.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple: Vision Pro Points to the Future of AR, but Won\u2019t Displace the iPhone Just Yet"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1685488897000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-05-30T23:21:37Z",
+          "reportTitle": "Apple designs a wide variety of consumer electronic devices, including smartphones (iPhone), tablets (iPad), PCs (Mac), smartwatches (Apple Watch), and AirPods, among others. In addition, Apple offers its customers a variety of services such as Apple Music, iCloud, Apple Care, Apple TV+, Apple Arcade, Apple Fitness, Apple Card, and Apple Pay, among others. Apple's products include internally developed software and semiconductors, and the firm is well known for its integration of hardware, software, semiconductors, and services. Apple's products are distributed online as well as through company-owned stores and third-party retailers.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple\u2019s iOS Dominance Warrants a Wide Economic Moat"
+        },
+        {
+          "id": "ARGUS_36617_ThematicPortfolio_1685466384000",
+          "headHtml": "The Argus ESG Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2023-05-30T17:06:24Z",
+          "reportTitle": "Sustainable Impact Investing, or ESG investing, is gaining traction not only with Argus Research clients but also with the global investment community. BlackRock CEO Lawrence Fink, who oversees approximately $9 trillion in assets, announced in January 2020 that his firm would be investing in companies that are making progress on sustainability. He doubled down in his January 2021 letter, calling on company managements to disclose their plans for making their businesses \"compatible with a net-zero economy\" by 2050. As assets have flowed in over the past 40 years, Sustainable Impact Investing has evolved. The discipline, originally known as Socially Responsible Investing, focused at first on excluding companies that conducted business in South Africa, or participated in industries such as tobacco, alcohol, and firearms. Performance of these initial strategies lagged, and the approach has been modified. Now, instead of merely identifying industries to avoid, the discipline promotes \"sustainable\" business practices across all industries that can have an \"impact\" on global issues such as climate, hunger, poverty, disease, shelter, and workers' rights.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "TT",
+            "DE",
+            "AAPL",
+            "CTVA",
+            "AVGO",
+            "JPM",
+            "SRE",
+            "JNJ",
+            "ADP",
+            "ELV",
+            "MSFT",
+            "ABT",
+            "MA",
+            "RTX",
+            "TRV",
+            "SPGI",
+            "KLAC",
+            "GOOG",
+            "MSI",
+            "COP",
+            "BSX",
+            "ECL",
+            "TMUS",
+            "PEP",
+            "CTAS",
+            "HD",
+            "CRM",
+            "WMT",
+            "BIIB"
+          ],
+          "title": "The Argus ESG Model Portfolio"
+        },
+        {
+          "id": "MS_0P000000GY_AnalystReport_1685058006000",
+          "headHtml": "Analyst Report: Apple Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-05-25T23:40:06Z",
+          "reportTitle": "Apple designs a wide variety of consumer electronic devices, including smartphones (iPhone), tablets (iPad), PCs (Mac), smartwatches (Apple Watch), and AirPods, among others. In addition, Apple offers its customers a variety of services such as Apple Music, iCloud, Apple Care, Apple TV+, Apple Arcade, Apple Fitness, Apple Card, and Apple Pay, among others. Apple's products include internally developed software and semiconductors, and the firm is well known for its integration of hardware, software, semiconductors, and services. Apple's products are distributed online as well as through company-owned stores and third-party retailers.  ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Apple\u2019s iOS Dominance Warrants a Wide Economic Moat"
+        },
+        {
+          "id": "ARGUS_36400_StockPicks_1683555427000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2023-05-08T14:17:07Z",
+          "reportTitle": "Innovation may be hard to define but, to borrow from former U.S. Supreme Court Justice Potter Stewart, you know it when you see it. The United States economy is full of innovation. It has to be. Manufacturing industries that dominated the economy decades ago - textiles, televisions, even automobiles, to a large degree - have moved overseas, where costs are lower. Yet the U.S. economy is at its largest point in history and still growing.  If U.S. corporations weren't innovating, creating new products and services, and moving into new markets and applications, the domestic economy would be contracting, not expanding, and capital would not be flooding into the country. Particularly at this juncture of the market and economic cycles, when uncertainty is high due to high inflation and rising interest rates, we look to innovative companies to successfully navigate the challenges. At Argus, an 88-year-old independent research firm that has innovated a time or two in its long history, we have focused on four types of innovative companies: Industry Disruptors; First to Market; New Product Specialists; and Product & Process Perfectors. Here are some examples of companies, featured in our Innovation Theme Model Portfolio.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "META",
+            "NVDA",
+            "GOOGL",
+            "AAPL",
+            "NOC",
+            "CVX",
+            "EL",
+            "URI",
+            "COST",
+            "HOLX",
+            "MCK",
+            "LLY",
+            "SCHW",
+            "ISRG"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 05/08/2023: Innovative Companies"
+        },
+        {
+          "id": "ARGUS_2660_AnalystReport_1683285676000",
+          "headHtml": "Analyst Report: Apple Inc",
+          "provider": "Argus Research",
+          "reportDate": "2023-05-05T11:21:16Z",
+          "reportTitle": "Apple manufactures smartphones, tablets, PCs, software and peripherals for a worldwide customer base. Its products include Mac desktop and mobile PCs, iPhone, iPad, Apple Watch, and various consumer products, including AirPods, Beats headphones and Apple TV. Apple services include App Store, iTunes, iCloud, Apple TV+, Apple Arcade, Apple Music, Apple Pay, and more.",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Solid quarter; reaffirming BUY"
+        },
+        {
+          "id": "ARGUS_36378_MarketSummary_1683284776000",
+          "headHtml": "Market Digest: AAPL, CLX, CTSH, PGR, XEL, YUM, W",
+          "provider": "Argus Research",
+          "reportDate": "2023-05-05T11:06:16Z",
+          "reportTitle": "Stocks fell again on Thursday amid pressures on regional banks and debt ceiling concerns as investors awaited the April employment report on Friday morning. On the earnings front, e-commerce software provider Shopify surged 24% after posting better-than-expected 1Q results, while Paramount Global plunged 28% after reporting disappointing sales and earnings and cutting its dividend. On the employment front, the Labor Department said that first-time claims for state unemployment benefits rose by 13,000 to a seasonally adjusted 242,000 for the week ended April 29, slightly above the Reuters consensus of 240,000. Continuing claims, reported with a one-week lag, fell by 38,000 to 1.805 million. The Dow fell 0.86%, the S&P 0.72%, and the Nasdaq 0.49%. Crude oil traded near $68.50 per barrel, while gold rose $21 to $2058 per ounce.",
+          "reportType": "Market Summary",
+          "tickers": [
+            "YUM",
+            "AAPL",
+            "W",
+            "CTSH",
+            "PGR",
+            "XEL",
+            "CLX"
+          ],
+          "title": "Stocks fell again on Thursday amid pressures on regional banks and debt"
+        },
+        {
+          "id": "ARGUS_36247_ThematicPortfolio_1682084358000",
+          "headHtml": "The Argus Innovation Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2023-04-21T13:39:18Z",
+          "reportTitle": "Innovation may be hard to define. But to borrow from former U.S. Supreme Court Justice Potter Stewart, you know it when you see it. The United States economy is full of innovation. It has to be. Manufacturing industries that dominated the economy decades ago - textiles, televisions, even automobiles to a large degree - have moved overseas, where labor and materials costs are lower. Yet the U.S. economy, even during the pandemic and the current period of high inflation, has expanded to record levels. If U.S. corporations weren't innovating, creating new products (such as vaccines) and services (such as Zoom calls) and moving into new markets and applications, the domestic economy would not be growing, and capital would not be flooding into the country. The current high level of the U.S. dollar relative to currencies around the world attests to the confidence that global investors have in the durable and innovative U.S. economy.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "GOOGL",
+            "AMAT",
+            "AAPL",
+            "CVX",
+            "ADI",
+            "URI",
+            "COST",
+            "V",
+            "LLY",
+            "SPGI",
+            "PANW",
+            "NVDA",
+            "META",
+            "NOC",
+            "BAC",
+            "EL",
+            "PWR",
+            "MCD",
+            "TECH",
+            "HOLX",
+            "MCK",
+            "TMO",
+            "ADBE",
+            "SCHW",
+            "MCHP",
+            "ISRG",
+            "AMZN",
+            "ODFL"
+          ],
+          "title": "The Argus Innovation Model Portfolio"
+        },
+        {
+          "id": "ARGUS_36189_StockPicks_1681732703000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2023-04-17T11:58:23Z",
+          "reportTitle": "We recently raised our rating on the Technology sector to Over-Weight from Market-Weight. As interest rates start to fall, IT demand in enterprise and data center markets is holding up. And mounting interest in ChatGPT could herald the age of AI, which could be a huge industry driver. Over the long term, we expect the Technology sector to benefit from pervasive digitization across the economy, greater acceptance of transformative technologies, and the development of the Internet of Things (IoT). Healthy company and sector fundamentals are also positive. For individual companies, these include high cash levels, low debt, and broad international business exposure. The sector is outperforming the market thus far in 2023, with a gain of 12.4%. Tech underperformed the market in 2022, with a loss of 28.9%, and outperformed in 2021, with a gain of 33.4%. The P/E ratio on projected 2023 earnings is 23, above the market multiple. Earnings are expected to grow 14.5% in 2023 after having fallen 3.3% in 2022. Earnings rose 37.9% in 2021 and 7.7% in 2020. The sector's debt ratios are below the market average, as is the average dividend yield of 0.5%. Here is how we use our analysts' Technology sector ideas in our Focus List and Model Portfolios.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "KLAC",
+            "NVDA",
+            "AMAT",
+            "AAPL",
+            "AVGO",
+            "CSCO",
+            "ADSK",
+            "ADI",
+            "NXPI",
+            "HPQ",
+            "TXN",
+            "ACN",
+            "ASML",
+            "MSFT",
+            "SHOP",
+            "GEN",
+            "QCOM",
+            "INTC",
+            "STX",
+            "ADBE",
+            "DELL",
+            "CRM",
+            "PANW"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 04/17/2023: Our Favorite Tech Stocks"
+        },
+        {
+          "id": "ARGUS_36111_TechnicalAnalysis_1681124607000",
+          "headHtml": "Technical Assessment: Bearish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2023-04-10T11:03:27Z",
+          "reportTitle": "In the near term, the S&P 500 (SPX) is heading toward several important pieces of resistance following the rally off the March 13 intraday low of 3,809. Back in the latter part of February, the SPX broke down out of a bearish wedge, backtested the lower line of the pattern, and continued lower. From the February 2 closing high to the recent closing low, the index gave up almost 8% (or 324 points). Based on the size of the wedge, a minimum target was down at 3,656 -- which the index didn't come close to hitting.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "AAPL",
+            "TSCO"
+          ],
+          "title": "In the near term, the S&P 500 (SPX) is heading toward several important pieces of resistance following the rally off the March 13 intraday low of 3,809."
+        },
+        {
+          "id": "ARGUS_36024_MarketOutlook_1680174286000",
+          "headHtml": "Daily Spotlight: Final 4Q GDP Report Due Today",
+          "provider": "Argus Research",
+          "reportDate": "2023-03-30T11:04:46Z",
+          "reportTitle": "The Commerce Department will update its forecast for GDP this morning.  Last month, in its second estimate, the government indicated that 4Q GDP rose at an annualized 2.7% pace. We think that will hold steady, though we note that any surprise is likely to occur on the upside. As is typically the case, the report will indicate areas of strength and weakness in the economy. On the positive side, the consumer appears to be in good shape, with Personal Consumption Expenditures expanding at a 1%-2% pace, driven by spending on Services. Companies continue to invest in R&D projects and software, as Investments into Intellectual Property are advancing at a high-single-digit rate. Government spending has picked up as well. On the downside, Residential Investment has declined sharply as interest rates increased; Consumer Spending on Durable Goods has been lower due to supply-chain problems in the auto sector; and Exports of Goods have been challenged by the strong dollar.  The GDP report also includes an inflation measure, the PCE Price Index.  This index, excluding food and energy, is rising at a 4.3% pace, well ahead the Federal Reserve's inflation target of 2.0%. We don't expect the results of this report to move the markets much, as the data is already almost three months old. The first report on 1Q23 GDP will come out later in April.  The current reading of the Atlanta Fed's GDP Now indicator is 3.2%. The current Argus forecast, last published in our Viewpoint report, is more conservative at 1.3%, due in part to a forecast pullback in inventory building.",
+          "reportType": "Market Outlook",
+          "tickers": [
+            "AAPL"
+          ],
+          "title": "Final 4Q GDP Report Due Today"
+        }
+      ],
+      "sigDevs": [
+        {
+          "headline": "Apple Says Lossless Audio And Ultra\u2011Low Latency Audio Come To Airpods Max - Website",
+          "date": "2025-03-24"
+        }
+      ],
+      "secReports": [
+        {
+          "id": "0001140361-25-005876_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1740441600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000114036125005876/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0000320193-25-000008_320193",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1738281600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019325000008/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0000320193-25-000007_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1738195200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019325000007/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001308179-25-000008_320193",
+          "type": "Proxy Statements",
+          "title": "DEF 14A : Proxy Statements",
+          "description": "Definitive proxy statements",
+          "filingDate": 1736467200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000130817925000008/thumbnail.png",
+          "formType": "DEF 14A"
+        },
+        {
+          "id": "0001308179-25-000009_320193",
+          "type": "Proxy Statements",
+          "title": "DEFA14A : Proxy Statements",
+          "description": "Definitive additional proxy soliciting materials including Rule 14(a)(12) material. Note: Submission type DEFA14A can be filed as part of Form 8-K. For filers subject to 8-K filing requirements we recommend the use of the 8-K combined form type as the easiest method for fulfilling your filing requirement for both forms",
+          "filingDate": 1736467200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000130817925000009/thumbnail.png",
+          "formType": "DEFA14A"
+        },
+        {
+          "id": "0001140361-25-000228_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1735862400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000114036125000228/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001140361-24-044880_320193",
+          "type": "Offering Registrations",
+          "title": "S-3ASR : Offering Registrations",
+          "description": "Automatic shelf registration statement of securities of well-known seasoned issuers",
+          "filingDate": 1730419200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000114036124044880/thumbnail.png",
+          "formType": "S-3ASR"
+        },
+        {
+          "id": "0000320193-24-000123_320193",
+          "type": "Periodic Financial Reports",
+          "title": "10-K : Periodic Financial Reports",
+          "description": "Annual report pursuant to Section 13 and 15(d)",
+          "filingDate": 1730419200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019324000123/thumbnail.png",
+          "formType": "10-K"
+        },
+        {
+          "id": "0000320193-24-000120_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1730332800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019324000120/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001140361-24-040659_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1725926400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000114036124040659/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001140361-24-038601_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1724630400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000114036124038601/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001140361-24-038403_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1724371200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000114036124038403/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0000320193-24-000081_320193",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1722556800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019324000081/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0000320193-24-000080_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1722470400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019324000080/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001140361-24-024352_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1714694400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000114036124024352/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0000320193-24-000069_320193",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1714694400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019324000069/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0000320193-24-000067_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1714608000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019324000067/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001140361-24-010155_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1709078400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000114036124010155/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001193125-24-036431_320193",
+          "type": "Tender Offer/Acquisition Reports",
+          "title": "SC 13G/A : Tender Offer/Acquisition Reports",
+          "description": "Schedule filed to report acquisition of beneficial ownership of 5% or more of a class of equity securities by passive investors and certain institutions",
+          "filingDate": 1707868800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001067983/000119312524036431/thumbnail.png",
+          "formType": "SC 13G/A"
+        },
+        {
+          "id": "0000320193-24-000006_320193",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1706832000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019324000006/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0000320193-24-000005_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1706745600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019324000005/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001308179-24-000011_320193",
+          "type": "Proxy Statements",
+          "title": "DEFA14A : Proxy Statements",
+          "description": "Definitive additional proxy soliciting materials including Rule 14(a)(12) material. Note: Submission type DEFA14A can be filed as part of Form 8-K. For filers subject to 8-K filing requirements we recommend the use of the 8-K combined form type as the easiest method for fulfilling your filing requirement for both forms",
+          "filingDate": 1704931200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000130817924000011/thumbnail.png",
+          "formType": "DEFA14A"
+        },
+        {
+          "id": "0001308179-24-000010_320193",
+          "type": "Proxy Statements",
+          "title": "DEF 14A : Proxy Statements",
+          "description": "Definitive proxy statements",
+          "filingDate": 1704931200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000130817924000010/thumbnail.png",
+          "formType": "DEF 14A"
+        },
+        {
+          "id": "0000320193-23-000106_320193",
+          "type": "Periodic Financial Reports",
+          "title": "10-K : Periodic Financial Reports",
+          "description": "Annual report pursuant to Section 13 and 15(d)",
+          "filingDate": 1698969600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019323000106/thumbnail.png",
+          "formType": "10-K"
+        },
+        {
+          "id": "0000320193-23-000104_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1698883200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019323000104/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0000320193-23-000077_320193",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1691107200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019323000077/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0000320193-23-000075_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1691020800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019323000075/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001140361-23-023909_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1683676800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000114036123023909/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0000320193-23-000064_320193",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1683244800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019323000064/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0000320193-23-000063_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1683158400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019323000063/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001140361-23-011192_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1678406400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000114036123011192/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001193125-23-038262_320193",
+          "type": "Tender Offer/Acquisition Reports",
+          "title": "SC 13G/A : Tender Offer/Acquisition Reports",
+          "description": "Schedule filed to report acquisition of beneficial ownership of 5% or more of a class of equity securities by passive investors and certain institutions",
+          "filingDate": 1676332800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001067983/000119312523038262/thumbnail.png",
+          "formType": "SC 13G/A"
+        },
+        {
+          "id": "0001104659-23-015055_320193",
+          "type": "Tender Offer/Acquisition Reports",
+          "title": "SC 13G/A : Tender Offer/Acquisition Reports",
+          "description": "Schedule filed to report acquisition of beneficial ownership of 5% or more of a class of equity securities by passive investors and certain institutions",
+          "filingDate": 1675900800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000110465923015055/thumbnail.png",
+          "formType": "SC 13G/A"
+        },
+        {
+          "id": "0000320193-23-000006_320193",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1675382400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019323000006/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0001140361-23-004439_320193",
+          "type": "Proxy Statements",
+          "title": "DEFA14A : Proxy Statements",
+          "description": "Definitive additional proxy soliciting materials including Rule 14(a)(12) material. Note: Submission type DEFA14A can be filed as part of Form 8-K. For filers subject to 8-K filing requirements we recommend the use of the 8-K combined form type as the easiest method for fulfilling your filing requirement for both forms",
+          "filingDate": 1675382400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000114036123004439/thumbnail.png",
+          "formType": "DEFA14A"
+        },
+        {
+          "id": "0000320193-23-000005_320193",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1675296000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000032019323000005/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001308179-23-000020_320193",
+          "type": "Proxy Statements",
+          "title": "DEFA14A : Proxy Statements",
+          "description": "Definitive additional proxy soliciting materials including Rule 14(a)(12) material. Note: Submission type DEFA14A can be filed as part of Form 8-K. For filers subject to 8-K filing requirements we recommend the use of the 8-K combined form type as the easiest method for fulfilling your filing requirement for both forms",
+          "filingDate": 1673481600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000130817923000020/thumbnail.png",
+          "formType": "DEFA14A"
+        },
+        {
+          "id": "0001308179-23-000019_320193",
+          "type": "Proxy Statements",
+          "title": "DEF 14A : Proxy Statements",
+          "description": "Definitive proxy statements",
+          "filingDate": 1673481600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000320193/000130817923000019/thumbnail.png",
+          "formType": "DEF 14A"
+        }
+      ]
+    },
+    "error": null
+  }
+}

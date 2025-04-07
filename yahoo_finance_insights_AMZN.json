@@ -1,0 +1,2572 @@
+{
+  "finance": {
+    "result": {
+      "symbol": "AMZN",
+      "instrumentInfo": {
+        "technicalEvents": {
+          "provider": "Trading Central",
+          "sector": "Consumer Cyclical",
+          "shortTermOutlook": {
+            "stateDescription": "Recent bearish events outweigh bullish events.",
+            "direction": "Bearish",
+            "score": 4,
+            "scoreDescription": "Very Strong Bearish Evidence",
+            "sectorDirection": "Bearish",
+            "sectorScore": 2,
+            "sectorScoreDescription": "Bearish Evidence",
+            "indexDirection": "Bearish",
+            "indexScore": 4,
+            "indexScoreDescription": "Very Strong Bearish Evidence"
+          },
+          "intermediateTermOutlook": {
+            "stateDescription": "All events are bearish.",
+            "direction": "Bearish",
+            "score": 3,
+            "scoreDescription": "Strong Bearish Evidence",
+            "sectorDirection": "Bearish",
+            "sectorScore": 2,
+            "sectorScoreDescription": "Bearish Evidence",
+            "indexDirection": "Bearish",
+            "indexScore": 3,
+            "indexScoreDescription": "Strong Bearish Evidence"
+          },
+          "longTermOutlook": {
+            "stateDescription": "Recent bearish events outweigh bullish events.",
+            "direction": "Bearish",
+            "score": 2,
+            "scoreDescription": "Bearish Evidence",
+            "sectorDirection": "Bearish",
+            "sectorScore": 1,
+            "sectorScoreDescription": "Weak Bearish Evidence",
+            "indexDirection": "Bearish",
+            "indexScore": 2,
+            "indexScoreDescription": "Bearish Evidence"
+          }
+        },
+        "keyTechnicals": {
+          "provider": "Trading Central",
+          "support": 128.41,
+          "resistance": 186.27,
+          "stopLoss": 158.425372
+        },
+        "valuation": {
+          "color": 0.5,
+          "description": "Near Fair Value",
+          "discount": "15%",
+          "provider": "Trading Central"
+        }
+      },
+      "companySnapshot": {
+        "sectorInfo": "Consumer Cyclical",
+        "company": {
+          "innovativeness": 0.9902,
+          "hiring": 0.9773000000000001,
+          "sustainability": 0.7634000000000001,
+          "insiderSentiments": 0.0245,
+          "earningsReports": 0.904
+        },
+        "sector": {
+          "innovativeness": 0.5,
+          "hiring": 0.5,
+          "sustainability": 0.5,
+          "insiderSentiments": 0.5,
+          "earningsReports": 0.5,
+          "dividends": 0.5
+        }
+      },
+      "recommendation": {
+        "targetPrice": 270,
+        "provider": "Argus Research",
+        "rating": "BUY"
+      },
+      "upsell": {
+        "msBullishSummary": [
+          "Amazon is the clear leader in e-commerce and enjoys unrivaled scale to continue to invest in growth opportunities and drive the very best customer experience.\n\n",
+          "High-margin advertising and AWS are growing faster than the corporate average, which should continue to boost profitability over the next several years.",
+          "Amazon Prime memberships help attract and retain customers who spend more with Amazon; this reinforces a powerful network effect while bringing in recurring and high-margin revenue."
+        ],
+        "msBearishSummary": [
+          "Regulatory concerns are rising for large technology firms, including Amazon. Further, the firm may face increasing regulatory and compliance issues as it expands internationally.",
+          "New investments, notably in fulfillment, delivery, and AWS, should damp free cash flow growth. Also, Amazon\u2019s penetration into some countries might be harder than in the US due to inferior logistic networks.",
+          "Amazon may not be as successful in penetrating new retail categories, such as luxury goods, due to consumer preferences and an improved e-commerce experience from larger retailers."
+        ],
+        "companyName": "Amazon.com, Inc.",
+        "msBullishBearishSummariesPublishDate": 1740700472000,
+        "upsellReportType": "MORNINGSTAR_ANALYST"
+      },
+      "upsellSearchDD": {
+        "researchReports": {
+          "reportId": "ARGUS_2710_AnalystReport_1743073199000",
+          "provider": "Argus",
+          "title": "Gaining momentum in AI",
+          "reportDate": "2025-03-27T10:59:59Z",
+          "summary": "Amazon.com is the leading U.S. e-commerce retailer and among the top e-commerce sites globally. Amazon.com also includes Amazon Web Services (AWS), the global leader in cloud-based Infrastructure-as-a-Service (IaaS) platforms. The company's Prime membership platform is a key online retail differentiator, providing customers with free shipping (after an annual fee) along with exclusive media content (music, video, audible books, etc.). The company's Kindle reader and Alexa-based Echo and Dot digital voice assistants are category leaders.",
+          "investmentRating": "Bullish"
+        }
+      },
+      "events": [
+        {
+          "eventType": "Commodity Channel Index",
+          "pricePeriod": "D",
+          "tradingHorizon": "S",
+          "tradeType": "S",
+          "imageUrl": "https://s.yimg.com/uc/fin/img/assets/generic.svg",
+          "startDate": 1743687000,
+          "endDate": 1743687000
+        }
+      ],
+      "reports": [
+        {
+          "id": "ARGUS_43096_StockPicks_1743437715000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2025-03-31T16:15:15Z",
+          "reportTitle": "Which of the market-dominant and so-called \"Magnificent 7\" stocks might be the best investments? During the first phase of unbridled AI enthusiasm, all of the Mag 7 were loved as their opportunity appeared to be almost unlimited. The market is now more skeptical toward perceived AI winners, which has led to a natural tendency to rank the group on their go-forward prospects. We see Amazon moving up in the ranks, while Nvidia continues to command the top spot.  All the Mag 7 names have something in common. They are all dominant in at least one core competency; and they have leveraged the immense cash flows thrown off by their core competencies to invest in and develop the generative AI opportunity. \"Ranking\" the Mag 7 on their intermediate-term prospects, therefore, involves assessing each company's ability to defend and nurture its core business while using that strength to gain share within the AI ecosystem. For this week's list, we analyze and rank the Mag 7 (from top to bottom) on their apparent intermediate-term prospects. We expect our rankings for the Mag 7 to be fluid, but do not foresee any movement in first or last place.* Nvidia (NVDA): We continue to put Nvidia at the top of the Mag 7 list. Unlike the other six names, Nvidia's core competency is artificial intelligence. The need for realistic rendering in GPU-based gaming, Nvidia's founding business, laid the groundwork for the applications acceleration and the massively parallel computing that are cornerstones of training large language models (LLMs) and enabling inference. We rank Nvidia number one based on the evidence in the company's own growth numbers, which are stellar. In its recent fiscal 4Q25, revenue of $39 billion grew 78% annually. At its GTC event in March 2025, Nvidia forecast that data-center revenue would exceed $1 trillion annually in the next few years, and that the entire global industrial infrastructure represented a $50 trillion opportunity for AI renewal. Nvidia also provides much more than its industry leading GPUs, including its CUDA software library, and is \"turbo-charging\" agentic AI development with open-reasoning models, platforms, and partnerships. The best evidence of Nvidia's momentum is the growth of the enterprise infrastructure companies using Nvidia solutions to support the mainstreaming of AI. Micron's data-center revenue tripled year over year and now exceeds 50% of total company revenue. Micron increased the TAM for its high-bandwidth memory (HBM) opportunity to $35 billion as of March 2025, up from $20 billion approximately half a year ago. Among the leading U.S.-based GPU server providers, Dell Technologies posted $10 billion in AI sever revenue in FY25 and expects $15 billion in FY26. Hewlett-Packard Enterprise exited fiscal 1Q25 with $8.3 billion in cumulative AI systems and services orders. The leaders in data center interconnects (DCIs), Broadcom and Marvell, are both reporting explosive growth in these categories. * Meta Platforms (META): Meta Platforms in second place because it has been among the most successful in leveraging its core competency (social media) into a leadership role in building LLMs, including multi-modal models. Snap has a limited opportunity, and X is stunted by self-inflicted wounds and perceived Musk contagion. Only Asia-based companies such as ByteDance (TikTok) represent a real threat. We see some risk to the core business from seemingly endless EU and U.S. congressional opposition; and Meta's social-media cornerstones (Facebook, Instagram, and WhatsApp) could be carved cleanly in three. We do not see that happening, however. Meta has successfully pivoted from the Zuckerberg's expensive obsession with the metaverse to the more-practical and fast-developing AI opportunity. Unlike AWS, Microsoft Azure, and Google Cloud, Meta is successfully enabling and advancing leading LLMs even though it is not a major provider of hybrid cloud services. We see Meta first and foremost deploying AI internally to improve operating efficiency and personal targeting so as to optimize the company's social media user base, which exceeds 3.3 billion. Facebook Reality Labs, which houses Meta's Gen AI business, posted revenue of $2.1 billion in 2024, just 1% of total Meta revenue. Currently, this is mainly a hardware-based business (Quest VR headsets, Ray-Ban AR glasses), but we see long-term growth opportunity as Meta's Llama LLMs go mainstream. Much as Apple capitalized on the vast iOS installed base and targeted the individual with iCloud, Meta could offer a personalized AI offering to its more-than three billion users.* Amazon.com (AMZN): In third place is Amazon. Amazon's online retail operations and particularly its Prime business are without a global peer. The combined retail operating margin (Americas and International) for 4Q24 was 6.1%, by far the highest in our model going back to company's inception. Prime's media is now rivaling Netflix in content quality and volume.  AWS is the leading CSP globally, and its rising margins and cash flows are funding the company's Gen AI opportunity. Amazon was quick to replace the head of AWS in May 2024 when the board perceived that the company was lagging in Gen AI. AWS is at a $110 billion annual revenue run rate and margins are at or near record highs. Both internally and in partnership with Anthropic and others, AI has produced Bedrock Marketplace, where clients can choose from over 100 LLMs; Trainium and Trainium 2 accelerators; and Amazon Nova, an extensive family of foundational models. * Apple (AAPL): Fourth place goes to Apple. Apple's core competency is global leadership in technology devices and services. Apple has been somewhat disappointing in its early efforts in AI. The company is even going outside its usual reliance on internal capabilities to enlist support from companies such as OpenAI. But we have long regarded Apple as a product perfector, not a product pioneer; early iteration mobile phones such as DynaTAC and StarTAC amazed, but they are long gone while iPhone grows in dominance. Investors are also concerned about Apple's declining China sales. Yet in the most-recent fiscal 1Q25, Apple grew revenue in all other regions. The company's massive iOS installed base exceeds 2.2 billion, providing fertile ground for continued growth in services.* Microsoft (MSFT): In the fifth spot is Microsoft. Microsoft has leveraged is core competency in enterprise software into Azure, the number two CSP behind AWS. Like all of the companies mentioned above that are not named Nvidia, Microsoft is challenged in getting sufficient supply of advanced Blackwell products to build and run its most-advanced models. Microsoft's cloud business has never been as profitable as AWS, although that may partly be due to which assets are allocated to the cloud division. Microsoft has had a few missteps in rolling out its Gen AI models, and both CNBC and Invezz recently questioned whether Microsoft was becoming an AI laggard. We note, however, that Microsoft Copilot has seen meaningful share gains and represents the first real threat to our sixth-place company.* Alphabet (GOOGL): Ranked sixth is Alphabet. Alphabet, of course, used to be named Google, and that name has been synonymous with internet search for decades. AI-assisted products such as Copilot and OpenAI's SearchGPT may be starting to cut into Google's search dominance. With many enterprises and consumers using Microsoft Edge as their browsers, Copilot \"conveniently\" pops up atop many searches. Google is seen as a pioneer in AI, created technologies underpinning early LLMs, and was a leader in the space until OpenAI exploded on the scene. After the hasty and flubbed Bard launch, Google Cloud has done much better with Gemini. Alphabet, like Meta, has been a particular target of U.S. and EU regulators. In August 2024, Alphabet was named a monopolist in a case brought by the Justice Department and 37 states. Breaking up Alphabet, however, would cleave the one big profitable business of Google Search and perhaps YouTube from all the expensive and unprofitable growth areas in Other Bets, including Waymo, Google Cloud, and the AI initiative. * Tesla (TSLA): At the tail end of the Mag 7 ranking is Tesla, whose core competency is electric vehicles. This space is becoming crowded, and China's BYD is much bigger and has developed fast-charging technology that is currently unmatched. The U.S. under President Biden sought to protect Tesla and U.S. EVs with massive tariffs on EV imports. Tesla CEO Elon Musk and President Trump are in sync, although the current president previously disparaged EVs in favor of internal combustion engines (ICE) vehicles. Tesla, like X (the former Twitter), is suffering some level of Musk contagion, although the number of users reselling their cars due to perceptions about Musk is not yet a major impediment. Instead, we see Tesla at risk from commoditization of EVs and competition from rivals, both domestic and foreign. While we did not incorporate valuation into our rankings, these companies are not hugely expensive due to the recent correction in growth sectors and the generally strong operating prospects for core businesses.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "MSFT",
+            "META",
+            "GOOGL",
+            "NVDA",
+            "AAPL",
+            "TSLA",
+            "AMZN"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 03/31/2025: Ranking the Magnificent 7"
+        },
+        {
+          "id": "MS_1272216_StockPicks_1743212809000",
+          "headHtml": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover",
+          "provider": "Morningstar",
+          "reportDate": "2025-03-29T01:46:49Z",
+          "reportTitle": "In this edition, a look at Fortive shares ahead of spinoff; generative AI is giving tech landscape a jolt; we see plenty of opportunity in US REITs; and Innovent Biologics, Haier Smart Homes, and Lithium Americas.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "MSFT",
+            "GOOG",
+            "QIHCF",
+            "FTV",
+            "ORCL",
+            "IVBIY",
+            "AMZN",
+            "LAC"
+          ],
+          "title": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover"
+        },
+        {
+          "id": "ARGUS_2710_AnalystReport_1743073199000",
+          "headHtml": "Analyst Report: Amazon.com Inc.",
+          "provider": "Argus Research",
+          "reportDate": "2025-03-27T10:59:59Z",
+          "reportTitle": "Amazon.com is the leading U.S. e-commerce retailer and among the top e-commerce sites globally. Amazon.com also includes Amazon Web Services (AWS), the global leader in cloud-based Infrastructure-as-a-Service (IaaS) platforms. The company's Prime membership platform is a key online retail differentiator, providing customers with free shipping (after an annual fee) along with exclusive media content (music, video, audible books, etc.). The company's Kindle reader and Alexa-based Echo and Dot digital voice assistants are category leaders.",
+          "reportType": "Analyst Report",
+          "targetPrice": 270,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Gaining momentum in AI"
+        },
+        {
+          "id": "ARGUS_43063_MarketSummary_1743072299000",
+          "headHtml": "Market Digest: AMZN, CAKE, MKC, TDOC",
+          "provider": "Argus Research",
+          "reportDate": "2025-03-27T10:44:59Z",
+          "reportTitle": "Ranking the Magnificent Seven During the first phase of unbridled AI enthusiasm, all of the so called 'Magnificent Seven' stocks were loved as their opportunity appeared to be unlimited. The market is now more skeptical toward perceived AI winners, which has led to a natural tendency to rank the Mag 7 on their go-forward prospects. We see Amazon moving up in the ranks, while Nvidia continues to command the top spot. If we were to rank the Mag 7 on their intermediate-term prospects (which we are not doing officially), our list in descending order would be Nvidia, Meta Platforms, Amazon, Apple, Microsoft, Alphabet, and Tesla.  All the Mag 7 names have something in common. They are all dominant in at least one core competency; and they have leveraged the immense cash flows thrown off by their core competencies to invest in and develop the generative AI opportunity. 'Ranking' the Mag 7 on their intermediate-term prospects, therefore, involves assessing each company's ability to defend and nurture its core business while using that strength to gain share within the AI ecosystem. We continue to put Nvidia at the top of the Mag 7 list. Unlike the other six names, Nvidia's core competency is artificial intelligence. The need for realistic rendering in GPU-based gaming, Nvidia's founding business, laid the groundwork for the applications acceleration and the massively parallel computing that are cornerstones of training large language models (LLMs) and enabling inference.  We rank Nvidia number one based on the evidence in the company's own growth numbers, which are stellar. In its recent fiscal 4Q25, revenue of $39 billion grew 78% annually. At its GTC event in March 2025, Nvidia forecast that data-center revenue would exceed $1 trillion annually in the next few years, and that the entire global industrial infrastructure represented a $50 trillion opportunity for AI renewal. Nvidia also provides much more than its industry leading GPUs, including its CUDA software library, and is 'turbo-charging' agentic AI development with open-reasoning models, platforms, and partnerships.   The best evidence of Nvidia's momentum is the growth of the enterprise infrastructure companies using Nvidia solutions to support the mainstreaming of AI. Micron's data-center revenue tripled year over year and now exceeds 50% of total company revenue. Micron increased the TAM for its high-bandwidth memory (HBM) opportunity to $35 billion as of March 2025, up from $20 billion approximately half a year ago. Among the leading U.S.-based GPU server providers, Dell Technologies posted $10 billion in AI sever revenue in FY25 and expects $15 billion in FY26. Hewlett-Packard Enterprise exited fiscal 1Q25 with $8.3 billion in cumulative AI systems and services orders. The leaders in data center interconnects (DCIs), Broadcom and Marvell, are both reporting explosive growth in these categories.  We put Meta Platforms in second place because it has been among the most successful in leveraging its core competency (social media) into a leadership role in building LLMs, including multi-modal models. Snap has a limited opportunity, and X is stunted by self-inflicted wounds and perceived Musk contagion. Only Asia-based companies such as ByteDance (TikTok) represent a real threat. We see some risk to the core business from seemingly endless EU and U.S. congressional opposition; and Meta's social-media cornerstones (Facebook, Instagram, and WhatsApp) could be carved cleanly in three. We do not see that happening, however. Meta has successfully pivoted from the Zuckerberg's expensive obsession with the metaverse to the more-practical and fast-developing AI opportunity. Unlike AWS, Microsoft Azure, and Google Cloud, Meta is successfully enabling and advancing leading LLMs even though it is not a major provider of hybrid cloud services. We see Meta first and foremost deploying AI internally to improve operating efficiency and personal targeting so as to optimize the company's social media user base, which exceeds 3.3 billion. Facebook Reality Labs, which houses Meta's Gen AI business, posted revenue of $2.1 billion in 2024, just 1% of total Meta revenue. Currently, this is mainly a hardware-based business (Quest VR headsets, Ray-Ban AR glasses), but we see long-term growth opportunity as Meta's Llama LLMs go mainstream. Much as Apple capitalized on the vast iOS installed base and targeted the individual with iCloud, Meta could offer a personalized AI offering to its more-than three billion users.  We put Amazon in third place on a variety of metrics. The company's online retail operations and particularly its Prime business are without a global peer. The combined retail operating margin (Americas and International) for 4Q24 was 6.1%, by far the highest in our model going back to company's inception. Prime's media is now rivaling Netflix in content quality and volume.  AWS is the leading CSP globally, and its rising margins and cash flows are funding the company's Gen AI opportunity. Amazon was quick to replace the head of AWS in May 2024 when the board perceived that the company was lagging in Gen AI. AWS is at a $110 billion annual revenue run rate and margins are at or near record highs. Both internally and in partnership with Anthropic and others, AI has produced Bedrock Marketplace, where clients can choose from over 100 LLMs; Trainium and Trainium 2 accelerators; and Amazon Nova, an extensive family of foundational models.  In fourth place is Apple, whose core competency is global leadership in technology devices and services. Apple has been somewhat disappointing in its early efforts in AI. The company is even going outside its usual reliance on internal capabilities to enlist support from companies such as OpenAI. But we have long regarded Apple as a product perfector, not a product pioneer; early iteration mobile phones such as DynaTAC and StarTAC amazed, but they are long gone while iPhone grows in dominance. Investors are also concerned about Apple's declining China sales. Yet in the most-recent fiscal 1Q25, Apple grew revenue in all other regions. The company's massive iOS installed base exceeds 2.2 billion, providing fertile ground for continued growth in services. In fifth place is Microsoft, which has leveraged is core competency in enterprise software into Azure, the number two CSP behind AWS. Like all of the companies mentioned above that are not named Nvidia, Microsoft is challenged in getting sufficient supply of advanced Blackwell products to build and run its most-advanced models. Microsoft's cloud business has never been as profitable as AWS, although that may partly be due to which assets are allocated to the cloud division. Microsoft has had a few missteps in rolling out its Gen AI models, and both CNBC and Invezz recently questioned whether Microsoft was becoming an AI laggard. We note, however, that Microsoft Copilot has seen meaningful share gains and represents the first real threat to our sixth-place company. Alphabet used to be named Google, and that name has been synonymous with internet search for decades. AI-assisted products such as Copilot and OpenAI's SearchGPT may be starting to cut into Google's search dominance. With many enterprises and consumers using Microsoft Edge as their browsers, Copilot 'conveniently' pops up atop many searches. Google is seen as a pioneer in AI, created technologies underpinning early LLMs, and was a leader in the space until OpenAI exploded on the scene. After the hasty and flubbed Bard launch, Google Cloud has done much better with Gemini. Alphabet, like Meta, has been a particular target of U.S. and EU regulators. In August 2024, Alphabet was named a monopolist in a case brought by the Justice Department and 37 states. Breaking up Alphabet, however, would cleave the one big profitable business of Google Search and perhaps YouTube from all the expensive and unprofitable growth areas in Other Bets, including Waymo, Google Cloud, and the AI initiative.  At the tail end of the Mag 7 ranking is Tesla, whose core competency is electric vehicles. This space is becoming crowded, and China's BYD is much bigger and has developed fast-charging technology that is currently unmatched. The U.S. under President Biden sought to protect Tesla and U.S. EVs with massive tariffs on EV imports. Tesla CEO Elon Musk and President Trump are in sync, although the current president previously disparaged EVs in favor of internal combustion engines (ICE) vehicles.  Tesla, like X (the former Twitter), is suffering some level of Musk contagion, although the number of users reselling their cars due to perceptions about Musk is not yet a major impediment. Instead, we see Tesla at risk from commoditization of EVs and competition from rivals, both domestic and foreign.  While we did not incorporate valuation into our rankings, these companies are not hugely expensive due to the recent correction in growth sectors and the generally strong operating prospects for core businesses. We expect our rankings for the Mag 7 may be fluid, but do not foresee any movement in first place or last place.",
+          "reportType": "Market Summary",
+          "tickers": [
+            "TDOC",
+            "MKC",
+            "CAKE",
+            "AMZN"
+          ],
+          "title": "Ranking the Magnificent Seven\n\nDuring the first phase of unbridled AI"
+        },
+        {
+          "id": "ARGUS_42949_TechnicalAnalysis_1742210117000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2025-03-17T11:15:17Z",
+          "reportTitle": "The S&P 500 (SPX) hit an intraday low of 5,505 on Thursday, right at the key 61.8% retracement of the rally from last August until the recent all-time closing high in February. The index rose 2.1% on Friday, with the Nasdaq popping 2.6% and the Nasdaq 100 (QQQ) 2.5%. On the upside for the SPX, a 38.2% retracement of the decline is at 5,750; a 50% take-back comes in at 5,825; and the key 61.8% retracement lies at 5,900. Initial chart resistance comes in at 5,930, while the slowly declining 50-day average is at 5,940.  A short-term SPX buy signal was tripped on Wednesday. The VIX closed outside its upper daily Bollinger Band on Monday, fell inside the upper band on Tuesday, and closed lower Wednesday. This three-day sequence gave us a VIX sell signal and the S&P 500 buy signal. We also have seen numerous bullish breadth divergences, but long-term breadth remains a concern.   The SPX completed a double top on the weekly chart, which is not common, and a measured move based on the size of the pattern initially targets 5,500 and then 5,400. The index is below the 13-, 26-, and 40-week moving averages for the first time since October 2023 -- which can lead to much deeper downside moves. But to confirm longer-term damage, we need the 13-week to break both the 26- and 40-week and need the 26-week to cross below the 40-week average. The SPX also has (very quickly) broken below its lower weekly Bollinger Band for the first time since October 2023. That sets up the potential for a fairly reliable buy signal if the index can reclaim the lower band. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "IBM",
+            "AMZN"
+          ],
+          "title": "The S&P 500 (SPX) hit an intraday low of 5,505 on Thursday, right at the key 61.8% retracement of the rally from last August until the recent all-time closing high in February."
+        },
+        {
+          "id": "ARGUS_42949_TechnicalAnalysis_1742209217000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2025-03-17T11:00:17Z",
+          "reportTitle": "The S&P 500 (SPX) hit an intraday low of 5,505 on Thursday, right at the key 61.8% retracement of the rally from last August until the recent all-time closing high in February. The index rose 2.1% on Friday, with the Nasdaq popping 2.6% and the Nasdaq 100 (QQQ) 2.5%. On the upside for the SPX, a 38.2% retracement of the decline is at 5,750; a 50% take-back comes in at 5,825; and the key 61.8% retracement lies at 5,900. Initial chart resistance comes in at 5,930, while the slowly declining 50-day average is at 5,940.  A short-term SPX buy signal was tripped on Wednesday. The VIX closed outside its upper daily Bollinger Band on Monday, fell inside the upper band on Tuesday, and closed lower Wednesday. This three-day sequence gave us a VIX sell signal and the S&P 500 buy signal. We also have seen numerous bullish breadth divergences, but long-term breadth remains a concern.   The SPX completed a double top on the weekly chart, which is not common, and a measured move based on the size of the pattern initially targets 5,500 and then 5,400. The index is below the 13-, 26-, and 40-week moving averages for the first time since October 2023 -- which can lead to much deeper downside moves. But to confirm longer-term damage, we need the 13-week to break both the 26- and 40-week and need the 26-week to cross below the 40-week average. The SPX also has (very quickly) broken below its lower weekly Bollinger Band for the first time since October 2023. That sets up the potential for a fairly reliable buy signal if the index can reclaim the lower band. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "IBM",
+            "AMZN"
+          ],
+          "title": "The S&P 500 (SPX) hit an intraday low of 5,505 on Thursday, right at the key 61.8% retracement of the rally from last August until the recent all-time closing high in February."
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1740700472000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-02-27T23:54:32Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 240,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: Good Quarter With Reasonable Guidance After Unusual Adjustments"
+        },
+        {
+          "id": "ARGUS_42748_StockPicks_1740405437000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2025-02-24T13:57:17Z",
+          "reportTitle": "Vickers Stock Research, a subsidiary of Argus Research Group, analyzes insider trading and institutional stock ownership. Form 13-F filings, which institutions use to report their holdings, are due 45 days after the end of calendar quarters and are now in for 4Q24. We review the 13-Fs of major institutional investors, including activists, to see what they are buying and to look for trends. Volatility in the stock market during the fourth quarter gave institutional investors a chance to buy the dips. Taking a look at 13-F filings from well-known institutions, we see that the big guns picked up some new companies or added to existing positions. Buying was across a variety of sectors. A standout favorite was Amazon.com. Another name that showed up several times was Boeing. Based on Vickers data, here are select purchases made in 4Q by some high-profile money managers.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "PYPL",
+            "OXY",
+            "TSLA",
+            "AMD",
+            "STZ",
+            "LLY",
+            "LRCX",
+            "NKE",
+            "AMZN",
+            "AJG",
+            "DPZ",
+            "BA"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 02/24/2025: What Are the Big Guns Buying?"
+        },
+        {
+          "id": "ARGUS_42748_StockPicks_1740404537000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2025-02-24T13:42:17Z",
+          "reportTitle": "Vickers Stock Research, a subsidiary of Argus Research Group, analyzes insider trading and institutional stock ownership. Form 13-F filings, which institutions use to report their holdings, are due 45 days after the end of calendar quarters and are now in for 4Q24. We review the 13-Fs of major institutional investors, including activists, to see what they are buying and to look for trends. Volatility in the stock market during the fourth quarter gave institutional investors a chance to buy the dips. Taking a look at 13-F filings from well-known institutions, we see that the big guns picked up some new companies or added to existing positions. Buying was across a variety of sectors. A standout favorite was Amazon.com. Another name that showed up several times was Boeing. Based on Vickers data, here are select purchases made in 4Q by some high-profile money managers.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "PYPL",
+            "OXY",
+            "TSLA",
+            "AMD",
+            "STZ",
+            "LLY",
+            "LRCX",
+            "NKE",
+            "AMZN",
+            "AJG",
+            "DPZ",
+            "BA"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 02/24/2025: What Are the Big Guns Buying?"
+        },
+        {
+          "id": "ARGUS_2710_AnalystReport_1738930203000",
+          "headHtml": "Analyst Report: Amazon.com Inc.",
+          "provider": "Argus Research",
+          "reportDate": "2025-02-07T12:10:03Z",
+          "reportTitle": "Amazon.com is the leading U.S. e-commerce retailer and among the top e-commerce sites globally. Amazon.com also includes Amazon Web Services (AWS), the global leader in cloud-based Infrastructure-as-a-Service (IaaS) platforms. The company's Prime membership platform is a key online retail differentiator, providing customers with free shipping (after an annual fee) along with exclusive media content (music, video, audible books, etc.). The company's Kindle reader and Alexa-based Echo and Dot digital voice assistants are category leaders.",
+          "reportType": "Analyst Report",
+          "targetPrice": 270,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Solid retail performance; raising target to $270"
+        },
+        {
+          "id": "ARGUS_42599_MarketSummary_1738929303000",
+          "headHtml": "Market Digest: CB, AMZN, IEX, JNPR, TROW, VSH, WEC, YUM, HCA, PLTR",
+          "provider": "Argus Research",
+          "reportDate": "2025-02-07T11:55:03Z",
+          "reportTitle": "U.S. stocks were mixed on Thursday ahead of the January jobs report. Both the S&P 500 and the Nasdaq were higher, while the Dow was down. The S&P 500 gained 0.4% and the Nasdaq was up 0.5%. The Dow fell 0.3%.",
+          "reportType": "Market Summary",
+          "tickers": [
+            "YUM",
+            "TROW",
+            "JNPR",
+            "WEC",
+            "HCA",
+            "VSH",
+            "IEX",
+            "AMZN",
+            "PLTR",
+            "CB"
+          ],
+          "title": "U.S. stocks were mixed on Thursday ahead of the January jobs report."
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1738911218000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-02-07T06:53:38Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 240,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: Good Quarter With Reasonable Guidance After Unusual Adjustments"
+        },
+        {
+          "id": "ARGUS_42552_StockPicks_1738586129000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2025-02-03T12:35:29Z",
+          "reportTitle": "Argus believes that 2025 may be defined by 10 investment themes. Throughout the year, we will take a deep dive into these themes, providing updates and giving stock picks on the prominent companies whose businesses play out in each theme. In many cases, we believe these thematic factors will supersede industry characteristics and drive performance. Our Investment Themes for 2025 are: Theme 1: Management Signals; Theme 2: Artificial Intelligence; Theme 3: Clean Energy; Theme 4: Sustainable Impact investing; Theme 5: Innovation; Theme 6: Cybersecurity; Theme 7: Investing in the Cloud; Theme 8: Aerospace and Defense, All Systems Go; Theme 9: Uptick in Capex amid Declining Interest Rates; and Theme 10: Pharmaceuticals and Biotechnology. For this week's Weekly List, we examine Theme 7: Investing in the Cloud. Cloud computing has transformed the technology landscape over the past decade. Created almost accidently as a means or organizing customer invoices, cloud has grown from the management of outsourced technology hardware resources to encompass tasks, up to and including software development, big data analytics, and artificial intelligence (AI). Indeed, following availability of ChatGPT in November 2022, awareness of generative AI hit the business community like an electric shock, and has completely upended IT spending plans for the next several years. Given that delivery of AI will mainly occur within a hybrid cloud environment, emergence of AI-as-a-service represents a difficult-to-quantify, but undoubtedly positive driver of cloud service revenues in the coming years. The leading providers of cloud services tend to be large technology and communications services companies that provide many goods and services distinct from or adjacent to their cloud businesses. These companies include Amazon.com, Microsoft, Alphabet, and others in the U.S., along with Alibaba, Baidu, Tencent, and others in China. Collectively, participants in the cloud eco-system grew revenue by a high-teens compound annual rate from 2016 to 2023. Revenue for cloud services has held up well, as cloud transition is a long-tailed process and cloud transformation has become an imperative. According to IDC, revenue in the industry grew 21% in 2024. Looking ahead, with inflation growth slowing and amid improving business and consumer confidence, both consumer device demand and enterprise IT spending should accelerate. We expect rising device demand and enterprise IT spending both domestically and internationally to drive cloud investment in 2025 and beyond. Some of the companies that should benefit in the space include the following.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "MSFT",
+            "NTAP",
+            "GOOGL",
+            "IBM",
+            "ADBE",
+            "ORCL",
+            "HPE",
+            "AMZN",
+            "CRM"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 02/03/2025: Investing in the Cloud"
+        },
+        {
+          "id": "MS_1261780_StockPicks_1738422877000",
+          "headHtml": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover",
+          "provider": "Morningstar",
+          "reportDate": "2025-02-01T15:14:37Z",
+          "reportTitle": "In this edition, what do Trump's Asia tariffs really mean; cybersecurity is a safe bet in a dangerous digital world; and seeking answers to what DeepSeek means for trades; and Northrop Grumman, Teradyne, and Palantir.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "TER",
+            "XPEV",
+            "GOOG",
+            "NOC",
+            "GWLLF",
+            "BYD",
+            "MSFT",
+            "GELYF",
+            "NIO",
+            "GNENF",
+            "LI",
+            "AMZN",
+            "PLTR"
+          ],
+          "title": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1738089451000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-01-28T18:37:31Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "AI DeepSeek Coverage Summary: Maintaining Our Fair Values; Pullback Was Healthy"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1738002473000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2025-01-27T18:27:53Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "DeepSeek's R1 Launch Shows There Are No Moats in Large Language Model Space"
+        },
+        {
+          "id": "ARGUS_42418_TechnicalAnalysis_1737460829000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2025-01-21T12:00:29Z",
+          "reportTitle": "With large gains in the stock market last week, the S&P 500 (SPX) broke its downtrend line off the peaks since mid-December. Intraday last Monday, the index tested the bottom of its bearish channel at 5,773 and bounced for the rest of the week. From Monday's low, the SPX finished with a 3.3% pop and the string of lower highs and lower lows has been busted. In addition, the five-day/13-day exponential moving average crossover (EMA) turned bullish after a December 18 sell signal.   For stocks, it's the good, the bad, and the undecided. The SPX traced out a doji candlestick during its big gain on Friday, a sign of indecision. The index did regain its 50-day average, but the daily vortex indicator and the 21-day rate-of-change (ROC) remain on sell signals. The 14-day relative strength index (RSI) broke its downtrend, a potentially bullish sign, while breadth showed a lot of improvement during the week.   The Nasdaq 100 (QQQ) has jumped 4.4% from its intraday low last Monday and is back over its 50-day. The QQQ moved above the bearish channel on Friday, but closed right at the upper trendline as the ETF traced out a bearish \"hanging man\" candlestick. These candlesticks can sometimes appear at the end of a bounce or advance.    The impetus for stocks was bonds after December's CPI. The 10-year yield finished the week at 4.61%, down from an intraday high of 4.81% on Tuesday. The five-year dropped 21 basis points (bps) from its high, to 4.4%, while the two-year fell 14 bps, to 4.29%. The stock and bond action this week could lay the groundwork for either all-time highs or continued weakness in equities. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "GOOGL",
+            "AMZN"
+          ],
+          "title": "With large gains in the stock market last week, the S&P 500 (SPX) broke its downtrend line off the peaks since mid-December."
+        },
+        {
+          "id": "ARGUS_42351_StockPicks_1736778938000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2025-01-13T14:35:38Z",
+          "reportTitle": "The Argus team of analysts has presented its Best Picks for 2025. Each analyst surveyed their coverage universe, reviewed forward-looking indicators for those companies, and made decisions about which seemingly have the most growth and investment promise for the year. Our team is deeply experienced, as each analyst has spent on average 25 years on Wall Street and 15 years at Argus Research. As such, they are well-versed in our proprietary fundamental six-point valuation process and have deep knowledge of the sectors they cover. They also have solid relationships with many of the management teams they cover. The Argus Investment Policy Committee, made up of our most senior staff, is comprised of Jim Kelleher, CFA, our director of research; President John Eade; Senior Fixed-Income Analyst Kevin Heal, Director of Financial Institutions Research Steve Biggar, and Chris Graja, CFA, our senior economist. The committee provides macro outlooks for the economy, interest rates, earnings, and the stock market. Here is the Argus Best Picks list for 2025.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "NFLX",
+            "TGT",
+            "NVDA",
+            "AAPL",
+            "COP",
+            "MS",
+            "ICE",
+            "PKG",
+            "KIM",
+            "DAL",
+            "CAVA",
+            "BX",
+            "SJM",
+            "PH",
+            "LLY",
+            "GEHC",
+            "UPS",
+            "SO",
+            "CMG",
+            "AMZN",
+            "CRM"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 01/13/2025: Argus' Best Picks for 2025"
+        },
+        {
+          "id": "MS_1258755_StockPicks_1736129675000",
+          "headHtml": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover",
+          "provider": "Morningstar",
+          "reportDate": "2025-01-06T02:14:35Z",
+          "reportTitle": "In this edition, opportunities bloom in Asia market despite tariff threats; Amazon said to have eye on hailing Lyft; a mixed bag for Tesla; and Nike, Nanosonics, and Geely Automobile Holdings.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "BABA",
+            "GOOG",
+            "GELYY",
+            "NKE",
+            "DASH",
+            "TRPCF",
+            "TSLA",
+            "TNGCF",
+            "LYFT",
+            "TCEHY",
+            "NNCSF",
+            "YUMC",
+            "BDWBF",
+            "UBER",
+            "AMZN"
+          ],
+          "title": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1734630358000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-12-19T17:45:58Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon: Teamsters Strike Unlikely to Have Meaningful Impact"
+        },
+        {
+          "id": "ARGUS_42051_TechnicalAnalysis_1733745573000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-12-09T11:59:33Z",
+          "reportTitle": "As we said recently, equity investors don't seem to have a lot to worry about as we move toward 2025. Still, there is always something to worry about. As we see it, the big technical issues are the multiple weekly momentum divergences on the S&P 500 (SPX) and the futures positions of the smart money commercial hedgers in the major indices. As well, the Nasdaq and the Nasdaq 100 (QQQ) are working on only their first weekly momentum divergence. And yes, market participants are pretty bulled up -- especially in the options market.    For the SPX, the Chande Trend Meter is a strong 88% and 70% of stocks in the index are above their 200-day average (bullish, yet down from 85% in September and October). As well, the index is at an all-time high; daily and weekly charts are approaching (but are not yet at) overbought momentum territory; the Bullish Percent Index (the percentage of stocks in the index on point-and-figure buy signals) is bullish at 71% (but lower than the 81% from September); the daily and weekly Vortex Indicator are bullish; the slope of the advance is not too steep (as calls for a possible year-end melt-up have not yet materialized); and the advance-decline line and advancing volume-declining volume line on the index are at or near all-time high territory.     So if all those technical indicators are positive, is there only one direction for them to go? Well, they can always get even more bullish -- but yes, the above is a legitimate question. Bull markets tend to last longer than many expect and often go further than the fundamental news sometimes suggests is reasonable. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "HPE",
+            "AMZN"
+          ],
+          "title": "As we said recently, equity investors don't seem to have a lot to worry about as we move toward 2025."
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1733529413000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-12-06T23:56:53Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bearish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: AWS and Margins Shine Brightest in a Quarter With Many Bright Spots"
+        },
+        {
+          "id": "ARGUS_41991_ThematicPortfolio_1732899600000",
+          "headHtml": "The Argus ESG Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-29T17:00:00Z",
+          "reportTitle": "Sustainable Impact Investing, or ESG investing, is gaining traction not only with Argus Research clients but also with the global investment community. BlackRock CEO Lawrence Fink, who oversees approximately $9 trillion in assets, announced in January 2020 that his firm would be investing in companies that are making progress on sustainability. He doubled down in his January 2021 letter, calling on company managements to disclose their plans for making their businesses \"compatible with a net-zero economy\" by 2050. As assets have flowed in over the past 40 years, Sustainable Impact Investing has evolved. The discipline, originally known as Socially Responsible Investing, focused at first on excluding companies that conducted business in South Africa, or participated in industries such as tobacco, alcohol, and firearms. Performance of these initial strategies lagged, and the approach has been modified. Now, instead of merely identifying industries to avoid, the discipline promotes \"sustainable\" business practices across all industries that can have an \"impact\" on global issues such as climate, hunger, poverty, disease, shelter, and workers' rights.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "TT",
+            "GOOGL",
+            "AAPL",
+            "NDAQ",
+            "AVGO",
+            "INTU",
+            "JPM",
+            "UNH",
+            "DHR",
+            "TFC",
+            "MSFT",
+            "MA",
+            "LLY",
+            "LRCX",
+            "UPS",
+            "SPGI",
+            "TRV",
+            "GE",
+            "KLAC",
+            "NVDA",
+            "BSX",
+            "AEP",
+            "GS",
+            "ECL",
+            "TMUS",
+            "LMT",
+            "HPE",
+            "ETN",
+            "AMZN",
+            "WMT"
+          ],
+          "title": "The Argus ESG Model Portfolio"
+        },
+        {
+          "id": "ARGUS_41927_StockPicks_1732539683000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-25T13:01:23Z",
+          "reportTitle": "Volatility in the stock market during the third quarter gave institutional investors a chance to buy the dips. Taking a look at 13F filings from well-known institutional portfolios, we see that the big guns were busy adding new companies to their portfolios or expanding existing holdings. Buying occurred across a range of sectors. Vickers Stock Research, a subsidiary of Argus Research Group, analyzes insider trading and institutional stock ownership. Form 13-Fs, which institutions must file to report their holdings, are due 45 days after the end of calendar quarters and have come in for 3Q24. We review 13Fs of major institutional investors, including activists, to see what they are buying and to look for trends. Activist investing is now less about generating a short-term return and more about achieving long-term returns through an active management/investor partnerships. Based on data from Vickers, the following is a list of select purchases made in the third quarter by some high-profile money managers, including the Argus Research investment ratings.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "NVDA",
+            "AAPL",
+            "C",
+            "BAC",
+            "MRK",
+            "ORCL",
+            "NKE",
+            "DIS",
+            "DPZ",
+            "AMD",
+            "SCHW",
+            "GILD",
+            "AMZN"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 11/25/2024: 13Fs (What are the Big Guns Buying?)"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1732029902000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-11-19T15:25:02Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: AWS and Margins Shine Brightest in a Quarter With Many Bright Spots"
+        },
+        {
+          "id": "ARGUS_41810_TechnicalAnalysis_1731499172000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-13T11:59:32Z",
+          "reportTitle": "The S&P 500 couldn't hold 6,000 on Tuesday, finishing down a modest 0.3%, while the NYSE couldn't hold 20,000, dropping 0.8%. The Nasdaq, Nasdaq100, and S&P 100 were all flat. The larger losses came from recent leaders, with the S&P MidCap 400 falling 1% and the S&P SmallCap 600 dipping 1.5%. Has a fear of large, round numbers on some of the major indices replaced a fear of missing out (FOMO)? Or can we just call it profit taking on a very short, but torrid, advance higher?   With the smaller and less-concentrated indices falling the most, the reading for market breadth was very bad. The reading for NYSE advances-decliners was -1,917; the reading for NYSE advancing issues/total issues was a weak 20% (one of the worst days in recent months); and the reading for NYSE advancing volume/total volume was 29%.   The S&P 500 sectors didn't inspire a lot of confidence, but it's only one day. Materials dropped 1.7%, Healthcare gave up 1.4%, Consumer Discretionary and Real Estate fell 1.3%, Utilities dipped 1.2%, and Industrials fell 0.9%. Communication Services led, with a 0.5% gain.     Bitcoin reached $90,243 intraday despite the continued rally in the U.S. Dollar Index. So much for the consistent negative correlation between the two assets. However, gold futures fell to $2,606/oz., the lowest mark since September and a clear trend break. Silver futures finished near $31/oz., after hitting $35/oz. late in October. The COT data for metals remains bearish and the COT data for the greenback remains bullish -- so additional weakness in metals is quite possible. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "ISRG",
+            "AMZN"
+          ],
+          "title": "The S&P 500 couldn't hold 6,000 on Tuesday, finishing down a modest 0.3%, while the NYSE couldn't hold 20,000, dropping 0.8%."
+        },
+        {
+          "id": "ARGUS_2710_AnalystReport_1730484283000",
+          "headHtml": "Analyst Report: Amazon.com Inc.",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-01T18:04:43Z",
+          "reportTitle": "Amazon.com is the leading U.S. e-commerce retailer and among the top e-commerce sites globally. Amazon.com also includes Amazon Web Services (AWS), the global leader in cloud-based Infrastructure-as-a-Service (IaaS) platforms. The company's Prime membership platform is a key online retail differentiator, providing customers with free shipping (after an annual fee) along with exclusive media content (music, video, audible books, etc.). The company's Kindle reader and Alexa-based Echo and Dot digital voice assistants are category leaders.",
+          "reportType": "Analyst Report",
+          "targetPrice": 230,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Solid retail and AWS performance; raising target to $230"
+        },
+        {
+          "id": "ARGUS_41705_MarketUpdate_1730483383000",
+          "headHtml": "Market Update: AMZN, KO, LAZ, MSFT, PSA, PWR, PSX",
+          "provider": "Argus Research",
+          "reportDate": "2024-11-01T17:49:43Z",
+          "reportTitle": "Stocks are solidly higher Friday morning, led by good earnings from various companies (with Amazon and Intel leading the charge) as well as a jobs report that is being broadly interpreted as meaning that Fed will indeed cut interest rates further next week. Traders may finally be starting to look ahead, positioning themselves for a world in which the name of the next U.S. president will be known, the economy will remain on solid footing, interest rates will continue to head lower, and inflation will finally hit the magic 2% level.",
+          "reportType": "Market Update",
+          "tickers": [
+            "MSFT",
+            "PSX",
+            "KO",
+            "LAZ",
+            "PWR",
+            "AMZN",
+            "PSA"
+          ],
+          "title": "Stocks are solidly higher Friday morning, led by good earnings from various"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1730425982000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-11-01T01:53:02Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 200,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: AWS and Margins Shine Brightest in a Quarter With Many Bright Spots"
+        },
+        {
+          "id": "ARGUS_41666_ThematicPortfolio_1730220145000",
+          "headHtml": "The Argus Innovation Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2024-10-29T16:42:25Z",
+          "reportTitle": "The United States economy is full of innovation. It has to be. Manufacturing industries that dominated the economy decades ago - textiles, televisions, even automobiles to a large degree - have moved overseas, where labor and materials costs are lower. Yet the U.S. economy, even during the pandemic and the current period of high inflation, has expanded to record levels. If U.S. corporations weren't innovating, creating new products (such as vaccines and AI) and services (such as Zoom calls) and moving into new markets, the domestic economy would not be growing, and capital would not be flooding into the country. The current high level of the U.S. dollar relative to currencies around the world attests to the confidence that global investors have in the durable and innovative U.S. economy.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "TRGP",
+            "BLK",
+            "AMAT",
+            "GOOGL",
+            "AAPL",
+            "ADI",
+            "JPM",
+            "AXON",
+            "URI",
+            "COST",
+            "V",
+            "LLY",
+            "SPGI",
+            "PANW",
+            "META",
+            "NVDA",
+            "SYK",
+            "BSX",
+            "ORCL",
+            "PWR",
+            "LEN",
+            "NOW",
+            "ADBE",
+            "SCHW",
+            "RCL",
+            "ISRG",
+            "AMZN",
+            "CRM",
+            "ODFL"
+          ],
+          "title": "The Argus Innovation Model Portfolio"
+        },
+        {
+          "id": "MS_1245221_StockPicks_1728098107000",
+          "headHtml": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover",
+          "provider": "Morningstar",
+          "reportDate": "2024-10-05T03:15:07Z",
+          "reportTitle": "In this edition, antitrust issues curbing Big Tech M&A; a look at semiconductor industry; Hanesbrands' transformation has been overlooked; and EasyJet, Humana, and Repligen.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "NVDA",
+            "HUM",
+            "GOOGL",
+            "AVGO",
+            "ESYJY",
+            "EJTTF",
+            "HBI",
+            "ZTNO",
+            "INTC",
+            "ADBE",
+            "AMD",
+            "RGEN",
+            "AMZN",
+            "MRVL"
+          ],
+          "title": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1726094279000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-09-11T22:37:59Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 195,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: AWS Continues to Accelerate While Overall Margins Strength Persists"
+        },
+        {
+          "id": "ARGUS_41150_StockPicks_1725881622000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2024-09-09T11:33:42Z",
+          "reportTitle": "The back-to-school shopping season has just ended. In a blink, we'll be shopping for the holidays. That's should add up to a lot of shopping - but we'll see how secure consumers are feeling about their finances. Shopping patterns offer great insight into the state of consumers, who are the backbone of the U.S. economy (accounting for two-thirds of GDP). It's still a little early for some of the bigger industry groups to put out their holiday estimates, but we do have some data points to consider. Overall, the National Retail Federation expects retail sales to increase 2.5%-3.5% for the entire year. Stastista expects a 4% increase in holiday sales for 2024 compared to 2023. eMarketer forecasts a healthy 4.8% rise in holiday sales compared to last year. Salesforce predicts a 2% increase in 2024 holiday sales, which is still growing but at a slower pace than the 3% logged last year. In sum, consumer spending growth could be between 2%-5% this holiday period. Meanwhile, Forbes notes the following particulars about this upcoming holiday season: 1) it is shortened, with only 27 days between Thanksgiving and Christmas; 2) past presidential election years have shown a dip in spending leading up to and following the election; and 3) Walmart and Amazon account for roughly 38% of total retail growth, presenting a challenge for other retailers. The following is a list of BUY-rated stocks in Argus' Universe of Coverage. These represent companies that are leaders in the retail industry. Some of these stocks are also in various Argus portfolios.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "TGT",
+            "WSM",
+            "SKX",
+            "LULU",
+            "COST",
+            "TJX",
+            "ULTA",
+            "EBAY",
+            "TSCO",
+            "AMZN",
+            "WMT"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 09/09/2024: From Back-to-School into Holiday Shopping"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1722638913000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-08-02T22:48:33Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 195,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: AWS Continues to Accelerate While Overall Margins Strength Persists"
+        },
+        {
+          "id": "ARGUS_2710_AnalystReport_1722620474000",
+          "headHtml": "Analyst Report: Amazon.com Inc.",
+          "provider": "Argus Research",
+          "reportDate": "2024-08-02T17:41:14Z",
+          "reportTitle": "Amazon.com is the leading U.S. e-commerce retailer and among the top e-commerce sites globally. Amazon.com also includes Amazon Web Services (AWS), the global leader in cloud-based Infrastructure-as-a-Service (IaaS) platforms. The company's Prime membership platform is a key online retail differentiator, providing customers with free shipping (after an annual fee) along with exclusive media content (music, video, audible books, etc.). The company's Kindle reader and Alexa-based Echo and Dot digital voice assistants are category leaders.",
+          "reportType": "Analyst Report",
+          "targetPrice": 205,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Retail challenges blunt solid AWS performance"
+        },
+        {
+          "id": "ARGUS_40801_MarketUpdate_1722619574000",
+          "headHtml": "Market Update: AAPL, AMZN, AVY, ETD, SO, MDLZ, DD, SQ",
+          "provider": "Argus Research",
+          "reportDate": "2024-08-02T17:26:14Z",
+          "reportTitle": "Stocks are widely lower, continuing yesterday's slide and on the back of this morning's surprise Jobs report. The Unemployment Rate ticked up to 4.3% for July from 4.1% the month before. Nonfarm Payrolls printed at 114,000, much lower than the expected and the month before. These weak labor numbers raise questions: Did the Fed wait too long before pivoting to easing monetary policy? Will they enact a larger cut in September, perhaps 50 bps instead of the expected 25 bps? Is the desired soft landing still possible? We note that the recent GDP report gives us confidence that the U.S. economy has avoided a recession. And more data keeps coming. Deep breathes. Every day we recalibrate.",
+          "reportType": "Market Update",
+          "tickers": [
+            "DD",
+            "MDLZ",
+            "AAPL",
+            "AVY",
+            "ETD",
+            "XYZ",
+            "SO",
+            "AMZN"
+          ],
+          "title": "Stocks are widely lower, continuing yesterday's slide and on the back of this"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1722599032000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-08-02T11:43:52Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 195,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: AWS Continues to Accelerate While Overall Margins Strength Persists"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1722560938000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-08-02T01:08:58Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 195,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: AWS Continues to Accelerate While Overall Margins Strength Persists"
+        },
+        {
+          "id": "ARGUS_40584_TechnicalAnalysis_1720782100000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-07-12T11:01:40Z",
+          "reportTitle": "Thursday was one of the strangest market days that we can remember. The S&P 500 fell 0.9%, the Nasdaq gave back almost 2%, the Nasdaq 100 declined 2.2%, and the S&P 100 dropped 1.6%. Meanwhile, the Russell 2000 (IWM) surged 3.6%, the S&P MidCap 400 popped 2.5%, and the Invesco S&P 500 equal weight (RSP) gained 1.2%. NYSE breadth was quite strong at +2,200, NYSE advancing issues/total issues hit 78%, and NYSE advancing volume/total volume popped to 84%. Yes, you read that correctly. Talk about a day of rotation!   Real Estate (XLRE) was up 2.7% and Utilities surged 1.8%, both helped by falling interest rates. Materials rose 1.4%, Industrials rose 1.3%, Energy gained 1%, Financials rose another 0.8%, and Healthcare was up 0.7%. Information Technology dropped 2.5%, with semiconductors down 3%-4%.   As mentioned, momentum was scorching on Wednesday, with the S&P 500's 14-day Relative Strength Index (RSI) hitting 82 on Wednesday, the most overbought reading since December 19, 2023. That was followed by a nasty one-day wonder to the downside and some chop for a couple of weeks before the index took off again. The 14-week RSI reached 77 this week, the highest since 79 was hit in late March -- just before a slide of several hundred points in the index that, of course, was followed by all-time highs.   The 14-day RSI for the Nasdaq 100 (QQQ) hit 80 Wednesday after reaching 82 in mid-June. The 14-week RSI is in the mid-70s. Generally, we see some indigestion when we cycle this far into overbought territory. Then there is often another run higher. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "XYL",
+            "AMZN"
+          ],
+          "title": "Thursday was one of the strangest market days that we can remember."
+        },
+        {
+          "id": "ARGUS_40371_TechnicalAnalysis_1718967985000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-06-21T11:06:25Z",
+          "reportTitle": "The consistent strength of the S&P 500 (SPX) over the past two months has been impressive, especially after the strong advance from October 2023 until late-March 2024. The simple and trusty 5/13 exponential moving average (EMA) crossover has caught most of these moves and missed some of the downside in April. Daily momentum (14-day relative strength index) has cycled into an extreme overbought condition, but that same condition didn't stop the rally back in December. It is a warning to pay attention for divergences and/or price breakdowns, but not a reason to sell.  On the weekly chart, the SPX has run up to a longer-term trendline off the peaks since late 2022. Most trendlines are not perfect and don't hit every price point, so we certainly could draw the line a bit differently, trying to construct a regression line that best fits the peaks or troughs. We have a developing and bearish weekly moving-average convergence/divergence (MACD), this as the latest weekly closing high price has not been confirmed by a new momentum high and offers yet another warning.   The Nasdaq 100 (QQQ) has broken above the upper trendline drawn off the peaks since July 2023 and has demonstrated very strong momentum. We have seen periods of outperformance versus the \"500\" -- and even when the QQQ has taken a break, it has not really underperformed the SPX. However, the QQQ is quite extended versus the 50-day and 200-day EMAs. Buts these overbought conditions can last for many months and, again, are more a warning about an overheated market than a reason to sell. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "XYL",
+            "AMZN"
+          ],
+          "title": "The consistent strength of the S&P 500 (SPX) over the past two months has been impressive, especially after the strong advance from October 2023 until late-March 2024."
+        },
+        {
+          "id": "MS_1229656_StockPicks_1718405112000",
+          "headHtml": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover",
+          "provider": "Morningstar",
+          "reportDate": "2024-06-14T22:45:12Z",
+          "reportTitle": "In this edition, online commerce set for acceleration, consolidation; the market may be missing changes afoot at Veolia; an overview of the moat ratings for big biotech firms; and Kraft Heinz, Tyson Foods, and Nutrien. \n\n",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "KHC",
+            "VEOEY",
+            "AMGN",
+            "NTR",
+            "TSN",
+            "BMY",
+            "MELI",
+            "PDD",
+            "EBAY",
+            "REAL",
+            "CHWY",
+            "GSK",
+            "AMZN",
+            "BIIB",
+            "WMT"
+          ],
+          "title": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover"
+        },
+        {
+          "id": "ARGUS_40254_StockPicks_1718022156000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2024-06-10T12:22:36Z",
+          "reportTitle": "ESG (Environmental, Social, Governance) investing continues to grow. BlackRock CEO Lawrence Fink, who oversees approximately $9 trillion in assets, announced in January 2020 that his firm would be investing in companies that are making progress on sustainability. He doubled down in his January 2021 letter, calling on company managements to disclose their plans for making their businesses \"compatible with a net-zero economy\" by 2050. As assets have flowed in over the past 40 years, Sustainable Impact Investing has evolved. The discipline, originally known as Socially Responsible Investing, focused at first on excluding companies that conducted business in South Africa, or participated in industries such as tobacco, alcohol, and firearms. Performance of these initial strategies lagged, and the approach has been modified. Now, instead of merely identifying industries to avoid, the discipline promotes \"sustainable\" business practices across all industries that can have an \"impact\" on global issues such as climate, hunger, poverty, disease, shelter, and workers' rights. At Argus Research, we track ESG developments at specific companies as part of our Management analysis - one of the six points in our proprietary Six-Point Fundamental Approach. In addition to reviewing and measuring the ESG proclamations from the companies under coverage, we partner with an ESG research firm, the JUST Capital Foundation, and leverage its analysis and insights on the topic as well. JUST Capital's mission is to drive measurable corporate change to create a stakeholder-centric, inclusive form of capitalism that reflects the priorities of the American public. JUST utilizes a combination of data-driven research and strategic engagement in an attempt to shift norms and practices in corporate America and the financial markets. JUST ESG Custom Ratings rank stocks in the Russell 1000 on these criteria using a scale of 1-100. Drawing on the JUST Capital rankings, we have compiled focused lists of companies followed by Argus Research that are in position to have this type of \"sustainable impact\" on the environment, workplace, community, and marketplace. These firms have exemplary records not only in delivering on the bottom line, but also in improving the environment, contributing to community relations, and showing respect for their employees. We also have a Theme Model Portfolio based in part on the ESG criteria. To build the Argus U.S. ESG Model Portfolio, we applied financial concepts such as industry diversification, income generation, risk reduction, and growth at a reasonable price to our various lists. In addition, all stocks must be on the Argus BUY list. Here are the new stocks that have been added to the Argus U.S. ESG Model Portfolio.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "TFC",
+            "INTU",
+            "MRK",
+            "RSG",
+            "GS",
+            "AMZN",
+            "GE",
+            "DHR"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 06/10/2024: ESG Stocks"
+        },
+        {
+          "id": "ARGUS_40153_TechnicalAnalysis_1717067365000",
+          "headHtml": "Technical Assessment: Bullish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-05-30T11:09:25Z",
+          "reportTitle": "Wednesday was another tough day for the stock market. Like Tuesday, the largest index declines yesterday were in the NYSE and the S&P SmallCap 600 (SML), which both fell 1.2%. The S&P MidCap 400 (MDY) gave back another 1.3%, and the Dow Industrials lost 1%. In the last seven days, the NYSE has dropped over 3%. In nine days, the SML is off 3.4% and the MDY is down 4%, while the DJIA has given back 4% over seven days. All four indices have broken through their 50-day averages for the first time since early/mid-April and all have given short-term sell signals by way of bearish five-day/13-day exponential moving average crossovers.   Sector damage has been broad from the recent highs, with Real Estate declining over 5%, Energy dropping 4.5%, Financials and Industrials off almost 4%, Healthcare down 3.4%, Staples and the high-flying Utilities losing 3%, and Materials and Discretionary dipping 2.8%. Only Technology and Communication Services are holding near their highs.   As we said late last week, market breadth has turned negative quickly after a strong period from mid-April to mid-May. NYSE breadth was a weak -2160, the second-worst reading in 2024, after a -1913 print on May 23. NYSE advancing/total issues was 21% and up volume/total volume was 16%, near the weak levels from May 23.   Treasury yields have done an about-face, with the 10-year up to 4.62% from 4.32%, the fives up to 4.64% from 4.34%, and the twos back near 5%. In addition, the U.S. dollar has broken out of a bull flag. (Mark Arbeter, CMT)",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "ITRI",
+            "AMZN"
+          ],
+          "title": "Wednesday was another tough day for the stock market."
+        },
+        {
+          "id": "ARGUS_40141_ThematicPortfolio_1716993465000",
+          "headHtml": "The Argus ESG Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2024-05-29T14:37:45Z",
+          "reportTitle": "Sustainable Impact Investing, or ESG investing, is gaining traction not only with Argus Research clients but also with the global investment community. BlackRock CEO Lawrence Fink, who oversees approximately $9 trillion in assets, announced in January 2020 that his firm would be investing in companies that are making progress on sustainability. He doubled down in his January 2021 letter, calling on company managements to disclose their plans for making their businesses \"compatible with a net-zero economy\" by 2050. As assets have flowed in over the past 40 years, Sustainable Impact Investing has evolved. The discipline, originally known as Socially Responsible Investing, focused at first on excluding companies that conducted business in South Africa, or participated in industries such as tobacco, alcohol, and firearms. Performance of these initial strategies lagged, and the approach has been modified. Now, instead of merely identifying industries to avoid, the discipline promotes \"sustainable\" business practices across all industries that can have an \"impact\" on global issues such as climate, hunger, poverty, disease, shelter, and workers' rights.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "TT",
+            "GOOGL",
+            "AAPL",
+            "AVGO",
+            "INTU",
+            "JPM",
+            "MRK",
+            "DHR",
+            "TFC",
+            "MSFT",
+            "MA",
+            "QCOM",
+            "LLY",
+            "SPGI",
+            "TRV",
+            "GE",
+            "KLAC",
+            "NVDA",
+            "COP",
+            "BSX",
+            "RSG",
+            "GS",
+            "ECL",
+            "TMUS",
+            "CTAS",
+            "ETN",
+            "AMZN",
+            "WMT"
+          ],
+          "title": "The Argus ESG Model Portfolio"
+        },
+        {
+          "id": "ARGUS_2710_AnalystReport_1714647351000",
+          "headHtml": "Analyst Report: Amazon.com Inc.",
+          "provider": "Argus Research",
+          "reportDate": "2024-05-02T10:55:51Z",
+          "reportTitle": "Amazon.com is the leading U.S. e-commerce retailer and among the top e-commerce sites globally. Amazon.com also includes Amazon Web Services (AWS), the global leader in cloud-based Infrastructure-as-a-Service (IaaS) platforms. The company's Prime membership platform is a key online retail differentiator, providing customers with free shipping (after an annual fee) along with exclusive media content (music, video, audible books, etc.). The company's Kindle reader and Alexa-based Echo and Dot digital voice assistants are category leaders.",
+          "reportType": "Analyst Report",
+          "targetPrice": 205,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Continued retail strength, very strong AWS"
+        },
+        {
+          "id": "ARGUS_39880_MarketSummary_1714647351000",
+          "headHtml": "Market Digest: AMZN, DHI, DHR, ETN, HAL, MCD, SBUX, MA, PYPL, ELAN",
+          "provider": "Argus Research",
+          "reportDate": "2024-05-02T10:55:51Z",
+          "reportTitle": "Stock Market Looking to Get Past April's Stumble",
+          "reportType": "Market Summary",
+          "tickers": [
+            "PYPL",
+            "HAL",
+            "ELAN",
+            "DHI",
+            "SBUX",
+            "MA",
+            "ETN",
+            "AMZN",
+            "MCD",
+            "DHR"
+          ],
+          "title": "Stock Market Looking to Get Past April's Stumble"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1714540874000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-05-01T05:21:14Z",
+          "reportTitle": "Amazon is the leading online retailer and marketplace for third party sellers. Retail related revenue represents approximately 75% of total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (15%), advertising services (5% to 10%), and other the remainder. International segments constitute 25% to 30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 193,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: AWS Accelerates and Margins Continue to Outperform"
+        },
+        {
+          "id": "ARGUS_39825_TechnicalAnalysis_1714130440000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-04-26T11:20:40Z",
+          "reportTitle": "There was a very nice kick-save by equity bulls on Thursday, as the bears looked emboldened early but failed despite Meta's meltdown and a tick up in rates. And then there was good EPS news after the close, with GOOGL soaring and MSFT popping.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "ACM",
+            "AMZN"
+          ],
+          "title": "There was a very nice kick-save by equity bulls on Thursday, as the bears looked emboldened early but failed despite Meta's meltdown and a tick up in rates."
+        },
+        {
+          "id": "ARGUS_39788_ThematicPortfolio_1713887664000",
+          "headHtml": "The Argus Innovation Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2024-04-23T15:54:24Z",
+          "reportTitle": "The United States economy is full of innovation. It has to be. Manufacturing industries that dominated the economy decades ago - textiles, televisions, even automobiles to a large degree - have moved overseas, where labor and materials costs are lower. Yet the U.S. economy, even during the pandemic and the current period of high inflation, has expanded to record levels. If U.S. corporations weren't innovating, creating new products (such as vaccines and AI) and services (such as Zoom calls) and moving into new markets, the domestic economy would not be growing, and capital would not be flooding into the country. The current high level of the U.S. dollar relative to currencies around the world attests to the confidence that global investors have in the durable and innovative U.S. economy.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "GOOGL",
+            "AMAT",
+            "AAPL",
+            "CVX",
+            "ADI",
+            "AXON",
+            "URI",
+            "COST",
+            "V",
+            "LLY",
+            "SPGI",
+            "PANW",
+            "NVDA",
+            "META",
+            "SYK",
+            "BSX",
+            "ORCL",
+            "CBOE",
+            "PWR",
+            "MCK",
+            "NOW",
+            "LYFT",
+            "ADBE",
+            "SCHW",
+            "MCHP",
+            "ISRG",
+            "AMZN",
+            "ODFL",
+            "CRM"
+          ],
+          "title": "The Argus Innovation Model Portfolio"
+        },
+        {
+          "id": "ARGUS_39598_TechnicalAnalysis_1712228278000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-04-04T10:57:58Z",
+          "reportTitle": "We hate to use overly complicated technical terms to describe the recent price action, but the stock market is acting a little -- squirrely. Or nervous. Or fidgety. Who is going to put up the big money to take prices higher? Are investors still in profit-taking mode for the massive gainers but then rotating to other areas of the market? In the big picture, there hasn't been a negative technical mark on the current uptrend. But there certainly does seem to be some short-term indecision among market participants.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "ACM",
+            "AMZN"
+          ],
+          "title": "We hate to use overly complicated technical terms to describe the recent price action, but the stock market is acting a little -- squirrely."
+        },
+        {
+          "id": "ARGUS_39382_TechnicalAnalysis_1710327248000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-03-13T10:54:08Z",
+          "reportTitle": "We are raising our long-term technical outlook to Bullish and most likely will raise the intermediate-term outlook to bullish if we ever get a pullback. With the benefit of hindsight, both timeframes should have been changed to bullish either in the middle of 2023 or late 2023. Yet for the most part, the daily commentary in parts of 2023 and 2024 conveyed bull-market action in market breadth, as well as breadth and price thrusts typically seen in early bull markets. Things got tricky in October 2023, when the S&P 500 broke many key averages as well as its bull-market trendline off the October 2022 lows. In addition, market breadth fell back to bear-market territory. At the same time, the entire yield curve was in a strong uptrend, hitting and exceeding 5%.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "GD",
+            "AMZN"
+          ],
+          "title": "We are raising our long-term technical outlook to Bullish and most likely will raise the intermediate-term outlook to bullish if we ever get a pullback."
+        },
+        {
+          "id": "ARGUS_39158_StockPicks_1708433180000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2024-02-20T12:46:20Z",
+          "reportTitle": "Stock indices dipped in October 2023, with the S&P 500 falling a sharp 10% off summer highs. Looking at 13F filings of big institutional portfolios, we see that the big guns were busy last quarter taking advantage of that dip. Citadel Advisors went on a buying spree, adding to its $100 billion portfolio across a range of sectors. As did D.E. Shaw, adding to its $67 billion portfolio. Vickers Stock Research, a subsidiary of Argus Research Group, analyzes insider trading and institutional stock ownership. Form 13-Fs, which institutions must file to report their holdings, are due 45 days after the end of calendar quarters and have come in for 4Q24. We review 13Fs of major activists to determine core holdings and new purchases. Activist investing is now less about generating a short-term return and more about achieving long-term returns through an active management/investor partnership. Based on data from Vickers, here are some recent new purchases and key holdings of activist investors, as well as other high-profile money managers.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "APO",
+            "VZ",
+            "CVX",
+            "EXPE",
+            "OXY",
+            "AMD",
+            "EOG",
+            "CMG",
+            "AIG",
+            "NFLX",
+            "NVDA",
+            "META",
+            "CRWD",
+            "MU",
+            "PWR",
+            "XYL",
+            "EMR",
+            "AEP",
+            "TSM",
+            "DIS",
+            "MCK",
+            "XOM",
+            "BRK-B",
+            "ETN",
+            "AMZN"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 02/20/2024: 13Fs Show Big Guns Buying"
+        },
+        {
+          "id": "ARGUS_39155_TechnicalAnalysis_1708430752000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-02-20T12:05:52Z",
+          "reportTitle": "While everyone in the investment world will be waiting (nervously or confidently) for Nvidia's quarterly numbers after the close on Wednesday, there certainly are other important Q4 EPS reports this week -- like those from WMT, HD, PANW, ADI, SNPS, VRSK, INTU, BKNG, MELI, EOG, BRK.B, among others. In addition to NVDA, stocks that are quite extended after large-to-massive moves since late October (about four months ago) include PANW, INTU, BKNG, MELI, and BRK.B. Betting on more near-term upside from these stocks, no matter what they report, is a tough technical game as they all have extreme 14-day and 14-week Relative Strength Index (RSI) readings in the high 70s to mid-80s. Needless to say, this should be another interesting week.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "WYNN",
+            "AMZN"
+          ],
+          "title": "While everyone in the investment world will be waiting (nervously or confidently) for Nvidia's quarterly numbers after the close on Wednesday, there certainly are other important Q4 EPS reports this week -- like those from WMT, HD, PANW, ADI, SNPS, VRSK, INTU, BKNG, MELI, EOG, BRK.B, among others."
+        },
+        {
+          "id": "ARGUS_2710_AnalystReport_1706899223000",
+          "headHtml": "Analyst Report: Amazon.com Inc.",
+          "provider": "Argus Research",
+          "reportDate": "2024-02-02T18:40:23Z",
+          "reportTitle": "Amazon.com is the leading U.S. e-commerce retailer and among the top e-commerce sites globally. Amazon.com also includes Amazon Web Services (AWS), the global leader in cloud-based Infrastructure-as-a-Service (IaaS) platforms. The company's Prime membership platform is a key online retail differentiator, providing customers with free shipping (after an annual fee) along with exclusive media content (music, video, audible books, etc.). The company's Kindle reader and Alexa-based Echo and Dot digital voice assistants are category leaders.",
+          "reportType": "Analyst Report",
+          "targetPrice": 185,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Holiday quarter strength, positive outlook"
+        },
+        {
+          "id": "ARGUS_39002_MarketUpdate_1706898323000",
+          "headHtml": "Market Update: AMZN, ETN, ITW, MKTX, SKX, FBIN, PTON",
+          "provider": "Argus Research",
+          "reportDate": "2024-02-02T18:25:23Z",
+          "reportTitle": "Stocks were mixed on Friday morning following the January jobs report. In January, nonfarm payroll employment rose 353,000 and the unemployment rate was unchanged at 3.7%. The jobs count is up from 216,000 in December and well ahead of the expected 185,000, and the belief had been that unemployment would inch up to 3.8%. The S&P 500 rose 0.9%, the Dow was nearly flat and the Nasdaq gained 1.5%. Crude oil traded just above $72 per barrel, while gold fell $17 to $2053 per ounce.",
+          "reportType": "Market Update",
+          "tickers": [
+            "SKX",
+            "FBIN",
+            "PTON",
+            "MKTX",
+            "ITW",
+            "AMZN",
+            "ETN"
+          ],
+          "title": "Stocks were mixed on Friday morning following the January jobs report."
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1706848322000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2024-02-02T04:32:02Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 185,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: Advertising Shines, E-Commerce Is Still Improving, and Margins Are Impressive"
+        },
+        {
+          "id": "ARGUS_38898_TechnicalAnalysis_1706097146000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2024-01-24T11:52:26Z",
+          "reportTitle": "Tuesday was another day of all-time highs (ATHs) for the S&P 500 (SPX), Nasdaq 100 (QQQ), and S&P 100 (OEX). It was an interesting day for SPX sector leadership and industry strength, with Consumer Staples (XLP) rising 1.1% and Communication Services (XLC) gaining 1%. Within Staples, Nondurable Household Products popped 3.3%, led by Kimberly-Clark (KMB +2%), Church & Dwight (CHD +1.9%), and Clorox (CLX +1.4%). Personal Products rose 2.1%, led by Procter & Gamble (PG +4%). XLC was powered by Mobile Telecommunications, which surged 4.3%, and Fixed Line Telecom, which was powered by Verizon (VZ +6.7%), the largest gainer in the SPX. Yes, real household names led the market. How strange is that?",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "MKTX",
+            "AMZN"
+          ],
+          "title": "Tuesday was another day of all-time highs (ATHs) for the S&P 500 (SPX), Nasdaq 100 (QQQ), and S&P 100 (OEX)."
+        },
+        {
+          "id": "ARGUS_38589_TechnicalAnalysis_1702987043000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2023-12-19T11:57:23Z",
+          "reportTitle": "The U.S. Dollar Index (USD) started trading in January 1973 and, believe it or not, has not gone anywhere for the past five decades. After moving sideways until the beginning of 1981, the greenback spiked higher until early 1985, rising to $165 from $100. As quickly as it soared, it then came crashing down, tracing out a very narrow Christmas tree and ultimately bottoming in 1992 at $79. Since early 1986, the greenback has been trapped in a fairly wide range between $71, hit in 2008, and $120, reached in early 2002. Since a secondary low was hit in 2011, the USD has been in a fairly consistent but wide bullish channel. A major part of the USD is the euro (about 60%), so it's not surprising that since that currency began in 1999, it has been (very) negatively correlated with the greenback.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "AMZN",
+            "LDOS"
+          ],
+          "title": "The U.S."
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1698879752000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-11-01T23:02:32Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 155,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: E-Commerce Improves, AWS Stabilizes, and Margins Surge"
+        },
+        {
+          "id": "ARGUS_38127_StockPicks_1698664887000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2023-10-30T11:21:27Z",
+          "reportTitle": "Investing in the Cloud is not for the faint of heart -- but we see upside. Alphabet lost a steep 10% in one day last week after investors expressed their disappointment over growth in its cloud business. That same day, Microsoft surged after reporting better-than-expected growth in its Azure OpenAI cloud service. The race is on, and some will win and some will lose along the way. But the potential pie is big. In the internet era, in which digital commerce complements or has supplanted physical commerce, the information technology needs of all enterprises have grown. The traditional on-premises approach has been rendered inefficient, given that a user's IT needs may fluctuate at any time. Into this void, the Cloud has arrived. In Cloud services models, an enterprise's IT needs can be matched and scaled in real time. Through the Cloud, enterprises consume only as much computing, storage, and networking bandwidth as they need. For a major event, this allows massive scaling of IT resources beyond the restraints of on-premises implementation. For periods in which operations are steady, the Cloud services model allows for a needs-only application. The leading providers of Cloud services tend to be large Technology and Communication Services companies that provide many goods and services distinct from or adjacent to their Cloud businesses. Growth has been impressive for this group. Collectively, participants in the Cloud eco-system grew revenue at a 19% compound annual growth rate from 2016 to 2022. Still, the line isn't straight up.  While Cloud services grew at a 23% growth rate from 2020 to 2021, the average growth rate slowed to 15.3% for 2022.  This slowdown in revenue growth reflected impediments to normal business activity from the supply-chain crisis, inflation, and rising interest rates. Even so, demand for Cloud services has held up relatively well, given that Cloud transition is a long-tailed process and that Cloud transformation has become an imperative. Here is a list of U.S.-based companies followed by Argus and that we think are in position to take advantage of this secular trend.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "MSFT",
+            "GOOGL",
+            "NTAP",
+            "META",
+            "AAPL",
+            "NOW",
+            "AMZN",
+            "CRM"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 10/30/2023: Investing in the Cloud"
+        },
+        {
+          "id": "ARGUS_2710_AnalystReport_1698427508000",
+          "headHtml": "Analyst Report: Amazon.com Inc.",
+          "provider": "Argus Research",
+          "reportDate": "2023-10-27T17:25:08Z",
+          "reportTitle": "Amazon.com is the leading U.S. e-commerce retailer and among the top e-commerce sites globally. Amazon.com also includes Amazon Web Services (AWS), the global leader in cloud-based Infrastructure-as-a-Service (IaaS) platforms. The company's Prime membership platform is a key online retail differentiator, providing customers with free shipping (after an annual fee) along with exclusive media content (music, video, audible books, etc.). The company's Kindle reader and Alexa-based Echo and Dot digital voice assistants are category leaders.",
+          "reportType": "Analyst Report",
+          "targetPrice": 165,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "EPS and sales beat, cautious but positive outlook"
+        },
+        {
+          "id": "ARGUS_38115_MarketUpdate_1698426608000",
+          "headHtml": "Market Update: AMZN, AVB, CMG, COF, ETD, FHI, FLEX, MMM, SKX, FBIN",
+          "provider": "Argus Research",
+          "reportDate": "2023-10-27T17:10:08Z",
+          "reportTitle": "Stocks were mixed on Friday morning following strong earnings from Amazon and generally positive inflation data. The Commerce Department said that its personal consumption expenditures price index, or PCE, rose 3.4% from the prior year in September, in line with the revised reading for August and the Bloomberg consensus forecast. Excluding food and energy prices, the core PCE, the Fed's preferred measure of inflation, rose 3.7%, down slightly from 3.8% in August and also in line with consensus. The Dow fell 0.4%, the S&P rose 0.2%, and the Nasdaq rose 1.1%. Crude oil rose to $84 per barrel, while gold fell $5 to $1992 per ounce.",
+          "reportType": "Market Update",
+          "tickers": [
+            "FBIN",
+            "SKX",
+            "ETD",
+            "FHI",
+            "FLEX",
+            "COF",
+            "CMG",
+            "MMM",
+            "AVB",
+            "AMZN"
+          ],
+          "title": "Stocks were mixed on Friday morning following strong earnings from"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1698377759000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-10-27T03:35:59Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 155,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: E-Commerce Improves, AWS Stabilizes, and Margins Surge"
+        },
+        {
+          "id": "ARGUS_38102_ThematicPortfolio_1698327961000",
+          "headHtml": "The Argus Innovation Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2023-10-26T13:46:01Z",
+          "reportTitle": "Innovation may be hard to define. But to borrow from former U.S. Supreme Court Justice Potter Stewart, you know it when you see it. The United States economy is full of innovation. It has to be. Manufacturing industries that dominated the economy decades ago - textiles, televisions, even automobiles to a large degree - have moved overseas, where labor and materials costs are lower. Yet the U.S. economy, even during the pandemic and the current period of high inflation, has expanded to record levels. If U.S. corporations weren't innovating, creating new products (such as vaccines) and services (such as Zoom calls) and moving into new markets and applications, the domestic economy would not be growing, and capital would not be flooding into the country. The current high level of the U.S. dollar relative to currencies around the world attests to the confidence that global investors have in the durable and innovative U.S. economy.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "AMAT",
+            "GOOGL",
+            "AAPL",
+            "CVX",
+            "ADI",
+            "URI",
+            "COST",
+            "V",
+            "LLY",
+            "SPGI",
+            "PANW",
+            "NVDA",
+            "META",
+            "NOC",
+            "SYK",
+            "BSX",
+            "MSCI",
+            "PWR",
+            "CBOE",
+            "HOLX",
+            "MCK",
+            "NOW",
+            "ADBE",
+            "SCHW",
+            "MCHP",
+            "ISRG",
+            "AMZN",
+            "ODFL",
+            "CRM"
+          ],
+          "title": "The Argus Innovation Model Portfolio"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1698274472000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-10-25T22:54:32Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon: We Doubt Amazon Is Broken Up by the FTC and Instead See a Relatively Minor Fine"
+        },
+        {
+          "id": "MS_1185950_StockPicks_1697892311000",
+          "headHtml": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover",
+          "provider": "Morningstar",
+          "reportDate": "2023-10-21T12:45:11Z",
+          "reportTitle": "In this edition, a look at specialty contractors; renewable energy growth still outpacing expectations; digital ads and ad-tech stocks rebound; and Okta, Arm Holdings, and Regions Financial.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "META",
+            "KMB",
+            "ETR",
+            "OMC",
+            "TTD",
+            "PWR",
+            "OKTA",
+            "SNAP",
+            "BEP",
+            "MGNI",
+            "PGPEF",
+            "MTZ",
+            "SEDG",
+            "PUBM",
+            "NI",
+            "DUK-P-A",
+            "LRLCF",
+            "ARM",
+            "UBER",
+            "AMZN"
+          ],
+          "title": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1695840356000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-09-27T18:45:56Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon: We Doubt Amazon Is Broken Up by the FTC and Instead See a Relatively Minor Fine"
+        },
+        {
+          "id": "ARGUS_2710_AnalystReport_1695812139000",
+          "headHtml": "Analyst Report: Amazon.com Inc.",
+          "provider": "Argus Research",
+          "reportDate": "2023-09-27T10:55:39Z",
+          "reportTitle": "Amazon.com is the leading U.S. e-commerce retailer and among the top e-commerce sites globally. Amazon.com also includes Amazon Web Services (AWS), the global leader in cloud-based Infrastructure-as-a-Service (IaaS) platforms. The company's Prime membership platform is a key online retail differentiator, providing customers with free shipping (after an annual fee) along with exclusive media content (music, video, audible books, etc.). The company's Kindle reader and Alexa-based Echo and Dot digital voice assistants are category leaders.",
+          "reportType": "Analyst Report",
+          "targetPrice": 165,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Aligns with Anthropic to strengthen AI"
+        },
+        {
+          "id": "ARGUS_37792_MarketSummary_1695811239000",
+          "headHtml": "Market Digest: AMZN, ES, THO",
+          "provider": "Argus Research",
+          "reportDate": "2023-09-27T10:40:39Z",
+          "reportTitle": "It was a technical breakdown for the major stock indices on Tuesday, as August and September are living up to their historical tendency for price weakness. Since its July 31 closing high, the S&P 500 is down almost 7%. Since July 18, the Nasdaq has dropped 9% and the Nasdaq 100 (QQQ) is off 8%. ",
+          "reportType": "Market Summary",
+          "tickers": [
+            "THO",
+            "AMZN",
+            "ES"
+          ],
+          "title": "It was a technical breakdown for the major stock indices on Tuesday, as August"
+        },
+        {
+          "id": "ARGUS_37768_StockPicks_1695643254000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2023-09-25T12:00:54Z",
+          "reportTitle": "The growth prospects for the artificial intelligence (AI) universe are impressive, yet hard to determine. Argus has derived a model of the size and scope of the global AI industry, based on our coverage of the major publicly-traded players and most of the mid-tier players, along with our industry analysts' knowledge of private players. We estimate the global AI industry amounted to about $90-$100 billion in 2021, and expect it to grow at a 40% CAGR through 2030, when it is expected to reach $1.8 trillion in annual revenue. We expect annual growth to decelerate from the low- to mid-40% range in immediate years to the mid-30% range for years toward the end of the survey period. But determining a realistic estimate for the size of the industry is a challenge. Even for an industry that promises to redefine measuring tools, there is no measurable unit of AI output comparable to barrels of oil or tons of steel. As well, much of AI development occurs within labs and at universities, and the output is measured in tangible progress against objectives, not dollars or units of output. In the corporate world, nearly all the AI pure-play companies service micro-niches, have little measurable revenue, and are deeply unprofitable. For our list this week, we take a big picture view of three areas where AI applications are developing. In Big Tech, we believe much of the revenue and most of the profitability from AI is attributable to several giant U.S. and a few international companies that operate primarily in growth sectors such as Technology, Communication Services, and Consumer Discretionary. Next, we note that China is also a hub of AI development, with companies like Alibaba, Baidu, and Tencent (though Argus follows only Alibaba). Finally, Niche Tech has significant AI activity among companies pursuing advances in IoT, vehicle electrification, autonomous driving, automation and connectivity solutions for manufacturing, warehousing, construction, and other areas. Here are featured companies followed by Argus in those three categories.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "BABA",
+            "DE",
+            "NVDA",
+            "GOOGL",
+            "META",
+            "AAPL",
+            "GM",
+            "F",
+            "HON",
+            "ROK",
+            "MSFT",
+            "QCOM",
+            "IBM",
+            "AMZN",
+            "CRM"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 09/25/2023: Where to Look for AI Opportunities"
+        },
+        {
+          "id": "ARGUS_37620_TechnicalAnalysis_1694430940000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2023-09-11T11:15:40Z",
+          "reportTitle": "This could be an important week for the financial markets, with the major stock indices popping back to the underside (potential resistance) or just above (as with the Nasdaq 100) their 50-day averages -- and all with a lower high in place. Treasury yields are at the top of their range going back to October 2022, and are either topping out from an intermediate-term perspective or will complete large cup formations (which suggest another big move to the upside for yields).",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "ORCL",
+            "AMZN"
+          ],
+          "title": "This could be an important week for the financial markets, with the major stock indices popping back to the underside (potential resistance) or just above (as with the Nasdaq 100) their 50-day averages -- and all with a lower high in place."
+        },
+        {
+          "id": "MS_LargeCapU.S.CorePickList_StockPicks_1694116532000",
+          "headHtml": "Large Cap US Pick List - September 2023",
+          "provider": "Morningstar",
+          "reportDate": "2023-09-07T19:55:32Z",
+          "reportTitle": "This pick list highlights constituents of the Morningstar US Large Cap Index that we believe offer investors the best risk-adjusted return prospects. Stocks of large-cap companies where neither growth nor value characteristics predominate. Stocks in the top 70% of the capitalization of the U.S. equity market are defined as large cap.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "DG",
+            "PNC",
+            "ADI",
+            "KHC",
+            "LVS",
+            "PFE",
+            "TFC",
+            "SBUX",
+            "AMD",
+            "MDT",
+            "NSC",
+            "MO",
+            "SNOW",
+            "ADSK",
+            "HON",
+            "EL",
+            "AMT",
+            "NKE",
+            "EMR",
+            "MMM",
+            "AEP",
+            "GIS",
+            "JCI",
+            "PSX",
+            "FTNT",
+            "XOM",
+            "BIIB",
+            "TGT",
+            "CVS",
+            "FI",
+            "CTVA",
+            "C",
+            "VZ",
+            "CVX",
+            "F",
+            "MSFT",
+            "T",
+            "WFC",
+            "QCOM",
+            "RTX",
+            "BDX",
+            "VLO",
+            "DUK",
+            "GD",
+            "BKNG",
+            "UBER",
+            "PYPL",
+            "HUM",
+            "BAC",
+            "USB",
+            "CI",
+            "GM",
+            "CCI",
+            "GS",
+            "NEE",
+            "ECL",
+            "LMT",
+            "SCHW",
+            "GILD",
+            "AMZN"
+          ],
+          "title": "Large Cap US Pick List - September 2023"
+        },
+        {
+          "id": "ARGUS_37351_TechnicalAnalysis_1692011758000",
+          "headHtml": "Technical Assessment: Neutral in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2023-08-14T11:15:58Z",
+          "reportTitle": "The Nasdaq and the Nasdaq 100 (QQQ) fell slightly under their 50-day averages late last week, which we don't consider a break of this key short-term support. The last time the indices were below their 50-day was in March. They have dipped 5% from closing highs on July 18 and also are slightly below trendline support off March lows.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "OXY",
+            "AMZN"
+          ],
+          "title": "The Nasdaq and the Nasdaq 100 (QQQ) fell slightly under their 50-day averages late last week, which we don't consider a break of this key short-term support."
+        },
+        {
+          "id": "ARGUS_37284_StockPicks_1691410642000",
+          "headHtml": "Weekly Stock List",
+          "provider": "Argus Research",
+          "reportDate": "2023-08-07T12:17:22Z",
+          "reportTitle": "The first-quarter earnings season has passed the halfway mark with 292 (or 58%) of S&P 500 companies having reported results through August 1. An impressive 81% of those companies exceeded earnings expectations, while the blended (actual and still to report) earnings decline is now projected at 5.9%, according to Refinitv. The Consumer Discretionary sector still leads with 36% earnings growth, while Energy is now by far the weakest sector, with a 48% profit decline. Our analysts are always on the lookout for companies that boost their outlooks during earnings season.  Management's ability to \"raise guidance\" can often be a catalyst to market-beating returns in the quarters ahead. Here is an initial list of BUY-rated companies in Argus Coverage for which management has raised guidance or increased its outlook during the 2Q23 EPS reporting season.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "TT",
+            "NVDA",
+            "INTU",
+            "HON",
+            "JNJ",
+            "LEA",
+            "URI",
+            "ADP",
+            "VMC",
+            "ITW",
+            "UNH",
+            "ROP",
+            "MCO",
+            "XYZ",
+            "CNC",
+            "GPC",
+            "AMZN",
+            "GE",
+            "ETN",
+            "PANW",
+            "HWM"
+          ],
+          "title": "Argus Quick Note: Weekly Stock List for 08/07/2023: Companies Raising Guidance"
+        },
+        {
+          "id": "ARGUS_2710_AnalystReport_1691171066000",
+          "headHtml": "Analyst Report: Amazon.com Inc.",
+          "provider": "Argus Research",
+          "reportDate": "2023-08-04T17:44:26Z",
+          "reportTitle": "Amazon.com is the leading U.S. e-commerce retailer and among the top e-commerce sites globally. Amazon.com also provides Amazon Web Services (AWS), which is the global leader in cloud-based Infrastructure-as-a-Service (IaaS) platforms. The company's Prime membership platform is a key online retail differentiator, providing customers with free shipping (after an annual fee) along with exclusive media content (music, video, audible books, etc.). The company's Kindle reader and Alexa-based Echo and Dot digital voice assistants are category leaders.",
+          "reportType": "Analyst Report",
+          "targetPrice": 165,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "EPS and sales beat, better outlook"
+        },
+        {
+          "id": "ARGUS_37274_MarketUpdate_1691171066000",
+          "headHtml": "Market Update: ILMN, AAPL, AMZN, ECL, ETR, KIM, MDT, PRU, SQ",
+          "provider": "Argus Research",
+          "reportDate": "2023-08-04T17:44:26Z",
+          "reportTitle": "Stocks recouped some of their recent losses on Friday morning following the government's July employment report. The Labor Department said that the U.S. economy added 187,000 payroll jobs in July, up from a revised 185,000 in June but below the Reuters consensus of 200,000. The unemployment rate ticked lower to 3.5% from 3.6% in June, and wage growth was stronger than expected. Average hourly earnings rose 4.4% from the prior year, above the consensus forecast of 4.2%. The Dow rose 0.6%, the S&P 0.6%, and the Nasdaq 0.8%. Crude oil rose 1% to $82.50 per barrel, while gold rose $8 to $1977 per ounce.",
+          "reportType": "Market Update",
+          "tickers": [
+            "ETR",
+            "AAPL",
+            "PRU",
+            "ILMN",
+            "XYZ",
+            "MDT",
+            "AMZN",
+            "KIM",
+            "ECL"
+          ],
+          "title": "Stocks recouped some of their recent losses on Friday morning"
+        },
+        {
+          "id": "MS_LargeCapU.S.CorePickList_StockPicks_1691163098000",
+          "headHtml": "Large Cap US Pick List - August 2023",
+          "provider": "Morningstar",
+          "reportDate": "2023-08-04T15:31:38Z",
+          "reportTitle": "This pick list highlights constituents of the Morningstar US Large Cap Index that we believe offer investors the best risk-adjusted return prospects. Stocks of large-cap companies where neither growth nor value characteristics predominate. Stocks in the top 70% of the capitalization of the U.S. equity market are defined as large cap.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "DG",
+            "PNC",
+            "KHC",
+            "SLB",
+            "AMGN",
+            "PFE",
+            "TFC",
+            "SBUX",
+            "AMD",
+            "TRV",
+            "MDT",
+            "NSC",
+            "MO",
+            "SNOW",
+            "ADSK",
+            "HON",
+            "EL",
+            "AMT",
+            "NKE",
+            "EMR",
+            "MMM",
+            "AEP",
+            "GIS",
+            "MELI",
+            "JCI",
+            "PSX",
+            "NOW",
+            "XOM",
+            "BIIB",
+            "TGT",
+            "CVS",
+            "FI",
+            "CSCO",
+            "CTVA",
+            "C",
+            "VZ",
+            "CVX",
+            "F",
+            "MSFT",
+            "T",
+            "WFC",
+            "QCOM",
+            "RTX",
+            "DUK",
+            "BKNG",
+            "UBER",
+            "GD",
+            "PYPL",
+            "HUM",
+            "USB",
+            "CI",
+            "GM",
+            "CCI",
+            "ICE",
+            "GS",
+            "ECL",
+            "NEE",
+            "LMT",
+            "GILD",
+            "AMZN"
+          ],
+          "title": "Large Cap US Pick List - August 2023"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1691161742000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-08-04T15:09:02Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: AWS Stabilizing, Margins Strengthening, and E-Commerce Demand Improving"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1691115642000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-08-04T02:20:42Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Increased",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: AWS Stabilizing, Margins Strengthening, and E-commerce Demand Improving"
+        },
+        {
+          "id": "MS_1167555_StockPicks_1689983111000",
+          "headHtml": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover",
+          "provider": "Morningstar",
+          "reportDate": "2023-07-21T23:45:11Z",
+          "reportTitle": "In this edition, streaming services changing their channels; BRP looks promising; China's AI is calling; and Autoliv, Sirius XM, and American Express.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "BABA",
+            "NFLX",
+            "GOOG",
+            "GOOGL",
+            "AAPL",
+            "PARA",
+            "BWIN",
+            "BIDU",
+            "BAIDF",
+            "TCTZF",
+            "DIS",
+            "CMCSA",
+            "WBD",
+            "AXP",
+            "AMZN"
+          ],
+          "title": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover"
+        },
+        {
+          "id": "MS_LargeCapU.S.CorePickList_StockPicks_1689058924000",
+          "headHtml": "Large Cap US Pick List - July 2023",
+          "provider": "Morningstar",
+          "reportDate": "2023-07-11T07:02:04Z",
+          "reportTitle": "This pick list highlights constituents of the Morningstar US Large Cap Index that we believe offer investors the best risk-adjusted return prospects. Stocks of large-cap companies where neither growth nor value characteristics predominate. Stocks in the top 70% of the capitalization of the U.S. equity market are defined as large cap.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "DG",
+            "PNC",
+            "KHC",
+            "SLB",
+            "AMGN",
+            "PFE",
+            "TFC",
+            "SBUX",
+            "AMD",
+            "STZ",
+            "CME",
+            "MDT",
+            "NSC",
+            "MO",
+            "ADSK",
+            "SNOW",
+            "HON",
+            "EL",
+            "MU",
+            "AMT",
+            "NKE",
+            "EMR",
+            "MMM",
+            "AEP",
+            "JCI",
+            "MELI",
+            "PSX",
+            "XOM",
+            "BA",
+            "TGT",
+            "CVS",
+            "CSCO",
+            "FI",
+            "CTVA",
+            "C",
+            "CVX",
+            "D",
+            "VZ",
+            "INTU",
+            "F",
+            "T",
+            "WFC",
+            "QCOM",
+            "RTX",
+            "BDX",
+            "DUK",
+            "UBER",
+            "GD",
+            "BKNG",
+            "PYPL",
+            "HUM",
+            "BAC",
+            "USB",
+            "CI",
+            "GM",
+            "CCI",
+            "GS",
+            "ECL",
+            "GILD",
+            "AMZN"
+          ],
+          "title": "Large Cap US Pick List - July 2023"
+        },
+        {
+          "id": "MS_LargeCapU.S.CorePickList_StockPicks_1686155470000",
+          "headHtml": "Large Cap US Pick List - June 2023",
+          "provider": "Morningstar",
+          "reportDate": "2023-06-07T16:31:10Z",
+          "reportTitle": "This pick list highlights constituents of the Morningstar US Large Cap Index that we believe offer investors the best risk-adjusted return prospects. Stocks of large-cap companies where neither growth nor value characteristics predominate. Stocks in the top 70% of the capitalization of the U.S. equity market are defined as large cap.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "A",
+            "CVS",
+            "MO",
+            "CSCO",
+            "CTVA",
+            "C",
+            "D",
+            "LNG",
+            "BAC",
+            "ADSK",
+            "AMT",
+            "CCI",
+            "EMR",
+            "AEP",
+            "MMM",
+            "ECL",
+            "T",
+            "BDX",
+            "STZ",
+            "CNC",
+            "DUK",
+            "BKNG",
+            "AMZN"
+          ],
+          "title": "Large Cap US Pick List - June 2023"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1685487039000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-05-30T22:50:39Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 137,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Neutral",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: E-Commerce and Advertising Drive Good Quarter While AWS Decelerates Further"
+        },
+        {
+          "id": "ARGUS_36580_TechnicalAnalysis_1685012771000",
+          "headHtml": "Technical Assessment: Bearish in the Intermediate-Term",
+          "provider": "Argus Research",
+          "reportDate": "2023-05-25T11:06:11Z",
+          "reportTitle": "In past commentaries, we have talked about a potential U.S. Dollar Index (USD) rally, detailing its bearish implications for precious metals (GLD, SLV) and crypto (specifically Bitcoin and Ethereum). On Wednesday, the greenback continued its ascent, reaching its highest level since March 17. USD has bullishly pushed back above its 10- and 21-week exponential averages after losing them last November. At its recent low seven weeks ago, the greenback was slightly under its low from February 1, setting up both a bullish daily momentum divergence and a minor false breakdown.",
+          "reportType": "Technical Analysis",
+          "tickers": [
+            "DVN",
+            "AMZN"
+          ],
+          "title": "In past commentaries, we have talked about a potential U.S."
+        },
+        {
+          "id": "MS_LargeCapU.S.CorePickList_StockPicks_1683399660000",
+          "headHtml": "Large Cap US Pick List - May 2023",
+          "provider": "Morningstar",
+          "reportDate": "2023-05-06T19:01:00Z",
+          "reportTitle": "This pick list highlights constituents of the Morningstar US Large Cap Index that we believe offer investors the best risk-adjusted return prospects. Stocks of large-cap companies where neither growth nor value characteristics predominate. Stocks in the top 70% of the capitalization of the U.S. equity market are defined as large cap.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "CVS",
+            "MO",
+            "CTVA",
+            "C",
+            "CSCO",
+            "LNG",
+            "BAC",
+            "ADSK",
+            "CCI",
+            "EMR",
+            "MMM",
+            "AEP",
+            "ECL",
+            "CMCSA",
+            "STZ",
+            "AMD",
+            "SCHW",
+            "CNC",
+            "DUK",
+            "COF",
+            "BKNG",
+            "AMZN"
+          ],
+          "title": "Large Cap US Pick List - May 2023"
+        },
+        {
+          "id": "ARGUS_2710_AnalystReport_1682703863000",
+          "headHtml": "Analyst Report: Amazon.com Inc.",
+          "provider": "Argus Research",
+          "reportDate": "2023-04-28T17:44:23Z",
+          "reportTitle": "Amazon.com is the leading U.S. e-commerce retailer and among the top e-commerce sites globally. Amazon.com also provides Amazon Web Services (AWS), which is the global leader in cloud-based Infrastructure-as-a-Service (IaaS) platforms. The company's Prime membership platform is a key online retail differentiator, providing customers with free shipping (after an annual fee) along with exclusive media content (music, video, audible books, etc.). The company's Kindle reader and Alexa-based Echo and Dot digital voice assistants are category leaders.",
+          "reportType": "Analyst Report",
+          "targetPrice": 165,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "EPS and sales beat, caution on AWS"
+        },
+        {
+          "id": "ARGUS_36316_MarketUpdate_1682702963000",
+          "headHtml": "Market Update: ADP, AMZN, AVY, BX, HOG, INTC, ISRG, SKX, FBIN, META, AGNC",
+          "provider": "Argus Research",
+          "reportDate": "2023-04-28T17:29:23Z",
+          "reportTitle": "Stocks rose modestly on Friday morning, extending Thursday's rally. Exxon shares rose after the company reported strong 1Q earnings that topped the consensus forecast, though sales were down from the prior year. Chevron also posted strong earnings, helped by growth in its refining business. Amazon shares fell, despite strong first-quarter results, on concerns about slowing growth in the company's cloud business. The Dow rose 0.5%, the S&P 0.5%, and the Nasdaq 0.2%. Crude oil rose more than 2% to $76.50 per barrel, while gold traded near $1999 per ounce.",
+          "reportType": "Market Update",
+          "tickers": [
+            "SKX",
+            "FBIN",
+            "META",
+            "HOG",
+            "AVY",
+            "AGNC",
+            "BX",
+            "INTC",
+            "ISRG",
+            "ADP",
+            "AMZN"
+          ],
+          "title": "Stocks rose modestly on Friday morning, extending Thursday's rally. Exxon"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1682653756000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-04-28T03:49:16Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 137,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Amazon Earnings: E-Commerce and Advertising Drive Good Quarter While AWS Decelerates Further"
+        },
+        {
+          "id": "ARGUS_36247_ThematicPortfolio_1682084358000",
+          "headHtml": "The Argus Innovation Model Portfolio",
+          "provider": "Argus Research",
+          "reportDate": "2023-04-21T13:39:18Z",
+          "reportTitle": "Innovation may be hard to define. But to borrow from former U.S. Supreme Court Justice Potter Stewart, you know it when you see it. The United States economy is full of innovation. It has to be. Manufacturing industries that dominated the economy decades ago - textiles, televisions, even automobiles to a large degree - have moved overseas, where labor and materials costs are lower. Yet the U.S. economy, even during the pandemic and the current period of high inflation, has expanded to record levels. If U.S. corporations weren't innovating, creating new products (such as vaccines) and services (such as Zoom calls) and moving into new markets and applications, the domestic economy would not be growing, and capital would not be flooding into the country. The current high level of the U.S. dollar relative to currencies around the world attests to the confidence that global investors have in the durable and innovative U.S. economy.",
+          "reportType": "Thematic Portfolio",
+          "tickers": [
+            "GOOGL",
+            "AMAT",
+            "AAPL",
+            "CVX",
+            "ADI",
+            "URI",
+            "COST",
+            "V",
+            "LLY",
+            "SPGI",
+            "PANW",
+            "NVDA",
+            "META",
+            "NOC",
+            "BAC",
+            "EL",
+            "PWR",
+            "MCD",
+            "TECH",
+            "HOLX",
+            "MCK",
+            "TMO",
+            "ADBE",
+            "SCHW",
+            "MCHP",
+            "ISRG",
+            "AMZN",
+            "ODFL"
+          ],
+          "title": "The Argus Innovation Model Portfolio"
+        },
+        {
+          "id": "MS_LargeCapU.S.CorePickList_StockPicks_1680813044000",
+          "headHtml": "Large Cap US Pick List - April 2023",
+          "provider": "Morningstar",
+          "reportDate": "2023-04-06T20:30:44Z",
+          "reportTitle": "This pick list highlights constituents of the Morningstar US Large Cap Index that we believe offer investors the best risk-adjusted return prospects. Stocks of large-cap companies where neither growth nor value characteristics predominate. Stocks in the top 70% of the capitalization of the U.S. equity market are defined as large cap.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "CVS",
+            "MO",
+            "C",
+            "CTVA",
+            "BAC",
+            "AMT",
+            "CSX",
+            "EMR",
+            "MMM",
+            "AEP",
+            "ECL",
+            "CMCSA",
+            "XOM",
+            "BDX",
+            "AMD",
+            "BRK-B",
+            "STZ",
+            "CNC",
+            "DUK",
+            "COF",
+            "BKNG",
+            "AMZN"
+          ],
+          "title": "Large Cap US Pick List - April 2023"
+        },
+        {
+          "id": "MS_LargeCapU.S.CorePickList_StockPicks_1678275025000",
+          "headHtml": "Large Cap US Pick List - March 2023",
+          "provider": "Morningstar",
+          "reportDate": "2023-03-08T11:30:25Z",
+          "reportTitle": "This pick list highlights constituents of the Morningstar US Large Cap Index that we believe offer investors the best risk-adjusted return prospects. Stocks of large-cap companies where neither growth nor value characteristics predominate. Stocks in the top 70% of the capitalization of the U.S. equity market are defined as large cap.",
+          "reportType": "Stock Picks",
+          "tickers": [
+            "CVS",
+            "MO",
+            "CTVA",
+            "C",
+            "AMT",
+            "EMR",
+            "AEP",
+            "MMM",
+            "ECL",
+            "CMCSA",
+            "BX",
+            "BDX",
+            "AMD",
+            "BRK-B",
+            "STZ",
+            "CNC",
+            "DUK",
+            "COF",
+            "BKNG",
+            "AMZN",
+            "BA"
+          ],
+          "title": "Large Cap US Pick List - March 2023"
+        },
+        {
+          "id": "ARGUS_2710_AnalystReport_1675451126000",
+          "headHtml": "Analyst Report: Amazon.com Inc.",
+          "provider": "Argus Research",
+          "reportDate": "2023-02-03T19:05:26Z",
+          "reportTitle": "Amazon.com is the leading U.S. e-commerce retailer and among the top e-commerce sites globally. Amazon.com also provides Amazon Web Services (AWS), which is the global leader in cloud-based Infrastructure-as-a-Service (IaaS) platforms. The company's Prime membership platform is a key online retail differentiator, providing customers with free shipping (after an annual fee) along with exclusive media content (music, video, audible books, etc.). The company's Kindle reader and Alexa-based Echo and Dot digital voice assistants are category leaders.",
+          "reportType": "Analyst Report",
+          "targetPrice": 165,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Cautious guidance amid inflation, post-pandemic slowdown"
+        },
+        {
+          "id": "ARGUS_35490_MarketUpdate_1675451126000",
+          "headHtml": "Market Update: AAPL, AMZN, BA, BYD, HSY, SKX, WEC, BMI, GM",
+          "provider": "Argus Research",
+          "reportDate": "2023-02-03T19:05:26Z",
+          "reportTitle": "Stocks were mixed on Friday morning after a much better-than-expected jobs report raised prospects for additional Fed rate hikes. The Labor Department reported that the U.S. economy added 517,000 payroll jobs in January, up from 260,000 in December and well above the Reuters consensus forecast of 185,000. The official unemployment rate ticked down to 3.4% from 3.5% in December. The Dow rose 0.2%, the S&P fell 0.1%, and the Nasdaq rose 0.1%. Crude oil fell 1% to $75 per barrel, while gold dropped more than 2% to $1880 per ounce.",
+          "reportType": "Market Update",
+          "tickers": [
+            "SKX",
+            "AAPL",
+            "WEC",
+            "GM",
+            "BYD",
+            "AMZN",
+            "BA",
+            "HSY",
+            "BMI"
+          ],
+          "title": "Stocks were mixed on Friday morning after a much better-than-expected jobs report"
+        },
+        {
+          "id": "ARGUS_35490_MarketUpdate_1675450226000",
+          "headHtml": "Market Update: AAPL, AMZN, BA, BYD, HSY, SKX, WEC, BMI, GM",
+          "provider": "Argus Research",
+          "reportDate": "2023-02-03T18:50:26Z",
+          "reportTitle": "Stocks extended their Fed-driven rally on Thursday, led by strong gains in the Communication Services, Consumer Discretionary, and Technology sectors. Meta Platforms jumped 23%, despite disappointing 4Q earnings, as investors focused on the company's better-than-expected revenue, cost-cutting efforts, and new share buyback plan. On the employment front, first-time claims for state unemployment benefits fell by 3,000 to 183,000 for the week ended January 28, below the Reuters consensus forecast of 200,000. The data came ahead of the government's January employment report on Friday morning. The consensus estimate calls for 185,000 new payroll jobs, down from 223,000 in December, and an unemployment rate of 3.6%, up from 3.5% a month earlier. The Dow fell 0.11%, the S&P rose 1.47%, and the Nasdaq soared 3.25%. Crude oil traded near $76 per barrel, while gold fell $16 to $1927 per ounce.",
+          "reportType": "Market Update",
+          "tickers": [
+            "SKX",
+            "AAPL",
+            "WEC",
+            "GM",
+            "BYD",
+            "AMZN",
+            "BA",
+            "HSY",
+            "BMI"
+          ],
+          "title": "Stocks extended their Fed-driven rally on Thursday, led by strong gains"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1675446022000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-02-03T17:40:22Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 137,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Solid Results for Amazon With Continued AWS Deceleration in January; Outlook Light; FVE Cut to $137"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1675401559000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-02-03T05:19:19Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 137,
+          "targetPriceStatus": "Decreased",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Solid Results for Amazon With Continued AWS Deceleration in January; Outlook Light; FVE Cut to $137"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1673480974000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-01-11T23:49:34Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Near-Term Pressure Not Unique to Amazon; Well-Positioned for Long-Term Growth; FVE Cut to $150"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1672876686000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-01-04T23:58:06Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Near-Term Pressure Not Unique to Amazon; Well-Positioned for Long-Term Growth; FVE Cut to $150"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1672790398000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2023-01-03T23:59:58Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Near-Term Pressure Not Unique to Amazon; Well-Positioned for Long-Term Growth; FVE Cut to $150"
+        },
+        {
+          "id": "MS_0P000000B7_AnalystReport_1671493483000",
+          "headHtml": "Analyst Report: Amazon.com, Inc.",
+          "provider": "Morningstar",
+          "reportDate": "2022-12-19T23:44:43Z",
+          "reportTitle": "Amazon is a leading online retailer and one of the highest-grossing e-commerce aggregators, with $386 billion in net sales and approximately $578 billion in estimated physical/digital online gross merchandise volume in 2021. Retail-related revenue represents approximately 80% of the total, followed by Amazon Web Services' cloud computing, storage, database, and other offerings (10%-15%), advertising services (5%), and other. International segments constitute 25%-30% of Amazon's non-AWS sales, led by Germany, the United Kingdom, and Japan. ",
+          "reportType": "Analyst Report",
+          "targetPrice": 150,
+          "targetPriceStatus": "Maintained",
+          "investmentRating": "Bullish",
+          "tickers": [
+            "AMZN"
+          ],
+          "title": "Near-Term Pressure Not Unique to Amazon; Well-Positioned for Long-Term Growth; FVE Cut to $150"
+        }
+      ],
+      "sigDevs": [
+        {
+          "headline": "Amazon India Says Co Require Sellers Of All Products To Comply With Applicable Laws, Regulations, Amazon Policies",
+          "date": "2025-03-20"
+        }
+      ],
+      "secReports": [
+        {
+          "id": "0001018724-25-000004_1018724",
+          "type": "Periodic Financial Reports",
+          "title": "10-K : Periodic Financial Reports",
+          "description": "Annual report pursuant to Section 13 and 15(d)",
+          "filingDate": 1738886400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872425000004/thumbnail.png",
+          "formType": "10-K"
+        },
+        {
+          "id": "0001018724-25-000002_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1738800000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872425000002/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001104659-24-115387_1018724",
+          "type": "Tender Offer/Acquisition Reports",
+          "title": "SC 13G/A : Tender Offer/Acquisition Reports",
+          "description": "Schedule filed to report acquisition of beneficial ownership of 5% or more of a class of equity securities by passive investors and certain institutions",
+          "filingDate": 1730937600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0000894081/000110465924115387/thumbnail.png",
+          "formType": "SC 13G/A"
+        },
+        {
+          "id": "0001018724-24-000161_1018724",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1730419200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872424000161/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0001018724-24-000158_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1730332800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872424000158/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001018724-24-000130_1018724",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1722556800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872424000130/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0001018724-24-000128_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1722470400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872424000128/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001104659-24-065117_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1716508800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465924065117/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001104659-24-061143_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1715644800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465924061143/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001104659-24-057026_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1714694400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465924057026/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001104659-24-057037_1018724",
+          "type": "Proxy Statements",
+          "title": "DEFA14A : Proxy Statements",
+          "description": "Definitive additional proxy soliciting materials including Rule 14(a)(12) material. Note: Submission type DEFA14A can be filed as part of Form 8-K. For filers subject to 8-K filing requirements we recommend the use of the 8-K combined form type as the easiest method for fulfilling your filing requirement for both forms",
+          "filingDate": 1714694400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465924057037/thumbnail.png",
+          "formType": "DEFA14A"
+        },
+        {
+          "id": "0001018724-24-000083_1018724",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1714521600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872424000083/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0001018724-24-000081_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1714435200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872424000081/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001104659-24-045915_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1712793600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465924045915/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001104659-24-045913_1018724",
+          "type": "Proxy Statements",
+          "title": "DEFA14A : Proxy Statements",
+          "description": "Definitive additional proxy soliciting materials including Rule 14(a)(12) material. Note: Submission type DEFA14A can be filed as part of Form 8-K. For filers subject to 8-K filing requirements we recommend the use of the 8-K combined form type as the easiest method for fulfilling your filing requirement for both forms",
+          "filingDate": 1712793600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465924045913/thumbnail.png",
+          "formType": "DEFA14A"
+        },
+        {
+          "id": "0001104659-24-045917_1018724",
+          "type": "Annual Report to Shareholders",
+          "title": "ARS : Annual Report to Shareholders",
+          "description": "Annual report to security holders",
+          "filingDate": 1712793600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465924045917/thumbnail.png",
+          "formType": "ARS"
+        },
+        {
+          "id": "0001104659-24-045910_1018724",
+          "type": "Proxy Statements",
+          "title": "DEF 14A : Proxy Statements",
+          "description": "Definitive proxy statements",
+          "filingDate": 1712793600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465924045910/thumbnail.png",
+          "formType": "DEF 14A"
+        },
+        {
+          "id": "0001018724-24-000008_1018724",
+          "type": "Periodic Financial Reports",
+          "title": "10-K : Periodic Financial Reports",
+          "description": "Annual report pursuant to Section 13 and 15(d)",
+          "filingDate": 1706832000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872424000008/thumbnail.png",
+          "formType": "10-K"
+        },
+        {
+          "id": "0001018724-24-000006_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1706745600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872424000006/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001104659-24-008253_1018724",
+          "type": "Tender Offer/Acquisition Reports",
+          "title": "SC 13G/A : Tender Offer/Acquisition Reports",
+          "description": "Schedule filed to report acquisition of beneficial ownership of 5% or more of a class of equity securities by passive investors and certain institutions",
+          "filingDate": 1706572800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465924008253/thumbnail.png",
+          "formType": "SC 13G/A"
+        },
+        {
+          "id": "0001104659-23-113444_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1698796800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465923113444/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001018724-23-000018_1018724",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1698364800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872423000018/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0001018724-23-000016_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1698278400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872423000016/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001018724-23-000014_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1694563200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872423000014/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001018724-23-000012_1018724",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1691107200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872423000012/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0001018724-23-000010_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1691020800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872423000010/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001104659-23-065457_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1685059200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465923065457/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001018724-23-000008_1018724",
+          "type": "Periodic Financial Reports",
+          "title": "10-Q : Periodic Financial Reports",
+          "description": "Quarterly report pursuant to Section 13 or 15(d)",
+          "filingDate": 1682640000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872423000008/thumbnail.png",
+          "formType": "10-Q"
+        },
+        {
+          "id": "0001018724-23-000006_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1682553600000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872423000006/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001104659-23-044710_1018724",
+          "type": "Proxy Statements",
+          "title": "DEFA14A : Proxy Statements",
+          "description": "Definitive additional proxy soliciting materials including Rule 14(a)(12) material. Note: Submission type DEFA14A can be filed as part of Form 8-K. For filers subject to 8-K filing requirements we recommend the use of the 8-K combined form type as the easiest method for fulfilling your filing requirement for both forms",
+          "filingDate": 1681344000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465923044710/thumbnail.png",
+          "formType": "DEFA14A"
+        },
+        {
+          "id": "0001104659-23-044708_1018724",
+          "type": "Proxy Statements",
+          "title": "DEF 14A : Proxy Statements",
+          "description": "Definitive proxy statements",
+          "filingDate": 1681344000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465923044708/thumbnail.png",
+          "formType": "DEF 14A"
+        },
+        {
+          "id": "0001104659-23-044716_1018724",
+          "type": "Annual Report to Shareholders",
+          "title": "ARS : Annual Report to Shareholders",
+          "description": "Annual report to security holders",
+          "filingDate": 1681344000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465923044716/thumbnail.png",
+          "formType": "ARS"
+        },
+        {
+          "id": "0001104659-23-044715_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1681344000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465923044715/thumbnail.png",
+          "formType": "8-K"
+        },
+        {
+          "id": "0001104659-23-018528_1018724",
+          "type": "Tender Offer/Acquisition Reports",
+          "title": "SC 13G/A : Tender Offer/Acquisition Reports",
+          "description": "Schedule filed to report acquisition of beneficial ownership of 5% or more of a class of equity securities by passive investors and certain institutions",
+          "filingDate": 1675987200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001828108/000110465923018528/thumbnail.png",
+          "formType": "SC 13G/A"
+        },
+        {
+          "id": "0001104659-23-018512_1018724",
+          "type": "Tender Offer/Acquisition Reports",
+          "title": "SC 13G/A : Tender Offer/Acquisition Reports",
+          "description": "Schedule filed to report acquisition of beneficial ownership of 5% or more of a class of equity securities by passive investors and certain institutions",
+          "filingDate": 1675987200000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465923018512/thumbnail.png",
+          "formType": "SC 13G/A"
+        },
+        {
+          "id": "0001104659-23-015050_1018724",
+          "type": "Tender Offer/Acquisition Reports",
+          "title": "SC 13G/A : Tender Offer/Acquisition Reports",
+          "description": "Schedule filed to report acquisition of beneficial ownership of 5% or more of a class of equity securities by passive investors and certain institutions",
+          "filingDate": 1675900800000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000110465923015050/thumbnail.png",
+          "formType": "SC 13G/A"
+        },
+        {
+          "id": "0001018724-23-000004_1018724",
+          "type": "Periodic Financial Reports",
+          "title": "10-K : Periodic Financial Reports",
+          "description": "Annual report pursuant to Section 13 and 15(d)",
+          "filingDate": 1675382400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872423000004/thumbnail.png",
+          "formType": "10-K"
+        },
+        {
+          "id": "0001193125-23-023436_1018724",
+          "type": "Offering Registrations",
+          "title": "S-3ASR : Offering Registrations",
+          "description": "Automatic shelf registration statement of securities of well-known seasoned issuers",
+          "filingDate": 1675382400000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000119312523023436/thumbnail.png",
+          "formType": "S-3ASR"
+        },
+        {
+          "id": "0001018724-23-000002_1018724",
+          "type": "Corporate Changes & Voting Matters",
+          "title": "8-K : Corporate Changes & Voting Matters",
+          "description": "Current report filing",
+          "filingDate": 1675296000000,
+          "snapshotUrl": "https://cdn.yahoofinance.com/prod/sec-reports-thumbnails/0001018724/000101872423000002/thumbnail.png",
+          "formType": "8-K"
+        }
+      ]
+    },
+    "error": null
+  }
+}

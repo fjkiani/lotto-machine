@@ -103,642 +103,100 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 - For options data, use RapidAPI directly instead of the YahooFinanceConnector class to avoid compatibility issues with the OptionChainQuote initialization
 - When processing options data from RapidAPI, create a mapping of strikes to straddles for easier lookup and processing of call and put data
 - When implementing the `display_analysis` function in Streamlit, ensure it combines all necessary display components (market overview, ticker analysis, technical insights, learning points) to avoid NameError exceptions
+- When using RapidAPI endpoints, ensure to test endpoints first as the actual path may differ from documentation
+- For news APIs, carefully examine the actual response structure as field names can vary across different providers
+- When implementing general news functionality, some APIs require a symbol parameter even for general news, so use a broad market index (e.g., SPY) as a default
+- Format date strings correctly from API responses by checking the actual format (e.g., space-separated vs T-separated datetime)
+- When integrating Yahoo Finance Insights API, the response structure includes nested objects (e.g., `technicalEvents.shortTerm.action`) requiring careful extraction of values
+- For technical indicators, use Streamlit's `st.metric` component to display values with optional delta values to enhance visualization
+- When handling financial API data, ensure proper type conversion when using values from APIs for calculations (e.g., casting string values to float)
+- In Streamlit visualizations with Plotly, set appropriate axis properties (`showticklabels`, `showgrid`, `zeroline`) to create cleaner charts
+- When displaying technical levels (support, resistance), use different line styles (solid, dash, dot) and colors to differentiate between levels
+- When integrating new features into an existing Streamlit app, ensure all data is properly passed through the session state management system
+- For LLM prompt engineering, structure technical analysis prompts to include specific timeframes and technical indicators to get more detailed responses
+- When working with Next.js, import Plotly.js dynamically with the `dynamic` import to avoid SSR issues, as it relies on browser APIs
+- In Next.js API routes, always validate input parameters and send appropriate error responses with status codes
+- For TypeScript integration with third-party libraries that don't have TypeScript declarations, create custom declaration files (.d.ts) in the types directory
+- When migrating REST API connectors from Python to TypeScript, ensure careful transformation of deeply nested response objects, with proper null/undefined checks
+- When designing scalable applications, use constant arrays or configuration objects for options that may need to be expanded in the future (like analysis types, providers, and time periods)
+- When accessing nested properties in API responses, ensure property names match exactly with the TypeScript interface definitions and use optional chaining for potentially undefined values
+- For LLM-based applications, add detailed error handling with fallback values for all possible response fields to ensure graceful degradation
+- When working with LLM APIs, implement unified interfaces to support multiple providers (OpenAI, Gemini, Anthropic) with standardized request/response formats for easier switching between models
+- For specialized financial analysis, use domain-specific prompts with detailed system instructions tailored to each analysis type
+- Implement structured multi-agent architecture for complex analysis tasks, with separate specialized LLM agents for different domains (technical analysis, options analysis, etc.)
+- When orchestrating multiple LLM agents, implement weighted confidence scoring to resolve contradictions and generate unified analysis
+- For JSON response extraction from LLMs, include fallback parsing logic to handle cases where the JSON is embedded within text
+- When implementing options analysis, ensure proper data preparation before sending to the LLM by transforming the options chain data into a format the LLM can effectively analyze
+- For options data visualization, support both calls and puts in a tabbed interface that allows users to easily toggle between different views
+- Add multiple risk tolerance levels (low, medium, high) when providing options strategy recommendations to cater to different investor profiles
+- When handling options API responses, add fallback mechanisms for various response formats since LLMs can sometimes vary their output structure
+- For complex financial UIs with multiple data components, use a card-based layout with clear sections for different types of analysis (market conditions, strategies, reasoning)
+- When working with RapidAPI Yahoo Finance endpoints, always include the `/api` prefix in the path (e.g., `/api/stock/get-options` instead of `/stock/get-options`) as verified from working Streamlit implementation
+- Be cautious of stray console.log statements, especially at the end of files, as they can cause ReferenceError if they reference variables out of scope
+- In TypeScript, add explicit interface definitions for complex objects when using forEach/map/find to avoid 'implicitly has an any type' errors
+- Always test API endpoints directly using curl or similar tools to verify the correct URL structure when experiencing 404 errors
 
 # Scratchpad
 
-## Current Task: Integrating Price Target Verification into streamlit_app_llm.py
+## Options Analysis Feature Debugging and Enhancement
 
-### Overview
-The goal is to integrate the price target verification system into streamlit_app_llm.py to enable tracking and verification of price targets generated by the LLM analysis.
+### Task Overview
+We needed to debug and fix the Options Analysis feature in the Next.js application which was failing to fetch options chain data from the RapidAPI Yahoo Finance endpoint.
 
-### Implementation Plan
+### Issues Identified and Fixed
+1. **Incorrect API Endpoint Path**
+   - Problem: The endpoint path `/stock/get-options` was incorrect
+   - Fix: Updated to `/api/stock/get-options` based on Python implementation and successful API test
+   - Status: ✅ Fixed
 
-#### 1. Import and Setup
-[ ] Add necessary imports:
-   - Import price target verification modules
-   - Import UI components for verification display
-   - Update session state initialization
+2. **Stray Console.log Statement**
+   - Problem: A reference error was occurring due to a stray console.log at the end of api.ts
+   - Fix: Removed the problematic statement
+   - Status: ✅ Fixed
 
-#### 2. Enhance LLM Analysis
-[ ] Modify analyze_with_gemini function:
-   - Ensure price targets are included in the output format
-   - Add timeframe specifications for targets
-   - Include confidence levels for predictions
+3. **TypeScript Type Errors**
+   - Problem: Several 'implicitly has an any type' errors in options-chain.ts
+   - Fix: Added proper TypeScript interfaces for OptionDate and OptionStraddleData
+   - Status: ✅ Fixed
 
-#### 3. Add Verification Display
-[ ] Create new display functions:
-   - display_price_target_verification(ticker)
-   - display_prediction_timeline(ticker)
-   - Integrate with existing display_memory_enhanced_analysis
+### Current Status
+The core options analysis feature is now working properly. We've fixed:
 
-#### 4. Update Main UI
-[ ] Enhance the main UI:
-   - Add verification tab in the main interface
-   - Add timeline visualization tab
-   - Include accuracy metrics in the analysis display
+1. **API Integration:**
+   - ✅ Corrected RapidAPI endpoint path
+   - ✅ Fixed the error in the API utility file
+   - ✅ Added proper TypeScript typings
 
-#### 5. Integration Points
-[ ] Connect with existing functionality:
-   - Store LLM-generated predictions in trend_analysis table
-   - Trigger verification checks during analysis updates
-   - Update historical analysis display with verification results
-
-#### 6. Testing and Validation
-[ ] Test the integration:
-   - Verify data flow from LLM to verification system
-   - Test UI components with sample data
-   - Validate accuracy calculations
+2. **Data Structure:**
+   - ✅ Options chain data is now correctly fetched and transformed
+   - ✅ The API returns proper JSON data with complete options chain information
+   - ✅ Type definitions match the actual data structure
 
 ### Next Steps
-1. Start with importing necessary modules and updating session state
-2. Modify the LLM analysis function to include required prediction data
-3. Implement the verification display components
-4. Update the main UI to include the new functionality
-5. Test the complete integration
-
-## Next Steps
-[ ] Enhance the initial analysis with historical data
-  [ ] Add support for fetching historical price data
-  [ ] Implement trend analysis over different timeframes
-  [ ] Add technical indicator calculations (RSI, MACD, etc.)
-  [ ] Create visualization of historical trends
-
-[ ] Implement backtesting for strategies
-  [ ] Create backtesting framework for recommended strategies
-  [ ] Add performance metrics and visualization
-  [ ] Compare strategies generated by different models
-  [ ] Implement optimization based on historical performance
-
-## System Architecture Plan
-
-### 1. Data Ingestion Layer
-[ ] Create a unified data ingestion framework
-  [ ] Design abstract base class for API connectors
-  [ ] Implement Economic Calendar API connector
-  [ ] Implement Yahoo Finance API connector
-  [ ] Add options data fetching capabilities
-  [ ] Implement rate limiting and error handling
-
-### 2. Data Storage Layer
-[ ] Design a flexible data storage system
-  [ ] Create data models for different types of financial data
-  [ ] Implement metadata tagging system
-  [ ] Add keyword extraction and indexing
-  [ ] Design caching mechanism for API responses
-  [ ] Implement data versioning for historical analysis
-
-### 3. Agent Enhancement
-[ ] Upgrade existing agents with new capabilities
-  [ ] Add macroeconomic analysis to fundamental agents
-  [ ] Enhance sentiment agent with economic event sentiment
-  [ ] Create new options analysis agent
-  [ ] Implement market condition evaluation (overbought/oversold)
-  [ ] Add entry/exit point optimization
-
-### 4. Options Analysis Module
-[ ] Build specialized options analysis capabilities
-  [ ] Implement Black-Scholes model for options pricing
-  [ ] Create Greeks calculator (Delta, Gamma, Theta, Vega, Rho)
-  [ ] Design option chain visualization tools
-  [ ] Add implied volatility surface analysis
-  [ ] Implement options strategy evaluation
-
-### 5. Strategy Optimization
-[ ] Create a strategy optimization framework
-  [ ] Design scoring system for strategy evaluation
-  [ ] Implement backtesting for options strategies
-  [ ] Add risk-adjusted return calculations
-  [ ] Create portfolio optimization with options hedging
-  [ ] Implement strategy comparison visualization
-
-## Implementation Approach
-
-### Phase 1: Data Infrastructure
-1. First, we'll build the data ingestion and storage infrastructure:
-   - Create `src/data/connectors/` directory for API connectors
-   - Implement base connector class with common functionality
-   - Add specific connectors for each API source
-   - Design data models in `src/data/models.py`
-   - Implement metadata system in `src/data/metadata.py`
-
-2. Data models needed:
-   - EconomicEvent (date, event_name, actual, forecast, previous, impact)
-   - StockPrice (ticker, date, open, high, low, close, volume)
-   - OptionChain (ticker, expiration_date, strikes, calls, puts)
-   - OptionContract (contract_type, strike, expiration, bid, ask, volume, open_interest, greeks)
-
-### Phase 2: Options Analysis
-1. Create new modules for options analysis:
-   - `src/analysis/options.py` - Core options pricing and Greeks calculations
-   - `src/analysis/volatility.py` - Volatility analysis and surface modeling
-   - `src/analysis/strategies.py` - Options strategy evaluation
-
-2. Key functions to implement:
-   - calculate_option_price(S, K, T, r, sigma, option_type)
-   - calculate_greeks(option, underlying_price)
-   - evaluate_market_conditions(ticker, timeframe)
-   - find_optimal_entry_exit(ticker, strategy, risk_tolerance)
-
-### Phase 3: Agent Enhancement
-1. Enhance existing agents:
-   - Update `src/agents/fundamentals.py` to incorporate economic data
-   - Enhance `src/agents/sentiment.py` to analyze economic event sentiment
-   - Create new `src/agents/options_analyst.py` for options-specific analysis
-   - Update `src/agents/risk_manager.py` to handle options risk
-
-2. Create new agent:
-   - `src/agents/options_strategist.py` - Specialized in options strategies
-
-### Phase 4: Strategy Optimization
-1. Enhance backtester to support options:
-   - Update `src/backtester.py` to handle options strategies
-   - Add options-specific performance metrics
-   - Implement visualization for options strategy performance
-
-2. Create strategy optimizer:
-   - `src/optimizer.py` - Compare and rank different strategies
-   - Add risk-adjusted return calculations
-   - Implement portfolio optimization with options
-
-## Technical Considerations
-
-1. **API Rate Limits**: 
-   - Implement caching to reduce API calls
-   - Add exponential backoff for retries
-   - Consider batch requests where possible
-
-2. **Data Storage**:
-   - Use SQLite for local development
-   - Consider PostgreSQL for production
-   - Implement efficient indexing for keyword searches
-
-3. **Computational Efficiency**:
-   - Use NumPy/SciPy for options calculations
-   - Consider parallel processing for backtesting
-   - Implement lazy loading for large datasets
-
-4. **Dependencies**:
-   - yfinance for Yahoo Finance data
-   - pandas-datareader for economic data
-   - scipy for mathematical functions
-   - py_vollib for options pricing
-   - matplotlib/seaborn for visualization
-
-## Next Steps
-1. Enhance the initial analysis with historical data
-2. Integrate options analysis with deep reasoning
-3. Implement backtesting for strategies generated by the enhanced analysis pipeline
-
-## Memory-Enhanced Chatbot Implementation
-
-### 1. Overview and Architecture
-
-We'll implement a memory-enhanced chatbot that can reference all our analysis data, including technical analysis, options chains, support/resistance levels, and historical predictions. This will create a powerful assistant that can provide context-aware financial insights based on both current and historical data.
-
-#### 1.1 Core Components
-[ ] Vector Database for semantic search
-[ ] Structured Database for time-series and relational data
-[ ] Memory Manager for context management
-[ ] Retrieval System for finding relevant information
-[ ] Response Generator using Google Gemini
-[ ] User Interface in Streamlit
-
-### 2. Data Storage Strategy
-
-#### 2.1 Hybrid Storage Approach
-[ ] **Vector Database (for semantic search)**
-  [ ] Store analysis summaries, reasoning, and textual insights
-  [ ] Index by ticker, date, analysis type, and semantic content
-  [ ] Enable similarity search for finding relevant past analyses
-  [ ] Technology options: Chroma, Qdrant, or Pinecone
-
-[ ] **Structured Database (for time-series and relational data)**
-  [ ] Store numerical data: prices, technical indicators, options data
-  [ ] Maintain support/resistance levels with timestamps
-  [ ] Track prediction outcomes and accuracy metrics
-  [ ] Technology options: SQLite (development), PostgreSQL (production)
-
-[ ] **File System (for raw data and charts)**
-  [ ] Store raw API responses for reproducibility
-  [ ] Save generated charts and visualizations
-  [ ] Maintain JSON analysis results
-  [ ] Organize by ticker/date for easy retrieval
-
-#### 2.2 Data Schema Design
-[ ] **Analysis Collection**
-  [ ] Ticker, timestamp, analysis_type, model_used
-  [ ] Full analysis text, summary, key points
-  [ ] Confidence scores, sentiment ratings
-  [ ] Vector embeddings of analysis content
-
-[ ] **Technical Indicators Collection**
-  [ ] Ticker, timestamp, timeframe
-  [ ] RSI, MACD, Bollinger Bands values
-  [ ] Moving averages, volume indicators
-  [ ] Trend strength and direction
-
-[ ] **Support/Resistance Collection**
-  [ ] Ticker, timestamp, timeframe
-  [ ] Price levels (strong/weak support/resistance)
-  [ ] Confidence scores for each level
-  [ ] Duration of level validity
-  [ ] Historical tests of each level (bounces/breaks)
-
-[ ] **Options Data Collection**
-  [ ] Ticker, timestamp, expiration dates
-  [ ] Strike prices, call/put prices
-  [ ] Greeks, implied volatility
-  [ ] Open interest, volume
-  [ ] Put-call ratios
-
-[ ] **Prediction Tracking Collection**
-  [ ] Prediction ID, ticker, timestamp
-  [ ] Predicted price targets and timeframes
-  [ ] Actual outcomes (hit/miss)
-  [ ] Confidence scores vs. actual accuracy
-
-### 3. Retrieval and Memory Management
-
-#### 3.1 Context-Aware Retrieval System
-[ ] **Multi-stage Retrieval Pipeline**
-  [ ] Query understanding (identify ticker, timeframe, analysis type)
-  [ ] Semantic search for relevant analyses
-  [ ] Structured data lookup for specific metrics
-  [ ] Recency-based filtering and ranking
-  [ ] Relevance scoring and result merging
-
-[ ] **Memory Management**
-  [ ] Short-term conversation memory (recent exchanges)
-  [ ] Medium-term session memory (current analysis focus)
-  [ ] Long-term knowledge base (all historical analyses)
-  [ ] Adaptive context window based on conversation flow
-
-[ ] **Cross-Reference System**
-  [ ] Link related analyses across time periods
-  [ ] Connect technical analysis with options data
-  [ ] Map predictions to outcomes
-  [ ] Identify contradictions or confirmations between analyses
-
-#### 3.2 Retrieval Augmented Generation (RAG)
-[ ] **Enhanced RAG Implementation**
-  [ ] Query-specific retrieval from vector and structured databases
-  [ ] Dynamic prompt construction with retrieved context
-  [ ] Fact-grounding with numerical data
-  [ ] Citation of sources and timestamps
-  [ ] Confidence scoring based on data recency and relevance
-
-[ ] **Specialized Financial RAG Features**
-  [ ] Time-aware retrieval (prioritize recent data for volatile metrics)
-  [ ] Trend-aware context (include data showing pattern development)
-  [ ] Multi-timeframe analysis (combine insights from different timeframes)
-  [ ] Cross-ticker correlation (include relevant data from related stocks)
-
-### 4. LLM Integration with Google Gemini
-
-#### 4.1 Gemini Integration
-[ ] **Model Selection and Configuration**
-  [ ] Use Gemini 1.5 Pro for complex financial reasoning
-  [ ] Fallback to Gemini 1.5 Flash for faster responses
-  [ ] Configure system prompts for financial analysis expertise
-  [ ] Set appropriate temperature for balanced creativity/accuracy
-
-[ ] **Prompt Engineering**
-  [ ] Design specialized prompts for different analysis types
-  [ ] Create templates for incorporating retrieved context
-  [ ] Develop techniques for numerical reasoning with financial data
-  [ ] Implement chain-of-thought prompting for complex analyses
-
-#### 4.2 Response Generation
-[ ] **Response Formatting**
-  [ ] Structured output for different query types
-  [ ] Visualization suggestions based on data type
-  [ ] Confidence indicators for different parts of response
-  [ ] Clear attribution of sources and timestamps
-
-[ ] **Explanation Generation**
-  [ ] Explain reasoning behind recommendations
-  [ ] Clarify contradictions between different analyses
-  [ ] Provide context for changing predictions over time
-  [ ] Generate natural language summaries of technical indicators
-
-### 5. User Interface and Interaction
-
-#### 5.1 Streamlit Chatbot Interface
-[ ] **Chat Interface Components**
-  [ ] Message history display with formatting for different message types
-  [ ] Input area with suggestions and autocomplete
-  [ ] Context panel showing active memory elements
-  [ ] Quick action buttons for common queries
-
-[ ] **Visualization Integration**
-  [ ] Dynamic chart generation based on conversation
-  [ ] Interactive elements for exploring data points
-  [ ] Side-by-side comparison of historical vs. current analysis
-  [ ] Timeline view of changing predictions
-
-#### 5.2 Enhanced User Experience
-[ ] **Conversation Management**
-  [ ] Save and load conversation sessions
-  [ ] Export analysis summaries and insights
-  [ ] Bookmark important findings
-  [ ] Set alerts for prediction timeframes
-
-[ ] **Personalization Features**
-  [ ] User preferences for analysis depth and risk tolerance
-  [ ] Watchlist integration for quick access to favorite tickers
-  [ ] Customizable dashboard with preferred metrics
-  [ ] Learning from user feedback and interactions
-
-### 6. Implementation Plan
-
-#### Phase 1: Data Storage Infrastructure
-1. Set up vector database (Chroma) for storing analysis text
-2. Extend SQLite database schema for structured financial data
-3. Create data ingestion pipeline for all analysis types
-4. Implement embedding generation for vector storage
-5. Develop data validation and cleaning processes
-
-#### Phase 2: Retrieval System
-1. Build query understanding module
-2. Implement semantic search against vector database
-3. Create structured data lookup functions
-4. Develop cross-reference system for related data
-5. Build context management system for conversation memory
-
-#### Phase 3: Gemini Integration
-1. Set up Google Gemini API integration
-2. Design and test specialized financial prompts
-3. Implement RAG pipeline with dynamic context retrieval
-4. Create response formatting and post-processing
-5. Develop fallback mechanisms for API limitations
-
-#### Phase 4: Streamlit Interface
-1. Build basic chat interface with message history
-2. Implement dynamic visualization generation
-3. Create context panel showing active memory
-4. Add user preference and personalization features
-5. Develop session management and export functionality
-
-#### Phase 5: Testing and Optimization
-1. Conduct comprehensive testing with various query types
-2. Optimize retrieval performance for large datasets
-3. Fine-tune prompts for accuracy and relevance
-4. Implement user feedback collection and analysis
-5. Develop automated evaluation metrics for response quality
-
-### 7. Technical Considerations
-
-1. **Embedding Models**:
-   - Use text-embedding-3-large from OpenAI for high-quality embeddings
-   - Consider sentence-transformers for local embedding generation
-   - Implement batch processing for efficient embedding updates
-
-2. **Database Scaling**:
-   - Start with Chroma (local) for development
-   - Plan migration path to Pinecone or Qdrant for production
-   - Implement efficient indexing and partitioning strategies
-
-3. **Performance Optimization**:
-   - Implement caching for frequent queries
-   - Use background workers for embedding generation
-   - Consider hybrid search (keyword + semantic) for faster retrieval
-
-4. **Security and Privacy**:
-   - Implement proper authentication for API access
-   - Ensure secure storage of API keys and credentials
-   - Consider data retention policies for user conversations
-
-5. **Integration Points**:
-   - Connect with existing analysis pipeline
-   - Integrate with data fetching systems
-   - Link to visualization components
-   - Connect with user feedback mechanisms
-
-### 8. Expected Outcomes
-
-1. **Enhanced User Experience**:
-   - Natural conversation about complex financial data
-   - Contextually aware responses that reference historical analyses
-   - Personalized insights based on user preferences and history
-
-2. **Improved Analysis Quality**:
-   - More consistent recommendations grounded in historical data
-   - Better explanation of changing market conditions
-   - Clearer attribution of sources and confidence levels
-
-3. **Knowledge Accumulation**:
-   - Growing knowledge base of market behavior
-   - Improving accuracy through continuous learning
-   - Developing ticker-specific insights over time
-
-4. **Operational Efficiency**:
-   - Faster access to historical analyses
-   - Reduced need for redundant analysis
-   - Better utilization of existing data assets
-
-### 9. Next Steps
-
-1. Evaluate vector database options (Chroma, Qdrant, Pinecone)
-2. Design detailed database schema for all data types
-3. Create proof-of-concept for embedding generation and storage
-4. Develop initial RAG pipeline with Google Gemini
-5. Build basic Streamlit chat interface prototype
-
-## Technical Indicators Enhancement Plan
-
-### 1. Additional Technical Indicators to Implement
-
-We can enhance our technical analysis capabilities by adding the following indicators:
-
-#### 1.1 Trend Indicators
-[ ] **Average Directional Index (ADX)**
-  [ ] Implement ADX calculation function
-  [ ] Add visualization in technical chart
-  [ ] Include in LLM analysis prompt
-
-[ ] **Ichimoku Cloud**
-  [ ] Calculate Tenkan-sen (Conversion Line)
-  [ ] Calculate Kijun-sen (Base Line)
-  [ ] Calculate Senkou Span A (Leading Span A)
-  [ ] Calculate Senkou Span B (Leading Span B)
-  [ ] Calculate Chikou Span (Lagging Span)
-  [ ] Add cloud visualization to chart
-
-[ ] **Parabolic SAR**
-  [ ] Implement PSAR calculation
-  [ ] Add to chart visualization
-  [ ] Include in trend analysis
-
-#### 1.2 Momentum Indicators
-[ ] **Stochastic Oscillator**
-  [ ] Calculate %K and %D lines
-  [ ] Add visualization with overbought/oversold zones
-  [ ] Include in LLM analysis
-
-[ ] **Commodity Channel Index (CCI)**
-  [ ] Implement CCI calculation
-  [ ] Add visualization with reference lines
-  [ ] Include in momentum analysis
-
-[ ] **Williams %R**
-  [ ] Implement Williams %R calculation
-  [ ] Add visualization with overbought/oversold zones
-  [ ] Include in LLM analysis
-
-#### 1.3 Volume Indicators
-[ ] **On-Balance Volume (OBV)**
-  [ ] Implement OBV calculation
-  [ ] Add visualization to chart
-  [ ] Include in volume analysis section
-
-[ ] **Accumulation/Distribution Line**
-  [ ] Implement A/D Line calculation
-  [ ] Add visualization to chart
-  [ ] Include in volume analysis
-
-[ ] **Money Flow Index (MFI)**
-  [ ] Implement MFI calculation
-  [ ] Add visualization with overbought/oversold zones
-  [ ] Include in volume and momentum analysis
-
-#### 1.4 Volatility Indicators
-[ ] **Average True Range (ATR)**
-  [ ] Implement ATR calculation
-  [ ] Add visualization to chart
-  [ ] Use for stop-loss recommendations
-
-[ ] **Keltner Channels**
-  [ ] Implement Keltner Channels calculation
-  [ ] Add visualization to chart
-  [ ] Compare with Bollinger Bands for squeeze detection
-
-#### 1.5 Custom/Advanced Indicators
-[ ] **VWAP (Volume Weighted Average Price)**
-  [ ] Implement VWAP calculation
-  [ ] Add visualization to chart
-  [ ] Include in institutional analysis section
-
-[ ] **Fibonacci Retracement Levels**
-  [ ] Implement automatic Fibonacci level detection
-  [ ] Add visualization to chart
-  [ ] Include in support/resistance analysis
-
-[ ] **Pivot Points**
-  [ ] Implement various pivot point calculations (Standard, Fibonacci, Woodie's, etc.)
-  [ ] Add visualization to chart
-  [ ] Include in support/resistance analysis
-
-### 2. Implementation Approach
-
-#### 2.1 Core Technical Indicator Module
-[ ] Create a dedicated module for technical indicators
-  [ ] Design a flexible, extensible architecture
-  [ ] Implement base indicator class
-  [ ] Create specialized classes for each indicator type
-  [ ] Add comprehensive documentation
-
-#### 2.2 Integration with Existing System
-[ ] Update the technical chart creation function
-  [ ] Add UI controls for new indicators
-  [ ] Implement visualization for each indicator
-  [ ] Handle subplot management for multiple indicators
-
-[ ] Enhance the LLM analysis function
-  [ ] Include new indicators in the technical data dictionary
-  [ ] Update the prompt to request analysis of new indicators
-  [ ] Add specialized prompts for specific indicator combinations
-
-#### 2.3 Performance Optimization
-[ ] Implement caching for indicator calculations
-[ ] Use vectorized operations for better performance
-[ ] Add progress indicators for long calculations
-[ ] Implement lazy loading for rarely used indicators
-
-### 3. User Interface Enhancements
-
-#### 3.1 Indicator Selection and Customization
-[ ] Create categorized indicator selection
-  [ ] Group indicators by type (Trend, Momentum, Volume, Volatility)
-  [ ] Add parameter customization for each indicator
-  [ ] Implement presets for common indicator combinations
-
-#### 3.2 Visualization Improvements
-[ ] Enhance chart interactivity
-  [ ] Add indicator value display on hover
-  [ ] Implement crosshair synchronization across subplots
-  [ ] Add annotation capabilities for key points
-
-[ ] Create specialized views
-  [ ] Multi-timeframe analysis view
-  [ ] Indicator correlation view
-  [ ] Signal detection and highlighting
-
-### 4. LLM Integration Enhancements
-
-#### 4.1 Indicator-Specific Analysis
-[ ] Create specialized prompts for each indicator
-[ ] Implement cross-indicator analysis
-[ ] Add historical performance context for indicators
-
-#### 4.2 Signal Detection and Interpretation
-[ ] Implement automated signal detection
-  [ ] Identify crossovers, divergences, and pattern completions
-  [ ] Calculate signal strength and reliability
-  [ ] Track historical signal performance
-
-[ ] Enhance LLM interpretation
-  [ ] Include signal detection results in prompts
-  [ ] Request specific analysis of detected signals
-  [ ] Ask for confirmation or contradiction of automated signals
-
-### 5. Implementation Priority
-
-1. **First Wave (High Priority)**
-   - Stochastic Oscillator
-   - ADX
-   - OBV
-   - ATR
-   - Pivot Points
-
-2. **Second Wave (Medium Priority)**
-   - Ichimoku Cloud
-   - CCI
-   - Money Flow Index
-   - VWAP
-   - Fibonacci Retracement
-
-3. **Third Wave (Lower Priority)**
-   - Parabolic SAR
-   - Williams %R
-   - Accumulation/Distribution Line
-   - Keltner Channels
-
-### 6. Technical Considerations
-
-1. **Calculation Accuracy**:
-   - Validate all implementations against industry standards
-   - Add unit tests for each indicator
-   - Compare results with established platforms (TradingView, etc.)
-
-2. **Performance Impact**:
-   - Monitor memory usage with multiple indicators
-   - Implement progressive loading for heavy calculations
-   - Consider using WebAssembly for intensive calculations
-
-3. **Data Requirements**:
-   - Ensure sufficient historical data for accurate calculations
-   - Handle missing data gracefully
-   - Implement proper error handling for edge cases
-
-4. **Visualization Clarity**:
-   - Develop a consistent color scheme for indicators
-   - Implement proper scaling for each indicator type
-   - Ensure readability with multiple indicators active
-
-### 7. Next Steps
-
-1. Create the technical indicators module structure
-2. Implement the first wave of high-priority indicators
-3. Update the chart visualization function to support new indicators
-4. Enhance the LLM prompt to include new indicator analysis
-5. Test with various tickers and timeframes
+1. **Comprehensive Testing**
+   - [ ] Test with various tickers (AAPL, MSFT, GOOGL, AMZN, TSLA)
+   - [ ] Test with different expiration dates (nearest, monthly, quarterly)
+   - [ ] Validate LLM analysis with different risk tolerance settings
+
+2. **UI Enhancements**
+   - [ ] Improve error handling with user-friendly messages
+   - [ ] Add loading spinners or skeleton loaders during data fetch
+   - [ ] Optimize mobile view for better small screen experience
+
+3. **Performance Optimizations**
+   - [ ] Implement caching for options data to reduce API calls
+   - [ ] Add pagination or virtual scrolling for large options chains
+   - [ ] Optimize rendering of the options chain table
+
+4. **Feature Additions**
+   - [ ] Add option to download options data as CSV
+   - [ ] Add visualization of implied volatility smile
+   - [ ] Enhance LLM prompt for more detailed strategy explanations
+   - [ ] Implement multi-expiration comparison view
+
+### Development Priorities (in order)
+1. Complete testing with different tickers and expiration dates
+2. Enhance error handling and loading states
+3. Implement caching to improve performance
+4. Add basic data visualizations (IV curve, etc.)
+5. Improve mobile responsiveness

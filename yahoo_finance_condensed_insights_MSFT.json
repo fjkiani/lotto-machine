@@ -1,0 +1,70 @@
+{
+  "technical_events": {
+    "short_term": "Bearish - Bearish Evidence",
+    "mid_term": "Bearish - Very Strong Bearish Evidence",
+    "long_term": "Bearish - Bearish Evidence"
+  },
+  "key_technicals": {
+    "support": 332.89,
+    "resistance": 415.32,
+    "stop_loss": 330.744491
+  },
+  "valuation": {
+    "description": "Near Fair Value",
+    "provider": "Trading Central"
+  },
+  "recommendation": {
+    "provider": "Argus Research",
+    "rating": "",
+    "target_price": "",
+    "title": "Argus Quick Note: Weekly Stock List for 03/31/2025: Ranking the Magnificent 7",
+    "date": "2025-03-31T16:15:15Z"
+  },
+  "upcoming_events": {
+    "events": [
+      {
+        "type": "Inverted Hammer",
+        "start_date": 1743773400,
+        "end_date": 1743773400
+      }
+    ]
+  },
+  "risk": {},
+  "reports": [
+    {
+      "provider": "Argus Research",
+      "rating": "",
+      "target_price": "",
+      "title": "Argus Quick Note: Weekly Stock List for 03/31/2025: Ranking the Magnificent 7",
+      "date": "2025-03-31T16:15:15Z"
+    },
+    {
+      "provider": "Morningstar",
+      "rating": "",
+      "target_price": "",
+      "title": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover",
+      "date": "2025-03-29T01:46:49Z"
+    },
+    {
+      "provider": "Morningstar",
+      "rating": "",
+      "target_price": "",
+      "title": "Large Cap US Pick List - March 2025",
+      "date": "2025-03-06T18:01:52Z"
+    },
+    {
+      "provider": "Morningstar",
+      "rating": "",
+      "target_price": "",
+      "title": "Large Cap US Pick List - February 2025",
+      "date": "2025-02-06T17:02:52Z"
+    },
+    {
+      "provider": "Argus Research",
+      "rating": "",
+      "target_price": "",
+      "title": "Argus Quick Note: Weekly Stock List for 02/03/2025: Investing in the Cloud",
+      "date": "2025-02-03T12:35:29Z"
+    }
+  ]
+}

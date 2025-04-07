@@ -1,0 +1,150 @@
+{
+  "status": "OK",
+  "request_id": "90916950-5809-43f9-8e4d-d09f97fc9274",
+  "data": {
+    "symbol": "AAPL:NASDAQ",
+    "type": "stock",
+    "news": [
+      {
+        "article_title": "Apple Stock Falls Again. How the Rest of the Mag 7 Are Trading.",
+        "article_url": "https://www.barrons.com/articles/apple-stock-price-meta-microsoft-8ac30c3c",
+        "article_photo_url": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcTcSkMr1MepvKFZbBdzAHfQ8BxBpnyiMGRvjpuprAWRUfylgycYDzseQVkzpow",
+        "source": "Barron's",
+        "post_time_utc": "2025-04-07 15:26:00"
+      },
+      {
+        "article_title": "Apple Stock Bull Slashes Price Target Over Trump's 'Tariff Armageddon'",
+        "article_url": "https://www.investors.com/news/technology/apple-stock-stung-trump-tariff-armageddon/",
+        "article_photo_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS0F7RtPTbyYNN69Y_EiSDDyhUKnHFS6jWvWO8tLpP77gQPJd7O5YLESR7h5Oo",
+        "source": "Investor's Business Daily",
+        "post_time_utc": "2025-04-07 14:01:00"
+      },
+      {
+        "article_title": "Apple\u2019s stock is the latest to see a \u2018death cross,\u2019 and it won\u2019t be the last",
+        "article_url": "https://www.marketwatch.com/story/apples-stock-is-the-latest-to-see-a-death-cross-and-it-wont-be-the-last-e5ee8ae2",
+        "article_photo_url": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcSPzryFTwIpqmb1gu2_iu0UJ5w9w2cP_1xRMIYjk-vWaQ7CiZryF-OfcreoSTA",
+        "source": "MarketWatch",
+        "post_time_utc": "2025-04-07 13:35:00"
+      },
+      {
+        "article_title": "Apple Appeals Back Door Demand, US Intel Chief Warns of Cybersecurity Risks",
+        "article_url": "https://finance.yahoo.com/news/apple-appeals-back-door-demand-162838874.html",
+        "article_photo_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTrVXs2JqRj6zzz40mjybJhUphJk45u7biEzWhsgX60bjaiW7mWxC3Gn9Zlpd8",
+        "source": "Yahoo Finance",
+        "post_time_utc": "2025-04-07 16:28:38"
+      },
+      {
+        "article_title": "Apple-Linked Tech Stocks Are Hard-Hit in Asia",
+        "article_url": "https://www.wsj.com/livecoverage/stock-market-trump-tariffs-trade-war-04-07-25/card/tech-shares-connected-to-apple-are-hard-hit-in-asian-trading-7xRA8mJo3AfPrZeFl1WS",
+        "article_photo_url": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcT7DkkYDURv1eEbEYjIjAez2XxckrZVKa3FhI8A7wYT7dcW8hWvPSXsZCgkDlA",
+        "source": "WSJ",
+        "post_time_utc": "2025-04-06 21:12:00"
+      },
+      {
+        "article_title": "Apple gets caught in a trade-war nightmare",
+        "article_url": "https://www.economist.com/business/2025/04/04/apple-gets-caught-in-a-trade-war-nightmare",
+        "article_photo_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTV3EbdMFiC39tLMUP1E3mljUJvg2Jk8ruCv4YHbMLCSOzD09aHXZKfCBKNpAo",
+        "source": "The Economist",
+        "post_time_utc": "2025-04-04 19:11:58"
+      },
+      {
+        "article_title": "Trump tariffs threaten Apple's supply chain, stock suffers steepest drop in \n5 years",
+        "article_url": "https://www.cnbc.com/2025/04/03/trump-tariffs-will-impact-apples-non-china-supply-chains.html",
+        "article_photo_url": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcRN4bf5uTK8QX7ucTsoPbU3z-zi0LupA2GkvOxkcIK8AoDuuKFRyyWB6kcIZKE",
+        "source": "CNBC",
+        "post_time_utc": "2025-04-03 19:41:14"
+      },
+      {
+        "article_title": "Stock Movers: Tesla, JPMorgan, Apple",
+        "article_url": "https://www.bloomberg.com/news/audio/2025-04-07/stock-movers-tesla-jpmorgan-apple-podcast",
+        "article_photo_url": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcRQ1Gz6qXdO9ZOkV5152nWAcnvE50k-TrrpHx9_j0ryt7sNbza9Z9RO5l24dmM",
+        "source": "Bloomberg",
+        "post_time_utc": "2025-04-07 13:25:51"
+      },
+      {
+        "article_title": "Trump Tariffs Chomp AAPL Stock to Its Core",
+        "article_url": "https://www.tipranks.com/news/trump-tariffs-chomp-aapl-stock-to-its-core",
+        "article_photo_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQZUKaEXfDBwc-x3MD_xCR_901mJtvrvOWJ9N2qwoJjA0Scvae7o-7zA7xU5IY",
+        "source": "TipRanks",
+        "post_time_utc": "2025-04-07 13:10:32"
+      },
+      {
+        "article_title": "Trump\u2019s Tariffs Hammer Big Tech as Apple, Meta, Amazon Shares Plunge",
+        "article_url": "https://www.techrepublic.com/article/tech-stocks-trump-tariff/",
+        "article_photo_url": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcSVjtLeZYr9vH8TbktrEh8dz0gdDZwD952Uyv5T-wag6zn0YyBQLZ_cvxtZ268",
+        "source": "TechRepublic",
+        "post_time_utc": "2025-04-04 07:00:00"
+      },
+      {
+        "article_title": "Apple stocks plummet, as Trump threatens 104% tariff on China",
+        "article_url": "https://appleinsider.com/articles/25/04/07/apple-stocks-plummet-as-trump-threatens-104-tariff-on-china",
+        "article_photo_url": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcSDraIGX4Hfb-b2-pU26dTycaScIlYw7Jz6YfqJX7cwDgqR2hP5CPouP0CX7y4",
+        "source": "AppleInsider",
+        "post_time_utc": "2025-04-07 15:45:17"
+      },
+      {
+        "article_title": "Brussels takes action against Google and Apple under Digital Markets Act \u2013 \nas it happened",
+        "article_url": "https://www.theguardian.com/business/live/2025/mar/19/trump-tariffs-trade-war-high-uncertainty-bank-of-japan-warns-musk-x-44bn-stock-markets-business-live",
+        "article_photo_url": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcSV3zI3DNQDecPcMO9Ih4aOv6GKyRejzqV3UJiY4CL_DsTPlK3scbN_oWeqcys",
+        "source": "The Guardian",
+        "post_time_utc": "2025-03-19 07:00:00"
+      },
+      {
+        "article_title": "Apple\u2019s AI isn\u2019t a letdown. AI is the letdown",
+        "article_url": "https://www.cnn.com/2025/03/27/tech/apple-ai-artificial-intelligence/index.html",
+        "article_photo_url": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcTGF0ZK7WHkHpxyOcvHnczNL4KcBoVIPA4EMBY95sqFUlRGhyf7P-QKBNhMHDE",
+        "source": "CNN",
+        "post_time_utc": "2025-03-27 07:00:00"
+      },
+      {
+        "article_title": "Apple will spend more than $500 billion in the U.S. over the next four years",
+        "article_url": "https://www.apple.com/newsroom/2025/02/apple-will-spend-more-than-500-billion-usd-in-the-us-over-the-next-four-years/",
+        "article_photo_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRQBqpHafkVZWk8G0wJ7E22LinrPe98XgwqrOrP8BfKrDpYlauSOSVnAGDZgOk",
+        "source": "Apple",
+        "post_time_utc": "2025-02-24 08:00:00"
+      },
+      {
+        "article_title": "Boeing, Apple, GE to join US business mission to Vietnam next week, list \nshows",
+        "article_url": "https://www.reuters.com/business/boeing-apple-ge-join-us-business-mission-vietnam-next-week-list-shows-2025-03-14/",
+        "article_photo_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSqwNo9Q6PWgr1LqTIxk4hJ6_7-QWH7RU_GTmTTCYPCVddjJhLVowF5WM5CbI8",
+        "source": "Reuters",
+        "post_time_utc": "2025-03-14 07:00:00"
+      },
+      {
+        "article_title": "Apple Plunges 9%, Leading a Tech Sell-Off",
+        "article_url": "https://www.nytimes.com/2025/04/03/business/economy/apple-stock-tech-selloff.html",
+        "article_photo_url": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRsthat4_zR-x_HGaD1Yp_9NAlGFkpK3cmSnwdk2BxqrXTsyKGYL6G40O4wDlk",
+        "source": "The New York Times",
+        "post_time_utc": "2025-04-03 15:16:28"
+      },
+      {
+        "article_title": "Apple loses more than $300bn in market value from Trump tariff hit",
+        "article_url": "https://www.ft.com/content/dd2e71bf-e5f5-4ab6-9a54-a243d1206df2",
+        "article_photo_url": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcTgebF17RqD0ENTAR85Gq0xR27c9yVduROCLAifayTwwG1vYmPUh_9E8hM4CN0",
+        "source": "Financial Times",
+        "post_time_utc": "2025-04-03 13:34:17"
+      },
+      {
+        "article_title": "This new emoji is all of us in 2025",
+        "article_url": "https://www.fastcompany.com/91309448/new-emojis-face-with-bags-under-eyes-ios-184",
+        "article_photo_url": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcR1OWlXKyOHe-wlrs-bMqUXD5xeYTZQtyszMUkJIBB4tl0cqei2y7SD2JTbISU",
+        "source": "Fast Company",
+        "post_time_utc": "2025-04-02 10:06:08"
+      },
+      {
+        "article_title": "Apple shareholders reject proposal to scrap company\u2019s diversity programs",
+        "article_url": "https://apnews.com/article/apple-dei-shareholder-proposal-annual-meeting-96637c8d4fa3d5e2a73dc59a59c2485b",
+        "article_photo_url": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcSCsfVMGf8bC_Q_xu6ZRBuLwcUbPmh_Wedag82MKIY2oy4IfpZXaSmhXVUyn_E",
+        "source": "AP News",
+        "post_time_utc": "2025-02-26 08:00:00"
+      },
+      {
+        "article_title": "Apple loses $1bn a year on TV: Why don't its shows have mass appeal?",
+        "article_url": "https://www.euronews.com/culture/2025/03/23/apple-loses-1bn-a-year-on-streaming-why-dont-its-shows-work",
+        "article_photo_url": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcRoISzaxBEq46OLfk3slwWK0Dh2VQEy8DTFd1kRd8WNJiUMwbTV-xBabn73Nic",
+        "source": "Euronews.com",
+        "post_time_utc": "2025-03-23 07:00:00"
+      }
+    ]
+  }
+}

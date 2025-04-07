@@ -1,0 +1,70 @@
+{
+  "technical_events": {
+    "short_term": "Bearish - Very Strong Bearish Evidence",
+    "mid_term": "Bearish - Strong Bearish Evidence",
+    "long_term": "Bearish - Bearish Evidence"
+  },
+  "key_technicals": {
+    "support": 128.41,
+    "resistance": 186.27,
+    "stop_loss": 158.425372
+  },
+  "valuation": {
+    "description": "Near Fair Value",
+    "provider": "Trading Central"
+  },
+  "recommendation": {
+    "provider": "Argus Research",
+    "rating": "",
+    "target_price": "",
+    "title": "Argus Quick Note: Weekly Stock List for 03/31/2025: Ranking the Magnificent 7",
+    "date": "2025-03-31T16:15:15Z"
+  },
+  "upcoming_events": {
+    "events": [
+      {
+        "type": "Commodity Channel Index",
+        "start_date": 1743687000,
+        "end_date": 1743687000
+      }
+    ]
+  },
+  "risk": {},
+  "reports": [
+    {
+      "provider": "Argus Research",
+      "rating": "",
+      "target_price": "",
+      "title": "Argus Quick Note: Weekly Stock List for 03/31/2025: Ranking the Magnificent 7",
+      "date": "2025-03-31T16:15:15Z"
+    },
+    {
+      "provider": "Morningstar",
+      "rating": "",
+      "target_price": "",
+      "title": "Morningstar | A Weekly Summary of Stock Ideas and Developments in the Companies We Cover",
+      "date": "2025-03-29T01:46:49Z"
+    },
+    {
+      "provider": "Argus Research",
+      "rating": "Bullish",
+      "target_price": 270,
+      "title": "Gaining momentum in AI",
+      "date": "2025-03-27T10:59:59Z"
+    },
+    {
+      "provider": "Argus Research",
+      "rating": "",
+      "target_price": "",
+      "title": "Ranking the Magnificent Seven\n\nDuring the first phase of unbridled AI",
+      "date": "2025-03-27T10:44:59Z"
+    },
+    {
+      "provider": "Argus Research",
+      "rating": "",
+      "target_price": "",
+      "title": "The S&P 500 (SPX) hit an intraday low of 5,505 on Thursday, right at the key 61.8% retracement of the rally from last August until the recent all-time closing high in February.",
+      "date": "2025-03-17T11:15:17Z"
+    }
+  ]
+}

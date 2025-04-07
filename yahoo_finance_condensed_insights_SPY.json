@@ -1,0 +1,70 @@
+{
+  "technical_events": {
+    "short_term": "Bearish - Very Strong Bearish Evidence",
+    "mid_term": "Bearish - Strong Bearish Evidence",
+    "long_term": "Bearish - Bearish Evidence"
+  },
+  "key_technicals": {
+    "support": 436.66,
+    "resistance": 584.32,
+    "stop_loss": 468.54073
+  },
+  "valuation": {
+    "description": "",
+    "provider": "Trading Central"
+  },
+  "recommendation": {
+    "provider": "Morningstar",
+    "rating": "Bullish",
+    "target_price": 130,
+    "title": "Tech Hardware Supply Chains Hit by Current Tariffs, Services Exempt Currently but Face Risks",
+    "date": "2025-04-05T00:19:12Z"
+  },
+  "upcoming_events": {
+    "events": [
+      {
+        "type": "Triple Moving Average Crossover",
+        "start_date": 1743773400,
+        "end_date": 1743773400
+      }
+    ]
+  },
+  "risk": {},
+  "reports": [
+    {
+      "provider": "Morningstar",
+      "rating": "Bullish",
+      "target_price": 130,
+      "title": "Tech Hardware Supply Chains Hit by Current Tariffs, Services Exempt Currently but Face Risks",
+      "date": "2025-04-05T00:19:12Z"
+    },
+    {
+      "provider": "Morningstar",
+      "rating": "Neutral",
+      "target_price": 130,
+      "title": "Tech Hardware Supply Chains Hit by Current Tariffs, Services Exempt Currently but Face Risks",
+      "date": "2025-04-03T21:21:52Z"
+    },
+    {
+      "provider": "Argus Research",
+      "rating": "",
+      "target_price": "",
+      "title": "Markets are inching their way higher as we approach the hour that Wall Street",
+      "date": "2025-04-02T16:39:01Z"
+    },
+    {
+      "provider": "Morningstar",
+      "rating": "Bullish",
+      "target_price": 237,
+      "title": "Alphabet: If Blessed by the Regulators, Acquisition of Wiz Would Bolster Firm's Cloud Platform ",
+      "date": "2025-03-29T00:18:02Z"
+    },
+    {
+      "provider": "Morningstar",
+      "rating": "Bullish",
+      "target_price": 237,
+      "title": "We Forecast Autonomous Vehicles Will Be 50% of US and Canada Ride-Hails by 2035",
+      "date": "2025-03-10T23:06:38Z"
+    }
+  ]
+}
