@@ -103,7 +103,6 @@ class YahooFinanceConnector:
             # Get quote data
             quote_data = data.get("optionChain", {}).get("result", [{}])[0].get("quote", {})
             quote = OptionChainQuote(
-                symbol=ticker,
                 quote_type=quote_data.get("quoteType", ""),
                 market_state=quote_data.get("marketState", ""),
                 currency=quote_data.get("currency", "USD"),
@@ -641,4 +640,135 @@ class YahooFinanceConnector:
             
         except Exception as e:
             logger.error(f"Error fetching historical data from RapidAPI: {str(e)}")
-            return None 
+            return None
+    
+    def get_time_series(self, ticker, interval="daily", outputsize="compact"):
+        """
+        Fetch time series data for a ticker (Open, High, Low, Close, Volume).
+        
+        Args:
+            ticker (str): The stock ticker symbol
+            interval (str): Data interval - 'daily', 'weekly', or 'monthly'
+            outputsize (str): 'compact' for last 100 datapoints, 'full' for all available data
+        
+        Returns:
+            dict: Time series data in the format shown in the example
+        """
+        logger.info(f"Fetching {interval} time series data for {ticker}")
+        
+        try:
+            # First try using RapidAPI (preferred method)
+            url = f"{self.base_url}/api/stock/v3/get-historical-data"
+            
+            # Map our interval to API parameters
+            interval_map = {
+                "daily": "1d",
+                "weekly": "1wk",
+                "monthly": "1mo"
+            }
+            
+            api_interval = interval_map.get(interval, "1d")
+            
+            # Set up parameters
+            params = {
+                "symbol": ticker,
+                "region": "US",
+                "interval": api_interval
+            }
+            
+            # Make the API request
+            response = requests.get(
+                url, 
+                headers=self.headers,
+                params=params
+            )
+            
+            # Check response status
+            if response.status_code != 200:
+                logger.warning(f"RapidAPI returned status code {response.status_code}")
+                raise Exception(f"API request failed with status code {response.status_code}")
+            
+            # Parse response
+            data = response.json()
+            
+            # Transform to the expected format
+            result = {
+                "Meta Data": {
+                    "1. Information": f"{interval.capitalize()} Prices (open, high, low, close) and Volumes",
+                    "2. Symbol": ticker,
+                    "3. Last Refreshed": datetime.now().strftime("%Y-%m-%d"),
+                    "4. Output Size": outputsize,
+                    "5. Time Zone": "US/Eastern"
+                },
+                f"Time Series ({interval.capitalize()})": {}
+            }
+            
+            # Process the data points
+            for item in data.get("prices", []):
+                # Get the date
+                timestamp = item.get("date", 0)
+                if not timestamp:
+                    continue
+                    
+                date_str = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
+                
+                # Format the data point
+                result[f"Time Series ({interval.capitalize()})"][date_str] = {
+                    "1. open": str(item.get("open", 0)),
+                    "2. high": str(item.get("high", 0)),
+                    "3. low": str(item.get("low", 0)),
+                    "4. close": str(item.get("close", 0)),
+                    "5. volume": str(item.get("volume", 0))
+                }
+            
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Error fetching time series from RapidAPI: {str(e)}. Falling back to yfinance.")
+            
+            # Fall back to yfinance
+            try:
+                import yfinance as yf
+                import pandas as pd
+                
+                # Map interval to yfinance period and interval
+                interval_map = {
+                    "daily": ("1d", "6mo" if outputsize == "compact" else "max"),
+                    "weekly": ("1wk", "2y" if outputsize == "compact" else "max"),
+                    "monthly": ("1mo", "5y" if outputsize == "compact" else "max")
+                }
+                
+                yf_interval, yf_period = interval_map.get(interval, ("1d", "6mo"))
+                
+                # Get historical data
+                stock = yf.Ticker(ticker)
+                history = stock.history(period=yf_period, interval=yf_interval)
+                
+                # Format the result
+                result = {
+                    "Meta Data": {
+                        "1. Information": f"{interval.capitalize()} Prices (open, high, low, close) and Volumes",
+                        "2. Symbol": ticker,
+                        "3. Last Refreshed": datetime.now().strftime("%Y-%m-%d"),
+                        "4. Output Size": outputsize,
+                        "5. Time Zone": "US/Eastern"
+                    },
+                    f"Time Series ({interval.capitalize()})": {}
+                }
+                
+                # Convert DataFrame to required format
+                for date, row in history.iterrows():
+                    date_str = date.strftime("%Y-%m-%d")
+                    result[f"Time Series ({interval.capitalize()})"][date_str] = {
+                        "1. open": str(round(row["Open"], 4)),
+                        "2. high": str(round(row["High"], 4)),
+                        "3. low": str(round(row["Low"], 4)),
+                        "4. close": str(round(row["Close"], 4)),
+                        "5. volume": str(int(row["Volume"]))
+                    }
+                
+                return result
+                
+            except Exception as yf_error:
+                logger.error(f"Error fetching time series with yfinance: {str(yf_error)}")
+                raise yf_error 
