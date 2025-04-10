@@ -1,0 +1,303 @@
+{
+  "analysis_data": {
+    "metadata": {
+      "ticker": "SPY",
+      "analysis_date": "2025-04-08T17:44:19.440634",
+      "expiration_date": "2025-04-08",
+      "current_price": 496.48,
+      "atm_strike": 496.0
+    },
+    "market_state": {
+      "overall_sentiment": "neutral",
+      "institutional_positioning": "neutral",
+      "retail_activity": {
+        "sentiment": "neutral",
+        "conviction": "low",
+        "reliability": "low"
+      }
+    },
+    "options_summary": {
+      "put_call_ratio": 1.2718353603968593,
+      "total_put_volume": 3696489,
+      "total_call_volume": 2906421,
+      "iv_skew_direction": "neutral",
+      "total_strikes_analyzed": 64
+    },
+    "unusual_activity": [
+      {
+        "strike": 525.0,
+        "type": "put",
+        "z_score": 3.6794924873653287,
+        "volume": 243972.0,
+        "open_interest": 7714.0,
+        "vol_oi_ratio": 31.627171376717655
+      },
+      {
+        "strike": 530.0,
+        "type": "put",
+        "z_score": 3.072815861669735,
+        "volume": 212665.0,
+        "open_interest": 5030.0,
+        "vol_oi_ratio": 42.279324055666
+      },
+      {
+        "strike": 530.0,
+        "type": "call",
+        "z_score": 3.0069699467563185,
+        "volume": 175144.0,
+        "open_interest": 9084.0,
+        "vol_oi_ratio": 19.280493174812857
+      },
+      {
+        "strike": 520.0,
+        "type": "call",
+        "z_score": 2.774060417913427,
+        "volume": 165046.0,
+        "open_interest": 5161.0,
+        "vol_oi_ratio": 31.97946134470064
+      },
+      {
+        "strike": 535.0,
+        "type": "put",
+        "z_score": 2.6768589353325556,
+        "volume": 192232.0,
+        "open_interest": 2448.0,
+        "vol_oi_ratio": 78.52614379084967
+      },
+      {
+        "strike": 525.0,
+        "type": "call",
+        "z_score": 2.378197252580633,
+        "volume": 147883.0,
+        "open_interest": 6085.0,
+        "vol_oi_ratio": 24.302875924404272
+      },
+      {
+        "strike": 522.0,
+        "type": "call",
+        "z_score": 2.357946255717486,
+        "volume": 147005.0,
+        "open_interest": 1421.0,
+        "vol_oi_ratio": 103.45179451090782
+      }
+    ],
+    "price_levels": {
+      "support_levels": [],
+      "resistance_levels": []
+    }
+  },
+  "llm_analysis": {
+    "metadata": {
+      "timestamp": "2025-04-08T17:44:19.805510",
+      "ticker": "SPY",
+      "current_price": 496.48,
+      "analysis_version": "2.0"
+    },
+    "market_state": {
+      "overall_sentiment": "oversold",
+      "institutional_positioning": "neutral",
+      "retail_activity": {
+        "sentiment": "oversold",
+        "conviction": "moderate",
+        "reliability": "moderate"
+      }
+    },
+    "price_levels": {
+      "support_levels": [
+        {
+          "price": 466.69,
+          "strength": "moderate",
+          "type": "technical"
+        },
+        {
+          "price": 481.59,
+          "strength": "strong",
+          "type": "institutional"
+        }
+      ],
+      "resistance_levels": [
+        {
+          "price": 511.37,
+          "strength": "strong",
+          "type": "institutional"
+        },
+        {
+          "price": 526.27,
+          "strength": "moderate",
+          "type": "technical"
+        },
+        {
+          "price": 530.0,
+          "strength": "strong",
+          "type": "institutional"
+        }
+      ]
+    },
+    "volatility_structure": {
+      "skew_analysis": {
+        "type": "normal",
+        "strength": 0.5,
+        "interpretation": "Neutral market conditions"
+      }
+    },
+    "trading_opportunities": {
+      "strategies": [
+        {
+          "type": "iron condor",
+          "direction": "neutral",
+          "size": "small",
+          "confidence": "moderate",
+          "rationale": "Sideways movement expected with current market conditions"
+        }
+      ]
+    },
+    "technical_signals": {
+      "momentum_bias": "oversold",
+      "support_zones": [
+        466.69,
+        481.59
+      ],
+      "resistance_zones": [
+        511.37,
+        526.27,
+        530.0
+      ]
+    },
+    "institutional_flows": {
+      "hedging_patterns": {
+        "hedging_type": "neutral",
+        "put_walls": [
+          {
+            "strike": 466.69,
+            "size": 5000
+          }
+        ]
+      }
+    },
+    "detailed_analysis": {
+      "overview": "The options chain for SPY shows oversold positioning with a put/call ratio of 1.27, indicating neutral institutional sentiment.",
+      "institutional_activity": "Institutions show aggressive call buying with significant call volume observed.",
+      "volatility_insights": "The normal volatility environment suggests neutral market conditions. Options strategies should be adjusted accordingly."
+    }
+  },
+  "manager_review": {
+    "status": "validated",
+    "confidence_score": 1.0,
+    "analysis": {
+      "metadata": {
+        "timestamp": "2025-04-08T17:44:19.805510",
+        "ticker": "SPY",
+        "current_price": 496.48,
+        "analysis_version": "2.0"
+      },
+      "market_state": {
+        "overall_sentiment": "oversold",
+        "institutional_positioning": "neutral",
+        "retail_activity": {
+          "sentiment": "oversold",
+          "conviction": "moderate",
+          "reliability": "moderate"
+        }
+      },
+      "price_levels": {
+        "support_levels": [
+          {
+            "price": 466.69,
+            "strength": "moderate",
+            "type": "technical"
+          },
+          {
+            "price": 481.59,
+            "strength": "strong",
+            "type": "institutional"
+          }
+        ],
+        "resistance_levels": [
+          {
+            "price": 511.37,
+            "strength": "strong",
+            "type": "institutional"
+          },
+          {
+            "price": 526.27,
+            "strength": "moderate",
+            "type": "technical"
+          },
+          {
+            "price": 530.0,
+            "strength": "strong",
+            "type": "institutional"
+          }
+        ]
+      },
+      "volatility_structure": {
+        "skew_analysis": {
+          "type": "normal",
+          "strength": 0.5,
+          "interpretation": "Neutral market conditions"
+        }
+      },
+      "trading_opportunities": {
+        "strategies": [
+          {
+            "type": "iron condor",
+            "direction": "neutral",
+            "size": "small",
+            "confidence": "moderate",
+            "rationale": "Sideways movement expected with current market conditions"
+          }
+        ]
+      },
+      "technical_signals": {
+        "momentum_bias": "oversold",
+        "support_zones": [
+          466.69,
+          481.59
+        ],
+        "resistance_zones": [
+          511.37,
+          526.27,
+          530.0
+        ]
+      },
+      "institutional_flows": {
+        "hedging_patterns": {
+          "hedging_type": "neutral",
+          "put_walls": [
+            {
+              "strike": 466.69,
+              "size": 5000
+            }
+          ]
+        }
+      },
+      "detailed_analysis": {
+        "overview": "The options chain for SPY shows oversold positioning with a put/call ratio of 1.27, indicating neutral institutional sentiment.",
+        "institutional_activity": "Institutions show aggressive call buying with significant call volume observed.",
+        "volatility_insights": "The normal volatility environment suggests neutral market conditions. Options strategies should be adjusted accordingly."
+      }
+    },
+    "review_notes": [
+      "No contradictions found in analysis"
+    ],
+    "timestamp": "2025-04-08T17:44:20.113242",
+    "market_context": {
+      "technical_indicators": {
+        "sma20": 552.7330810546875,
+        "sma50": 577.3371740722656,
+        "sma200": NaN,
+        "rsi": 18.659854477116085,
+        "above_sma20": "False",
+        "above_sma50": "False",
+        "above_sma200": "False",
+        "current_trend": "downtrend"
+      },
+      "recent_news_count": 5
+    },
+    "llm_recommendations": [
+      "Consider reducing position sizes due to identified contradictions",
+      "Validate support/resistance levels with additional technical analysis",
+      "Monitor for changes in institutional positioning"
+    ]
+  }
+}

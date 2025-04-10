@@ -35,7 +35,7 @@ def fetch_options_from_rapidapi(ticker: str) -> Dict:
     conn = http.client.HTTPSConnection("yahoo-finance166.p.rapidapi.com")
     
     headers = {
-        'x-rapidapi-key': os.getenv("RAPIDAPI_KEY", "a5c0896b36mshaa509a779a23bb6p181f51jsna75ba55edc97"),
+        'x-rapidapi-key': os.getenv("RAPIDAPI_KEY", "9f107deaabmsh2efbc3559ddca05p17f1abjsn271e6df32f7c"),
         'x-rapidapi-host': "yahoo-finance166.p.rapidapi.com"
     }
     
@@ -297,7 +297,7 @@ def analyze_options_with_deep_reasoning(ticker: str, option_chain: Dict, market_
         print("Falling back to standard Gemini model")
         
         # Fall back to the standard model
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-1.5-pro")
         response = model.generate_content(prompt)
     
     # Parse the response

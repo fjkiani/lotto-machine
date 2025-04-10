@@ -1,0 +1,194 @@
+{
+  "overall_put_call_ratio": 1.2718353603968593,
+  "overall_oi_ratio": 0.9369418625842901,
+  "high_call_volume_strikes": [
+    {
+      "Strike": 530,
+      "Call_Vol": 175144,
+      "Call_Vol_Z": 4.410771441149546,
+      "Call_OI": 9084
+    },
+    {
+      "Strike": 520,
+      "Call_Vol": 165046,
+      "Call_Vol_Z": 4.125754188129221,
+      "Call_OI": 5161
+    },
+    {
+      "Strike": 525,
+      "Call_Vol": 147883,
+      "Call_Vol_Z": 3.6413264684235553,
+      "Call_OI": 6085
+    },
+    {
+      "Strike": 522,
+      "Call_Vol": 147005,
+      "Call_Vol_Z": 3.616544813823452,
+      "Call_OI": 1421
+    },
+    {
+      "Strike": 510,
+      "Call_Vol": 121187,
+      "Call_Vol_Z": 2.887828688008565,
+      "Call_OI": 4506
+    }
+  ],
+  "high_put_volume_strikes": [
+    {
+      "Strike": 500,
+      "Put_Vol": 243972,
+      "Put_Vol_Z": 5.137797464056543,
+      "Put_OI": 7714
+    },
+    {
+      "Strike": 505,
+      "Put_Vol": 212665,
+      "Put_Vol_Z": 4.406561910815613,
+      "Put_OI": 5030
+    },
+    {
+      "Strike": 510,
+      "Put_Vol": 192232,
+      "Put_Vol_Z": 3.929309665012057,
+      "Put_OI": 2448
+    },
+    {
+      "Strike": 503,
+      "Put_Vol": 139235,
+      "Put_Vol_Z": 2.691462199106363,
+      "Put_OI": 2179
+    },
+    {
+      "Strike": 515,
+      "Put_Vol": 137748,
+      "Put_Vol_Z": 2.6567304372745277,
+      "Put_OI": 8128
+    }
+  ],
+  "high_put_call_ratio_strikes": [
+    {
+      "Strike": 492,
+      "Put_Vol": 45818,
+      "Call_Vol": 0,
+      "PC_Ratio": 458180.0
+    },
+    {
+      "Strike": 478,
+      "Put_Vol": 32758,
+      "Call_Vol": 0,
+      "PC_Ratio": 327580.0
+    },
+    {
+      "Strike": 488,
+      "Put_Vol": 31060,
+      "Call_Vol": 0,
+      "PC_Ratio": 310600.0
+    },
+    {
+      "Strike": 489,
+      "Put_Vol": 31013,
+      "Call_Vol": 0,
+      "PC_Ratio": 310130.0
+    },
+    {
+      "Strike": 475,
+      "Put_Vol": 26725,
+      "Call_Vol": 0,
+      "PC_Ratio": 267250.0
+    }
+  ],
+  "low_put_call_ratio_strikes": [
+    {
+      "Strike": 599,
+      "Call_Vol": 2312,
+      "Put_Vol": 0,
+      "PC_Ratio": 0.0
+    },
+    {
+      "Strike": 594,
+      "Call_Vol": 441,
+      "Put_Vol": 0,
+      "PC_Ratio": 0.0
+    },
+    {
+      "Strike": 595,
+      "Call_Vol": 380,
+      "Put_Vol": 0,
+      "PC_Ratio": 0.0
+    },
+    {
+      "Strike": 566,
+      "Call_Vol": 352,
+      "Put_Vol": 1,
+      "PC_Ratio": 0.002840909090909091
+    },
+    {
+      "Strike": 537,
+      "Call_Vol": 29177,
+      "Put_Vol": 177,
+      "PC_Ratio": 0.0060664221818555715
+    }
+  ],
+  "iv_by_moneyness": {
+    "deep_itm_calls": {
+      "avg_call_iv": 0.5267587226562499,
+      "avg_put_iv": 0.97500309375,
+      "avg_iv_skew": 0.4482443710937501
+    },
+    "itm_calls": {
+      "avg_call_iv": 0.2199501935369318,
+      "avg_put_iv": 0.3297297141335227,
+      "avg_iv_skew": 0.1097795205965909
+    },
+    "atm": {
+      "avg_call_iv": 0.08072618695068359,
+      "avg_put_iv": 0.17713835565185548,
+      "avg_iv_skew": 0.09641216870117188
+    },
+    "itm_puts": {
+      "avg_call_iv": 0.39595330615234375,
+      "avg_put_iv": 0.7766639005126954,
+      "avg_iv_skew": 0.3807105943603516
+    },
+    "deep_itm_puts": {
+      "avg_call_iv": 0.9208696824596775,
+      "avg_put_iv": 1.2080570897649947,
+      "avg_iv_skew": 0.2871874073053174
+    }
+  },
+  "iv_skew_pattern": "volatility smile (market expects large moves in either direction)",
+  "key_support_levels": [
+    {
+      "Strike": 480,
+      "Put_OI": 14504,
+      "Put_OI_Z": 5.679098094925096
+    },
+    {
+      "Strike": 490,
+      "Put_OI": 11375,
+      "Put_OI_Z": 4.319350409965159
+    },
+    {
+      "Strike": 470,
+      "Put_OI": 9033,
+      "Put_OI_Z": 3.301603820583192
+    }
+  ],
+  "key_resistance_levels": [
+    {
+      "Strike": 530,
+      "Call_OI": 9084,
+      "Call_OI_Z": 4.280378549866198
+    },
+    {
+      "Strike": 545,
+      "Call_OI": 9058,
+      "Call_OI_Z": 4.265641912379652
+    },
+    {
+      "Strike": 542,
+      "Call_OI": 7059,
+      "Call_OI_Z": 3.132621207164145
+    }
+  ]
+}

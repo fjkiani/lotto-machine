@@ -19,7 +19,7 @@ def fetch_options_from_rapidapi(ticker):
     conn = http.client.HTTPSConnection("yahoo-finance166.p.rapidapi.com")
     
     headers = {
-        'x-rapidapi-key': os.getenv("RAPIDAPI_KEY", "a5c0896b36mshaa509a779a23bb6p181f51jsna75ba55edc97"),
+        'x-rapidapi-key': os.getenv("RAPIDAPI_KEY", "9f107deaabmsh2efbc3559ddca05p17f1abjsn271e6df32f7c"),
         'x-rapidapi-host': "yahoo-finance166.p.rapidapi.com"
     }
     
@@ -260,7 +260,7 @@ Format your response as a JSON object with the following structure:
 )
     # Configure Gemini model
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-pro",
+        model_name="gemini-1.5-flash",
         generation_config=types.GenerationConfig(
             temperature=0.2,
             top_p=0.95,

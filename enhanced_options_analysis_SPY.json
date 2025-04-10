@@ -1,0 +1,146 @@
+{
+  "market_data": {
+    "ticker": "SPY",
+    "current_price": 496.48,
+    "expiration_date": "2025-04-08",
+    "atm_strike": 496.0,
+    "total_call_volume": 2906421,
+    "total_put_volume": 3696489,
+    "put_call_ratio": 1.2718353603968593,
+    "atm_iv": 0.08387146606445314
+  },
+  "high_call_volume_strikes": [
+    {
+      "Strike": 530.0,
+      "Call_Vol": 175144.0,
+      "Call_Vol_Z": 4.410771441149546,
+      "Call_OI": 9084.0
+    },
+    {
+      "Strike": 520.0,
+      "Call_Vol": 165046.0,
+      "Call_Vol_Z": 4.125754188129221,
+      "Call_OI": 5161.0
+    },
+    {
+      "Strike": 525.0,
+      "Call_Vol": 147883.0,
+      "Call_Vol_Z": 3.6413264684235553,
+      "Call_OI": 6085.0
+    },
+    {
+      "Strike": 522.0,
+      "Call_Vol": 147005.0,
+      "Call_Vol_Z": 3.616544813823452,
+      "Call_OI": 1421.0
+    },
+    {
+      "Strike": 510.0,
+      "Call_Vol": 121187.0,
+      "Call_Vol_Z": 2.887828688008565,
+      "Call_OI": 4506.0
+    }
+  ],
+  "high_put_volume_strikes": [
+    {
+      "Strike": 500.0,
+      "Put_Vol": 243972.0,
+      "Put_Vol_Z": 5.137797464056543,
+      "Put_OI": 7714.0
+    },
+    {
+      "Strike": 505.0,
+      "Put_Vol": 212665.0,
+      "Put_Vol_Z": 4.406561910815613,
+      "Put_OI": 5030.0
+    },
+    {
+      "Strike": 510.0,
+      "Put_Vol": 192232.0,
+      "Put_Vol_Z": 3.929309665012057,
+      "Put_OI": 2448.0
+    },
+    {
+      "Strike": 503.0,
+      "Put_Vol": 139235.0,
+      "Put_Vol_Z": 2.691462199106363,
+      "Put_OI": 2179.0
+    },
+    {
+      "Strike": 515.0,
+      "Put_Vol": 137748.0,
+      "Put_Vol_Z": 2.6567304372745277,
+      "Put_OI": 8128.0
+    }
+  ],
+  "key_levels": {
+    "support": [
+      {
+        "Strike": 480.0,
+        "Put_OI": 14504.0,
+        "Put_OI_Z": 5.679098094925096
+      },
+      {
+        "Strike": 490.0,
+        "Put_OI": 11375.0,
+        "Put_OI_Z": 4.319350409965159
+      },
+      {
+        "Strike": 470.0,
+        "Put_OI": 9033.0,
+        "Put_OI_Z": 3.301603820583192
+      }
+    ],
+    "resistance": [
+      {
+        "Strike": 530.0,
+        "Call_OI": 9084.0,
+        "Call_OI_Z": 4.280378549866198
+      },
+      {
+        "Strike": 545.0,
+        "Call_OI": 9058.0,
+        "Call_OI_Z": 4.265641912379652
+      },
+      {
+        "Strike": 542.0,
+        "Call_OI": 7059.0,
+        "Call_OI_Z": 3.132621207164145
+      }
+    ]
+  },
+  "iv_analysis": {
+    "deep_itm_calls": {
+      "avg_call_iv": 0.5267587226562499,
+      "avg_put_iv": 0.97500309375,
+      "avg_iv_skew": 0.4482443710937501
+    },
+    "itm_calls": {
+      "avg_call_iv": 0.2199501935369318,
+      "avg_put_iv": 0.3297297141335227,
+      "avg_iv_skew": 0.1097795205965909
+    },
+    "atm": {
+      "avg_call_iv": 0.08072618695068359,
+      "avg_put_iv": 0.17713835565185548,
+      "avg_iv_skew": 0.09641216870117188
+    },
+    "itm_puts": {
+      "avg_call_iv": 0.39595330615234375,
+      "avg_put_iv": 0.7766639005126954,
+      "avg_iv_skew": 0.3807105943603516
+    },
+    "deep_itm_puts": {
+      "avg_call_iv": 0.9208696824596775,
+      "avg_put_iv": 1.2080570897649947,
+      "avg_iv_skew": 0.2871874073053174
+    }
+  },
+  "llm_analysis": {
+    "error": "Failed to parse Gemini response",
+    "raw_response": "```json\n{\n  \"market_conditions\": {\n    \"put_call_ratio\": 1.27,\n    \"implied_volatility_skew\": 0.0964,  \n    \"sentiment\": \"bearish\",\n    \"market_condition\": \"normal\"\n  },\n  \"greeks\": {\n    \"call_delta\": 0.5,\n    \"call_gamma\": 0.05,\n    \"call_theta\": -0.02,\n    \"call_vega\": 0.05,\n    \"put_delta\": -0.5,\n    \"put_gamma\": 0.05,\n    \"put_theta\": -0.02,\n    \"put_vega\": 0.05\n  },\n  \"recommended_strategy\": {\n    \"name\": \"Short Strangle\",\n    \"description\": \"Selling both a call and a put option with the same expiration date and different strikes, both slightly out-of-the-money. Profits if the underlying price remains within the range of the strikes.\",\n    \"legs\": [\n      {\"type\": \"sell\", \"option_type\": \"call\", \"strike\": 505.0, \"expiration\": \"2025-04-08\"},\n      {\"type\": \"sell\", \"option_type\": \"put\", \"strike\": 485.0, \"expiration\": \"2025-04-08\"}\n    ],\n    \"max_profit\": \"Premium Received (approx. $10 - $20 per contract, depending on option prices)\",\n    \"max_loss\": \"Unlimited (Theoretically, but practically limited by the price movement of SPY)\"\n  },\n  \"overall_sentiment\": \"bearish\",\n  \"confidence\": 0.7,\n  \"reasoning\": \"The put/call ratio of 1.27 indicates a higher volume of put options traded compared to call options, suggesting a bearish sentiment.  While the implied volatility skew is relatively small, the high put volume at strikes slightly above the current price (500, 505) further supports a bearish outlook. The short strangle strategy is chosen because it profits from low volatility and a lack of significant price movement.  The long-dated expiration provides time decay to work in favor of the strategy. However, the unlimited risk associated with this strategy needs to be carefully considered.  The confidence level is moderate due to the long expiration date and the inherent risk of a short strangle.  A more conservative approach might be preferred for risk-averse investors.\"\n}\n```\n\n**Important Notes:**\n\n* **Greeks are estimates:** The provided Greeks are approximations based on typical values for at-the-money options with the given implied volatility.  Actual Greeks will vary depending on the specific option pricing model and market conditions.\n* **Risk Management:** The short strangle strategy has unlimited potential losses.  Proper risk management, including position sizing and stop-loss orders, is crucial.\n* **Data Limitations:** The analysis relies solely on the provided options data.  A comprehensive analysis would also consider factors like macroeconomic conditions, news events, and technical indicators.\n* **Long Expiration:** The long expiration date (2025-04-08) increases the time decay benefit but also significantly increases the risk.  Shorter-term options would reduce risk but also reduce potential profit.\n* **Risk Tolerance:** The strategy recommendation assumes a moderate risk tolerance.  For a lower risk tolerance, a different strategy (e.g., covered call writing) would be more appropriate.  For a higher risk tolerance, a more aggressive strategy (e.g., a straddle or strangle with longer-term options) could be considered, but with increased risk.\n\n\nThis response provides a structured analysis based on the limited data.  Always conduct thorough research and consult with a financial advisor before making any investment decisions.  Options trading involves substantial risk and may not be suitable for all investors.\n",
+    "overall_sentiment": "neutral",
+    "confidence": 0,
+    "reasoning": "Error in analysis"
+  }
+}

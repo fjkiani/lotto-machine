@@ -1,0 +1,397 @@
+{
+  "analysis_data": {
+    "metadata": {
+      "ticker": "SPY",
+      "analysis_date": "2025-04-08T17:20:59.462549",
+      "expiration_date": "2025-04-08",
+      "current_price": 496.48,
+      "atm_strike": 496.0
+    },
+    "market_state": {
+      "overall_sentiment": "neutral",
+      "institutional_positioning": "neutral",
+      "retail_activity": {
+        "sentiment": "neutral",
+        "conviction": "low",
+        "reliability": "low"
+      }
+    },
+    "options_summary": {
+      "put_call_ratio": 1.2718353603968593,
+      "total_put_volume": 3696489,
+      "total_call_volume": 2906421,
+      "iv_skew_direction": "neutral",
+      "total_strikes_analyzed": 64
+    },
+    "unusual_activity": [
+      {
+        "strike": 525.0,
+        "type": "put",
+        "z_score": 3.6794924873653287,
+        "volume": 243972.0,
+        "open_interest": 7714.0,
+        "vol_oi_ratio": 31.627171376717655
+      },
+      {
+        "strike": 530.0,
+        "type": "put",
+        "z_score": 3.072815861669735,
+        "volume": 212665.0,
+        "open_interest": 5030.0,
+        "vol_oi_ratio": 42.279324055666
+      },
+      {
+        "strike": 530.0,
+        "type": "call",
+        "z_score": 3.0069699467563185,
+        "volume": 175144.0,
+        "open_interest": 9084.0,
+        "vol_oi_ratio": 19.280493174812857
+      },
+      {
+        "strike": 520.0,
+        "type": "call",
+        "z_score": 2.774060417913427,
+        "volume": 165046.0,
+        "open_interest": 5161.0,
+        "vol_oi_ratio": 31.97946134470064
+      },
+      {
+        "strike": 535.0,
+        "type": "put",
+        "z_score": 2.6768589353325556,
+        "volume": 192232.0,
+        "open_interest": 2448.0,
+        "vol_oi_ratio": 78.52614379084967
+      },
+      {
+        "strike": 525.0,
+        "type": "call",
+        "z_score": 2.378197252580633,
+        "volume": 147883.0,
+        "open_interest": 6085.0,
+        "vol_oi_ratio": 24.302875924404272
+      },
+      {
+        "strike": 522.0,
+        "type": "call",
+        "z_score": 2.357946255717486,
+        "volume": 147005.0,
+        "open_interest": 1421.0,
+        "vol_oi_ratio": 103.45179451090782
+      }
+    ],
+    "price_levels": {
+      "support_levels": [],
+      "resistance_levels": []
+    }
+  },
+  "llm_analysis": {
+    "metadata": {
+      "timestamp": "2025-04-08T17:20:59.988201",
+      "ticker": "SPY",
+      "current_price": 496.48,
+      "analysis_version": "2.0"
+    },
+    "market_state": {
+      "overall_sentiment": "bullish",
+      "institutional_positioning": "protective",
+      "retail_activity": {
+        "sentiment": "bullish",
+        "conviction": "high",
+        "reliability": "moderate"
+      }
+    },
+    "price_levels": {
+      "support_levels": [
+        {
+          "price": 486.5504,
+          "strength": "strong",
+          "type": "institutional"
+        },
+        {
+          "price": 471.656,
+          "strength": "moderate",
+          "type": "technical"
+        }
+      ],
+      "resistance_levels": [
+        {
+          "price": 511.37440000000004,
+          "strength": "strong",
+          "type": "institutional"
+        },
+        {
+          "price": 521.3040000000001,
+          "strength": "moderate",
+          "type": "technical"
+        }
+      ]
+    },
+    "volatility_structure": {
+      "skew_analysis": {
+        "type": "high",
+        "strength": 0.8,
+        "interpretation": "Institutional hedging"
+      }
+    },
+    "trading_opportunities": {
+      "strategies": [
+        {
+          "type": "directional",
+          "direction": "put",
+          "size": "moderate",
+          "confidence": "moderate",
+          "rationale": "Technical breakout expected (size adjusted due to sentiment mismatch)"
+        }
+      ]
+    },
+    "technical_signals": {
+      "momentum_bias": "bullish",
+      "support_zones": [
+        486.5504,
+        476.6208
+      ],
+      "resistance_zones": [
+        511.37440000000004,
+        521.3040000000001
+      ]
+    },
+    "institutional_flows": {
+      "hedging_patterns": {
+        "hedging_type": "protective",
+        "put_walls": [
+          {
+            "strike": 471.656,
+            "size": 10000
+          }
+        ]
+      }
+    },
+    "detailed_analysis": {
+      "overview": "The options chain for SPY shows interesting positioning with significant put volume at lower strikes suggesting strong support levels.",
+      "institutional_activity": "Large institutional players appear to be establishing protective positions while maintaining upside exposure.",
+      "volatility_insights": "The volatility skew indicates higher demand for downside protection relative to upside calls, typical of hedging behavior in a cautiously bullish environment."
+    }
+  },
+  "manager_review": {
+    "status": "resolved",
+    "confidence_score": 0.6,
+    "original_analysis": {
+      "metadata": {
+        "timestamp": "2025-04-08T17:20:59.988201",
+        "ticker": "SPY",
+        "current_price": 496.48,
+        "analysis_version": "2.0"
+      },
+      "market_state": {
+        "overall_sentiment": "bullish",
+        "institutional_positioning": "protective",
+        "retail_activity": {
+          "sentiment": "bullish",
+          "conviction": "high",
+          "reliability": "moderate"
+        }
+      },
+      "price_levels": {
+        "support_levels": [
+          {
+            "price": 486.5504,
+            "strength": "strong",
+            "type": "institutional"
+          },
+          {
+            "price": 471.656,
+            "strength": "moderate",
+            "type": "technical"
+          }
+        ],
+        "resistance_levels": [
+          {
+            "price": 511.37440000000004,
+            "strength": "strong",
+            "type": "institutional"
+          },
+          {
+            "price": 521.3040000000001,
+            "strength": "moderate",
+            "type": "technical"
+          }
+        ]
+      },
+      "volatility_structure": {
+        "skew_analysis": {
+          "type": "high",
+          "strength": 0.8,
+          "interpretation": "Institutional hedging"
+        }
+      },
+      "trading_opportunities": {
+        "strategies": [
+          {
+            "type": "directional",
+            "direction": "put",
+            "size": "moderate",
+            "confidence": "moderate",
+            "rationale": "Technical breakout expected (size adjusted due to sentiment mismatch)"
+          }
+        ]
+      },
+      "technical_signals": {
+        "momentum_bias": "bullish",
+        "support_zones": [
+          486.5504,
+          476.6208
+        ],
+        "resistance_zones": [
+          511.37440000000004,
+          521.3040000000001
+        ]
+      },
+      "institutional_flows": {
+        "hedging_patterns": {
+          "hedging_type": "protective",
+          "put_walls": [
+            {
+              "strike": 471.656,
+              "size": 10000
+            }
+          ]
+        }
+      },
+      "detailed_analysis": {
+        "overview": "The options chain for SPY shows interesting positioning with significant put volume at lower strikes suggesting strong support levels.",
+        "institutional_activity": "Large institutional players appear to be establishing protective positions while maintaining upside exposure.",
+        "volatility_insights": "The volatility skew indicates higher demand for downside protection relative to upside calls, typical of hedging behavior in a cautiously bullish environment."
+      }
+    },
+    "resolved_analysis": {
+      "metadata": {
+        "timestamp": "2025-04-08T17:20:59.988201",
+        "ticker": "SPY",
+        "current_price": 496.48,
+        "analysis_version": "2.0"
+      },
+      "market_state": {
+        "overall_sentiment": "bullish",
+        "institutional_positioning": "protective",
+        "retail_activity": {
+          "sentiment": "bullish",
+          "conviction": "high",
+          "reliability": "moderate"
+        }
+      },
+      "price_levels": {
+        "support_levels": [
+          {
+            "price": 486.5504,
+            "strength": "strong",
+            "type": "institutional"
+          },
+          {
+            "price": 471.656,
+            "strength": "moderate",
+            "type": "technical"
+          }
+        ],
+        "resistance_levels": [
+          {
+            "price": 511.37440000000004,
+            "strength": "strong",
+            "type": "institutional"
+          },
+          {
+            "price": 521.3040000000001,
+            "strength": "moderate",
+            "type": "technical"
+          }
+        ]
+      },
+      "volatility_structure": {
+        "skew_analysis": {
+          "type": "high",
+          "strength": 0.8,
+          "interpretation": "Institutional hedging"
+        }
+      },
+      "trading_opportunities": {
+        "strategies": [
+          {
+            "type": "directional",
+            "direction": "put",
+            "size": "moderate",
+            "confidence": "moderate",
+            "rationale": "Technical breakout expected (size adjusted due to sentiment mismatch)"
+          }
+        ]
+      },
+      "technical_signals": {
+        "momentum_bias": "bullish",
+        "support_zones": [
+          486.5504,
+          476.6208
+        ],
+        "resistance_zones": [
+          511.37440000000004,
+          521.3040000000001
+        ]
+      },
+      "institutional_flows": {
+        "hedging_patterns": {
+          "hedging_type": "protective",
+          "put_walls": [
+            {
+              "strike": 471.656,
+              "size": 10000
+            }
+          ]
+        }
+      },
+      "detailed_analysis": {
+        "overview": "The options chain for SPY shows interesting positioning with significant put volume at lower strikes suggesting strong support levels.",
+        "institutional_activity": "Large institutional players appear to be establishing protective positions while maintaining upside exposure.",
+        "volatility_insights": "The volatility skew indicates higher demand for downside protection relative to upside calls, typical of hedging behavior in a cautiously bullish environment."
+      },
+      "risk_factors": [
+        {
+          "type": "volatility_warning",
+          "severity": "high",
+          "description": "High volatility environment requires careful position sizing"
+        }
+      ]
+    },
+    "review_notes": [
+      {
+        "type": "sentiment_strategy_mismatch",
+        "severity": "high",
+        "description": "Bullish sentiment conflicts with put strategy",
+        "recommendation": "Consider reducing position size or using spreads to manage risk"
+      },
+      {
+        "type": "volatility_size_mismatch",
+        "severity": "high",
+        "description": "Large position size in high volatility environment",
+        "recommendation": "Consider reducing position size or using options spreads"
+      }
+    ],
+    "timestamp": "2025-04-08T17:21:00.304889",
+    "market_context": {
+      "technical_indicators": {
+        "sma20": 552.7330810546875,
+        "sma50": 577.3371740722656,
+        "sma200": NaN,
+        "rsi": 18.659854477116085,
+        "above_sma20": "False",
+        "above_sma50": "False",
+        "above_sma200": "False",
+        "current_trend": "downtrend"
+      },
+      "recent_news_count": 5
+    },
+    "llm_recommendations": [
+      "Consider reducing position sizes due to identified contradictions",
+      "Validate support/resistance levels with additional technical analysis",
+      "Monitor for changes in institutional positioning"
+    ]
+  }
+}

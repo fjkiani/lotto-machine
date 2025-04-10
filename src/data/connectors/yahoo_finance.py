@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Union
 import time
 import pandas as pd
+from decimal import Decimal
 
 from src.data.models import OptionChain, OptionContract, OptionChainOptions, OptionStraddle, OptionChainQuote, MarketQuote
 
@@ -23,7 +24,7 @@ class YahooFinanceConnector:
         """
         self.api_key = api_key or os.getenv("RAPIDAPI_KEY")
         self.use_rapidapi = use_rapidapi
-        self.base_url = "https://yahoo-finance166.p.rapidapi.com/api"
+        self.base_url = "https://yahoo-finance166.p.rapidapi.com"  # Updated base URL
         self.headers = {
             "X-RapidAPI-Key": self.api_key,
             "X-RapidAPI-Host": "yahoo-finance166.p.rapidapi.com"
@@ -35,6 +36,16 @@ class YahooFinanceConnector:
         self._cache = {}
         self._cache_expiry = {}
         self._cache_duration = 300  # 5 minutes default cache duration
+        
+        # Import yfinance only when needed to avoid unnecessary imports
+        if not use_rapidapi:
+            try:
+                import yfinance as yf
+                self._yf = yf
+                logger.info("Successfully initialized yfinance")
+            except ImportError:
+                logger.error("Failed to import yfinance. Please install it with: pip install yfinance")
+                raise
     
     def _get_from_cache(self, cache_key: str) -> Optional[Any]:
         """Get data from cache if available and not expired"""
@@ -74,20 +85,27 @@ class YahooFinanceConnector:
             OptionChain object with option data
         """
         cache_key = f"option_chain_{ticker}"
+        
+        # Skip cache if we're switching between APIs
+        if not self.use_rapidapi:
+            # Clear any cached RapidAPI data
+            if cache_key in self._cache:
+                del self._cache[cache_key]
+                if cache_key in self._cache_expiry:
+                    del self._cache_expiry[cache_key]
+            return self._get_option_chain_yfinance(ticker)
+            
         cached_data = self._get_from_cache(cache_key)
         if cached_data:
             return cached_data
         
-        if self.use_rapidapi:
-            return self._get_option_chain_rapidapi(ticker)
-        else:
-            return self._get_option_chain_yfinance(ticker)
+        return self._get_option_chain_rapidapi(ticker)
     
     def _get_option_chain_rapidapi(self, ticker: str) -> OptionChain:
         """Get option chain using RapidAPI"""
         self._handle_rate_limits()
         
-        url = f"{self.base_url}/stock/get-options"
+        url = f"{self.base_url}/api/stock/get-options"
         params = {"symbol": ticker, "region": "US"}
         
         try:
@@ -147,37 +165,43 @@ class YahooFinanceConnector:
                     call_contract = None
                     if call_data:
                         call_contract = OptionContract(
-                            contract_symbol=call_data.get("contractSymbol", ""),
-                            strike=call_data.get("strike", 0),
-                            currency=call_data.get("currency", "USD"),
-                            last_price=call_data.get("lastPrice", 0),
-                            change=call_data.get("change", 0),
-                            percent_change=call_data.get("percentChange", 0),
+                            contract_symbol=call_data["contractSymbol"],
+                            option_type="CALL",
+                            strike=Decimal(str(strike)),
+                            currency=call_data.get("currency"),
+                            last_price=Decimal(str(call_data.get("lastPrice", 0))),
+                            change_price=Decimal(str(call_data.get("change", 0))),
+                            percent_change=Decimal(str(call_data.get("percentChange", 0))),
                             volume=call_data.get("volume", 0),
                             open_interest=call_data.get("openInterest", 0),
-                            bid=call_data.get("bid", 0),
-                            ask=call_data.get("ask", 0),
-                            implied_volatility=call_data.get("impliedVolatility", 0),
-                            in_the_money=call_data.get("inTheMoney", False),
-                            contract_type="call"
+                            bid=Decimal(str(call_data.get("bid", 0))),
+                            ask=Decimal(str(call_data.get("ask", 0))),
+                            contract_size=call_data.get("contractSize"),
+                            expiration=exp_date,
+                            last_trade_date=call_data.get("lastTradeDate"),
+                            implied_volatility=Decimal(str(call_data.get("impliedVolatility", 0))),
+                            in_the_money=call_data.get("inTheMoney", False)
                         )
                     
                     put_contract = None
                     if put_data:
                         put_contract = OptionContract(
-                            contract_symbol=put_data.get("contractSymbol", ""),
-                            strike=put_data.get("strike", 0),
-                            currency=put_data.get("currency", "USD"),
-                            last_price=put_data.get("lastPrice", 0),
-                            change=put_data.get("change", 0),
-                            percent_change=put_data.get("percentChange", 0),
+                            contract_symbol=put_data["contractSymbol"],
+                            option_type="PUT",
+                            strike=Decimal(str(strike)),
+                            currency=put_data.get("currency"),
+                            last_price=Decimal(str(put_data.get("lastPrice", 0))),
+                            change_price=Decimal(str(put_data.get("change", 0))),
+                            percent_change=Decimal(str(put_data.get("percentChange", 0))),
                             volume=put_data.get("volume", 0),
                             open_interest=put_data.get("openInterest", 0),
-                            bid=put_data.get("bid", 0),
-                            ask=put_data.get("ask", 0),
-                            implied_volatility=put_data.get("impliedVolatility", 0),
-                            in_the_money=put_data.get("inTheMoney", False),
-                            contract_type="put"
+                            bid=Decimal(str(put_data.get("bid", 0))),
+                            ask=Decimal(str(put_data.get("ask", 0))),
+                            contract_size=put_data.get("contractSize"),
+                            expiration=exp_date,
+                            last_trade_date=put_data.get("lastTradeDate"),
+                            implied_volatility=Decimal(str(put_data.get("impliedVolatility", 0))),
+                            in_the_money=put_data.get("inTheMoney", False)
                         )
                     
                     straddle = OptionStraddle(
@@ -215,10 +239,11 @@ class YahooFinanceConnector:
     def _get_option_chain_yfinance(self, ticker: str) -> OptionChain:
         """Get option chain using yfinance library"""
         try:
-            import yfinance as yf
+            # Define cache key
+            cache_key = f"option_chain_{ticker}"
             
             # Get stock info
-            stock = yf.Ticker(ticker)
+            stock = self._yf.Ticker(ticker)
             
             # Get options expiration dates
             expiration_dates = stock.options
@@ -259,8 +284,8 @@ class YahooFinanceConnector:
                 
                 # Get options for this expiration
                 options = stock.option_chain(exp_date_str)
-                calls = options.calls
-                puts = options.puts
+                calls = options.calls.fillna(0)  # Fill NaN values with 0
+                puts = options.puts.fillna(0)    # Fill NaN values with 0
                 
                 # Create straddles by matching calls and puts by strike
                 straddles = []
@@ -281,16 +306,16 @@ class YahooFinanceConnector:
                             contract_symbol=call_data.get("contractSymbol", ""),
                             strike=float(call_data.get("strike", 0)),
                             currency="USD",
-                            last_price=float(call_data.get("lastPrice", 0)),
-                            change=float(call_data.get("change", 0)),
-                            percent_change=float(call_data.get("percentChange", 0)),
-                            volume=int(call_data.get("volume", 0)),
-                            open_interest=int(call_data.get("openInterest", 0)),
-                            bid=float(call_data.get("bid", 0)),
-                            ask=float(call_data.get("ask", 0)),
-                            implied_volatility=float(call_data.get("impliedVolatility", 0)),
+                            last_price=float(call_data.get("lastPrice", 0) or 0),
+                            change_price=float(call_data.get("change", 0) or 0),
+                            percent_change=float(call_data.get("percentChange", 0) or 0),
+                            volume=int(float(call_data.get("volume", 0) or 0)),
+                            open_interest=int(float(call_data.get("openInterest", 0) or 0)),
+                            bid=float(call_data.get("bid", 0) or 0),
+                            ask=float(call_data.get("ask", 0) or 0),
+                            implied_volatility=float(call_data.get("impliedVolatility", 0) or 0),
                             in_the_money=bool(call_data.get("inTheMoney", False)),
-                            contract_type="call"
+                            option_type="CALL"
                         )
                     
                     put_contract = None
@@ -299,16 +324,16 @@ class YahooFinanceConnector:
                             contract_symbol=put_data.get("contractSymbol", ""),
                             strike=float(put_data.get("strike", 0)),
                             currency="USD",
-                            last_price=float(put_data.get("lastPrice", 0)),
-                            change=float(put_data.get("change", 0)),
-                            percent_change=float(put_data.get("percentChange", 0)),
-                            volume=int(put_data.get("volume", 0)),
-                            open_interest=int(put_data.get("openInterest", 0)),
-                            bid=float(put_data.get("bid", 0)),
-                            ask=float(put_data.get("ask", 0)),
-                            implied_volatility=float(put_data.get("impliedVolatility", 0)),
+                            last_price=float(put_data.get("lastPrice", 0) or 0),
+                            change_price=float(put_data.get("change", 0) or 0),
+                            percent_change=float(put_data.get("percentChange", 0) or 0),
+                            volume=int(float(put_data.get("volume", 0) or 0)),
+                            open_interest=int(float(put_data.get("openInterest", 0) or 0)),
+                            bid=float(put_data.get("bid", 0) or 0),
+                            ask=float(put_data.get("ask", 0) or 0),
+                            implied_volatility=float(put_data.get("impliedVolatility", 0) or 0),
                             in_the_money=bool(put_data.get("inTheMoney", False)),
-                            contract_type="put"
+                            option_type="PUT"
                         )
                     
                     straddle = OptionStraddle(
@@ -328,6 +353,7 @@ class YahooFinanceConnector:
             # Create OptionChain object
             option_chain = OptionChain(
                 underlying_symbol=ticker,
+                has_mini_options=False,
                 quote=quote,
                 expiration_dates=[exp.expiration_date for exp in expirations],
                 strikes=sorted(list(all_strikes)),
@@ -339,22 +365,12 @@ class YahooFinanceConnector:
             
             return option_chain
             
-        except ImportError:
-            logger.error("yfinance library not installed. Please install with: pip install yfinance")
-            raise
         except Exception as e:
             logger.error(f"Error fetching option chain for {ticker} with yfinance: {str(e)}")
             raise
     
     def get_market_quotes(self, tickers: Union[str, List[str]]) -> Dict[str, MarketQuote]:
-        """Get detailed market quotes for one or more tickers using marketGetQuotesV2 endpoint
-        
-        Args:
-            tickers: Single ticker or list of ticker symbols
-            
-        Returns:
-            Dictionary mapping ticker symbols to MarketQuote objects
-        """
+        """Get detailed market quotes for one or more tickers"""
         if isinstance(tickers, str):
             tickers = [tickers]
             
@@ -368,9 +384,9 @@ class YahooFinanceConnector:
             
         self._handle_rate_limits()
         
-        # Update to the correct endpoint based on the provided example
-        url = f"{self.base_url}/market/get-quote-v2"
-        params = {"symbols": tickers_str, "fields": "quoteSummary"}
+        # Use the working endpoint structure
+        url = f"{self.base_url}/api/stock/get-options"
+        params = {"symbol": tickers[0], "region": "US"}  # Get first ticker since endpoint only supports one
         
         try:
             response = requests.get(url, headers=self.headers, params=params)
@@ -382,47 +398,41 @@ class YahooFinanceConnector:
             
             data = response.json()
             
-            # Process quote data
+            # Process quote data from options response
             quotes = {}
-            quote_results = data.get("quoteResponse", {}).get("result", [])
+            quote_data = data.get("optionChain", {}).get("result", [{}])[0].get("quote", {})
             
-            for quote_data in quote_results:
-                symbol = quote_data.get("symbol")
-                
-                # Extract summary detail data if available
-                summary_detail = quote_data.get("quoteSummary", {}).get("summaryDetail", {})
-                
+            if quote_data:
                 market_quote = MarketQuote(
-                    symbol=symbol,
+                    symbol=quote_data.get("symbol"),
                     quote_type=quote_data.get("quoteType", ""),
                     market_state=quote_data.get("marketState", ""),
                     regular_market_price=quote_data.get("regularMarketPrice", 0),
-                    regular_market_previous_close=summary_detail.get("previousClose", 0),
-                    regular_market_open=summary_detail.get("open", 0),
-                    regular_market_day_high=summary_detail.get("dayHigh", 0),
-                    regular_market_day_low=summary_detail.get("dayLow", 0),
-                    regular_market_volume=summary_detail.get("volume", 0),
-                    average_volume=summary_detail.get("averageVolume", 0),
-                    average_volume_10_days=summary_detail.get("averageVolume10days", 0),
-                    bid=summary_detail.get("bid", 0),
-                    ask=summary_detail.get("ask", 0),
-                    bid_size=summary_detail.get("bidSize", 0),
-                    ask_size=summary_detail.get("askSize", 0),
+                    regular_market_previous_close=quote_data.get("regularMarketPreviousClose", 0),
+                    regular_market_open=quote_data.get("regularMarketOpen", 0),
+                    regular_market_day_high=quote_data.get("regularMarketDayHigh", 0),
+                    regular_market_day_low=quote_data.get("regularMarketDayLow", 0),
+                    regular_market_volume=quote_data.get("regularMarketVolume", 0),
+                    average_volume=quote_data.get("averageVolume", 0),
+                    average_volume_10_days=quote_data.get("averageVolume10days", 0),
+                    bid=quote_data.get("bid", 0),
+                    ask=quote_data.get("ask", 0),
+                    bid_size=quote_data.get("bidSize", 0),
+                    ask_size=quote_data.get("askSize", 0),
                     market_cap=quote_data.get("marketCap", 0),
-                    fifty_two_week_high=summary_detail.get("fiftyTwoWeekHigh", 0),
-                    fifty_two_week_low=summary_detail.get("fiftyTwoWeekLow", 0),
-                    fifty_day_average=summary_detail.get("fiftyDayAverage", 0),
-                    two_hundred_day_average=summary_detail.get("twoHundredDayAverage", 0),
-                    trailing_annual_dividend_rate=summary_detail.get("trailingAnnualDividendRate", 0),
-                    trailing_annual_dividend_yield=summary_detail.get("trailingAnnualDividendYield", 0),
-                    trailing_pe=summary_detail.get("trailingPE", 0),
+                    fifty_two_week_high=quote_data.get("fiftyTwoWeekHigh", 0),
+                    fifty_two_week_low=quote_data.get("fiftyTwoWeekLow", 0),
+                    fifty_day_average=quote_data.get("fiftyDayAverage", 0),
+                    two_hundred_day_average=quote_data.get("twoHundredDayAverage", 0),
+                    trailing_annual_dividend_rate=quote_data.get("trailingAnnualDividendRate", 0),
+                    trailing_annual_dividend_yield=quote_data.get("trailingAnnualDividendYield", 0),
+                    trailing_pe=quote_data.get("trailingPE", 0),
                     exchange=quote_data.get("exchange", ""),
                     exchange_name=quote_data.get("fullExchangeName", ""),
-                    currency=summary_detail.get("currency", "USD"),
-                    raw_data=quote_data  # Store the full raw data for additional fields
+                    currency=quote_data.get("currency", "USD"),
+                    raw_data=quote_data
                 )
-                
-                quotes[symbol] = market_quote
+                quotes[tickers[0]] = market_quote
             
             # Store in cache
             self._store_in_cache(cache_key, quotes)
@@ -431,7 +441,7 @@ class YahooFinanceConnector:
             
         except Exception as e:
             logger.error(f"Error fetching market quotes: {str(e)}")
-            raise
+            return {}
     
     def get_quote(self, ticker: str) -> Dict[str, Any]:
         """Get a quote for a single ticker
@@ -498,12 +508,10 @@ class YahooFinanceConnector:
         
         try:
             # Try to use yfinance first
-            import yfinance as yf
-            
             logger.info(f"Fetching historical data for {ticker} with period={period}, interval={interval}")
             
             # Get the data using yfinance
-            ticker_data = yf.Ticker(ticker)
+            ticker_data = self._yf.Ticker(ticker)
             df = ticker_data.history(period=period, interval=interval)
             
             # Check if we got valid data
@@ -519,9 +527,6 @@ class YahooFinanceConnector:
             
             return df
             
-        except ImportError:
-            logger.error("yfinance library not installed. Please install with: pip install yfinance")
-            return None
         except Exception as e:
             logger.error(f"Error fetching historical data for {ticker}: {str(e)}")
             

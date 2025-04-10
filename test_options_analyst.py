@@ -27,7 +27,7 @@ def fetch_options_from_rapidapi(ticker):
     conn = http.client.HTTPSConnection("yahoo-finance166.p.rapidapi.com")
     
     headers = {
-        'x-rapidapi-key': os.getenv("RAPIDAPI_KEY", "a5c0896b36mshaa509a779a23bb6p181f51jsna75ba55edc97"),
+        'x-rapidapi-key': os.getenv("RAPIDAPI_KEY", "cdee5e97c8msh34c3fd1e0516cb2p13b5bdjsn85e981b0d4a5"),
         'x-rapidapi-host': "yahoo-finance166.p.rapidapi.com"
     }
     

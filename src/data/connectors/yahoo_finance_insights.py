@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
+# Force reload environment variables
+load_dotenv(override=True)
 
 class YahooFinanceInsightsConnector:
     """Connector for Yahoo Finance Real-Time Insights API from RapidAPI."""
@@ -19,18 +19,25 @@ class YahooFinanceInsightsConnector:
     
     def __init__(self, api_key: Optional[str] = None):
         """Initialize the connector with API credentials."""
+        # Force reload environment variables
+        load_dotenv(override=True)
+        
         self.api_key = api_key or os.getenv("RAPIDAPI_KEY")
         if not self.api_key:
             raise ValueError("RapidAPI key is required. Set RAPIDAPI_KEY environment variable or pass to constructor.")
+        
+        # Log the first few characters of the API key for verification
+        logger.info(f"Using RapidAPI key starting with: {self.api_key[:8]}...")
         
         self.headers = {
             "X-RapidAPI-Key": self.api_key,
             "X-RapidAPI-Host": "yahoo-finance-real-time1.p.rapidapi.com"
         }
         
-        # Cache for storing API responses
+        # Clear any existing cache
         self._cache = {}
         self._cache_timestamps = {}
+        logger.info("Cache cleared on initialization")
     
     def _get_from_cache(self, key: str, max_age_seconds: int = 300) -> Optional[Dict]:
         """Get data from cache if it exists and is not expired."""

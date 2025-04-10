@@ -292,7 +292,7 @@ def analyze_options_with_gemini(ticker: str, option_chain_data: dict, risk_toler
     
     # Configure Gemini model
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-pro",  # Using a more widely available model
+        model_name="gemini-1.5-flash",  # Using a more widely available model
         generation_config=GenerationConfig(
             temperature=0.2,
             top_p=0.95,

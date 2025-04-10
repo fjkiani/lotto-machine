@@ -22,7 +22,7 @@ def setup_gemini_api():
 
 # Function to generate content with Gemini
 def gemini_generate_content(prompt: str, 
-                            model: str = "gemini-1.5-flash",
+                            model: str = "gemini-1.5-pro",
                             temperature: float = 0.7,
                             max_output_tokens: int = 2048) -> str:
     """

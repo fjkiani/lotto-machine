@@ -136,7 +136,289 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 - In TypeScript, add explicit interface definitions for complex objects when using forEach/map/find to avoid 'implicitly has an any type' errors
 - Always test API endpoints directly using curl or similar tools to verify the correct URL structure when experiencing 404 errors
 
+## New Lessons
+- When enhancing working code, use wrapper pattern to add functionality without modifying original
+- Store both original and enhanced formats during transition
+- Use view models to separate storage and display concerns
+- Implement monitoring before adding complexity
+
+## Manager LLM Review System Implementation
+
+- When implementing `EnhancedManagerReview`, ensure you have `from .manager_review import ManagerLLMReview` to use the original manager as a fallback
+- The main directory structure requires `src/llm/manager_review.py` and `src/llm/enhanced_manager_review.py` files to exist
+- Import the necessary datetime and yaml modules for handling timestamps and configuration loading
+- Use the following directory structure for a complete implementation:
+  ```
+  src/
+    llm/
+      manager_review.py         # Base implementation with hard-coded rules
+      enhanced_manager_review.py # Enhanced version with configurable fixes
+      dynamic_manager_review.py  # Optional LLM-based review
+    data/
+      llm_api.py                # Integration point for analysis pipeline
+  tools/
+    test_enhanced_manager.py    # Test script for validation
+  config/
+    manager_review_config.yaml  # Configuration file
+  ```
+
+- When testing, use the `venv/bin/python tools/test_enhanced_manager.py` command
+- Common import errors can be fixed by ensuring the `src` directory is in your Python path with:
+  ```python
+  # Add the project root directory to the Python path
+  script_dir = Path(__file__).resolve().parent
+  project_root = script_dir.parent
+  sys.path.insert(0, str(project_root))
+  ```
+
+- When fixing contradictions:
+  1. Always create a deep copy of the original analysis: `resolved_analysis = json.loads(json.dumps(analysis))`
+  2. Track changes in a separate list for proper logging
+  3. Add metadata about fixes applied
+  4. Return both original and resolved analysis for comparison
+
+- Troubleshooting the pipeline:
+  - If `ImportError: cannot import name 'EnhancedManagerReview'`, check that the class name matches exactly in both files
+  - If getting `KeyError` exceptions, use `.get()` method with default values when accessing nested dictionaries
+  - For YAML configuration issues, ensure the file exists in the expected location and has proper indentation
+  - If the manager doesn't detect contradictions, verify the contradiction detection rules match your data structure
+  - Make sure each fix method returns a list of changes made, even if empty
+
+- Always implement fallbacks to handle configuration failures:
+  ```python
+  try:
+      # Try to load from configuration
+      # ...
+  except Exception as e:
+      logger.warning(f"Using default configuration: {str(e)}")
+      return default_config
+  ```
+
+- For production systems, avoid using `eval()` for rule evaluation (as in the Rule class) due to security concerns - implement a safer rule parser or use callable functions
+
+## Manager LLM Review System
+
+### Benefits of Manager LLM Review
+- Acts as a quality control layer for analysis consistency
+- Helps identify and resolve contradictions between different analysis components
+- Provides a higher-level strategic view of the analysis
+- Can catch common analytical mistakes and biases
+- Improves confidence in trading recommendations
+
+### Implementation Strategy
+1. **Two-Stage Analysis Pipeline**
+   - First stage: Detailed technical analysis by specialist LLM
+   - Second stage: Review and reconciliation by manager LLM
+   
+2. **Manager LLM Responsibilities**
+   - Cross-validate different parts of the analysis
+   - Check for logical consistency in price targets
+   - Verify alignment between sentiment and recommended strategies
+   - Ensure risk factors match market conditions
+   - Validate that technical signals support the overall narrative
+
+3. **Contradiction Resolution Protocol**
+   ```python
+   class AnalysisValidator:
+       def __init__(self):
+           self.contradiction_checks = [
+               self._check_sentiment_strategy_alignment,
+               self._check_price_target_consistency,
+               self._check_risk_reward_ratios,
+               self._check_technical_fundamental_alignment
+           ]
+           
+       def validate(self, analysis):
+           issues = []
+           for check in self.contradiction_checks:
+               result = check(analysis)
+               if result.has_issues:
+                   issues.append(result)
+           return self._resolve_contradictions(issues)
+   ```
+
+4. **Quality Metrics**
+   - Contradiction detection rate
+   - False positive rate for contradictions
+   - Resolution success rate
+   - Analysis confidence scores
+   - Time impact on analysis pipeline
+
+### Common Contradictions to Check
+1. **Sentiment vs. Positioning**
+   - Bullish sentiment with heavy put activity
+   - Bearish sentiment with strong support levels
+   
+2. **Technical vs. Options Flow**
+   - Breakout signals vs. option barriers
+   - Volume confirmation vs. options activity
+   
+3. **Risk Assessment**
+   - Low risk rating with high volatility
+   - Aggressive strategies in uncertain conditions
+   
+4. **Price Targets**
+   - Inconsistent support/resistance levels
+   - Conflicting short/long term targets
+   
+5. **Strategy Recommendations**
+   - Mismatched risk tolerance and strategies
+   - Contradictory position sizing suggestions
+
+### Implementation Example
+```python
+class ManagerLLMReview:
+    def review_analysis(self, analysis_result):
+        contradictions = self._find_contradictions(analysis_result)
+        if contradictions:
+            resolved_analysis = self._resolve_contradictions(analysis_result, contradictions)
+            confidence_score = self._calculate_confidence(resolved_analysis)
+            return {
+                "original_analysis": analysis_result,
+                "contradictions_found": contradictions,
+                "resolved_analysis": resolved_analysis,
+                "confidence_score": confidence_score,
+                "review_notes": self._generate_review_notes(contradictions)
+            }
+        return analysis_result
+```
+
+### Best Practices
+1. Always run contradiction checks before finalizing analysis
+2. Keep detailed logs of detected contradictions
+3. Use confidence scores to weight different aspects of analysis
+4. Implement automatic resolution for common contradictions
+5. Maintain human oversight for complex resolution cases
+6. Regular updates to contradiction detection rules
+7. Track resolution success rates for continuous improvement
+
+### Lessons Learned
+- Contradictions often occur between technical and sentiment analysis
+- Options flow can provide early warning of analysis inconsistencies
+- Multiple time frame analysis requires special attention to consistency
+- Risk assessment should be cross-validated across all analysis components
+- Regular calibration of the manager LLM is crucial for accuracy
+
+## Enhanced Manager LLM Review System
+
+### Overview
+The Enhanced Manager LLM Review System is a configurable contradiction detection and resolution system that improves analysis quality by identifying and fixing inconsistencies. Key features include:
+
+1. **Configuration-based rules** - Rules, thresholds, and penalties defined in YAML
+2. **Automated fixes** - System can automatically resolve certain contradictions
+3. **Confidence scoring** - Quantifies analysis reliability based on contradiction severity
+4. **Detailed review notes** - Documents contradictions and resolution steps
+5. **LLM integration** - Uses LLMs for context-aware recommendations
+
+### Key Components
+- `manager_review_config.yaml` - Central configuration file for rules and thresholds
+- `EnhancedManagerReview` - Main class that extends the base `ManagerLLMReview`
+- `_apply_recommendations` - Method that implements automated fixes
+- `test_enhanced_manager.py` - Test script to validate functionality
+
+### Usage Pattern
+```python
+# Initialize the enhanced manager
+enhanced_manager = EnhancedManagerReview()
+
+# Apply review to analysis
+review_result = enhanced_manager.review_analysis(analysis)
+
+# Check if contradictions were found and fixed
+if review_result.get("contradictions_found"):
+    # Use the resolved analysis
+    final_analysis = review_result["resolved_analysis"]
+    # Access confidence score
+    confidence = review_result["confidence_score"]
+    # Get review notes
+    notes = review_result["review_notes"]
+else:
+    # No contradictions found
+    final_analysis = review_result
+```
+
+### Best Practices
+1. Always validate config file against a schema before loading
+2. Track changes made to the original analysis
+3. Maintain a complete changelog of fixes applied
+4. Use appropriate severity levels for different contradiction types
+5. Set reasonable thresholds based on market conditions
+6. Update rules regularly based on performance metrics
+7. Monitor fix success rates to improve automated resolution
+
+### Monitoring
+- Track contradiction detection rate
+- Measure false positive/negative rates
+- Monitor resolution success rate
+- Track confidence score distribution
+- Measure processing time overhead
+
 # Scratchpad
+
+## Options Analysis Enhancement with Graph Database
+
+### Task Overview
+Enhance the working options analysis while preserving functionality:
+1. Add graph database storage
+2. Optimize frontend display
+3. Enable multi-agent analysis
+4. Maintain current analysis quality
+
+### Current Working Components (DO NOT MODIFY)
+✅ Working analysis structure:
+- Market sentiment (short/long term)
+- Key levels with reasoning
+- Volatility analysis
+- Institutional activity
+- Trading opportunities
+- Risk factors
+- Technical signals
+- Detailed analysis
+
+### Enhancement Plan
+
+1. **Graph Database Schema**
+[ ] Design nodes:
+- Analysis (root node)
+- MarketSentiment
+- PriceLevel
+- Volatility
+- Institution
+- Trading
+- Risk
+
+[ ] Design relationships:
+- SENTIMENT_OF
+- LEVEL_IN
+- RISK_OF
+- OPPORTUNITY_IN
+
+2. **Frontend Components**
+[ ] Create view models:
+- Market overview card
+- Price levels chart
+- Volatility panel
+- Trading table
+- Risk dashboard
+
+3. **Multi-Agent System**
+[ ] Define interfaces:
+- Options analysis (current)
+- Technical analysis
+- Sentiment analysis
+- Risk assessment
+
+### Implementation Strategy
+1. Add wrapper around current analysis
+2. Store in graph DB without modifying output
+3. Create view models for frontend
+4. Enable agent communication
+
+### Success Metrics
+- Maintain analysis quality
+- Query speed < 100ms
+- Update speed < 500ms
+- Zero regressions
 
 ## Options Analysis Feature Debugging and Enhancement
 
@@ -200,3 +482,256 @@ The core options analysis feature is now working properly. We've fixed:
 3. Implement caching to improve performance
 4. Add basic data visualizations (IV curve, etc.)
 5. Improve mobile responsiveness
+
+## Options Analysis Enhancement Plan
+
+### Task Overview
+Enhance the working options analysis system to:
+1. Store results in a graph database
+2. Optimize for frontend display
+3. Enable multi-agent analysis pipeline
+4. Maintain current functionality
+
+### Current Working Components (DO NOT MODIFY)
+- ✅ Deep reasoning analysis with Gemini
+- ✅ Structured response format
+- ✅ Detailed analysis with multiple sections
+- ✅ Error handling and fallbacks
+
+### Enhancement Plan
+
+1. **Graph Database Integration**
+   [ ] Design graph schema
+      - Nodes:
+        - AnalysisNode (timestamp, ticker, version)
+        - MarketSentimentNode (short_term, long_term)
+        - PriceLevelNode (support, resistance)
+        - VolatilityNode (skew, term_structure)
+        - InstitutionalActivityNode (patterns, significant_strikes)
+        - TradingOpportunityNode (strategy, risk_reward)
+        - RiskFactorNode (type, severity)
+      - Relationships:
+        - ANALYZED_AT (Analysis -> Timestamp)
+        - HAS_SENTIMENT (Analysis -> MarketSentiment)
+        - IDENTIFIES_LEVEL (Analysis -> PriceLevel)
+        - SHOWS_VOLATILITY (Analysis -> Volatility)
+        - INDICATES_ACTIVITY (Analysis -> InstitutionalActivity)
+        - SUGGESTS_OPPORTUNITY (Analysis -> TradingOpportunity)
+        - HIGHLIGHTS_RISK (Analysis -> RiskFactor)
+
+2. **Frontend Optimization**
+   [ ] Create view models for each component:
+      - Market Overview Card
+      - Price Levels Chart
+      - Volatility Analysis Panel
+      - Trading Opportunities Table
+      - Risk Assessment Dashboard
+   [ ] Define data transformation layers:
+      - Raw Analysis -> Graph DB
+      - Graph DB -> Frontend Views
+      - Real-time Updates
+
+3. **Multi-Agent Analysis Pipeline**
+   [ ] Define agent interfaces:
+      - Options Analysis Agent (current)
+      - Technical Analysis Agent
+      - Sentiment Analysis Agent
+      - Risk Assessment Agent
+   [ ] Create standardized data formats:
+      ```typescript
+      interface AnalysisResult {
+        id: string;
+        timestamp: string;
+        type: AnalysisType;
+        confidence: number;
+        data: Record<string, any>;
+        metadata: {
+          source: string;
+          version: string;
+          dependencies?: string[];
+        };
+      }
+      ```
+
+4. **Implementation Phases**
+   Phase 1: Graph Database Integration
+   [ ] Set up Neo4j database
+   [ ] Create data models
+   [ ] Add storage layer without modifying analysis
+   [ ] Implement basic queries
+
+   Phase 2: Frontend Enhancement
+   [ ] Design component hierarchy
+   [ ] Create view models
+   [ ] Implement real-time updates
+   [ ] Add interactive visualizations
+
+   Phase 3: Multi-Agent System
+   [ ] Define agent protocols
+   [ ] Create agent registry
+   [ ] Implement message passing
+   [ ] Add result aggregation
+
+### Implementation Strategy
+
+1. **Wrapper Approach**
+```python
+class OptionsAnalysisWrapper:
+    def __init__(self, original_analyzer):
+        self.analyzer = original_analyzer
+        self.graph_store = GraphStore()
+        
+    def analyze(self, *args, **kwargs):
+        # Get original analysis
+        result = self.analyzer(*args, **kwargs)
+        
+        # Store in graph DB without modifying original
+        self.graph_store.store(result)
+        
+        # Return original format
+        return result
+```
+
+2. **View Model Transformation**
+```python
+class AnalysisViewModel:
+    def __init__(self, graph_store):
+        self.graph_store = graph_store
+        
+    def get_market_overview(self, analysis_id):
+        # Query graph DB
+        return self.graph_store.get_market_overview(analysis_id)
+        
+    def get_trading_opportunities(self, analysis_id):
+        return self.graph_store.get_opportunities(analysis_id)
+```
+
+3. **Agent Communication**
+```python
+class AnalysisHub:
+    def __init__(self):
+        self.agents = {}
+        self.graph_store = GraphStore()
+        
+    def register_agent(self, agent_id, agent):
+        self.agents[agent_id] = agent
+        
+    def request_analysis(self, data, agent_ids):
+        results = {}
+        for agent_id in agent_ids:
+            results[agent_id] = self.agents[agent_id].analyze(data)
+        return self.aggregate_results(results)
+```
+
+### Success Metrics
+- Zero regression in existing analysis
+- Query performance < 100ms
+- Real-time updates < 500ms
+- Agent communication latency < 200ms
+- Storage efficiency (compression ratio > 5:1)
+
+### Monitoring Plan
+- Analysis accuracy metrics
+- Query performance tracking
+- Agent response times
+- Storage utilization
+- Error rates by component
+
+### Rollback Plan
+- Keep original implementation in separate module
+- Version all schema changes
+- Maintain backward compatibility layer
+- Store original format alongside graph format
+
+## Streamlit App Review and Refactoring Plan
+
+**Overall Goal:** To improve the modularity, testability, maintainability, and LLM utilization of the `streamlit_app_llm.py` application by refactoring the different analysis types and potentially implementing a more agentic workflow.
+
+**Phase 1: Deep Dive & Code Review (Understand the Current State)**
+
+*   **1.1. Review `EnhancedAnalysisPipeline` & Dependencies:**
+    *   [✅] Read `src/analysis/enhanced_analysis_pipeline.py`.
+    *   [✅] Understand its internal logic (Initial LLM -> Deep Reasoning LLM -> Feedback Module), LLM calls (`analyze_market_quotes_with_gemini`, `deep_reasoning_analysis`), and the feedback loop implementation (`implement_feedback_loop`).
+    *   [✅] Reviewed `analyze_market_quotes_with_gemini` (in `src/llm/models.py`): Initial analysis based *only* on quote data. Prompt depends on `analysis_type`. Limited by input data scope.
+    *   [✅] Reviewed `deep_reasoning_analysis` (in `deep_reasoning_fix.py`): Second LLM pass critiquing initial analysis based on quote data + initial analysis. Returns raw text. Hardcoded model.
+    *   [✅] Reviewed `implement_feedback_loop` (in `src/analysis/feedback_loop.py`): Uses two more LLM calls to detect contradictions and generate learning points. Updates initial analysis based on keyword matching in LLM resolution text. Hardcoded model. Parsing reliant on LLM format adherence.
+    *   [ ] Document how "Enhanced Analysis" differs from "Basic Analysis".
+*   **1.2. Review `MemoryEnhancedAnalysis`:**
+    *   [✅] Read `src/llm/memory_enhanced_analysis.py`.
+    *   [✅] Understand how memory (`AnalysisMemory`) and technical history (`TechnicalIndicatorsStorage`) are integrated to provide context (`memory_context`, `technical_context`).
+    *   [✅] Document the LLM calls (`_perform_analysis_with_memory` using hardcoded `gemini-1.5-flash`) and logic used (fetch quote -> update/verify technicals -> generate context -> analyze -> store result).
+*   **1.3. Review Specific LLM Functions:**
+    *   [✅] Analyze `analyze_with_gemini` (in `streamlit_app_llm.py`): Options analysis using `gemini-1.5-flash`. Detailed prompt requesting structured JSON output (sentiment, volatility, insights, single trade recommendation). Relies on `prepare_gemini_input` for data. Hardcoded model. JSON parsing has basic fallback.
+    *   [✅] Analyze `analyze_technicals_with_llm` (in `streamlit_app_llm.py`): Technical analysis using `gemini-1.5-flash`. Calculates indicators, fetches history via `yfinance`. Incorporates simple historical feedback. Requests detailed JSON output. Hardcoded model. Feedback logic is basic.
+    *   [✅] Analyze `generate_price_targets` (in `streamlit_app_llm.py`): Hybrid approach. Tries specialized LLM (`analyze_price_targets_with_llm`) first. Falls back to combining technicals, time series S/R, options implied moves, and volatility using weighted averages. Redundant data fetching. Hardcoded models/confidence.
+*   **1.4. Review Data Fetching & Preparation:**
+    *   [✅] Analyze `fetch_market_data`: Confirmed it uses direct API call, bypassing connector. **Needs refactoring.**
+    *   [✅] Analyze `prepare_gemini_input`: Understands its purpose (formatting options data for LLM), necessity tied to `analyze_with_gemini`.
+*   **1.5. Review Display Functions:**
+    *   [✅] Analyze `display_market_overview`: Consumes data from direct API call via `fetch_market_data`. **Fragile.**
+    *   [✅] Analyze `display_llm_options_analysis`: Consumes output from `analyze_with_gemini`. Coupled to LLM JSON format.
+    *   [✅] Analyze `display_enhanced_analysis`, `display_memory_enhanced_analysis`, `display_technical_analysis`, `display_price_targets`: Understand their data consumption patterns.
+*   **1.6. Identify Redundancy & Hardcoding:**
+    *   [✅] Documented instances of repeated LLM interaction logic, display patterns, indicator calculations.
+    *   [✅] Pinpointed hardcoded API calls, LLM model names/params, JSON structure dependencies, processing limits, timeframe mappings, display styles.
+
+**Phase 2: Refactoring Strategy & Design**
+
+*   **2.1. Define Modular Structure:**
+    *   [✅] Propose creating separate Python modules for each analysis type (e.g., `src/analysis/general_analyzer.py`, `src/analysis/options_analyzer.py`, etc.). Each module would encapsulate the logic for its specific analysis type.
+    *   [✅] Plan to move relevant functions (like `analyze_with_gemini`, `analyze_technicals_with_llm`) into their respective modules.
+*   **2.2. Centralize Common Components:**
+    *   [✅] Plan refactoring of data fetching (`fetch_market_data` removal, **mandatory use of connector**) into a shared data module or utility. Centralize indicator calculations.
+    *   [✅] Plan creating a shared LLM interaction layer/wrapper (e.g., `src/llm/llm_client.py`) to standardize calls, handle errors, and parse JSON.
+    *   [✅] Plan centralizing display logic using helper functions or dedicated display modules (e.g., `src/streamlit_app/ui_components.py`).
+*   **2.3. Define Interfaces:**
+    *   [✅] Define a standard input/output interface for each analysis module (accepting `ticker`, `connector`, `llm_client`, etc., returning structured dict).
+    *   [✅] Define clear methods for the `llm_client` (e.g., `generate_json`).
+    *   [✅] Display functions will expect these standardized dictionaries.
+*   **2.4. Agentic Workflow Design (Based on User Clarification):**
+    *   [✅] Aim for collaborative multi-agent system (technical, options, sentiment, risk agents + manager/synthesis agent).
+    *   [ ] Design interaction flow and data protocols (Deferred - modularization is prerequisite).
+
+**Phase 3: Implementation (Iterative)**
+
+*   **3.1. Refactor Data Fetching (Immediate Priority):**
+    *   [✅] Modify `streamlit_app_llm.py` to instantiate `YahooFinanceConnector` once.
+    *   [✅] Replace the `fetch_market_data` function with calls to `connector.get_market_quotes(ticker)`.
+    *   [✅] Update `display_market_overview` to correctly parse the `MarketQuote` object returned by the connector.
+    *   [✅] Ensure `prepare_gemini_input` uses `connector.get_option_chain(ticker)` instead of the old `fetch_market_data` output.
+*   **3.2. Create Core Modules:**
+    *   [✅] Set up the new directory structure and empty Python files for each analysis type module and shared components (data, llm, display).
+*   **3.3. Refactor Analysis Type 1 (Options Analysis):**
+    *   [✅] Move `analyze_with_gemini` and `prepare_gemini_input` logic into `src/analysis/options_analyzer.py`.
+    *   [✅] Update `streamlit_app_llm.py` to import and call `run_options_analysis` from the new module.
+    *   [✅] Ensure data fetching uses the centralized component (done in 3.1).
+    *   [ ] Add basic tests for the `OptionsAnalyzer` module (deferred).
+*   **3.4. Refactor Analysis Type 2 (General Analysis):**
+    *   [ ] Design the scope of "General Analysis" (360 view) - (Deferred).
+    *   [ ] Migrate relevant logic (potentially from "Basic" or elements of "Enhanced") into `src/analysis/general_analyzer.py` (Deferred).
+    *   [ ] Determine how agent outputs will contribute to this view.
+*   **3.5. Refactor Remaining Analysis Types:**
+    *   [✅] Refactor Technical Analysis (move `analyze_technicals_with_llm` to `src/analysis/technical_analyzer.py`, use connector, update main app).
+    *   [ ] Refactor Enhanced Analysis.
+    *   [ ] Refactor Memory-Enhanced Analysis.
+*   **3.6. Refactor Main App:**
+    *   [ ] Slim down `streamlit_app_llm.py` to primarily handle UI, input gathering, routing calls to the appropriate analysis modules, and calling display functions.
+
+**Phase 4: LLM & Workflow Enhancement**
+
+*   **4.1. Optimize LLM Prompts:**
+    *   [ ] Review and refine prompts in all LLM-calling functions and modules for clarity, efficiency, and better instruction following.
+    *   [ ] Ensure consistent JSON output formatting instructions.
+*   **4.2. Enhance LLM Error Handling:**
+    *   [ ] Implement robust error handling and fallback logic within the centralized LLM wrapper for API errors or parsing failures.
+*   **4.3. Implement Agentic Workflow (If designed in Phase 2):**
+    *   [ ] Build out the communication and orchestration logic for the multi-agent system.
+
+**Phase 5: Testing & Validation**
+
+*   **5.1. Unit & Integration Testing:**
+    *   [ ] Write more comprehensive tests for each analysis module and shared component.
+    *   [ ] Test the interactions between modules in the main Streamlit app.
+*   **5.2. Functional Testing:**
+    *   [ ] Manually run through each analysis type in the Streamlit app for various tickers to ensure correctness and expected behavior.
+    *   [ ] Compare outputs before and after refactoring to check for regressions.

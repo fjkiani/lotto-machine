@@ -1,0 +1,204 @@
+validation:
+  thresholds:
+    price_overlap_percent: 1.0
+    volatility_threshold: 25.0
+    volume_significance: 1000
+    
+  confidence_penalties:
+    high_severity: 0.2
+    medium_severity: 0.1
+    low_severity: 0.05
+    
+  rules:
+    sentiment_strategy:
+      enabled: true
+      priority: high
+      conditions:
+        - type: "sentiment_conflict"
+          check: "sentiment == 'bullish' and strategy.direction == 'put'"
+          severity: "high"
+          
+    price_levels:
+      enabled: true
+      priority: medium
+      conditions:
+        - type: "overlap"
+          check: "abs(support - resistance) / price < threshold"
+          severity: "medium"
+          
+    volatility_risk:
+      enabled: true
+      priority: high
+      conditions:
+        - type: "high_vol_large_size"
+          check: "volatility > threshold and position_size == 'large'"
+          severity: "high"
+
+llm:
+  providers:
+    - name: "gemini"
+      model: "gemini-1.5-flash"
+      timeout: 30
+      max_retries: 3
+    - name: "anthropic"
+      model: "claude-3-sonnet"
+      timeout: 30
+      max_retries: 3
+      
+  prompts:
+    contradiction_review: |
+      You are a highly experienced financial analyst manager reviewing an options analysis prepared by another analyst. 
+      You need to review this analysis for contradictions and inconsistencies.
+      
+      Analysis: {analysis}
+      {market_context_section}
+      
+      Look for the following types of contradictions:
+      1. Market sentiment vs strategy alignment (e.g., bullish sentiment with put-focused strategies)
+      2. Price level consistency (overlapping support/resistance levels)
+      3. Risk/reward ratios (aggressive strategies in high volatility)
+      4. Technical vs institutional signal alignment
+      5. Trading recommendation consistency
+      6. Size and confidence of positions relative to market conditions
+      7. Strike selection relative to identified support/resistance levels
+      
+      Respond with a JSON object containing:
+      {
+        "has_contradictions": true/false,
+        "confidence_score": 0.0-1.0,
+        "contradictions": [
+          {
+            "type": "contradiction type",
+            "severity": "high/medium/low",
+            "description": "detailed description",
+            "components": ["affected component names"]
+          }
+        ],
+        "review_notes": [
+          {
+            "type": "note type",
+            "severity": "high/medium/low",
+            "description": "detailed description",
+            "recommendation": "suggested resolution"
+          }
+        ],
+        "recommendations": [
+          "specific recommendation 1",
+          "specific recommendation 2"
+        ],
+        "resolved_analysis": {
+          // Modified analysis with corrections applied
+        }
+      }
+      
+      If no contradictions are found, return a simplified response with "has_contradictions": false
+      and a high confidence score.
+    
+    options_analysis: |
+      You are a professional options market analyst with 20+ years of experience specializing in identifying 
+      institutional positioning and market sentiment from options data. Analyze the following options chain:
+      
+      Ticker: {ticker}
+      Current Price: ${current_price:.2f}
+      Expiration: {expiration}
+      
+      Options Chain Data:
+      {options_data}
+      
+      Market Context:
+      {market_context}
+      
+      Provide the following in JSON format:
+      {
+        "metadata": {
+          "timestamp": "current timestamp",
+          "ticker": "ticker symbol",
+          "current_price": float,
+          "analysis_version": "2.0"
+        },
+        "market_state": {
+          "overall_sentiment": "bullish/bearish/neutral",
+          "institutional_positioning": "aggressive/protective/neutral",
+          "retail_activity": {
+            "sentiment": "bullish/bearish/neutral",
+            "conviction": "high/medium/low",
+            "reliability": "high/medium/low"
+          }
+        },
+        "price_levels": {
+          "support_levels": [
+            {"price": float, "strength": "strong/moderate/weak", "type": "institutional/technical/psychological"}
+          ],
+          "resistance_levels": [
+            {"price": float, "strength": "strong/moderate/weak", "type": "institutional/technical/psychological"}
+          ]
+        },
+        "volatility_structure": {
+          "skew_analysis": {
+            "type": "high/low/normal",
+            "strength": float,
+            "interpretation": "string"
+          }
+        },
+        "trading_opportunities": {
+          "strategies": [
+            {
+              "type": "strategy type",
+              "direction": "call/put",
+              "size": "large/moderate/small",
+              "confidence": "high/moderate/low",
+              "rationale": "reason for strategy"
+            }
+          ]
+        },
+        "technical_signals": {
+          "momentum_bias": "bullish/bearish/neutral",
+          "support_zones": [float values],
+          "resistance_zones": [float values]
+        },
+        "institutional_flows": {
+          "hedging_patterns": {
+            "hedging_type": "type of hedging",
+            "put_walls": [
+              {"strike": float, "size": integer}
+            ]
+          }
+        },
+        "detailed_analysis": {
+          "overview": "overview of analysis",
+          "institutional_activity": "institutional activity insights",
+          "volatility_insights": "volatility structure insights"
+        }
+      }
+
+analysis_metrics:
+  confidence_thresholds:
+    high: 0.8
+    medium: 0.6
+    low: 0.4
+  
+  severity_weights:
+    high: 0.5
+    medium: 0.3
+    low: 0.1
+  
+  contradiction_types:
+    - name: "sentiment_strategy_mismatch"
+      description: "Mismatch between market sentiment and strategy direction"
+      default_severity: "high"
+      recommended_action: "Adjust strategy direction or size to match sentiment"
+    
+    - name: "price_level_inconsistency"
+      description: "Overlapping or inconsistent support/resistance levels"
+      default_severity: "medium"
+      recommended_action: "Validate levels with additional technical indicators"
+    
+    - name: "volatility_position_mismatch"
+      description: "Aggressive position sizing in high volatility environment"
+      default_severity: "high"
+      recommended_action: "Reduce position size or use options spreads"
+    
+    - name: "technical_institutional_mismatch"
+      description: "Contradiction between technical signals and institutional flow"
+      default_severity: "medium"
+      recommended_action: "Monitor for potential trend reversal" 

@@ -1,14 +1,17 @@
 import os
 import json
 import logging
+import yaml
 from typing import Dict, List, Any, Tuple
 from datetime import datetime
 import pandas as pd
 
 from src.data.connectors.yahoo_finance import YahooFinanceConnector
-from src.llm.models import analyze_market_quotes_with_gemini
+from src.llm.models import analyze_market_quotes_with_gemini, analyze_options_with_gemini
 from deep_reasoning_fix import deep_reasoning_analysis
 from src.analysis.feedback_loop import implement_feedback_loop
+from src.llm.manager_review import ManagerLLMReview
+from src.data.connectors.alpha_vantage import AlphaVantageConnector
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +32,9 @@ class EnhancedAnalysisPipeline:
         self.use_feedback_loop = use_feedback_loop
         self.save_results = save_results
         self.connector = YahooFinanceConnector()
+        self.alpha_vantage = AlphaVantageConnector()
         self.learning_database = []
+        self.manager = ManagerLLMReview()
         
         # Create output directory if it doesn't exist
         self.output_dir = "analysis_results"
@@ -192,4 +197,162 @@ class EnhancedAnalysisPipeline:
             else:
                 categories["other"] += 1
         
-        return categories 
+        return categories
+    
+    async def analyze_with_review(self, ticker: str, risk_tolerance: str = "medium") -> Dict:
+        """
+        Analyze options data with manager review
+        
+        Args:
+            ticker: Stock ticker symbol
+            risk_tolerance: Risk tolerance level (low, medium, high)
+            
+        Returns:
+            Dictionary with analyzed data and review results
+        """
+        logger.info(f"Starting enhanced analysis with review for {ticker}")
+        
+        try:
+            # Fetch market data
+            option_chain = self.connector.get_option_chain(ticker)
+            quote = self.connector.get_quote(ticker)
+            current_price = quote.get('regularMarketPrice', 0)
+            
+            # Prepare the data for analysis
+            market_data = {
+                'ticker': ticker,
+                'current_price': current_price,
+                'option_chain': option_chain,
+                'quote': quote
+            }
+            
+            # Get initial analysis
+            logger.info(f"Performing initial options analysis for {ticker}")
+            initial_analysis = analyze_options_with_gemini(ticker, market_data, risk_tolerance)
+            
+            # Save initial analysis if requested
+            if self.save_results:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                with open(f"{self.output_dir}/initial_options_analysis_{ticker}_{timestamp}.json", "w") as f:
+                    json.dump(initial_analysis, f, indent=2)
+            
+            # Get deep reasoning analysis
+            logger.info(f"Performing deep reasoning analysis for {ticker}")
+            deep_analysis = deep_reasoning_analysis(market_data, initial_analysis)
+            
+            # Create structured analysis for review
+            structured_analysis = {
+                "metadata": {
+                    "timestamp": datetime.now().isoformat(),
+                    "ticker": ticker,
+                    "current_price": current_price,
+                    "analysis_version": "2.0"
+                },
+                "market_state": {
+                    "overall_sentiment": deep_analysis.get('market_conditions', {}).get('sentiment', 'neutral'),
+                    "institutional_positioning": "balanced",
+                    "retail_activity": {
+                        "sentiment": "neutral",
+                        "conviction": "medium",
+                        "reliability": "medium"
+                    }
+                },
+                "price_levels": {
+                    "support_levels": [
+                        {"price": current_price * 0.95, "strength": "strong", "type": "technical"}
+                    ],
+                    "resistance_levels": [
+                        {"price": current_price * 1.05, "strength": "moderate", "type": "technical"}
+                    ]
+                },
+                "volatility_structure": {
+                    "skew_analysis": {
+                        "type": "normal",
+                        "strength": 0.5,
+                        "interpretation": "Balanced market expectations"
+                    }
+                },
+                "trading_opportunities": {
+                    "strategies": [
+                        {
+                            "type": deep_analysis.get('recommended_strategy', {}).get('name', 'directional'),
+                            "direction": "call" if deep_analysis.get('overall_sentiment') == "bullish" else "put",
+                            "size": "moderate",
+                            "confidence": "moderate",
+                            "rationale": deep_analysis.get('recommended_strategy', {}).get('description', '')
+                        }
+                    ]
+                },
+                "technical_signals": {
+                    "momentum_bias": deep_analysis.get('overall_sentiment', "neutral"),
+                    "support_zones": [current_price * 0.95, current_price * 0.90],
+                    "resistance_zones": [current_price * 1.05, current_price * 1.10]
+                },
+                "institutional_flows": {
+                    "hedging_patterns": {
+                        "hedging_type": "balanced",
+                        "put_walls": [
+                            {"strike": current_price * 0.90, "size": 5000}
+                        ]
+                    }
+                }
+            }
+            
+            # Run manager review
+            logger.info(f"Running manager review for {ticker}")
+            review_result = self.manager.review_analysis(structured_analysis)
+            
+            # Save review results if requested
+            if self.save_results:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                with open(f"{self.output_dir}/manager_review_{ticker}_{timestamp}.json", "w") as f:
+                    json.dump(review_result, f, indent=2)
+            
+            # Return final result, combining the original analysis with the review
+            if review_result['status'] == 'resolved':
+                logger.info(f"Manager review found and resolved contradictions for {ticker}")
+                final_result = review_result['resolved_analysis']
+                final_result['manager_review'] = {
+                    'status': review_result['status'],
+                    'confidence_score': review_result['confidence_score'],
+                    'review_notes': review_result['review_notes']
+                }
+            else:
+                logger.info(f"Manager review validated analysis for {ticker}")
+                final_result = structured_analysis
+                final_result['manager_review'] = {
+                    'status': review_result['status'],
+                    'confidence_score': review_result.get('confidence_score', 1.0),
+                    'review_notes': review_result.get('review_notes', [])
+                }
+            
+            # Add raw analysis for reference
+            final_result['raw_analysis'] = {
+                'initial': initial_analysis,
+                'deep': deep_analysis
+            }
+            
+            return final_result
+            
+        except Exception as e:
+            logger.error(f"Error in enhanced analysis with review: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            # Return error information
+            return {
+                "error": str(e),
+                "metadata": {
+                    "timestamp": datetime.now().isoformat(),
+                    "ticker": ticker,
+                    "analysis_version": "2.0"
+                },
+                "market_state": {
+                    "overall_sentiment": "neutral"
+                },
+                "manager_review": {
+                    "status": "error",
+                    "confidence_score": 0.0,
+                    "review_notes": [f"Error during analysis: {str(e)}"]
+                }
+            } 

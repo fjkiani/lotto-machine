@@ -1,0 +1,210 @@
+{
+  "status": "resolved",
+  "confidence_score": 0.29999999999999993,
+  "original_analysis": {
+    "metadata": {
+      "timestamp": "2025-04-08T15:41:34.523890",
+      "ticker": "SPY",
+      "current_price": 500.0,
+      "analysis_version": "2.0"
+    },
+    "market_state": {
+      "overall_sentiment": "bullish",
+      "institutional_positioning": "protective",
+      "retail_activity": {
+        "sentiment": "bullish",
+        "conviction": "high",
+        "reliability": "moderate"
+      }
+    },
+    "price_levels": {
+      "support_levels": [
+        {
+          "price": 495.0,
+          "strength": "strong",
+          "type": "institutional"
+        },
+        {
+          "price": 498.0,
+          "strength": "moderate",
+          "type": "technical"
+        }
+      ],
+      "resistance_levels": [
+        {
+          "price": 498.5,
+          "strength": "strong",
+          "type": "institutional"
+        },
+        {
+          "price": 505.0,
+          "strength": "moderate",
+          "type": "technical"
+        }
+      ]
+    },
+    "volatility_structure": {
+      "skew_analysis": {
+        "type": "high",
+        "strength": 0.8,
+        "interpretation": "Institutional hedging"
+      }
+    },
+    "trading_opportunities": {
+      "strategies": [
+        {
+          "type": "directional",
+          "direction": "put",
+          "size": "moderate",
+          "confidence": "moderate",
+          "rationale": "Technical breakout expected (size adjusted due to sentiment mismatch)"
+        }
+      ]
+    },
+    "technical_signals": {
+      "momentum_bias": "bullish",
+      "support_zones": [
+        495.0,
+        498.0
+      ],
+      "resistance_zones": [
+        505.0,
+        510.0
+      ]
+    },
+    "institutional_flows": {
+      "hedging_patterns": {
+        "hedging_type": "protective",
+        "put_walls": [
+          {
+            "strike": 495.0,
+            "size": 10000
+          }
+        ]
+      }
+    }
+  },
+  "resolved_analysis": {
+    "metadata": {
+      "timestamp": "2025-04-08T15:41:34.523890",
+      "ticker": "SPY",
+      "current_price": 500.0,
+      "analysis_version": "2.0"
+    },
+    "market_state": {
+      "overall_sentiment": "bullish",
+      "institutional_positioning": "protective",
+      "retail_activity": {
+        "sentiment": "bullish",
+        "conviction": "high",
+        "reliability": "moderate"
+      }
+    },
+    "price_levels": {
+      "support_levels": [
+        {
+          "price": 495.0,
+          "strength": "strong",
+          "type": "institutional"
+        },
+        {
+          "price": 498.0,
+          "strength": "moderate",
+          "type": "technical"
+        }
+      ],
+      "resistance_levels": [
+        {
+          "price": 498.5,
+          "strength": "strong",
+          "type": "institutional"
+        },
+        {
+          "price": 505.0,
+          "strength": "moderate",
+          "type": "technical"
+        }
+      ]
+    },
+    "volatility_structure": {
+      "skew_analysis": {
+        "type": "high",
+        "strength": 0.8,
+        "interpretation": "Institutional hedging"
+      }
+    },
+    "trading_opportunities": {
+      "strategies": [
+        {
+          "type": "directional",
+          "direction": "put",
+          "size": "moderate",
+          "confidence": "moderate",
+          "rationale": "Technical breakout expected (size adjusted due to sentiment mismatch)"
+        }
+      ]
+    },
+    "technical_signals": {
+      "momentum_bias": "bullish",
+      "support_zones": [
+        495.0,
+        498.0
+      ],
+      "resistance_zones": [
+        505.0,
+        510.0
+      ]
+    },
+    "institutional_flows": {
+      "hedging_patterns": {
+        "hedging_type": "protective",
+        "put_walls": [
+          {
+            "strike": 495.0,
+            "size": 10000
+          }
+        ]
+      }
+    },
+    "risk_factors": [
+      {
+        "type": "volatility_warning",
+        "severity": "high",
+        "description": "High volatility environment requires careful position sizing"
+      }
+    ]
+  },
+  "review_notes": [
+    {
+      "type": "sentiment_strategy_mismatch",
+      "severity": "high",
+      "description": "Bullish sentiment conflicts with put strategy: Technical breakout expected",
+      "recommendation": "Consider reducing position size or using spreads to manage risk"
+    },
+    {
+      "type": "overlapping_levels",
+      "severity": "medium",
+      "description": "Support at 495.0 overlaps with resistance at 498.5",
+      "recommendation": "Validate levels with additional technical indicators"
+    },
+    {
+      "type": "overlapping_levels",
+      "severity": "medium",
+      "description": "Support at 498.0 overlaps with resistance at 498.5",
+      "recommendation": "Validate levels with additional technical indicators"
+    },
+    {
+      "type": "aggressive_volatility_mismatch",
+      "severity": "high",
+      "description": "Large position size suggested in high volatility environment",
+      "recommendation": "Consider reducing position size or using options spreads"
+    },
+    {
+      "type": "technical_institutional_mismatch",
+      "severity": "medium",
+      "description": "Bullish technical signals conflict with defensive institutional positioning",
+      "recommendation": "Monitor for potential trend reversal or institutional positioning change"
+    }
+  ],
+  "timestamp": "2025-04-08T15:41:34.523959"
+}

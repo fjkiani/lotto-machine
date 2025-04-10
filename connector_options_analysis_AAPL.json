@@ -1,0 +1,176 @@
+{
+  "overall_put_call_ratio": 1.1135287544166759,
+  "overall_oi_ratio": 0.7997619540966543,
+  "high_call_volume_strikes": [
+    {
+      "Strike": 190.0,
+      "Call_Vol": 43701,
+      "Call_Vol_Z": 3.8232185723071836,
+      "Call_OI": 8162
+    },
+    {
+      "Strike": 200.0,
+      "Call_Vol": 41298,
+      "Call_Vol_Z": 3.5825399169161143,
+      "Call_OI": 17173
+    },
+    {
+      "Strike": 195.0,
+      "Call_Vol": 32217,
+      "Call_Vol_Z": 2.673008968265968,
+      "Call_OI": 10390
+    }
+  ],
+  "high_put_volume_strikes": [
+    {
+      "Strike": 160.0,
+      "Put_Vol": 56080,
+      "Put_Vol_Z": 3.861544545151884,
+      "Put_OI": 8213
+    },
+    {
+      "Strike": 175.0,
+      "Put_Vol": 49797,
+      "Put_Vol_Z": 3.3755577356891613,
+      "Put_OI": 10023
+    },
+    {
+      "Strike": 170.0,
+      "Put_Vol": 45346,
+      "Put_Vol_Z": 3.031275181349104,
+      "Put_OI": 10124
+    },
+    {
+      "Strike": 180.0,
+      "Put_Vol": 37087,
+      "Put_Vol_Z": 2.39244579103355,
+      "Put_OI": 9889
+    }
+  ],
+  "high_put_call_ratio_strikes": [
+    {
+      "Strike": 135.0,
+      "Put_Vol": 5900,
+      "Call_Vol": 0,
+      "PC_Ratio": 59000.0
+    },
+    {
+      "Strike": 100.0,
+      "Put_Vol": 5289,
+      "Call_Vol": 17,
+      "PC_Ratio": 311.11764705882354
+    },
+    {
+      "Strike": 140.0,
+      "Put_Vol": 10290,
+      "Call_Vol": 66,
+      "PC_Ratio": 155.9090909090909
+    },
+    {
+      "Strike": 110.0,
+      "Put_Vol": 2761,
+      "Call_Vol": 18,
+      "PC_Ratio": 153.38888888888889
+    },
+    {
+      "Strike": 130.0,
+      "Put_Vol": 2883,
+      "Call_Vol": 29,
+      "PC_Ratio": 99.41379310344827
+    }
+  ],
+  "low_put_call_ratio_strikes": [
+    {
+      "Strike": 232.5,
+      "Call_Vol": 1278,
+      "Put_Vol": 1,
+      "PC_Ratio": 0.000782472613458529
+    },
+    {
+      "Strike": 235.0,
+      "Call_Vol": 4319,
+      "Put_Vol": 7,
+      "PC_Ratio": 0.0016207455429497568
+    },
+    {
+      "Strike": 202.5,
+      "Call_Vol": 13724,
+      "Put_Vol": 65,
+      "PC_Ratio": 0.004736228504809093
+    },
+    {
+      "Strike": 230.0,
+      "Call_Vol": 3008,
+      "Put_Vol": 21,
+      "PC_Ratio": 0.006981382978723404
+    },
+    {
+      "Strike": 212.5,
+      "Call_Vol": 8210,
+      "Put_Vol": 79,
+      "PC_Ratio": 0.009622411693057248
+    }
+  ],
+  "iv_by_moneyness": {
+    "deep_itm_calls": {
+      "avg_call_iv": 1.6679713614908853,
+      "avg_put_iv": 1.4515001383463544,
+      "avg_iv_skew": -0.21647122314453116
+    },
+    "itm_calls": {
+      "avg_call_iv": 1.1396527392578126,
+      "avg_put_iv": 1.0824020489501953,
+      "avg_iv_skew": -0.057250690307617313
+    },
+    "atm": {
+      "avg_call_iv": 1.036503840942383,
+      "avg_put_iv": 0.9674075524902344,
+      "avg_iv_skew": -0.0690962884521486
+    },
+    "itm_puts": {
+      "avg_call_iv": 0.9417730432128906,
+      "avg_put_iv": 0.8778698736572266,
+      "avg_iv_skew": -0.06390316955566405
+    },
+    "deep_itm_puts": {
+      "avg_call_iv": 1.0484544473657853,
+      "avg_put_iv": 1.5448241263521634,
+      "avg_iv_skew": 0.4963696789863782
+    }
+  },
+  "iv_skew_pattern": "positive skew (market pricing in upside potential)",
+  "key_support_levels": [
+    {
+      "Strike": 135.0,
+      "Put_OI": 12445,
+      "Put_OI_Z": 2.627073579765615
+    },
+    {
+      "Strike": 165.0,
+      "Put_OI": 11859,
+      "Put_OI_Z": 2.4647044598400694
+    },
+    {
+      "Strike": 170.0,
+      "Put_OI": 10124,
+      "Put_OI_Z": 1.9839699494803051
+    }
+  ],
+  "key_resistance_levels": [
+    {
+      "Strike": 200.0,
+      "Call_OI": 17173,
+      "Call_OI_Z": 3.030621958869586
+    },
+    {
+      "Strike": 220.0,
+      "Call_OI": 13777,
+      "Call_OI_Z": 2.2663972048038548
+    },
+    {
+      "Strike": 240.0,
+      "Call_OI": 13775,
+      "Call_OI_Z": 2.2659471313326733
+    }
+  ]
+}
