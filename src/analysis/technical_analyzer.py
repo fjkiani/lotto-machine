@@ -9,7 +9,7 @@ import google.generativeai.types as types
 from dotenv import load_dotenv
 
 from src.data.connectors.yahoo_finance import YahooFinanceConnector # Use the centralized connector
-from src.analysis.technical_indicators import calculate_indicators # Assume indicators are calculated separately
+from src.analysis.technical_indicators import Indicator, MovingAverage, BollingerBands, RSI, MACD, calculate_indicators # Assume indicators are calculated separately
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -34,18 +34,28 @@ def analyze_technicals_with_llm(
         logger.warning(f"No historical data provided for {ticker}")
         return {"error": "Historical data is missing or empty"}
 
-    # --- Indicator Calculation (assuming this is handled elsewhere or passed in) ---
-    # For this refactored function, we expect indicators to be calculated externally 
-    # and potentially passed in, or calculated using historical_data directly.
-    # For simplicity, let's assume calculate_indicators exists and works on the DataFrame.
+    # --- Indicator Calculation ---
     try:
-        indicators = calculate_indicators(historical_data)
-        if not indicators:
+        # Define the list of indicators to calculate based on prompt requirements
+        indicators_to_calculate: List[Indicator] = [
+            MovingAverage(window=50),
+            MovingAverage(window=200),
+            BollingerBands(window=20), # Also calculates MA20 internally
+            RSI(window=14),
+            MACD(),
+            # ATR calculation might need to be added to technical_indicators.py if not present
+            # For now, we assume Volume is already in historical_data
+        ]
+        
+        # Calculate indicators using the function from technical_indicators.py
+        indicators_df = calculate_indicators(historical_data, indicators_to_calculate)
+        
+        if indicators_df.empty:
             logger.error(f"Failed to calculate indicators for {ticker}")
             return {"error": "Indicator calculation failed"}
-        logger.info(f"Calculated indicators for {ticker}: {list(indicators.keys())}")
+        logger.info(f"Calculated indicators for {ticker}: {list(indicators_df.columns)}")
         # Select relevant indicators for the prompt (e.g., the last row/most recent values)
-        latest_indicators = indicators.iloc[-1].to_dict() if not indicators.empty else {}
+        latest_indicators = indicators_df.iloc[-1].to_dict() if not indicators_df.empty else {}
     except Exception as e:
         logger.error(f"Error calculating indicators for {ticker}: {e}", exc_info=True)
         return {"error": f"Indicator calculation error: {e}"}
@@ -169,40 +179,29 @@ def analyze_technicals_with_llm(
 
 # --- Wrapper Function ---
 def run_technical_analysis(
-    ticker: str, 
-    timeframe: str, 
-    connector: YahooFinanceConnector, 
+    ticker: str,
+    timeframe: str,
+    connector: YahooFinanceConnector, # Keep connector for potential future use?
+    historical_data: Optional[pd.DataFrame], # Accept historical data
     historical_analyses: Optional[List[Dict]] = None
 ) -> Dict:
     """
     Runs the complete technical analysis workflow:
-    1. Fetches historical data using the connector.
+    1. Uses pre-fetched historical data.
     2. Calls the LLM analysis function.
     """
-    logger.info(f"Running Technical Analysis workflow for {ticker} ({timeframe})")
-    
-    # Map timeframe to period/interval for connector
-    # Example mapping (adjust as needed)
-    period_map = {
-        "1D": ("5d", "15m"),  # Intraday might need finer intervals
-        "1W": ("1mo", "1h"),
-        "1M": ("6mo", "1d"),
-        "3M": ("1y", "1d"),
-        "6M": ("2y", "1d"),
-        "1Y": ("5y", "1d"),
-        "5Y": ("10y", "1wk"),
-        "MAX": ("max", "1mo")
-    }
-    period, interval = period_map.get(timeframe, ("1y", "1d")) # Default to 1 year daily
+    logger.info(f"Running Technical Analysis workflow for {ticker} ({timeframe}) using provided data")
+
+    # Removed mapping and data fetching - expects data to be passed in
+    # period_map = { ... }
+    # period, interval = period_map.get(timeframe, ("1y", "1d"))
 
     try:
-        # 1. Fetch historical data
-        historical_data = connector.get_historical_data(ticker, period=period, interval=interval)
-        
+        # 1. Validate historical data
         if historical_data is None or historical_data.empty:
-            logger.error(f"Failed to fetch historical data for {ticker} via connector.")
-            return {"error": f"Could not fetch historical data for {ticker}."}
-        logger.info(f"Successfully fetched {len(historical_data)} rows of historical data for {ticker}")
+            logger.error(f"No historical data provided for {ticker} to run_technical_analysis.")
+            return {"error": f"Historical data missing for {ticker} analysis."}
+        logger.info(f"Using provided historical data ({len(historical_data)} rows) for {ticker}")
 
         # 2. Call LLM analysis
         analysis_result = analyze_technicals_with_llm(
@@ -211,7 +210,7 @@ def run_technical_analysis(
             historical_data=historical_data,
             historical_analyses=historical_analyses
         )
-        
+
         return analysis_result
 
     except Exception as e:

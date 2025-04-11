@@ -36,6 +36,10 @@ class YahooFinanceConnector:
         self._cache = {}
         self._cache_expiry = {}
         self._cache_duration = 300  # 5 minutes default cache duration
+        # Force clear cache on init to avoid issues with outdated objects
+        self._cache.clear()
+        self._cache_expiry.clear()
+        logger.info("Cache forcefully cleared on connector initialization.")
         
         # Import yfinance only when needed to avoid unnecessary imports
         if not use_rapidapi:
@@ -109,6 +113,9 @@ class YahooFinanceConnector:
         params = {"symbol": ticker, "region": "US"}
         
         try:
+            # Define cache key within this function's scope
+            cache_key = f"option_chain_{ticker}"
+            
             response = requests.get(url, headers=self.headers, params=params)
             self._update_rate_limits(response.headers)
             
@@ -221,6 +228,7 @@ class YahooFinanceConnector:
             # Create OptionChain object
             option_chain = OptionChain(
                 underlying_symbol=ticker,
+                has_mini_options=False,
                 quote=quote,
                 expiration_dates=[exp.expiration_date for exp in expirations],
                 strikes=sorted(list(strikes)),
@@ -506,38 +514,62 @@ class YahooFinanceConnector:
         if cached_data is not None:
             return cached_data
         
-        try:
-            # Try to use yfinance first
-            logger.info(f"Fetching historical data for {ticker} with period={period}, interval={interval}")
-            
-            # Get the data using yfinance
-            ticker_data = self._yf.Ticker(ticker)
-            df = ticker_data.history(period=period, interval=interval)
-            
-            # Check if we got valid data
-            if df is None or df.empty:
-                logger.error(f"No historical data available for {ticker}")
-                return None
-            
-            # Rename columns to ensure consistency
-            df.columns = [col.capitalize() for col in df.columns]
-            
-            # Store in cache
-            self._store_in_cache(cache_key, df)
-            
-            return df
-            
-        except Exception as e:
-            logger.error(f"Error fetching historical data for {ticker}: {str(e)}")
-            
-            # Try to use RapidAPI as fallback
-            if self.use_rapidapi:
-                try:
-                    return self._get_historical_data_rapidapi(ticker, period, interval)
-                except Exception as e2:
-                    logger.error(f"Error fetching historical data from RapidAPI: {str(e2)}")
-            
-            return None
+        # Initialize df to None
+        df = None
+        
+        # Try yfinance ONLY if use_rapidapi is False
+        if not self.use_rapidapi:
+            try:
+                # Try to use yfinance first
+                logger.info(f"Attempting to fetch historical data for {ticker} using yfinance (period={period}, interval={interval})")
+                
+                # Check if _yf was initialized
+                if not hasattr(self, '_yf') or self._yf is None:
+                    logger.error("yfinance library (_yf) is not initialized in the connector.")
+                    raise AttributeError("yfinance library not initialized.")
+
+                # Get the data using yfinance
+                ticker_data = self._yf.Ticker(ticker)
+                df = ticker_data.history(period=period, interval=interval)
+                
+                # Check if we got valid data
+                if df is None or df.empty:
+                    logger.warning(f"No historical data available via yfinance for {ticker}")
+                    df = None # Ensure df is None if fetch failed
+                else:
+                    # Rename columns to ensure consistency
+                    df.columns = [col.capitalize() for col in df.columns]
+                    # Store in cache ONLY if successful
+                    self._store_in_cache(cache_key, df)
+                    logger.info(f"Successfully fetched historical data via yfinance for {ticker}")
+                    return df # Return successful yfinance result immediately
+                
+            except Exception as e:
+                logger.error(f"Error fetching historical data via yfinance for {ticker}: {str(e)}")
+                # Don't raise here, allow fallback to RapidAPI if configured
+                df = None # Ensure df is None after yfinance failure
+        
+        # If yfinance wasn't used or failed, and RapidAPI is enabled, try RapidAPI
+        if df is None and self.use_rapidapi:
+            logger.info(f"Attempting to fetch historical data for {ticker} using RapidAPI (period={period}, interval={interval})")
+            try:
+                df = self._get_historical_data_rapidapi(ticker, period, interval)
+                if df is not None and not df.empty:
+                    # Cache the RapidAPI result if successful
+                    self._store_in_cache(cache_key, df)
+                    logger.info(f"Successfully fetched historical data via RapidAPI for {ticker}")
+                    return df
+                else:
+                    logger.warning(f"RapidAPI fetch did not return valid data for {ticker}.")
+                    df = None # Ensure df is None if RapidAPI fails
+            except Exception as e2:
+                logger.error(f"Error fetching historical data from RapidAPI: {str(e2)}")
+                df = None # Ensure df is None after RapidAPI failure
+        
+        # Return df (which will be None if both methods failed)
+        if df is None:
+            logger.error(f"Failed to fetch historical data for {ticker} using all available methods.")
+        return df
     
     def _get_historical_data_rapidapi(self, ticker: str, period: str, interval: str) -> Optional[pd.DataFrame]:
         """Get historical data using RapidAPI
@@ -592,7 +624,9 @@ class YahooFinanceConnector:
         }
         api_interval = interval_map.get(interval, "1d")
         
-        url = f"{self.base_url}/stock/get-histories"
+        # Reverting endpoint back to /stock/get-histories
+        url = f"{self.base_url}/stock/get-histories" # Original endpoint attempt
+        
         params = {
             "symbol": ticker,
             "region": "US",
