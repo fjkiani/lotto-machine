@@ -46,7 +46,7 @@ from src.streamlit_app.ui_components import (
 # Function analyze_technicals_with_llm and its helpers removed as they were moved to src/analysis/technical_analyzer.py
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Check if plotly is installed, if not, install it
@@ -196,7 +196,7 @@ def generate_price_targets(
                   price_targets["error"] = "Could not determine current price."
                   return price_targets # Cannot proceed without price
         
-             price_targets["current_price"] = current_price
+        price_targets["current_price"] = current_price
         logger.info(f"Using current price: {current_price} for {ticker}")
 
     except Exception as e:
@@ -204,10 +204,14 @@ def generate_price_targets(
         price_targets["error"] = f"Error getting current price: {e}"
         return price_targets
     
+    # Log current price
+    logger.debug(f"[{ticker}] Current price determined: {current_price}")
+    
     # If we have technical analysis data, use it for targets
     if technical_analysis and "price_targets" in technical_analysis:
         try:
             tech_targets = technical_analysis.get("price_targets", {})
+            logger.debug(f"[{ticker}] Technical analysis data available: {tech_targets}")
             
             # Short term targets
             short_term = tech_targets.get("short_term", {})
@@ -231,20 +235,24 @@ def generate_price_targets(
             
             price_targets["methodologies"].append("technical_analysis")
             logger.info("Added technical analysis-based price targets")
+            logger.debug(f"[{ticker}] Technical targets added: Short={price_targets['targets']['short_term'].get('technical')}, Medium={price_targets['targets']['medium_term'].get('technical')}")
         except Exception as e:
             logger.error(f"Error processing technical analysis price targets: {str(e)}", exc_info=True)
     
     # Try to get additional support/resistance from time series data
     try:
         # Get daily time series - assuming connector is already initialized
+        logger.debug(f"[{ticker}] Fetching daily time series data...")
         daily_data = connector.get_time_series(ticker, "daily")
+        logger.debug(f"[{ticker}] Daily time series data fetched: {'Success' if daily_data else 'Failed'}")
         
         # Analyze time series data
         if daily_data:
             ts_analysis = analyze_time_series_data(daily_data, current_price)
+            logger.debug(f"[{ticker}] Time series S/R analysis result: {ts_analysis}")
             
             # Add support/resistance from time series analysis
-            if ts_analysis and (ts_analysis.get("support_levels") or ts_analysis.get("resistance_levels")):
+            if ts_analysis and not ts_analysis.get("error") and (ts_analysis.get("support_levels") or ts_analysis.get("resistance_levels")):
                 # Add to short term targets
                 if "technical" not in price_targets["targets"]["short_term"]:
                     price_targets["targets"]["short_term"]["time_series"] = {
@@ -273,6 +281,9 @@ def generate_price_targets(
                 
                 price_targets["methodologies"].append("time_series_analysis")
                 logger.info("Added time series-based price targets")
+                logger.debug(f"[{ticker}] Time series targets added: Short={price_targets['targets']['short_term'].get('time_series')}, Medium={price_targets['targets']['medium_term'].get('time_series')}")
+            elif ts_analysis and ts_analysis.get("error"):
+                 logger.error(f"[{ticker}] Time series analysis failed: {ts_analysis.get('error')}")
             elif ts_analysis:
                  logger.warning(f"Time series analysis for {ticker} did not yield S/R levels.")
         else:
@@ -282,7 +293,9 @@ def generate_price_targets(
         logger.error(f"Error adding time series-based targets: {str(e)}", exc_info=True)
     
     # If we have options data, calculate implied price ranges
+    logger.debug(f"[{ticker}] Checking for options data...")
     if options_data and isinstance(options_data, OptionChain) and options_data.options:
+        logger.info(f"[{ticker}] Options data found, calculating implied moves...")
         try:
             expirations = options_data.options # List of OptionChainOptions
             
@@ -315,26 +328,27 @@ def generate_price_targets(
                     # Calculate ATM straddle price
                     call_price = float(atm_straddle.call_contract.get_mid_price()) if atm_straddle.call_contract else 0
                     put_price = float(atm_straddle.put_contract.get_mid_price()) if atm_straddle.put_contract else 0
-                    straddle_price = call_price + put_price
-                    
-                    if straddle_price > 0:
+                straddle_price = call_price + put_price
+                
+                if straddle_price > 0:
                         # Calculate expected move
-                        implied_move_pct = (straddle_price / current_price) * 100
-                        bullish_target = current_price * (1 + (implied_move_pct/100))
-                        bearish_target = current_price * (1 - (implied_move_pct/100))
-                        
-                        price_targets["targets"]["short_term"]["options_implied"] = {
-                            "bullish": round(bullish_target, 2),
-                            "bearish": round(bearish_target, 2),
+                 implied_move_pct = (straddle_price / current_price) * 100
+                bullish_target = current_price * (1 + (implied_move_pct/100))
+                bearish_target = current_price * (1 - (implied_move_pct/100))
+                
+                price_targets["targets"]["short_term"]["options_implied"] = {
+                    "bullish": round(bullish_target, 2),
+                    "bearish": round(bearish_target, 2),
                             "timeframe": f"{(nearest_exp.expiration_date - now).days} days",
-                            "implied_move_pct": round(implied_move_pct, 2),
-                            "confidence": 70  # Options market implied confidence
-                        }
-                    else:
+                    "implied_move_pct": round(implied_move_pct, 2),
+                    "confidence": 70  # Options market implied confidence
+                }
+                logger.debug(f"[{ticker}] Calculated short-term options implied target: {price_targets['targets']['short_term']['options_implied']}")
+            else:
                          logger.warning(f"Could not calculate valid straddle price for {ticker} short-term options.")
                 
                 # Process medium-term if available
-                if medium_term_exp:
+            if medium_term_exp:
                     medium_exp = medium_term_exp[0]
                     medium_straddles = medium_exp.straddles
                     
@@ -348,23 +362,24 @@ def generate_price_targets(
                         
                         if medium_straddle_price > 0:
                             medium_move_pct = (medium_straddle_price / current_price) * 100
-                            medium_bullish = current_price * (1 + (medium_move_pct/100))
-                            medium_bearish = current_price * (1 - (medium_move_pct/100))
-                            
-                            price_targets["targets"]["medium_term"]["options_implied"] = {
-                                "bullish": round(medium_bullish, 2),
-                                "bearish": round(medium_bearish, 2),
+                    medium_bullish = current_price * (1 + (medium_move_pct/100))
+                    medium_bearish = current_price * (1 - (medium_move_pct/100))
+                    
+                    price_targets["targets"]["medium_term"]["options_implied"] = {
+                        "bullish": round(medium_bullish, 2),
+                        "bearish": round(medium_bearish, 2),
                                 "timeframe": f"{(medium_exp.expiration_date - now).days} days",
-                                "implied_move_pct": round(medium_move_pct, 2),
+                        "implied_move_pct": round(medium_move_pct, 2),
                                 "confidence": 60
-                            }
-                        else:
+                    }
+                    logger.debug(f"[{ticker}] Calculated medium-term options implied target: {price_targets['targets']['medium_term']['options_implied']}")
+            else:
                              logger.warning(f"Could not calculate valid straddle price for {ticker} medium-term options.")
             
             if "options_implied" in price_targets["targets"]["short_term"] or \
                "options_implied" in price_targets["targets"]["medium_term"]:
-                price_targets["methodologies"].append("options_implied")
-                logger.info("Added options-implied price targets")
+             price_targets["methodologies"].append("options_implied")
+            logger.info("Added options-implied price targets")
         except Exception as e:
             logger.error(f"Error calculating options-implied price targets: {str(e)}", exc_info=True)
     
@@ -374,40 +389,46 @@ def generate_price_targets(
         import numpy as np
         
         # Get historical data
+        logger.debug(f"[{ticker}] Fetching 6mo historical data for volatility...")
         history = connector.get_historical_data(ticker, period="6mo") # Use connector
+        logger.debug(f"[{ticker}] Historical data for volatility fetched: {'Success' if history is not None and not history.empty else 'Failed'}")
         
         if history is not None and not history.empty:
             # Calculate historical volatility (30-day)
+            logger.debug(f"[{ticker}] Calculating historical volatility...")
             returns = np.log(history['Close'] / history['Close'].shift(1))
             vol_30d = returns.rolling(window=30).std() * np.sqrt(252)  # Annualized
             current_vol = vol_30d.iloc[-1] if len(vol_30d) > 30 and not pd.isna(vol_30d.iloc[-1]) else returns.std() * np.sqrt(252)
+            logger.debug(f"[{ticker}] Calculated current volatility: {current_vol}")
             
             if pd.isna(current_vol) or current_vol <= 0:
                  logger.warning(f"Could not calculate valid historical volatility for {ticker}")
             else:
-                # Calculate volatility-based price ranges
-                vol_30d_move = current_price * current_vol / np.sqrt(252/30)  # 30-day expected move
-                vol_90d_move = current_price * current_vol / np.sqrt(252/90)  # 90-day expected move
-                
-                # Add volatility-based targets
-                price_targets["targets"]["short_term"]["volatility_based"] = {
-                    "bullish": round(current_price + vol_30d_move, 2),
-                    "bearish": round(current_price - vol_30d_move, 2),
-                    "timeframe": "30 days",
-                    "confidence": 65,
-                    "volatility": round(current_vol * 100, 2)
-                }
-                
-                price_targets["targets"]["medium_term"]["volatility_based"] = {
-                    "bullish": round(current_price + vol_90d_move, 2),
-                    "bearish": round(current_price - vol_90d_move, 2),
-                    "timeframe": "90 days",
-                    "confidence": 55,
-                    "volatility": round(current_vol * 100, 2)
-                }
-                
-                price_targets["methodologies"].append("volatility_based")
-                logger.info("Added volatility-based price targets")
+            # Calculate volatility-based price ranges
+             vol_30d_move = current_price * current_vol / np.sqrt(252/30)  # 30-day expected move
+            vol_90d_move = current_price * current_vol / np.sqrt(252/90)  # 90-day expected move
+            logger.debug(f"[{ticker}] Calculated vol moves: 30d={vol_30d_move}, 90d={vol_90d_move}")
+            
+            # Add volatility-based targets
+            price_targets["targets"]["short_term"]["volatility_based"] = {
+                "bullish": round(current_price + vol_30d_move, 2),
+                "bearish": round(current_price - vol_30d_move, 2),
+                "timeframe": "30 days",
+                "confidence": 65,
+                "volatility": round(current_vol * 100, 2)
+            }
+            
+            price_targets["targets"]["medium_term"]["volatility_based"] = {
+                "bullish": round(current_price + vol_90d_move, 2),
+                "bearish": round(current_price - vol_90d_move, 2),
+                "timeframe": "90 days",
+                "confidence": 55,
+                "volatility": round(current_vol * 100, 2)
+            }
+            
+            price_targets["methodologies"].append("volatility_based")
+            logger.info("Added volatility-based price targets")
+            logger.debug(f"[{ticker}] Volatility targets added: Short={price_targets['targets']['short_term'].get('volatility_based')}, Medium={price_targets['targets']['medium_term'].get('volatility_based')}")
         else:
              logger.warning(f"Could not fetch historical data via connector for volatility targets ({ticker}).")
 
@@ -418,16 +439,17 @@ def generate_price_targets(
     
     # Calculate consensus targets by combining all available methodologies
     try:
+        logger.debug(f"[{ticker}] Calculating consensus targets...")
         # Short-term consensus
         short_term_targets = []
         for method, data in price_targets["targets"]["short_term"].items():
             if isinstance(data, dict) and data.get("confidence", 0) > 0: # Ensure valid data and confidence
-                short_term_targets.append({
-                    "bullish": data.get("bullish", 0),
-                    "bearish": data.get("bearish", 0),
-                    "confidence": data.get("confidence", 0) / 100,  # Weight by confidence
-                    "method": method
-                })
+             short_term_targets.append({
+                "bullish": data.get("bullish", 0),
+                "bearish": data.get("bearish", 0),
+                "confidence": data.get("confidence", 0) / 100,  # Weight by confidence
+                "method": method
+            })
         
         if short_term_targets:
             bullish_weighted_sum = sum(t["bullish"] * t["confidence"] for t in short_term_targets)
@@ -445,6 +467,7 @@ def generate_price_targets(
                     "timeframe": "1-30 days",
                     "confidence": round(avg_confidence)
                 }
+                logger.debug(f"[{ticker}] Short-term consensus calculated: {price_targets['targets']['short_term']['consensus']}")
             else:
                  logger.warning(f"Total confidence for short-term consensus is zero for {ticker}.")
         else:
@@ -454,12 +477,12 @@ def generate_price_targets(
         medium_term_targets = []
         for method, data in price_targets["targets"]["medium_term"].items():
              if isinstance(data, dict) and data.get("confidence", 0) > 0:
-                medium_term_targets.append({
-                    "bullish": data.get("bullish", 0),
-                    "bearish": data.get("bearish", 0),
-                    "confidence": data.get("confidence", 0) / 100,
-                    "method": method
-                })
+              medium_term_targets.append({
+                "bullish": data.get("bullish", 0),
+                "bearish": data.get("bearish", 0),
+                "confidence": data.get("confidence", 0) / 100,
+                "method": method
+            })
         
         if medium_term_targets:
             bullish_weighted_sum = sum(t["bullish"] * t["confidence"] for t in medium_term_targets)
@@ -477,6 +500,7 @@ def generate_price_targets(
                     "timeframe": "1-3 months",
                     "confidence": round(avg_confidence)
                 }
+                logger.debug(f"[{ticker}] Medium-term consensus calculated: {price_targets['targets']['medium_term']['consensus']}")
             else:
                  logger.warning(f"Total confidence for medium-term consensus is zero for {ticker}.")
         else:
@@ -488,6 +512,7 @@ def generate_price_targets(
     
     # Convert to the format similar to LLM output for consistent display
     # This conversion logic remains as a fallback if the specialized LLM fails
+    logger.debug(f"[{ticker}] Formatting final price target output...")
     try:
         short_consensus = price_targets["targets"]["short_term"].get("consensus")
         medium_consensus = price_targets["targets"]["medium_term"].get("consensus")
@@ -543,11 +568,15 @@ def generate_price_targets(
             if not llm_format["price_targets"]["medium_term"]:
                 del llm_format["price_targets"]["medium_term"]
 
+            logger.info(f"[{ticker}] Successfully formatted final price targets.")
+            logger.debug(f"[{ticker}] Final formatted output: {llm_format}")
             return llm_format
         else:
             # If no consensus could be formed, return the raw target dictionary with an error message
             price_targets["error"] = "Could not form a consensus price target."
-            return price_targets
+            logger.warning(f"[{ticker}] Could not form consensus price target. Returning raw targets.")
+            logger.debug(f"[{ticker}] Raw targets returned: {price_targets}")
+        return price_targets
 
     except Exception as e:
         logger.error(f"Error converting traditional targets to LLM format: {str(e)}", exc_info=True)
@@ -826,7 +855,7 @@ def main():
             st.stop() # Stop execution if connector fails
 
     connector = st.session_state.connector
-
+    
     # Sidebar for inputs
     st.sidebar.header("Analysis Inputs")
     
@@ -1030,12 +1059,11 @@ def main():
                              create_technical_chart(ticker, fallback_data, analysis_result)
                              display_technical_analysis(analysis_result)
                          else:
-                              st.error("Could not fetch historical data for chart.")
-                              display_technical_analysis(analysis_result) # Display analysis anyway
+                             st.error("Could not fetch historical data for chart.")
+                             display_technical_analysis(analysis_result) # Display analysis anyway
                      except Exception as fallback_err:
-                          st.error(f"Error fetching historical data for chart: {fallback_err}")
-                          display_technical_analysis(analysis_result)
-
+                         st.error(f"Error fetching historical data for chart: {fallback_err}")
+                         display_technical_analysis(analysis_result)
             elif analysis_type == "enhanced":
                 display_enhanced_analysis(analysis_result)
             elif analysis_type == "memory":

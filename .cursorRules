@@ -169,7 +169,7 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 *   **3.1. Refactor Data Fetching (Immediate Priority):**
     *   [✅] Modify `streamlit_app_llm.py` to instantiate `YahooFinanceConnector` once.
     *   [✅] Replace the `fetch_market_data` function with calls to `connector.get_market_quotes(ticker)`.
-    *   [✅] Update `display_market_overview` to correctly parse the `MarketQuote` object returned by the connector.
+    *   [✅] Update `display_market_overview` to correctly parse the `MarketQuote` object returned by the connector. (Fix applied for `isinstance` issue).
     *   [✅] Ensure `prepare_gemini_input` uses `connector.get_option_chain(ticker)` instead of the old `fetch_market_data` output.
 *   **3.2. Create Core Modules:**
     *   [✅] Set up the new directory structure and empty Python files for each analysis type module and shared components (data, llm, display).
@@ -183,7 +183,7 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
     *   [ ] Migrate relevant logic (potentially from "Basic" or elements of "Enhanced") into `src/analysis/general_analyzer.py` (Deferred).
     *   [ ] Determine how agent outputs will contribute to this view.
 *   **3.5. Refactor Remaining Analysis Types:**
-    *   [✅] Refactor Technical Analysis (move `analyze_technicals_with_llm` to `src/analysis/technical_analyzer.py`, use connector, update main app).
+    *   [✅] Refactor Technical Analysis (move `analyze_technicals_with_llm` to `src/analysis/technical_analyzer.py`, use connector, update main app). Fixed `calculate_indicators` call signature issue. Fixed historical data fetching logic (`use_rapidapi=False`).
     *   [✅] **Refactor Enhanced Analysis:**
         *   [✅] **Action:** Move `EnhancedAnalysisPipeline` class and related logic to `src/analysis/enhanced_analyzer.py`.
         *   [✅] **Action:** Create wrapper function `run_enhanced_analysis` in `src/analysis/enhanced_analyzer.py`.
@@ -198,9 +198,9 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
         *   [✅] **Verification:** Checked import and call site in `streamlit_app_llm.py`.
 *   **3.6. Refactor Main App:**
     *   [ ] Slim down `streamlit_app_llm.py` to primarily handle UI, input gathering, routing calls to the appropriate analysis modules, and calling display functions.
-    *   [ ] **Action:** Move display functions (`display_market_overview`, `display_llm_options_analysis`, `display_enhanced_analysis`, `display_memory_enhanced_analysis`, `create_technical_chart`, `display_technical_analysis`, `display_price_targets`) to `src/streamlit_app/ui_components.py`.
-    *   [ ] **Action:** Update imports in both `streamlit_app_llm.py` and `src/streamlit_app/ui_components.py`.
-    *   [ ] **Action:** Update call sites in `streamlit_app_llm.py`'s `main` function to use the display functions from the new module.
+    *   [✅] **Action:** Move display functions (`display_market_overview`, `display_llm_options_analysis`, `display_enhanced_analysis`, `display_memory_enhanced_analysis`, `create_technical_chart`, `display_technical_analysis`, `display_price_targets`) to `src/streamlit_app/ui_components.py`. (Fix applied for `display_market_overview` `isinstance` and `create_technical_chart` `NameError`).
+    *   [✅] **Action:** Update imports in both `streamlit_app_llm.py` and `src/streamlit_app/ui_components.py`.
+    *   [✅] **Action:** Update call sites in `streamlit_app_llm.py`'s `main` function to use the display functions from the new module.
 
 **Phase 4: LLM & Workflow Enhancement**
 
