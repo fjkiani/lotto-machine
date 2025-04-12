@@ -105,7 +105,7 @@ def display_market_overview(market_quote: Optional[MarketQuote], ticker: str) ->
     return current_price
 
 def display_llm_options_analysis(analysis_result, ticker):
-    """Display LLM-powered options analysis"""
+    """Display LLM-powered options analysis based on the NEW structure"""
     st.header("LLM-Powered Options Analysis")
 
     # Check for errors
@@ -116,299 +116,224 @@ def display_llm_options_analysis(analysis_result, ticker):
                 st.code(analysis_result.get("raw_response"))
         return
 
-    # Market Direction Analysis
-    st.subheader("Market Direction Analysis")
-    market_direction = analysis_result.get("market_direction", {})
+    # Extract main sections from the new structure
+    sentiment_flow = analysis_result.get("short_term_sentiment_flow", {})
+    volatility = analysis_result.get("near_term_volatility", {})
+    levels_strategies = analysis_result.get("key_levels_strategies", {})
+    trade_idea = analysis_result.get("actionable_trade_idea", {})
+    deep_reasoning = analysis_result.get("deep_reasoning_narrative", "")
+    # Extract the new final summary
+    final_summary = analysis_result.get("final_summary", {})
+    current_price = analysis_result.get("current_price", 0)
 
-    # Overall market bias with color
-    overall_bias = market_direction.get('overall_bias', 'neutral')
-    bias_color = {
-        'bullish': 'green',
-        'bearish': 'red',
-        'neutral': 'blue'
-    }.get(overall_bias.lower(), 'blue')
-
-    # Confidence score
-    confidence = market_direction.get('confidence', 0)
-
-    # Create two columns for the main metrics
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown(f"### Market Bias: <span style='color:{bias_color};font-size:24px'>{overall_bias.upper()}</span>", unsafe_allow_html=True)
-
-    with col2:
-        # Create a gauge chart for confidence
-        fig = go.Figure(go.Indicator(
-            mode = "gauge+number",
-            value = confidence,
-            domain = {'x': [0, 1], 'y': [0, 1]},
-            title = {'text': "Confidence"},
-            gauge = {
-                'axis': {'range': [None, 100]},
-                'bar': {'color': bias_color},
-                'steps': [
-                    {'range': [0, 33], 'color': 'lightgray'},
-                    {'range': [33, 66], 'color': 'gray'},
-                    {'range': [66, 100], 'color': 'darkgray'}
-                ],
-                'threshold': {
-                    'line': {'color': "red", 'width': 4},
-                    'thickness': 0.75,
-                    'value': 90
-                }
-            }
-        ))
-        fig.update_layout(height=200, margin=dict(l=20, r=20, t=30, b=20))
-        st.plotly_chart(fig, use_container_width=True)
-
-    # Key signals from the options chain
-    st.markdown("### Key Signals from Options Chain")
-    key_signals = market_direction.get('key_signals', [])
-    if key_signals:
-        for i, signal in enumerate(key_signals):
-            st.markdown(f"**{i+1}.** {signal}")
+    # --- Display Final Summary (Synthesis) First --- 
+    st.subheader("✅ Final Assessment & Recommendation")
+    if not final_summary:
+        st.warning("Synthesis step did not run or failed. Displaying initial analysis only.")
+        # Add synthesis error if present
+        if "synthesis_error" in analysis_result:
+             st.error(f"Synthesis Error: {analysis_result['synthesis_error']}")
     else:
-        st.write("No key signals identified")
+        # Display Synthesis Details
+        critique_summary = final_summary.get("critique_summary", [])
+        final_assessment = final_summary.get("final_assessment", {})
+        final_decision = final_summary.get("final_trade_decision", {})
+        next_steps = final_summary.get("next_steps", [])
 
-    # Detailed market analysis
-    if "detailed_analysis" in market_direction:
-        with st.expander("Detailed Market Direction Analysis"):
-            st.write(market_direction.get('detailed_analysis', ''))
+        # Assessment Outlook
+        outlook = final_assessment.get("overall_outlook", "Uncertain")
+        outlook_confidence = final_assessment.get("confidence", "N/A")
+        outlook_color = {"Bullish": "green", "Bearish": "red", "Neutral": "blue"}.get(outlook, "grey")
+        st.markdown(f"**Overall Outlook:** <span style='color:{outlook_color}; font-weight:bold;'>{outlook}</span> (Confidence: {outlook_confidence})", unsafe_allow_html=True)
+        st.markdown("**Key Signals Considered:**")
+        signals = final_assessment.get("key_signals_considered", ["N/A"])
+        for signal in signals:
+            st.markdown(f"- {signal}")
+            
+        st.markdown("--- <div style='margin-top: 5px; margin-bottom: 5px;'></div> ---", unsafe_allow_html=True)
 
-    # Volatility Insights
-    st.subheader("Volatility Insights")
-    volatility_insights = analysis_result.get("volatility_insights", {})
+        # Final Trade Decision
+        decision = final_decision.get("decision", "N/A")
+        st.markdown(f"**Final Trade Decision:**")
+        decision_color = {"Proceed": "green", "Revise": "orange", "Reject/No Trade": "red"}.get(decision, "grey")
+        st.markdown(f"### <span style='color:{decision_color};'>{decision}</span>", unsafe_allow_html=True)
+        st.markdown(f"**Rationale:** {final_decision.get('final_rationale', 'N/A')}")
 
-    col1, col2 = st.columns(2)
+        # Display revised trade details if applicable
+        if decision in ["Proceed", "Revise"]:
+            st.markdown("**Revised Trade Details:**")
+            rev_col1, rev_col2 = st.columns(2)
+            with rev_col1:
+                st.markdown(f"- **Contract:** {final_decision.get('revised_contract_symbol', 'N/A')}")
+                st.markdown(f"- **Type:** {final_decision.get('revised_contract_type', 'N/A').upper()}")
+                st.markdown(f"- **Strike:** ${final_decision.get('revised_strike', 0):.2f}")
+                st.markdown(f"- **Expiration:** {final_decision.get('revised_expiration', 'N/A')}")
+            with rev_col2:
+                st.metric("Revised Entry", f"${final_decision.get('revised_entry', 'N/A'):.2f}" if isinstance(final_decision.get('revised_entry'), float) else "N/A")
+                st.metric("Revised Target", f"${final_decision.get('revised_target', 'N/A'):.2f}" if isinstance(final_decision.get('revised_target'), float) else "N/A")
+                st.metric("Revised Stop", f"${final_decision.get('revised_stop', 'N/A'):.2f}" if isinstance(final_decision.get('revised_stop'), float) else "N/A")
+                st.metric("Revised Confidence", final_decision.get('revised_confidence', 'N/A'))
 
-    with col1:
-        st.markdown(f"**Expected Move**: {volatility_insights.get('implied_move', 'N/A')}")
-
-        # Volatility skew with color coding
-        skew = volatility_insights.get('volatility_skew', 'neutral')
-        skew_color = {
-            'call_skew': 'green',
-            'put_skew': 'red',
-            'neutral': 'blue'
-        }.get(skew.lower(), 'blue')
-
-        skew_display = {
-            'call_skew': 'CALL SKEW (Bullish)',
-            'put_skew': 'PUT SKEW (Bearish)',
-            'neutral': 'NEUTRAL'
-        }.get(skew.lower(), skew.upper())
-
-        st.markdown(f"**Volatility Skew**: <span style='color:{skew_color}'>{skew_display}</span>", unsafe_allow_html=True)
-
-    with col2:
-        st.markdown("**Event Expectations:**")
-        events = volatility_insights.get('event_expectations', [])
-        if events:
-            for event in events:
-                st.markdown(f"- {event}")
+        st.markdown("--- <div style='margin-top: 5px; margin-bottom: 5px;'></div> ---", unsafe_allow_html=True)
+        
+        # Next Steps
+        st.markdown("**Suggested Next Steps:**")
+        if next_steps:
+            for step in next_steps:
+                st.markdown(f"- {step}")
         else:
-            st.write("No specific events anticipated")
+            st.write("None suggested.")
 
-    # Detailed volatility analysis
-    if "volatility_analysis" in volatility_insights:
-        with st.expander("Detailed Volatility Analysis"):
-            st.write(volatility_insights.get('volatility_analysis', ''))
+        st.markdown("--- <hr style='margin-top: 10px; margin-bottom: 20px;'> ---", unsafe_allow_html=True)
 
-    # Options Chain Insights
-    st.subheader("Options Chain Insights")
-
-    options_insights = analysis_result.get("options_chain_insights", {})
-
-    # Key strike levels as a bullet chart or table
-    key_strikes = options_insights.get('key_strike_levels', [])
-    if key_strikes:
-        st.markdown("### Key Price Levels")
-
-        # Convert to DataFrame for table display
-        current_price = analysis_result.get("market_direction", {}).get("current_price", 0)
-        if current_price == 0:
-            # Fallback to underlying price from session state if available
-            if 'options_data' in st.session_state:
-                current_price = st.session_state.options_data.get("current_price", 0)
-
-        strikes_df = pd.DataFrame({
-            'Strike Level': [f"${strike:.2f}" for strike in key_strikes],
-            'Distance': [f"{((strike - current_price) / current_price * 100):.2f}%" for strike in key_strikes],
-            'Type': ['Resistance' if strike > current_price else 'Support' for strike in key_strikes]
-        })
-
-        st.table(strikes_df)
-
-    # Unusual activity
-    st.markdown("### Unusual Options Activity")
-    unusual_activity = options_insights.get('unusual_activity', [])
-    if unusual_activity:
-        for activity in unusual_activity:
-            st.markdown(f"- {activity}")
+    # Display Deep Reasoning (Review)
+    st.subheader("🧠 Strategist Review (Deep Reasoning)")
+    if not deep_reasoning:
+        st.info("No deep reasoning narrative was generated or found.")
+    elif isinstance(deep_reasoning, str) and deep_reasoning.strip().lower().startswith("error:"):
+        st.warning(f"Deep reasoning analysis encountered an issue: {deep_reasoning}")
+    elif isinstance(deep_reasoning, str):
+        with st.expander("Show/Hide Strategist Review Details", expanded=False):
+             st.markdown(deep_reasoning)
     else:
-        st.write("No unusual options activity detected")
+         st.warning("Deep reasoning narrative is not in the expected format (string).")
+    
+    st.markdown("--- <hr style='margin-top: 10px; margin-bottom: 20px;'> ---", unsafe_allow_html=True)
 
-    # Institutional positioning
-    st.markdown("### Institutional Positioning")
-    st.write(options_insights.get('institutional_positioning', 'No clear institutional positioning detected'))
-
-    # Options flow analysis
-    with st.expander("Options Flow Analysis"):
-        st.write(options_insights.get('options_flow_analysis', 'No options flow analysis available'))
-
-    # SINGLE RECOMMENDED TRADE (Main Feature)
-    st.markdown("---")
-    st.subheader("🔥 Recommended Options Trade 🔥")
-
-    recommended_trade = analysis_result.get("recommended_trade", {})
-
-    if not recommended_trade:
-        st.warning("No trade recommendation available")
-    else:
-        # Trade type with color
-        trade_type = recommended_trade.get('contract_type', '').upper()
-        trade_color = 'green' if trade_type == 'CALL' else 'red' if trade_type == 'PUT' else 'blue'
-
-        # Display trade details in an eye-catching format
-        st.markdown(f"""
-        <div style="background-color: rgba(0, 0, 0, 0.05); padding: 20px; border-radius: 10px; border-left: 5px solid {trade_color};">
-            <h2 style="color: {trade_color};">{trade_type} {ticker} @ ${recommended_trade.get('strike', 0):.2f}</h2>
-            <p style="font-size: 1.2em;"><strong>Expiration:</strong> {recommended_trade.get('expiration', 'N/A')}</p>
-            <p style="font-size: 1.2em;"><strong>Symbol:</strong> {recommended_trade.get('contract_symbol', 'N/A')}</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Trade metrics
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.metric("Entry Price", f"${recommended_trade.get('entry_price', 0):.2f}")
-
-        with col2:
-            st.metric("Profit Target", f"${recommended_trade.get('profit_target', 0):.2f}")
-
-        with col3:
-            st.metric("Stop Loss", f"${recommended_trade.get('stop_loss', 0):.2f}")
-
-        # Success probability and risk/reward
+    # --- Display Original Initial Analysis Details --- 
+    st.subheader("Initial Analyst Report Details")
+    with st.expander("Show/Hide Initial Analysis Details", expanded=False):
+        # --- Short-Term Sentiment & Flow ---
+        st.markdown("**Short-Term Sentiment & Flow**")
         col1, col2 = st.columns(2)
-
         with col1:
-            prob = recommended_trade.get('probability_of_success', 0)
-
-            # Create simple probability gauge
-            fig = go.Figure(go.Indicator(
-                mode = "gauge+number",
-                value = prob,
-                domain = {'x': [0, 1], 'y': [0, 1]},
-                title = {'text': "Probability of Success"},
-                gauge = {
-                    'axis': {'range': [None, 100]},
-                    'bar': {'color': trade_color},
-                    'steps': [
-                        {'range': [0, 30], 'color': 'lightgray'},
-                        {'range': [30, 70], 'color': 'gray'},
-                        {'range': [70, 100], 'color': 'darkgray'}
-                    ]
-                }
-            ))
-            fig.update_layout(height=200, margin=dict(l=20, r=20, t=50, b=20))
-            st.plotly_chart(fig, use_container_width=True)
-
+            st.metric("Nearest Expiry", sentiment_flow.get("nearest_expiration_date", "N/A"))
+            bias = sentiment_flow.get('interpreted_flow_bias', 'unclear')
+            bias_color = {'bullish': 'green', 'bearish': 'red', 'mixed': 'orange'}.get(bias, 'grey')
+            st.markdown(f"**Interpreted Flow Bias:** <span style='color:{bias_color};font-size:1.2em;'>{bias.upper()}</span>", unsafe_allow_html=True)
+    
         with col2:
-            risk_reward = recommended_trade.get('risk_reward_ratio', 0)
-
-            # Display risk/reward as horizontal stacked bar
-            if risk_reward > 0:
-                fig = go.Figure()
-                fig.add_trace(go.Bar(
-                    y=['Risk-Reward'],
-                    x=[1],
-                    name='Risk',
-                    orientation='h',
-                    marker=dict(color='red')
-                ))
-                fig.add_trace(go.Bar(
-                    y=['Risk-Reward'],
-                    x=[risk_reward],
-                    name='Reward',
-                    orientation='h',
-                    marker=dict(color='green')
-                ))
-                fig.update_layout(
-                    barmode='stack',
-                    title='Risk-Reward Ratio',
-                    height=200,
-                    margin=dict(l=20, r=20, t=50, b=20),
-                    legend=dict(orientation="h")
-                )
-                st.plotly_chart(fig, use_container_width=True)
+            st.metric("P/C Volume Ratio (Nearest)", f"{sentiment_flow.get('put_call_volume_ratio', 'N/A'):.2f}" if isinstance(sentiment_flow.get('put_call_volume_ratio'), (int, float)) else "N/A")
+            st.metric("P/C OI Ratio (Nearest)", f"{sentiment_flow.get('put_call_oi_ratio', 'N/A'):.2f}" if isinstance(sentiment_flow.get('put_call_oi_ratio'), (int, float)) else "N/A")
+    
+        st.markdown("**Flow Signals:**")
+        flow_signals = sentiment_flow.get('flow_signals', [])
+        if flow_signals:
+            for signal in flow_signals:
+                st.markdown(f"- {signal}")
+        else:
+            st.write("No specific flow signals identified.")
+    
+        # Significant Strikes Tabs
+        tab1, tab2, tab3 = st.tabs(["High Volume Strikes", "High OI Strikes", "Institutional Plays"])
+        with tab1:
+            st.markdown("**Significant Volume Strikes (Nearest Expiry):**")
+            vol_strikes = sentiment_flow.get('significant_volume_strikes', [])
+            if vol_strikes:
+                df_vol = pd.DataFrame(vol_strikes)
+                df_vol = df_vol[['strike', 'type', 'volume', 'oi']] # Reorder columns
+                st.dataframe(df_vol, use_container_width=True)
             else:
-                st.metric("Risk-Reward Ratio", f"{risk_reward:.2f}")
+                st.write("No significant volume strikes identified.")
+        with tab2:
+            st.markdown("**Significant OI Strikes (Nearest Expiry):**")
+            oi_strikes = sentiment_flow.get('significant_oi_strikes', [])
+            if oi_strikes:
+                df_oi = pd.DataFrame(oi_strikes)
+                df_oi = df_oi[['strike', 'type', 'volume', 'oi']] # Reorder columns
+                st.dataframe(df_oi, use_container_width=True)
+            else:
+                st.write("No significant OI strikes identified.")
+        with tab3:
+             st.markdown("**Potential Institutional Plays:**")
+             inst_plays = sentiment_flow.get('potential_institutional_plays', [])
+             if inst_plays:
+                  for play in inst_plays:
+                       st.markdown(f"- {play}")
+             else:
+                  st.write("No specific institutional plays identified.")
+    
+    
+        # --- Near-Term Volatility ---
+        st.markdown("---")
+        st.markdown("**Near-Term Volatility**")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Nearest Expiry ATM Call IV", f"{volatility.get('atm_call_iv_pct', 'N/A'):.2%}" if isinstance(volatility.get('atm_call_iv_pct'), float) else "N/A")
+            st.metric("Nearest Expiry ATM Put IV", f"{volatility.get('atm_put_iv_pct', 'N/A'):.2%}" if isinstance(volatility.get('atm_put_iv_pct'), float) else "N/A")
+        with col2:
+            skew = volatility.get('iv_skew_interpretation', 'neutral')
+            skew_color = {'fear': 'red', 'greed': 'green'}.get(skew, 'grey')
+            st.markdown(f"**IV Skew:** <span style='color:{skew_color};font-size:1.2em;'>{skew.upper()}</span>", unsafe_allow_html=True)
+            st.metric("Implied Move % (Nearest)", f"{volatility.get('implied_percentage_move', 'N/A'):.2f}%" if isinstance(volatility.get('implied_percentage_move'), float) else "N/A")
+            st.markdown(f"**Term Structure (Near):** {volatility.get('term_structure_near_term', 'N/A').capitalize()}")
+    
+        # --- Key Levels & Strategies ---
+        st.markdown("---")
+        st.markdown("**Key Levels & Strategies**")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Key Option Strikes:**")
+            key_strikes = levels_strategies.get('key_options_strikes', [])
+            if key_strikes:
+                st.write(", ".join([f"${s:.2f}" for s in key_strikes]))
+            else:
+                st.write("N/A")
+            st.metric("Potential Support", f"${levels_strategies.get('potential_support', 'N/A'):.2f}" if isinstance(levels_strategies.get('potential_support'), float) else "N/A")
+            st.metric("Potential Resistance", f"${levels_strategies.get('potential_resistance', 'N/A'):.2f}" if isinstance(levels_strategies.get('potential_resistance'), float) else "N/A")
+    
+        with col2:
+            st.markdown("**Observed Strategies:**")
+            obs_strategies = levels_strategies.get('observed_strategies', [])
+            if obs_strategies:
+                for strat in obs_strategies:
+                    st.markdown(f"- {strat}")
+            else:
+                st.write("No specific strategies identified.")
+    
+    
+        # --- Actionable Trade Idea --- 
+        st.markdown("---")
+        st.markdown("**Original Actionable Trade Idea**") # Renamed header
+    
+        if not trade_idea or trade_idea.get("recommendation_status") == "No Clear Edge":
+            st.warning(f"Original analysis: No clear short-term trade edge identified. Rationale: {trade_idea.get('rationale', 'N/A')}")
+        else:
+            # Trade type with color
+            trade_type = trade_idea.get('contract_type', 'N/A').upper()
+            trade_color = 'green' if trade_type == 'CALL' else 'red' if trade_type == 'PUT' else 'grey'
+    
+            # Display trade details in an eye-catching format
+            st.markdown(f"""
+            <div style="background-color: rgba(0, 0, 0, 0.05); padding: 20px; border-radius: 10px; border-left: 5px solid {trade_color};">
+                <h4 style="color: {trade_color}; margin-top: 0;">Original: {trade_type} {ticker} @ ${trade_idea.get('strike', 0):.2f}</h4>
+                <p style="font-size: 1em; margin-bottom: 5px;"><strong>Expiration:</strong> {trade_idea.get('expiration', 'N/A')}</p>
+                <p style="font-size: 1em; margin-bottom: 15px;"><strong>Symbol:</strong> {trade_idea.get('contract_symbol', 'N/A')}</p>
+                <p><small><strong>Rationale:</strong> {trade_idea.get('rationale', 'N/A')}</small></p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.markdown(" ") # Add spacing
+    
+            # Trade metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Original Entry", f"${trade_idea.get('suggested_entry', 'N/A'):.2f}" if isinstance(trade_idea.get('suggested_entry'), float) else "N/A")
+            with col2:
+                st.metric("Original Target", f"${trade_idea.get('suggested_target', 'N/A'):.2f}" if isinstance(trade_idea.get('suggested_target'), float) else "N/A")
+            with col3:
+                st.metric("Original Stop", f"${trade_idea.get('suggested_stop', 'N/A'):.2f}" if isinstance(trade_idea.get('suggested_stop'), float) else "N/A")
+            with col4:
+                 st.metric("Original Confidence", trade_idea.get('confidence', 'N/A'))
+    
+        # Add Timestamp
+        st.markdown("---")
+        st.caption(f"Initial Analysis Timestamp: {analysis_result.get('analysis_timestamp', 'N/A')}")
 
-        # Trade thesis
-        st.markdown("### Trade Thesis")
-        st.write(recommended_trade.get('trade_thesis', 'No trade thesis provided'))
-
-        # Exit strategy
-        with st.expander("Exit Strategy"):
-            st.write(recommended_trade.get('exit_strategy', 'No exit strategy provided'))
-
-    # Greeks
-    st.subheader("Options Greeks")
-    greeks = analysis_result.get("greeks", {})
-
-    # Create a DataFrame for the Greeks
-    greeks_data = {
-        "Greek": ["Delta", "Gamma", "Theta", "Vega"],
-        "Value": [
-            greeks.get("delta", "N/A"),
-            greeks.get("gamma", "N/A"),
-            greeks.get("theta", "N/A"),
-            greeks.get("vega", "N/A")
-        ]
-    }
-
-    greeks_df = pd.DataFrame(greeks_data)
-
-    col1, col2 = st.columns([1, 2])
-
-    with col1:
-        st.table(greeks_df)
-
-    with col2:
-        st.markdown("### Greeks Impact")
-        st.write(greeks.get("greeks_impact", "No Greeks impact analysis provided"))
-
-    # Risk Assessment
-    st.subheader("Risk Assessment")
-    risk_assessment = analysis_result.get("risk_assessment", {})
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.metric("Maximum Loss", risk_assessment.get("max_loss", "N/A"))
-
-    with col2:
-        st.metric("Maximum Gain", risk_assessment.get("max_gain", "N/A"))
-
-    # Key risks
-    st.markdown("### Key Risks")
-    key_risks = risk_assessment.get('key_risks', [])
-    if key_risks:
-        for risk in key_risks:
-            st.markdown(f"- {risk}")
-    else:
-        st.write("No specific risks identified")
-
-    # Position sizing
-    st.markdown("### Position Sizing Recommendation")
-    st.write(risk_assessment.get('position_sizing_recommendation', 'No position sizing recommendation provided'))
-
-    # Market Context
-    st.subheader("Market Context")
-    st.write(analysis_result.get("market_context", "No market context provided"))
+    # Add overall timestamp at the end
+    st.markdown("--- <hr style='margin-top: 10px; margin-bottom: 10px;'> ---", unsafe_allow_html=True)
+    # Use the synthesis timestamp if available, otherwise fallback
+    final_timestamp = final_summary.get("synthesis_timestamp") or analysis_result.get('analysis_timestamp')
+    st.caption(f"Overall Workflow Completed: {final_timestamp if final_timestamp else 'N/A'}")
 
 def display_enhanced_analysis(analysis_result):
     """Display enhanced analysis with feedback loop"""
@@ -1829,3 +1754,127 @@ def _display_consensus_tab(target_data: Dict, current_price: Optional[float], ti
                      st.markdown(f"  - Confidence: {data.get('confidence', 'N/A')}%" if data.get('confidence') is not None else "  - Confidence: N/A")
     else:
         st.info(f"No consensus {timeframe_name} price target data available.") 
+
+def display_general_analysis(analysis_result: dict, ticker: str):
+    """Display the results of the general market quote analysis."""
+    st.header(f"General Market Analysis (Quote-Based): {ticker}")
+
+    # Check for errors first
+    if not isinstance(analysis_result, dict):
+        st.error(f"Invalid analysis result type: {type(analysis_result)}")
+        return
+    if "error" in analysis_result:
+        st.error(f"Error during analysis: {analysis_result['error']}")
+        if "raw_response" in analysis_result:
+            with st.expander("Raw LLM Response"):
+                st.code(analysis_result.get("raw_response"))
+        return
+
+    # --- Display Sections based on expected comprehensive output --- 
+    # The keys here are based on the prompt in analyze_market_quotes_with_gemini
+
+    # 1. Overall Assessment (Recommendation & Sentiment)
+    st.subheader("Overall Assessment")
+    assessment = analysis_result.get("overall_assessment", {})
+    recommendation = assessment.get("recommendation", "N/A")
+    sentiment = assessment.get("sentiment", "Neutral")
+    confidence = assessment.get("confidence", 0)
+
+    rec_color = {
+        "Strong Buy": "#006400",
+        "Buy": "green",
+        "Hold": "blue",
+        "Sell": "red",
+        "Strong Sell": "#8B0000"
+    }.get(recommendation, "grey")
+
+    sentiment_color = {
+        "Very Bullish": "#006400",
+        "Bullish": "green",
+        "Neutral": "blue",
+        "Bearish": "red",
+        "Very Bearish": "#8B0000"
+    }.get(sentiment, "grey")
+
+    col1, col2 = st.columns(2)
+    with col1:
+         st.markdown(f"**Recommendation:** <span style='color:{rec_color}; font-size: 1.2em; font-weight: bold;'>{recommendation}</span>", unsafe_allow_html=True)
+         st.markdown(f"**Sentiment:** <span style='color:{sentiment_color};'>{sentiment}</span>", unsafe_allow_html=True)
+         st.markdown(f"**Confidence:** {confidence}%" if isinstance(confidence, (int, float)) else f"**Confidence:** {confidence}")
+
+    with col2:
+        rationale = assessment.get("rationale", "No rationale provided.")
+        with st.expander("Rationale"):
+            st.write(rationale)
+
+    # 2. Key Metrics Analysis
+    st.markdown("---")
+    st.subheader("Key Metrics Analysis")
+    metrics = analysis_result.get("key_metrics_analysis", {})
+    if metrics:
+        # Display Price Action
+        price_action = metrics.get("price_action", {})
+        if price_action:
+            st.markdown("**Price Action:**")
+            st.write(f"- Current vs Open: {price_action.get('current_vs_open', 'N/A')}")
+            st.write(f"- Current vs High/Low: {price_action.get('current_vs_high_low', 'N/A')}")
+            st.write(f"- Day Change: {price_action.get('day_change_interpretation', 'N/A')}")
+
+        # Display Volume Analysis
+        volume_analysis = metrics.get("volume_analysis", {})
+        if volume_analysis:
+            st.markdown("**Volume Analysis:**")
+            st.write(f"- Volume vs Average: {volume_analysis.get('volume_vs_average', 'N/A')}")
+            st.write(f"- Interpretation: {volume_analysis.get('interpretation', 'N/A')}")
+
+        # Display Valuation Metrics
+        valuation = metrics.get("valuation_metrics", {})
+        if valuation:
+            st.markdown("**Valuation Snapshot:**")
+            st.write(f"- P/E Ratio: {valuation.get('pe_ratio_interpretation', 'N/A')}")
+            st.write(f"- Dividend Yield: {valuation.get('dividend_yield_interpretation', 'N/A')}")
+            st.write(f"- Market Cap Context: {valuation.get('market_cap_context', 'N/A')}")
+    else:
+        st.info("Key metrics analysis not available.")
+
+    # 3. Technical Hints from Quote
+    st.markdown("---")
+    st.subheader("Technical Hints (from Quote Data)")
+    tech_hints = analysis_result.get("technical_hints", {})
+    if tech_hints:
+        ma_analysis = tech_hints.get("moving_average_analysis", {})
+        if ma_analysis:
+             st.markdown("**Moving Averages:**")
+             st.write(f"- Price vs 50D MA: {ma_analysis.get('price_vs_50d', 'N/A')}")
+             st.write(f"- Price vs 200D MA: {ma_analysis.get('price_vs_200d', 'N/A')}")
+             st.write(f"- MA Trend Signal: {ma_analysis.get('ma_trend_signal', 'N/A')}")
+        
+        momentum = tech_hints.get("intraday_momentum", {})
+        if momentum:
+             st.markdown("**Intraday Momentum:**")
+             st.write(f"- Signal: {momentum.get('signal', 'N/A')}")
+             st.write(f"- Strength: {momentum.get('strength', 'N/A')}")
+
+        key_levels = tech_hints.get("key_price_levels", {})
+        if key_levels:
+            st.markdown("**Key Price Levels (from quote):**")
+            st.write(f"- Potential Support: {key_levels.get('support', 'N/A')}")
+            st.write(f"- Potential Resistance: {key_levels.get('resistance', 'N/A')}")
+    else:
+        st.info("Technical hints from quote data not available.")
+
+    # 4. Potential News/Events Impact (If included in prompt)
+    if "potential_impacts" in analysis_result:
+        st.markdown("---")
+        st.subheader("Potential Impacts")
+        impacts = analysis_result.get("potential_impacts", "No potential impacts mentioned.")
+        st.write(impacts)
+
+    # Display Raw Quote Data (Optional)
+    if "raw_quote_data" in analysis_result:
+        with st.expander("Raw Quote Data Used"):
+            st.json(analysis_result["raw_quote_data"])
+
+    # Add Timestamp
+    st.markdown("---")
+    st.caption(f"Analysis Timestamp: {analysis_result.get('analysis_timestamp', 'N/A')}")

@@ -10,61 +10,96 @@ from dotenv import load_dotenv
 
 from src.data.connectors.yahoo_finance import YahooFinanceConnector # Use the centralized connector
 from src.analysis.technical_indicators import Indicator, MovingAverage, BollingerBands, RSI, MACD, calculate_indicators # Assume indicators are calculated separately
+# Import the new connector
+from src.data.connectors.technical_indicators_rapidapi import TechnicalIndicatorAPIConnector
 
 # Set up logging
 logger = logging.getLogger(__name__)
 load_dotenv()
 
-# --- Original analyze_technicals_with_llm logic moved here ---
+# Mapping from Streamlit timeframe labels to API interval parameters
+# Adjust this mapping based on desired granularity vs. API limitations/performance
+# Example: For 1D/1W views, maybe use a finer interval? For longer views, daily is fine.
+INTERVAL_MAP = {
+    "1D": "15m",
+    "1W": "1h",
+    "1M": "1d",
+    "3M": "1d",
+    "6M": "1d",
+    "1Y": "1d",
+    "5Y": "1wk",
+    "MAX": "1mo"
+}
+# Mapping from Streamlit timeframe to data limit (number of periods)
+# Controls how much historical indicator data to fetch
+LIMIT_MAP = {
+    "1D": 100,  # ~1.5 days of 15m data
+    "1W": 100,  # ~4 days of 1h data
+    "1M": 30,   # 1 month of daily data
+    "3M": 90,
+    "6M": 180,
+    "1Y": 252,
+    "5Y": 260,  # 5 years of weekly data
+    "MAX": 240  # 20 years of monthly data
+}
+
+# --- Original analyze_technicals_with_llm logic moved here --- 
+# --- THIS FUNCTION WILL BE MODIFIED NEXT to accept and use the new indicator data --- 
 def analyze_technicals_with_llm(
     ticker: str, 
     timeframe: str, 
-    historical_data: Optional[pd.DataFrame] = None, 
+    # CHANGE: Instead of raw historical data, expect processed indicator data
+    # historical_data: Optional[pd.DataFrame] = None, 
+    fetched_indicators: Dict[str, Optional[pd.DataFrame]], # New parameter
     historical_analyses: Optional[List[Dict]] = None
 ) -> Dict:
-    """Analyzes technical indicators using Gemini LLM."""
-    logger.info(f"Starting LLM technical analysis for {ticker} ({timeframe})")
+    """Analyzes technical indicators using Gemini LLM, now using fetched historical series."""
+    logger.info(f"Starting LLM technical analysis for {ticker} ({timeframe}) using fetched indicators")
     
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         logger.error("Gemini API key not found")
         return {"error": "Gemini API key missing"}
         
-    if historical_data is None or historical_data.empty:
-        logger.warning(f"No historical data provided for {ticker}")
-        return {"error": "Historical data is missing or empty"}
+    # --- Prepare Indicator Summary for Prompt --- 
+    indicator_summary_for_prompt = {}
+    latest_values = {}
+    indicator_trends = {}
+    
+    for name, df in fetched_indicators.items():
+        if df is not None and not df.empty:
+            # Get latest value(s)
+            latest_row = df.iloc[-1]
+            if name == 'MACD': # MACD has multiple columns
+                latest_values[name] = latest_row.to_dict()
+            else:
+                latest_values[name] = latest_row.iloc[0] # Single value indicators
+            
+            # Calculate simple trend (e.g., compare latest to value 5 periods ago)
+            if len(df) >= 6:
+                previous_val = df.iloc[-6].iloc[0]
+                current_val = latest_row.iloc[0]
+                if pd.notna(previous_val) and pd.notna(current_val):
+                    if current_val > previous_val:
+                        indicator_trends[name] = "rising"
+                    elif current_val < previous_val:
+                        indicator_trends[name] = "falling"
+                    else:
+                        indicator_trends[name] = "flat"
+                else:
+                    indicator_trends[name] = "insufficient data"
+            else:
+                indicator_trends[name] = "insufficient data"
+        else:
+            latest_values[name] = None
+            indicator_trends[name] = "fetch failed"
+            
+    indicator_summary_for_prompt["latest_values"] = latest_values
+    indicator_summary_for_prompt["trends_5_period"] = indicator_trends
 
-    # --- Indicator Calculation ---
-    try:
-        # Define the list of indicators to calculate based on prompt requirements
-        indicators_to_calculate: List[Indicator] = [
-            MovingAverage(window=50),
-            MovingAverage(window=200),
-            BollingerBands(window=20), # Also calculates MA20 internally
-            RSI(window=14),
-            MACD(),
-            # ATR calculation might need to be added to technical_indicators.py if not present
-            # For now, we assume Volume is already in historical_data
-        ]
-        
-        # Calculate indicators using the function from technical_indicators.py
-        indicators_df = calculate_indicators(historical_data, indicators_to_calculate)
-        
-        if indicators_df.empty:
-            logger.error(f"Failed to calculate indicators for {ticker}")
-            return {"error": "Indicator calculation failed"}
-        logger.info(f"Calculated indicators for {ticker}: {list(indicators_df.columns)}")
-        # Select relevant indicators for the prompt (e.g., the last row/most recent values)
-        latest_indicators = indicators_df.iloc[-1].to_dict() if not indicators_df.empty else {}
-    except Exception as e:
-        logger.error(f"Error calculating indicators for {ticker}: {e}", exc_info=True)
-        return {"error": f"Indicator calculation error: {e}"}
-        
-    # --- Historical Feedback (Simple Example) ---
+    # --- Historical Feedback (Remains the same) ---
     feedback = ""
     if historical_analyses:
-        # Basic feedback: Mention previous signals if they exist
-        # A more sophisticated approach could analyze past prediction accuracy
         past_signals = [analysis.get('summary', {}).get('overall_signal') 
                         for analysis in historical_analyses 
                         if analysis.get('summary', {}).get('overall_signal')]
@@ -72,81 +107,62 @@ def analyze_technicals_with_llm(
             feedback = f"Historical Context: Previous analysis signals included: {', '.join(past_signals[-3:])}."
             logger.info(f"Adding historical context: {feedback}")
 
-    # --- Construct the Prompt ---
+    # --- Construct the Updated Prompt --- 
+    # !!! THIS PROMPT NEEDS SIGNIFICANT REVISION !!!
+    # It should now ask the LLM to interpret the latest values *in the context* of the trends.
+    # Example: Instead of just RSI value, provide RSI value + trend and ask for interpretation.
+    # Placeholder prompt for now:
     prompt = f"""
-    Analyze the technical indicators for {ticker} based on {timeframe} data and provide a detailed technical analysis.
+    Analyze the technical indicators for {ticker} based on {timeframe} data.
+
+    Latest Indicator Values:
+    {json.dumps(latest_values, indent=2, default=str)}
     
-    Current Indicators:
-    {json.dumps(latest_indicators, indent=2)}
+    Recent Indicator Trends (last 5 periods):
+    {json.dumps(indicator_trends, indent=2, default=str)}
 
-    {feedback} 
+    {feedback}
 
-    Provide the analysis in JSON format with the following structure:
-    {{
+    Provide a detailed technical analysis in JSON format. Focus on interpreting the latest values in the context of their recent trends. Identify potential chart patterns, support/resistance, and provide an overall summary with outlook and confidence.
+    
+    Output JSON Structure:
+    {{ 
       "ticker": "{ticker}",
       "timeframe": "{timeframe}",
-      "analysis_timestamp": "{pd.Timestamp.now().isoformat()}",
-      "key_indicators": {{
-        "rsi": {{ "value": {latest_indicators.get('RSI', 'null')}, "interpretation": "Provide interpretation (e.g., Overbought >70, Oversold <30)" }},
-        "macd": {{ "value": {latest_indicators.get('MACD', 'null')}, "signal": {latest_indicators.get('MACD_Signal', 'null')}, "histogram": {latest_indicators.get('MACD_Hist', 'null')}, "interpretation": "Provide interpretation (e.g., Bullish crossover, Bearish divergence)" }},
-        "moving_averages": {{ 
-          "ma50": {latest_indicators.get('SMA_50', 'null')}, 
-          "ma200": {latest_indicators.get('SMA_200', 'null')},
-          "interpretation": "Provide interpretation (e.g., Golden Cross, Death Cross, Price vs MA)" 
-        }},
-        "bollinger_bands": {{
-          "upper": {latest_indicators.get('BB_Upper', 'null')},
-          "middle": {latest_indicators.get('BB_Middle', 'null')},
-          "lower": {latest_indicators.get('BB_Lower', 'null')},
-          "interpretation": "Provide interpretation (e.g., Price touching upper band, Squeeze forming)"
-        }},
-        "volume": {{
-          "latest_volume": {latest_indicators.get('Volume', 'null')},
-          "average_volume": {historical_data['Volume'].mean() if 'Volume' in historical_data else 'null'},
-          "interpretation": "Provide interpretation (e.g., High volume confirmation, Low volume divergence)"
-        }},
-        "atr": {{ "value": {latest_indicators.get('ATR', 'null')}, "interpretation": "Volatility analysis based on ATR" }}
+      "analysis_timestamp": "{datetime.now().isoformat()}",
+      "indicator_analysis": {{ 
+         "SMA": {{ "latest": {latest_values.get('SMA')}, "trend": "{indicator_trends.get('SMA')}", "interpretation": "Interpret SMA value and trend..." }},
+         "RSI": {{ "latest": {latest_values.get('RSI')}, "trend": "{indicator_trends.get('RSI')}", "interpretation": "Interpret RSI value and trend (Overbought/Oversold? Momentum change?)" }},
+         "MACD": {{ "latest": {json.dumps(latest_values.get('MACD'))}, "trend": "{indicator_trends.get('MACD')}", "interpretation": "Interpret MACD lines, histogram, and trend (Crossovers? Divergence?)" }},
+         "ADX": {{ "latest": {latest_values.get('ADX')}, "trend": "{indicator_trends.get('ADX')}", "interpretation": "Interpret ADX trend strength..." }}
+         // Add other indicators if fetched
       }},
-      "chart_patterns": {{
-        "identified_patterns": ["Identify any potential patterns (e.g., Head and Shoulders, Double Top, Flags). If none, state 'None'."],
-        "pattern_analysis": "Detailed analysis of the identified patterns and their implications."
-      }},
-      "support_resistance": {{
-        "support_levels": ["Identify key support levels based on indicators/price action"],
-        "resistance_levels": ["Identify key resistance levels based on indicators/price action"],
-        "level_analysis": "Analysis of the significance of these levels."
-      }},
-      "summary": {{
-        "overall_signal": "Provide a clear overall signal (Strong Buy, Buy, Hold, Sell, Strong Sell)",
-        "confidence": "Provide confidence level (Low, Medium, High)",
-        "key_takeaways": [
-          "Summarize the most important technical findings.",
-          "Highlight confirming or conflicting signals.",
-          "Mention potential risks based on technicals."
-        ],
-        "outlook": "Brief outlook based on the technical analysis."
+      "chart_patterns": {{ "identified": ["Identify patterns..."], "analysis": "Pattern implications..." }},
+      "support_resistance": {{ "support": ["Identify levels..."], "resistance": ["Identify levels..."], "analysis": "Level significance..." }},
+      "summary": {{ 
+          "overall_signal": "Strong Buy|Buy|Hold|Sell|Strong Sell",
+          "confidence": "Low|Medium|High",
+          "key_takeaways": ["Summarize key findings..."],
+          "outlook": "Brief outlook..."
       }}
     }}
     """
 
-    # --- Call Gemini API ---
+    # --- Call Gemini API --- 
     try:
-        # Configure only if necessary
         if not genai._config.api_key:
              genai.configure(api_key=api_key)
-             logger.info("Configured Gemini API key.")
     except AttributeError:
-         genai.configure(api_key=api_key)
-         logger.info("Configured Gemini API key (initial config).")
+        genai.configure(api_key=api_key)
     except Exception as config_err:
          logger.error(f"Error configuring Gemini: {config_err}")
          return {"error": f"Failed to configure Gemini API: {config_err}"}
 
     try:
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash", # Or your preferred model
+            model_name="gemini-1.5-flash",
              generation_config=types.GenerationConfig(
-                temperature=0.3, # Slightly higher temp for more nuanced analysis
+                temperature=0.3,
                 top_p=0.95,
                 top_k=64,
                 max_output_tokens=8192,
@@ -154,19 +170,18 @@ def analyze_technicals_with_llm(
             )
         )
         
-        logger.info(f"Sending technical analysis prompt to Gemini for {ticker}")
+        logger.info(f"Sending updated technical analysis prompt to Gemini for {ticker}")
         response = model.generate_content(prompt)
         
         analysis_result = json.loads(response.text)
         logger.info(f"Received technical analysis from Gemini for {ticker}")
         
-        # Add raw indicators to the result for potential display/debugging
-        analysis_result['raw_indicators'] = latest_indicators
-        analysis_result['historical_data_summary'] = {
-            'start_date': historical_data.index.min().strftime('%Y-%m-%d'),
-            'end_date': historical_data.index.max().strftime('%Y-%m-%d'),
-            'rows': len(historical_data)
-        }
+        # Add the fetched raw indicator data (DataFrames) to the result 
+        # Note: DataFrames are not directly JSON serializable, handled by save_analysis default=str
+        analysis_result['fetched_indicator_data'] = fetched_indicators 
+        # Add summary used in prompt for context
+        analysis_result['indicator_summary_for_prompt'] = indicator_summary_for_prompt
+        
         return analysis_result
 
     except json.JSONDecodeError:
@@ -177,42 +192,97 @@ def analyze_technicals_with_llm(
         return {"error": f"LLM API call failed: {e}"}
 
 
-# --- Wrapper Function ---
+# --- Wrapper Function --- 
 def run_technical_analysis(
     ticker: str,
     timeframe: str,
-    connector: YahooFinanceConnector, # Keep connector for potential future use?
-    historical_data: Optional[pd.DataFrame], # Accept historical data
+    connector: YahooFinanceConnector, # Keep yahoo connector for historical price data
+    # historical_data: Optional[pd.DataFrame], # No longer need raw price data passed in? Or keep for plotting?
+                                          # --> Decision: Keep historical price data for plotting <--
+    historical_data: Optional[pd.DataFrame], 
     historical_analyses: Optional[List[Dict]] = None
 ) -> Dict:
     """
     Runs the complete technical analysis workflow:
-    1. Uses pre-fetched historical data.
-    2. Calls the LLM analysis function.
+    1. Fetches historical indicator data using the new RapidAPI connector.
+    2. Calls the LLM analysis function with the fetched indicator data.
+    3. Returns the analysis result (which includes the fetched data).
     """
-    logger.info(f"Running Technical Analysis workflow for {ticker} ({timeframe}) using provided data")
+    analysis_type = "technical" # For saving to DB
+    logger.info(f"Running Technical Analysis workflow for {ticker} ({timeframe}) using new indicator API")
 
-    # Removed mapping and data fetching - expects data to be passed in
-    # period_map = { ... }
-    # period, interval = period_map.get(timeframe, ("1y", "1d"))
-
+    # Instantiate the new connector
     try:
-        # 1. Validate historical data
-        if historical_data is None or historical_data.empty:
-            logger.error(f"No historical data provided for {ticker} to run_technical_analysis.")
-            return {"error": f"Historical data missing for {ticker} analysis."}
-        logger.info(f"Using provided historical data ({len(historical_data)} rows) for {ticker}")
-
-        # 2. Call LLM analysis
-        analysis_result = analyze_technicals_with_llm(
-            ticker=ticker,
-            timeframe=timeframe,
-            historical_data=historical_data,
-            historical_analyses=historical_analyses
-        )
-
-        return analysis_result
-
+        indicator_connector = TechnicalIndicatorAPIConnector()
+    except ValueError as e:
+        logger.error(f"Failed to initialize TechnicalIndicatorAPIConnector: {e}")
+        return {"error": f"Failed to initialize indicator API connector: {e}"}
     except Exception as e:
-        logger.error(f"Error in technical analysis workflow for {ticker}: {e}", exc_info=True)
-        return {"error": f"An unexpected error occurred during technical analysis: {e}"} 
+         logger.error(f"Unexpected error initializing TechnicalIndicatorAPIConnector: {e}", exc_info=True)
+         return {"error": f"Unexpected error initializing indicator API connector: {e}"}
+
+    # Determine interval and limit based on timeframe
+    interval = INTERVAL_MAP.get(timeframe, "1d") # Default to daily
+    limit = LIMIT_MAP.get(timeframe, 100) # Default limit
+    logger.debug(f"Mapped timeframe '{timeframe}' to interval='{interval}', limit={limit}")
+
+    # Fetch data for required indicators
+    fetched_indicators: Dict[str, Optional[pd.DataFrame]] = {}
+    indicators_to_fetch = {
+        "SMA": lambda: indicator_connector.get_sma(symbol=ticker, interval=interval, time_period=50, limit=limit),
+        "RSI": lambda: indicator_connector.get_rsi(symbol=ticker, interval=interval, time_period=14, limit=limit),
+        "MACD": lambda: indicator_connector.get_macd(symbol=ticker, interval=interval, limit=limit),
+        "ADX": lambda: indicator_connector.get_adx(symbol=ticker, interval=interval, time_period=14, limit=limit),
+        # Add other indicators here if needed
+    }
+
+    fetch_errors = []
+    for name, fetch_func in indicators_to_fetch.items():
+        try:
+            logger.info(f"Fetching {name} data for {ticker}...")
+            data = fetch_func()
+            fetched_indicators[name] = data
+            if data is None:
+                logger.warning(f"Fetching {name} for {ticker} returned None.")
+                fetch_errors.append(name)
+            elif data.empty:
+                logger.warning(f"Fetching {name} for {ticker} returned empty DataFrame.")
+                fetch_errors.append(name)
+            else:
+                 logger.info(f"Successfully fetched {name} data for {ticker} ({len(data)} rows)")
+        except Exception as e:
+            logger.error(f"Error fetching {name} data for {ticker}: {e}", exc_info=True)
+            fetched_indicators[name] = None # Ensure it's None on error
+            fetch_errors.append(name)
+            
+    # Optional: Check if all fetches failed
+    if len(fetch_errors) == len(indicators_to_fetch):
+        logger.error(f"Failed to fetch any indicator data for {ticker} from RapidAPI.")
+        return {"error": "Failed to fetch any required indicator data."}
+    elif fetch_errors:
+         logger.warning(f"Failed to fetch some indicator data for {ticker}: {fetch_errors}")
+         # Continue analysis with partial data
+
+    # Call LLM analysis function with the fetched data
+    analysis_result = analyze_technicals_with_llm(
+        ticker=ticker,
+        timeframe=timeframe,
+        fetched_indicators=fetched_indicators, # Pass the dict of DataFrames
+        historical_analyses=historical_analyses
+    )
+    
+    # Add historical OHLCV data to result IF it was provided (for plotting)
+    if historical_data is not None:
+        analysis_result['historical_ohlcv'] = historical_data
+        
+    # --- Save successful analysis result to database --- 
+    if isinstance(analysis_result, dict) and "error" not in analysis_result:
+        from src.data.database_utils import save_analysis # Import here to avoid circular deps?
+        try:
+            # Pass a copy or specific parts if DataFrame causes issues
+            save_analysis(ticker, analysis_type, analysis_result)
+        except Exception as db_save_err:
+            logger.error(f"Failed to save technical analysis result to database for {ticker}: {db_save_err}", exc_info=True)
+    # --- End of Save Step --- 
+
+    return analysis_result 

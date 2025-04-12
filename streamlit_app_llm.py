@@ -32,6 +32,8 @@ from src.analysis.technical_analyzer import run_technical_analysis
 from src.analysis.enhanced_analyzer import run_enhanced_analysis
 # Import the new memory analyzer function
 from src.analysis.memory_analyzer import run_memory_analysis
+# Import the new general analyzer function
+from src.analysis.general_analyzer import run_general_analysis
 # Import the display functions from the new UI module
 from src.streamlit_app.ui_components import (
     display_market_overview,
@@ -40,8 +42,11 @@ from src.streamlit_app.ui_components import (
     display_memory_enhanced_analysis,
     create_technical_chart,
     display_technical_analysis,
-    display_price_targets
+    display_price_targets,
+    display_general_analysis
 )
+# Import database utility
+from src.data.database_utils import init_db
 
 # Function analyze_technicals_with_llm and its helpers removed as they were moved to src/analysis/technical_analyzer.py
 
@@ -843,6 +848,15 @@ def main():
     st.set_page_config(page_title="AI Hedge Fund Analysis", layout="wide")
     st.title("📈 AI Hedge Fund Analysis Tool")
 
+    # Initialize the database (create table if not exists)
+    try:
+        init_db()
+    except Exception as db_init_err:
+        logger.error(f"Database initialization failed: {db_init_err}", exc_info=True)
+        st.error(f"Failed to initialize analysis history database: {db_init_err}")
+        # Decide if the app should stop or continue without history
+        # st.stop()
+
     # Initialize connector in session state if not present
     if 'connector' not in st.session_state:
         try:
@@ -872,7 +886,8 @@ def main():
         "LLM Technical Analysis": "technical",
         "Enhanced Comprehensive Analysis": "enhanced",
         "Memory-Enhanced Analysis": "memory",
-        "Price Target Generation": "price_target"
+        "Price Target Generation": "price_target",
+        "General Market Analysis": "general"
     }
     if 'selected_analysis_label' not in st.session_state:
         st.session_state.selected_analysis_label = "LLM Options Analysis"
@@ -1000,6 +1015,9 @@ def main():
                             option_chain,
                             tech_analysis_for_pt
                         )
+                    elif analysis_type == "general":
+                        # General analysis just needs the connector
+                        st.session_state.analysis_result = run_general_analysis(ticker, connector)
                     else:
                         st.error(f"Analysis type '{analysis_type}' not implemented yet.")
                         st.stop()
@@ -1070,6 +1088,8 @@ def main():
                 display_memory_enhanced_analysis(ticker, analysis_result, st.session_state.historical_analyses)
             elif analysis_type == "price_target":
                 display_price_targets(analysis_result, ticker)
+            elif analysis_type == "general":
+                display_general_analysis(analysis_result, ticker)
             else:
                 st.warning(f"Display for analysis type '{analysis_type}' not implemented yet.")
 
