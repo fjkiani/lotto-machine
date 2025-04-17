@@ -45,8 +45,6 @@ from src.streamlit_app.ui_components import (
     display_price_targets,
     display_general_analysis
 )
-# Import database utility
-from src.data.database_utils import init_db
 
 # Function analyze_technicals_with_llm and its helpers removed as they were moved to src/analysis/technical_analyzer.py
 
@@ -337,7 +335,7 @@ def generate_price_targets(
                 
                 if straddle_price > 0:
                         # Calculate expected move
-                 implied_move_pct = (straddle_price / current_price) * 100
+                    implied_move_pct = (straddle_price / current_price) * 100
                 bullish_target = current_price * (1 + (implied_move_pct/100))
                 bearish_target = current_price * (1 - (implied_move_pct/100))
                 
@@ -383,8 +381,8 @@ def generate_price_targets(
             
             if "options_implied" in price_targets["targets"]["short_term"] or \
                "options_implied" in price_targets["targets"]["medium_term"]:
-             price_targets["methodologies"].append("options_implied")
-            logger.info("Added options-implied price targets")
+                price_targets["methodologies"].append("options_implied")
+                logger.info("Added options-implied price targets")
         except Exception as e:
             logger.error(f"Error calculating options-implied price targets: {str(e)}", exc_info=True)
     
@@ -409,31 +407,31 @@ def generate_price_targets(
             if pd.isna(current_vol) or current_vol <= 0:
                  logger.warning(f"Could not calculate valid historical volatility for {ticker}")
             else:
-            # Calculate volatility-based price ranges
-             vol_30d_move = current_price * current_vol / np.sqrt(252/30)  # 30-day expected move
-            vol_90d_move = current_price * current_vol / np.sqrt(252/90)  # 90-day expected move
-            logger.debug(f"[{ticker}] Calculated vol moves: 30d={vol_30d_move}, 90d={vol_90d_move}")
-            
-            # Add volatility-based targets
-            price_targets["targets"]["short_term"]["volatility_based"] = {
-                "bullish": round(current_price + vol_30d_move, 2),
-                "bearish": round(current_price - vol_30d_move, 2),
-                "timeframe": "30 days",
-                "confidence": 65,
-                "volatility": round(current_vol * 100, 2)
-            }
-            
-            price_targets["targets"]["medium_term"]["volatility_based"] = {
-                "bullish": round(current_price + vol_90d_move, 2),
-                "bearish": round(current_price - vol_90d_move, 2),
-                "timeframe": "90 days",
-                "confidence": 55,
-                "volatility": round(current_vol * 100, 2)
-            }
-            
-            price_targets["methodologies"].append("volatility_based")
-            logger.info("Added volatility-based price targets")
-            logger.debug(f"[{ticker}] Volatility targets added: Short={price_targets['targets']['short_term'].get('volatility_based')}, Medium={price_targets['targets']['medium_term'].get('volatility_based')}")
+                # Calculate volatility-based price ranges
+                vol_30d_move = current_price * current_vol / np.sqrt(252/30)  # 30-day expected move
+                vol_90d_move = current_price * current_vol / np.sqrt(252/90)  # 90-day expected move
+                logger.debug(f"[{ticker}] Calculated vol moves: 30d={vol_30d_move}, 90d={vol_90d_move}")
+                
+                # Add volatility-based targets
+                price_targets["targets"]["short_term"]["volatility_based"] = {
+                    "bullish": round(current_price + vol_30d_move, 2),
+                    "bearish": round(current_price - vol_30d_move, 2),
+                    "timeframe": "30 days",
+                    "confidence": 65,
+                    "volatility": round(current_vol * 100, 2)
+                }
+                
+                price_targets["targets"]["medium_term"]["volatility_based"] = {
+                    "bullish": round(current_price + vol_90d_move, 2),
+                    "bearish": round(current_price - vol_90d_move, 2),
+                    "timeframe": "90 days",
+                    "confidence": 55,
+                    "volatility": round(current_vol * 100, 2)
+                }
+                
+                price_targets["methodologies"].append("volatility_based")
+                logger.info("Added volatility-based price targets")
+                logger.debug(f"[{ticker}] Volatility targets added: Short={price_targets['targets']['short_term'].get('volatility_based')}, Medium={price_targets['targets']['medium_term'].get('volatility_based')}")
         else:
              logger.warning(f"Could not fetch historical data via connector for volatility targets ({ticker}).")
 
@@ -449,12 +447,12 @@ def generate_price_targets(
         short_term_targets = []
         for method, data in price_targets["targets"]["short_term"].items():
             if isinstance(data, dict) and data.get("confidence", 0) > 0: # Ensure valid data and confidence
-             short_term_targets.append({
-                "bullish": data.get("bullish", 0),
-                "bearish": data.get("bearish", 0),
-                "confidence": data.get("confidence", 0) / 100,  # Weight by confidence
-                "method": method
-            })
+                short_term_targets.append({
+                    "bullish": data.get("bullish", 0),
+                    "bearish": data.get("bearish", 0),
+                    "confidence": data.get("confidence", 0) / 100,  # Weight by confidence
+                    "method": method
+                })
         
         if short_term_targets:
             bullish_weighted_sum = sum(t["bullish"] * t["confidence"] for t in short_term_targets)
@@ -482,12 +480,12 @@ def generate_price_targets(
         medium_term_targets = []
         for method, data in price_targets["targets"]["medium_term"].items():
              if isinstance(data, dict) and data.get("confidence", 0) > 0:
-              medium_term_targets.append({
-                "bullish": data.get("bullish", 0),
-                "bearish": data.get("bearish", 0),
-                "confidence": data.get("confidence", 0) / 100,
-                "method": method
-            })
+                medium_term_targets.append({
+                    "bullish": data.get("bullish", 0),
+                    "bearish": data.get("bearish", 0),
+                    "confidence": data.get("confidence", 0) / 100,
+                    "method": method
+                })
         
         if medium_term_targets:
             bullish_weighted_sum = sum(t["bullish"] * t["confidence"] for t in medium_term_targets)
@@ -581,12 +579,10 @@ def generate_price_targets(
             price_targets["error"] = "Could not form a consensus price target."
             logger.warning(f"[{ticker}] Could not form consensus price target. Returning raw targets.")
             logger.debug(f"[{ticker}] Raw targets returned: {price_targets}")
-        return price_targets
-
     except Exception as e:
         logger.error(f"Error converting traditional targets to LLM format: {str(e)}", exc_info=True)
         price_targets["error"] = f"Failed to format targets: {e}"
-        return price_targets # Return the dictionary with collected data and error
+    return price_targets
 
 def analyze_time_series_data(time_series_data, current_price):
     """Analyze time series data to identify support and resistance levels"""
@@ -829,7 +825,7 @@ Output JSON Structure:
         logger.info(f"Sending price target generation prompt to Gemini for {ticker}")
         response = model.generate_content(prompt)
         
-        # Add timestamp to the response
+        # Corrected Indentation: Unindent lines 830 and 833
         analysis_result = json.loads(response.text)
         analysis_result["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
@@ -847,15 +843,6 @@ def main():
     # Set page config
     st.set_page_config(page_title="AI Hedge Fund Analysis", layout="wide")
     st.title("📈 AI Hedge Fund Analysis Tool")
-
-    # Initialize the database (create table if not exists)
-    try:
-        init_db()
-    except Exception as db_init_err:
-        logger.error(f"Database initialization failed: {db_init_err}", exc_info=True)
-        st.error(f"Failed to initialize analysis history database: {db_init_err}")
-        # Decide if the app should stop or continue without history
-        # st.stop()
 
     # Initialize connector in session state if not present
     if 'connector' not in st.session_state:
@@ -1076,9 +1063,6 @@ def main():
                          if fallback_data is not None and not fallback_data.empty:
                              create_technical_chart(ticker, fallback_data, analysis_result)
                              display_technical_analysis(analysis_result)
-                         else:
-                             st.error("Could not fetch historical data for chart.")
-                             display_technical_analysis(analysis_result) # Display analysis anyway
                      except Exception as fallback_err:
                          st.error(f"Error fetching historical data for chart: {fallback_err}")
                          display_technical_analysis(analysis_result)
