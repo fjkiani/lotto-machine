@@ -625,30 +625,40 @@ class SignalGenerator:
         
         position_pct = 0.02 if confidence >= 0.85 else 0.01
         
+        # Build rationale (was 'primary_reason')
+        max_pain_str = f"${context.max_pain:.2f}" if context.max_pain else "N/A"
+        rationale = (
+            f"GAMMA RAMP: P/C {context.put_call_ratio:.2f}, "
+            f"Max Pain {max_pain_str}, "
+            f"Call OI {context.total_option_oi:,}"
+        )
+        
+        supporting_factors = [
+            f"Call OI: {context.total_option_oi:,}",
+            f"Max pain ${(context.max_pain - price) / price * 100:+.1f}% above" if context.max_pain else "Max pain: N/A",
+            f"DP support @ ${nearest_support:.2f}",
+            f"P/C ratio: {context.put_call_ratio:.2f}"
+        ]
+        
         return LiveSignal(
-            timestamp=datetime.now(),
             symbol=symbol,
-            action="BUY",
-            signal_type="GAMMA_RAMP",
-            current_price=price,
-            entry_price=price,
-            stop_loss=stop,
-            take_profit=target,
+            action=SignalAction.BUY,  # Was string "BUY"
+            timestamp=datetime.now(),
+            entry_price=price,  # Was 'current_price'
+            target_price=target,  # Was 'take_profit'
+            stop_price=stop,  # Was 'stop_loss'
             confidence=confidence,
-            risk_reward_ratio=(target - price) / risk if risk > 0 else 0,
-            position_size_pct=position_pct,
+            signal_type=SignalType.GAMMA_RAMP,  # Was string "GAMMA_RAMP"
+            rationale=rationale,  # Was 'primary_reason'
             dp_level=nearest_support,
             dp_volume=0,
             institutional_score=context.institutional_buying_pressure,
-            primary_reason=f"GAMMA RAMP: P/C {context.put_call_ratio:.2f}, Max Pain ${context.max_pain:.2f}",
-            supporting_factors=[
-                f"Call OI: {context.total_option_oi:,}",
-                f"Max pain ${(context.max_pain - price) / price * 100:+.1f}% above",
-                f"DP support @ ${nearest_support:.2f}"
-            ],
+            supporting_factors=supporting_factors,
             warnings=[],
             is_master_signal=context.gamma_pressure >= self.min_master_confidence,
-            is_actionable=True
+            is_actionable=True,
+            position_size_pct=position_pct,
+            risk_reward_ratio=(target - price) / risk if risk > 0 else 0
         )
     
     def _create_dp_signal(self, symbol: str, price: float,
@@ -820,26 +830,28 @@ class SignalGenerator:
         
         position_pct = 0.02 if confidence >= 0.85 else 0.01
         
+        # Build rationale (was 'primary_reason')
+        rationale = f"BREAKDOWN below DP support ${nearest_support:.2f}"
+        
         return LiveSignal(
-            timestamp=datetime.now(),
             symbol=symbol,
-            action="SELL",
-            signal_type="BREAKDOWN",
-            current_price=price,
-            entry_price=price,
-            stop_loss=stop,
-            take_profit=target,
+            action=SignalAction.SELL,  # Was string "SELL"
+            timestamp=datetime.now(),
+            entry_price=price,  # Was 'current_price'
+            target_price=target,  # Was 'take_profit'
+            stop_price=stop,  # Was 'stop_loss'
             confidence=confidence,
-            risk_reward_ratio=(price - target) / (stop - price) if (stop - price) > 0 else 0,
-            position_size_pct=position_pct,
+            signal_type=SignalType.BREAKDOWN,  # Was string "BREAKDOWN"
+            rationale=rationale,  # Was 'primary_reason'
             dp_level=nearest_support,
             dp_volume=context.dp_total_volume,
             institutional_score=1.0 - context.institutional_buying_pressure,  # Inverted for bearish
-            primary_reason=f"BREAKDOWN below DP support ${nearest_support:.2f}",
             supporting_factors=reasons,
             warnings=[],
             is_master_signal=confidence >= self.min_master_confidence,
-            is_actionable=True
+            is_actionable=True,
+            position_size_pct=position_pct,
+            risk_reward_ratio=(price - target) / (stop - price) if (stop - price) > 0 else 0
         )
     
     def _create_bearish_flow_signal(self, symbol: str, price: float,
@@ -882,29 +894,39 @@ class SignalGenerator:
         
         position_pct = 0.02 if confidence >= 0.85 else 0.01
         
+        # Build rationale (was 'primary_reason')
+        rationale = (
+            f"BEARISH INSTITUTIONAL FLOW: "
+            f"DP B/S {context.dp_buy_sell_ratio:.2f}, "
+            f"{context.dp_total_volume:,} shares"
+        )
+        
+        supporting_factors = [
+            f"Put/call ratio: {context.put_call_ratio:.2f}",
+            f"Short volume: {context.short_volume_pct:.0f}%",
+            f"DP buy/sell ratio: {context.dp_buy_sell_ratio:.2f}",
+            f"DP volume: {context.dp_total_volume:,} shares"
+        ]
+        
         return LiveSignal(
-            timestamp=datetime.now(),
             symbol=symbol,
-            action="SELL",
-            signal_type="BEARISH_FLOW",
-            current_price=price,
-            entry_price=price,
-            stop_loss=stop,
-            take_profit=target,
+            action=SignalAction.SELL,  # Was string "SELL"
+            timestamp=datetime.now(),
+            entry_price=price,  # Was 'current_price'
+            target_price=target,  # Was 'take_profit'
+            stop_price=stop,  # Was 'stop_loss'
             confidence=confidence,
-            risk_reward_ratio=(price - target) / (stop - price) if (stop - price) > 0 else 0,
-            position_size_pct=position_pct,
+            signal_type=SignalType.BEARISH_FLOW,  # Was string "BEARISH_FLOW"
+            rationale=rationale,  # Was 'primary_reason'
             dp_level=nearest_resistance,
             dp_volume=context.dp_total_volume,
             institutional_score=1.0 - context.institutional_buying_pressure,
-            primary_reason=f"BEARISH INSTITUTIONAL FLOW: DP B/S {context.dp_buy_sell_ratio:.2f}, {context.dp_total_volume:,} shares",
-            supporting_factors=[
-                f"Put/call ratio: {context.put_call_ratio:.2f}",
-                f"Short volume: {context.short_volume_pct:.0f}%"
-            ],
+            supporting_factors=supporting_factors,
             warnings=[],
             is_master_signal=confidence >= self.min_master_confidence,
-            is_actionable=True
+            is_actionable=True,
+            position_size_pct=position_pct,
+            risk_reward_ratio=(price - target) / (stop - price) if (stop - price) > 0 else 0
         )
 
 
