@@ -588,30 +588,39 @@ class SignalGenerator:
         else:
             position_pct = 0.01  # Half size
         
+        # Build rationale (was 'primary_reason')
+        rationale = (
+            f"SQUEEZE SETUP: {context.short_volume_pct:.0f}% short, "
+            f"{context.borrow_fee_rate:.1f}% borrow fee, "
+            f"DTC {context.days_to_cover:.1f}" if context.days_to_cover else ""
+        )
+        
+        supporting_factors = [
+            f"Days to cover: {context.days_to_cover:.1f}" if context.days_to_cover else "",
+            f"Institutional buying: {context.institutional_buying_pressure:.0%}",
+            f"DP support @ ${nearest_support:.2f}",
+            f"Short volume: {context.short_volume_pct:.0f}%"
+        ]
+        
         return LiveSignal(
-            timestamp=datetime.now(),
             symbol=symbol,
-            action="BUY",
-            signal_type="SQUEEZE",
-            current_price=price,
-            entry_price=price,
-            stop_loss=stop,
-            take_profit=target,
+            action=SignalAction.BUY,  # Was string "BUY"
+            timestamp=datetime.now(),
+            entry_price=price,  # Was 'current_price'
+            target_price=target,  # Was 'take_profit'
+            stop_price=stop,  # Was 'stop_loss'
             confidence=confidence,
-            risk_reward_ratio=(target - price) / (price - stop),
-            position_size_pct=position_pct,
+            signal_type=SignalType.SQUEEZE,  # Was string "SQUEEZE"
+            rationale=rationale,  # Was 'primary_reason'
             dp_level=nearest_support,
             dp_volume=0,  # Would need to look up
             institutional_score=context.institutional_buying_pressure,
-            primary_reason=f"SQUEEZE SETUP: {context.short_volume_pct:.0f}% short, {context.borrow_fee_rate:.1f}% borrow fee",
-            supporting_factors=[
-                f"Days to cover: {context.days_to_cover}" if context.days_to_cover else "",
-                f"Institutional buying: {context.institutional_buying_pressure:.0%}",
-                f"DP support @ ${nearest_support:.2f}"
-            ],
+            supporting_factors=supporting_factors,
             warnings=[],
             is_master_signal=context.squeeze_potential >= self.min_master_confidence,
-            is_actionable=True
+            is_actionable=True,
+            position_size_pct=position_pct,
+            risk_reward_ratio=(target - price) / (price - stop) if (price - stop) > 0 else 0
         )
     
     def _create_gamma_signal(self, symbol: str, price: float,
