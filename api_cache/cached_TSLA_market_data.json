@@ -1,0 +1,16 @@
+{
+  "ticker": "TSLA",
+  "price": 439.30999755859375,
+  "volume": 87848438,
+  "change": 0.0,
+  "change_percent": 0.0,
+  "high": 441.455810546875,
+  "low": 423.6000061035156,
+  "options": {
+    "call_volume": 1349506,
+    "put_volume": 987445,
+    "put_call_ratio": 0.7317084918481281
+  },
+  "source": "yfinance",
+  "timestamp": "2025-10-17T19:27:28.355439"
+}

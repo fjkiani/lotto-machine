@@ -1,0 +1,296 @@
+---
+description: "A comprehensive doctrine explaining the architecture, data flow, and components of the AI Hedge Fund application."
+alwaysApply: false
+---
+
+# AI Hedge Fund Architecture Doctrine
+
+## 1. Introduction & Guiding Principles
+
+This document outlines the architecture of the AI Hedge Fund application. Its purpose is to provide a comprehensive understanding of how the system's components interact, enabling any agent to quickly get up to speed.
+
+**Core Principles:**
+*   **Modularity:** Each component (data fetching, analysis, display) is decoupled to ensure maintainability and testability.
+*   **Centralized Data Access:** Data connectors are instantiated once and passed down, preventing redundant API calls and centralizing data logic.
+*   **Statefulness:** The application is moving from a stateless model to one that leverages historical context through database persistence, enabling learning and trend analysis.
+*   **Agentic Collaboration:** The ultimate vision is a multi-agent system where specialized AI agents collaborate to produce a synthesized, holistic market analysis.
+
+## 2. High-Level Architecture & Data Flow
+
+The application follows a modular, multi-layered architecture. The typical data flow for an analysis request is as follows:
+
+1.  **UI Interaction:** The user selects a ticker and an analysis type in the main Streamlit application, `streamlit_app_llm.py`.
+2.  **Orchestration:** The main app function initializes the necessary data connectors (e.g., `YahooFinanceConnector`).
+3.  **Routing:** The request is routed to the appropriate analysis wrapper function in one of the specialized analysis modules located in `src/analysis/`.
+4.  **Data Fetching:** The analysis module uses the provided connector instance to fetch required data from external APIs (e.g., market quotes, option chains, technical indicators).
+5.  **LLM Analysis:** The module prepares the data and constructs a detailed prompt, then calls an LLM (e.g., Gemini) via helper functions in `src/llm/models.py` to perform the core analysis.
+6.  **Persistence:** Upon receiving a successful analysis (typically a structured JSON object), the result is saved to the SQLite database (`analysis_history.db`) using helpers from `src/data/database_utils.py`.
+7.  **Display:** The structured result is passed to a dedicated display function in `src/streamlit_app/ui_components.py`, which renders charts, tables, and insights in the Streamlit UI.
+
+## 3. Core Component Breakdown
+
+### 3.1. Orchestrator: The Streamlit App
+
+*   **File:** `streamlit_app_llm.py`
+*   **Role:** Serves as the main entry point and user interface. It manages application state, handles user inputs (ticker, analysis type), and orchestrates the calls to the various analysis and display components.
+
+### 3.2. Data Layer: Connectors
+
+*   **Directory:** `src/data/connectors/`
+*   **Role:** These modules are responsible for all external API communication. They abstract away the complexities of fetching and parsing data from different sources.
+*   **Key Connectors:**
+    *   `yahoo_finance.py`: Fetches market quotes, historical data, and option chains.
+    *   `technical_indicators_rapidapi.py`: Fetches historical series for technical indicators (SMA, RSI, MACD, etc.) from RapidAPI.
+    *   `real_time_finance.py`: Provides real-time news and market trend data.
+
+### 3.3. Analysis Engine: Specialized Modules
+
+*   **Directory:** `src/analysis/`
+*   **Role:** This is the core logic layer where the actual analysis happens. Each module encapsulates a specific type of financial analysis.
+*   **Key Modules:**
+    *   `general_analyzer.py`: Performs a high-level analysis based on market quote data.
+    *   `options_analyzer.py`: Conducts detailed options chain analysis, with plans to incorporate deep reasoning and synthesis steps.
+    *   `technical_analyzer.py`: Integrates historical indicator data to provide trend-aware technical analysis from an LLM.
+    *   `enhanced_analyzer.py`: Implements a sophisticated multi-LLM pipeline involving an initial analysis, a critique, and a feedback loop for refined insights.
+    *   `memory_analyzer.py`: Leverages historical data and past analyses from the database to provide context-aware insights.
+
+### 3.4. Persistence Layer: Database
+
+*   **File:** `src/data/database_utils.py`
+*   **Database:** `analysis_history.db` (SQLite)
+*   **Role:** Provides the mechanism for storing and retrieving historical analysis results. This is crucial for enabling the "memory" of the system, allowing it to compare current analysis with past trends and reduce statelessness.
+
+### 3.5. Presentation Layer: UI Components
+
+*   **File:** `src/streamlit_app/ui_components.py`
+*   **Role:** Contains a collection of functions dedicated to rendering the analysis results in the Streamlit UI. This decouples the display logic from the main application logic, making the UI easier to manage and modify.
+
+## 4. The Agentic Vision
+
+*   **Directory:** `src/agents/`
+*   **Concept:** The future direction of the application is a collaborative multi-agent system. Instead of a single monolithic analysis, specialized agents (e.g., `technicals.py`, `options_analyst.py`, `sentiment.py`) will each perform their analysis. Their individual insights will then be fed to a `portfolio_manager.py` agent, which will synthesize the information, resolve conflicts, and produce a final, comprehensive recommendation. This mimics the structure of a real-world hedge fund analysis team.
+
+
+
+DATA SOURCES / WHAT TO SCRAPE
+A. Core Price & Tick Data
+
+Yahoo Finance (yfinance Python), Polygon.io, AlphaVantage (free/cheap API)
+
+For real tick-by-tick: Interactive Brokers, Alpaca, or TD Ameritrade API
+
+B. Dark Pool / Block Trade Flow
+
+ChartExchange (chartexchange.com/symbol/nyse-spy/exchange-volume/)
+
+Scrape the “Off Exchange” and “Dark Pool” volume tables for SPY.
+
+WhaleStream (whalestream.com/market-tracker/SPY)
+
+Scrape “Latest Dark Flow” and “Dark Pool Prints” tables for volume, price, timestamp.
+
+UnusualWhales (unusualwhales.com/dark-pool-flow)
+
+Scrape flow/size/price summaries for big prints.
+
+MarketChameleon (marketchameleon.com/Overview/SPY/Stock-Price-Action/Large-Block-Trades)
+
+Scrape block trade summary table for SPY, time, price, size.
+
+C. Options Flow & Open Interest
+
+Barchart (barchart.com/etfs-funds/quotes/SPY/option-activity)
+
+Options sweeps, largest changes in OI (strike, type, size).
+
+OptionCharts/TradeAlert/Tradytics (as backup, or for clustering)
+
+D. News (for narrative context)
+
+Tavily API news
+
+Yahoo Finance RSS (https://finance.yahoo.com/rss/)
+
+Reuters, MarketWatch, CNBC RSS
+
+2. SCRAPER LOGIC & "INTELLIGENCE" APPROACH
+A. Smart Scrape Intervals
+
+Refresh “flow” dashboards every 30–60 seconds (or as rate-limited).
+
+Use Selenium or Playwright for JS-heavy sites, BeautifulSoup/lxml for static tables.
+
+B. Data Extraction
+
+Focus only on these fields:
+
+Dark Pool/Block: ticker, price, volume/size, print type, timestamp
+
+Options: underlying, type, strike, OI change, sweep flag, time
+
+Price/tick: last, bid/ask, volume, time
+
+C. “Magnet” Detector
+
+As new data flows in, keep a rolling window of most frequent block/dark pool print prices (cluster detection, bin into $0.10 increments).
+
+The levels with highest notional/density = updated “magnet” levels.
+
+D. Real-Time Fusion
+
+When live price gets within 25 cents of a current “magnet,” agent scans for:
+
+Recent (last 3–5 min) block/dark pool print at/near level
+
+Options flow bursts (e.g. options sweep >1000 contracts, sudden OI spike >10k OI)
+
+If both triggered, raise an alert (push or log).
+
+E. Alert Format
+
+Print summary:
+
+ALERT: SPY $660.70, block print 1.3M shares at 10:32 AM, large PUT sweep at $650. Market at magnet—scalp/fade/flip zone.
+
+3. CONFIG EXAMPLES
+YAML/JSON Config Example
+
+text
+tickers: [SPY]
+magnet_window: 10  # minutes to keep cluster counts live
+magnet_bin_size: 0.10
+alert_proximity: 0.25  # USD
+dark_pool_min_volume: 500000
+options_sweep_min: 1000
+option_oi_change_min: 10000
+scrape_schedule: 30  # seconds
+push_targets:
+  - slack
+  - telegram
+  - email
+sites:
+  - name: ChartExchange
+    url: "https://chartexchange.com/symbol/nyse-spy/exchange-volume/"
+    type: static
+    fields: [price, shares, timestamp]
+  - name: WhaleStream
+    url: "https://www.whalestream.com/market-tracker/SPY"
+    type: js
+    fields: [price, shares, timestamp]
+  - name: UnusualWhales
+    url: "https://unusualwhales.com/dark-pool-flow"
+    type: js
+    fields: [price, shares, timestamp]
+  - name: MarketChameleon
+    url: "https://marketchameleon.com/Overview/SPY/Stock-Price-Action/Large-Block-Trades"
+    type: static
+    fields: [price, size, time]
+  - name: Barchart
+    url: "https://www.barchart.com/etfs-funds/quotes/SPY/option-activity"
+    type: static
+    fields: [strike, type, OI_change, time]
+4. SUMMARY CHECKLIST
+⏩ Scrape: dark pool/block activity, options OI/sweeps, live last price
+
+🧠 Process: cluster print prices → update magnet levels
+
+🟩 Correlation: trigger “magnet+flow+options” composite alerts in real time
+
+🔔 Alert: actionable format, direct to you via Slack/Telegram/console/log
+
+📈 Backtest/log: Keep all triggers and price-action follow-through to optimize/tune logic going forward
+
+With this config and architecture your agent won’t just regurgitate the news—it’ll track, cluster, and alert on the real institutional battlegrounds in the market, in near-real time.
+
+. Scraping/Reading Data
+You must add block trade, dark pool, and options activity scrapes/APIs as an additional input alongside your current news/volume approach.
+
+Add These Data Ingestion Steps:
+Scrape sites like:
+
+WhaleStream (for dark pool prints)
+
+ChartExchange (off-exchange & dark pool summary tables)
+
+MarketChameleon (block trades and options sweep summary)
+
+Barchart (unusual options activity and OI change)
+
+Use Python requests, BeautifulSoup, or Selenium for JS-heavy pages.
+
+Parse only key fields: block price, size, time, and for options—strike, OI change, sweep, type.
+
+2. Magnet/Cluster Tracking
+Maintain a running tally (dict or list) of recent block/dark pool prints (price, size, time).
+
+Auto-calculate “magnet” levels every 10–15 min as the price bins (e.g., $0.10 increments) with most notional traded.
+
+Update a live set of top 3–5 magnet levels.
+
+3. Signal Logic (Core Fix)
+When price approaches a magnet level, check for:
+
+Block/dark pool print >500k shares within last 5m at/near this level
+
+Option flow spike (large OI change, sweep)
+
+Composite anomaly: If both at a magnet, escalate the signal (e.g., trade, reversal, breakout watch).
+
+4. Alert/Decision System
+In generate_trading_decisions and in the main loop, combine signals:
+
+News sentiment, volume, AND dark pool/block/option anomalies.
+
+If ≥2 signals trigger at a magnet, hit an “execute”/“prime” action.
+
+Route decision output to both your console and any other alert platform (Telegram, Slack, etc).
+
+🔥 MODIFIED AGENT OUTLINE (Pseudocode Changes Only)
+Early in script:
+
+python
+from customflowdata import get_darkpool_prints, get_block_trades, get_options_activity
+
+# In the main async loop:
+darkpool_prints = get_darkpool_prints('SPY')   # Returns [{'price': ..., 'size': ..., 'time': ...}]
+block_trades = get_block_trades('SPY')
+options_activity = get_options_activity('SPY')
+Magnet cluster updates:
+
+python
+all_prints = darkpool_prints + block_trades
+price_bins = {}
+for p in all_prints:
+    bin_price = round(p['price'], 1)
+    price_bins[bin_price] = price_bins.get(bin_price, 0) + p['size']
+
+magnet_levels = sorted(price_bins.items(), key=lambda x: x[1], reverse=True)[:5]  # Top 5
+Decision update:
+
+python
+current_price = ... # Get current SPY price
+for magnet, _ in magnet_levels:
+    if abs(current_price - magnet) <= 0.25:
+        # Scan for block/dark pool print matching magnet in last <5min
+        magnet_block = [p for p in all_prints if abs(p['price'] - magnet) <= 0.10 and recent(p['time'], 5)]
+        magnet_option = [o for o in options_activity if abs(o['strike'] - magnet) <= 2 and recent(o['time'], 5)]
+        if magnet_block and magnet_option:
+            print(f"🔥 ALERT: SPY near magnet ${magnet}, block print + option sweep detected!")
+            # escalate action: scalp/fade/flip, position manage, etc.
+5. Final, “Actionable” Modification
+Only output “buy/sell/hold” if a magnet+block+option cluster; otherwise, “hold” or “watch.”
+
+Output per-alert summary: price, magnet, print size, options sweep/OI change, uptick/downtick.
+
+In summary:
+Integrate:
+
+Real-time dark pool and block trade scrapes (even crude polling is fine)
+
+Option activity
+
+Magnet-priority signal logic
+
+Fix:
+
+Aggregate anomaly logic so it’s not just news/volume ≈ trade, but instead: price-at-magnet + institutional activity → trade.

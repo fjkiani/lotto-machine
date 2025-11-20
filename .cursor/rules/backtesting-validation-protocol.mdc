@@ -1,0 +1,425 @@
+---
+description: "Rigorous backtesting and validation requirements - prove edge before risking capital"
+globs: "validate_*.py,backtest_*.py,test_*.py,*_test.py"
+---
+
+# Backtesting & Validation Protocol - Prove It or Kill It
+
+## Core Principle
+**"In God we trust. All others bring data."**
+
+NO strategy goes live without proven edge on historical data.
+
+---
+
+## Validation Pipeline (MANDATORY SEQUENCE)
+
+### Stage 1: Historical Replay (Past 30 Days)
+**Required:** BEFORE any paper trading
+
+```python
+# Script: validate_historical_signals.py
+
+INPUT:
+- Ticker: SPY, QQQ
+- Date Range: Last 30 trading days
+- DP Data: From historical database
+- Price Data: Minute-by-minute via yfinance
+
+OUTPUT:
+- Total signals generated
+- Win rate (signal direction correct)
+- Average R/R achieved
+- Max drawdown
+- Sharpe ratio
+- Distribution of signal types
+
+PASS CRITERIA:
+- Win Rate: >55%
+- Avg R/R: >2.0
+- Max DD: <10%
+- Min Trades: 20+
+- Sharpe: >1.5
+```
+
+### Stage 2: Paper Trading (20 Trades Minimum)
+**Required:** BEFORE any live capital
+
+```python
+# Use paper trading account (ThinkorSwim, TradeStation, etc.)
+
+RULES:
+1. Trade EXACTLY as you would with real money
+2. Track EVERY metric: entry time, exit time, slippage, commissions
+3. NO cherry-picking - take EVERY signal system generates
+4. Run for minimum 2 weeks OR 20 trades (whichever longer)
+5. Journal EVERY trade: what worked, what didn't, emotions
+
+PASS CRITERIA:
+- Win Rate: >55% (match or beat backtest)
+- Avg R/R: >2.0 (match or beat backtest)
+- Max DD: <10%
+- Emotional Discipline: No revenge trades, followed stops
+- Slippage: <0.05% average (tight fills)
+```
+
+### Stage 3: Small Live Capital (Max $1000)
+**Required:** Scale up slowly
+
+```python
+RULES:
+1. Start with 1/10 of intended capital
+2. Same rules as paper trading
+3. Run for 30 trades OR 1 month
+4. NO increasing size until proven
+
+PASS CRITERIA:
+- Win Rate: >52% (slightly worse than paper is OK)
+- Avg R/R: >1.8 (slippage + emotions hurt a bit)
+- Max DD: <10%
+- P&L: Positive (even $1 counts)
+- Emotional Control: Stuck to plan
+```
+
+### Stage 4: Scale Up Gradually
+```python
+IF Stage 3 passes:
+    Scale to $2000 (10 trades)
+    Then $5000 (10 trades)
+    Then $10000 (20 trades)
+    Then full size
+
+STOP scaling if:
+- Win rate drops below 50%
+- Max DD exceeds 10%
+- Emotional discipline breaks down
+- P&L becomes negative
+```
+
+---
+
+## Backtest Implementation
+
+### Required Metrics
+```python
+@dataclass
+class BacktestResults:
+    # Trade Statistics
+    total_signals: int
+    signals_taken: int
+    signals_rejected: int
+    
+    # Performance
+    wins: int
+    losses: int
+    win_rate: float
+    
+    # R/R
+    avg_rr_achieved: float
+    best_trade_rr: float
+    worst_trade_rr: float
+    
+    # Drawdown
+    max_drawdown: float
+    max_drawdown_date: datetime
+    drawdown_recovery_days: int
+    
+    # Risk-Adjusted
+    sharpe_ratio: float
+    sortino_ratio: float
+    calmar_ratio: float
+    
+    # By Signal Type
+    breakout_win_rate: float
+    bounce_win_rate: float
+    squeeze_win_rate: float
+    gamma_win_rate: float
+    
+    # By Regime
+    uptrend_win_rate: float
+    range_win_rate: float
+    chop_win_rate: float
+    downtrend_win_rate: float
+    
+    # Timing
+    avg_hold_time_minutes: float
+    best_entry_hour: int  # Which hour of day best
+    worst_entry_hour: int
+    
+    # Validation
+    passed_validation: bool
+    failure_reasons: List[str]
+```
+
+### Backtest Script Template
+```python
+# validate_strategy_30d.py
+
+def run_backtest(ticker, start_date, end_date):
+    """
+    Replay historical session minute-by-minute
+    Generate signals using production code
+    Simulate fills and track P&L
+    """
+    
+    # Load data
+    pipeline = HistoricalDataPipeline(api_key)
+    engine = RigorousDPEngine(...)
+    
+    equity_curve = []
+    trades = []
+    current_position = None
+    
+    for date in date_range(start_date, end_date):
+        # Load DP data for previous day
+        dp_data = pipeline.load_dp_levels(ticker, date - 1)
+        
+        # Load minute bars for this day
+        bars = load_minute_bars(ticker, date)
+        
+        for timestamp, bar in bars.iterrows():
+            # Update engine
+            signal = engine.process_bar(
+                timestamp, bar.Open, bar.High, 
+                bar.Low, bar.Close, bar.Volume
+            )
+            
+            # Simulate execution
+            if signal and not current_position:
+                # Enter trade
+                fill_price = simulate_fill(signal.entry, 'BUY')
+                current_position = Position(
+                    entry_time=timestamp,
+                    entry_price=fill_price,
+                    stop=signal.stop,
+                    target=signal.target,
+                    signal_type=signal.signal_type
+                )
+            
+            # Check exits
+            if current_position:
+                exit_result = check_exit(current_position, bar)
+                if exit_result:
+                    trades.append(exit_result)
+                    current_position = None
+            
+            # Track equity
+            equity = calculate_equity(trades, current_position)
+            equity_curve.append(equity)
+    
+    # Calculate metrics
+    results = calculate_backtest_results(trades, equity_curve)
+    
+    return results
+```
+
+### Simulate Realistic Fills
+```python
+def simulate_fill(ideal_price, direction, volatility=0.0002):
+    """
+    Simulate slippage based on market conditions
+    """
+    # SPY/QQQ: Tight spreads, minimal slippage
+    spread = ideal_price * 0.0001  # 1 basis point
+    
+    # Slippage increases with volatility
+    slippage = ideal_price * volatility
+    
+    if direction == 'BUY':
+        fill = ideal_price + spread + slippage
+    else:
+        fill = ideal_price - spread - slippage
+    
+    return fill
+```
+
+---
+
+## Validation Criteria (GO/NO-GO)
+
+### Minimum Acceptable Performance
+```python
+VALIDATION_CRITERIA = {
+    'min_trades': 20,
+    'min_win_rate': 0.55,
+    'min_avg_rr': 2.0,
+    'max_drawdown': 0.10,
+    'min_sharpe': 1.5,
+    'min_profit_factor': 1.8,  # Gross profit / gross loss
+}
+
+def validate_results(results: BacktestResults) -> tuple[bool, List[str]]:
+    """Check if results meet criteria"""
+    failures = []
+    
+    if results.total_signals < VALIDATION_CRITERIA['min_trades']:
+        failures.append(f"Only {results.total_signals} trades < {VALIDATION_CRITERIA['min_trades']} required")
+    
+    if results.win_rate < VALIDATION_CRITERIA['min_win_rate']:
+        failures.append(f"Win rate {results.win_rate:.1%} < {VALIDATION_CRITERIA['min_win_rate']:.1%}")
+    
+    if results.avg_rr_achieved < VALIDATION_CRITERIA['min_avg_rr']:
+        failures.append(f"Avg R/R {results.avg_rr_achieved:.2f} < {VALIDATION_CRITERIA['min_avg_rr']:.2f}")
+    
+    if results.max_drawdown > VALIDATION_CRITERIA['max_drawdown']:
+        failures.append(f"Max DD {results.max_drawdown:.1%} > {VALIDATION_CRITERIA['max_drawdown']:.1%}")
+    
+    if results.sharpe_ratio < VALIDATION_CRITERIA['min_sharpe']:
+        failures.append(f"Sharpe {results.sharpe_ratio:.2f} < {VALIDATION_CRITERIA['min_sharpe']:.2f}")
+    
+    passed = len(failures) == 0
+    return passed, failures
+```
+
+---
+
+## Continuous Validation (Production)
+
+### Weekly Performance Review
+```python
+# Every Sunday evening
+
+def weekly_review():
+    """Review past week's live trading"""
+    
+    trades = load_trades_from_week()
+    
+    metrics = {
+        'trades': len(trades),
+        'win_rate': calculate_win_rate(trades),
+        'avg_rr': calculate_avg_rr(trades),
+        'max_dd': calculate_max_dd(trades),
+        'total_pnl': sum(t.pnl for t in trades),
+        'sharpe': calculate_sharpe(trades)
+    }
+    
+    # Compare to backtest
+    benchmark = load_backtest_results()
+    
+    print("WEEKLY REVIEW")
+    print("="*50)
+    print(f"Trades: {metrics['trades']}")
+    print(f"Win Rate: {metrics['win_rate']:.1%} (backtest: {benchmark.win_rate:.1%})")
+    print(f"Avg R/R: {metrics['avg_rr']:.2f} (backtest: {benchmark.avg_rr_achieved:.2f})")
+    print(f"Max DD: {metrics['max_dd']:.1%} (backtest: {benchmark.max_drawdown:.1%})")
+    print(f"Total P&L: ${metrics['total_pnl']:.2f}")
+    
+    # Warnings
+    if metrics['win_rate'] < benchmark.win_rate * 0.9:
+        print("⚠️ WIN RATE DEGRADED - Review strategy")
+    
+    if metrics['max_dd'] > benchmark.max_drawdown:
+        print("⚠️ DRAWDOWN EXCEEDED - Reduce size or pause")
+    
+    if metrics['avg_rr'] < benchmark.avg_rr_achieved * 0.8:
+        print("⚠️ R/R DEGRADED - Check execution quality")
+```
+
+### Monthly Deep Dive
+```python
+# First Sunday of each month
+
+def monthly_analysis():
+    """Deep analysis of strategy performance"""
+    
+    # Get all trades from month
+    trades = load_trades_from_month()
+    
+    # Segment analysis
+    print("\nBY SIGNAL TYPE:")
+    for sig_type in ['BREAKOUT', 'BOUNCE', 'SQUEEZE', 'GAMMA']:
+        subset = [t for t in trades if t.signal_type == sig_type]
+        if subset:
+            wr = calculate_win_rate(subset)
+            print(f"  {sig_type}: {len(subset)} trades, {wr:.1%} WR")
+    
+    print("\nBY TIME OF DAY:")
+    for hour in [9, 10, 11, 12, 13, 14, 15]:
+        subset = [t for t in trades if t.entry_time.hour == hour]
+        if subset:
+            wr = calculate_win_rate(subset)
+            print(f"  {hour}:00-{hour}:59: {len(subset)} trades, {wr:.1%} WR")
+    
+    print("\nBY REGIME:")
+    for regime in ['UPTREND', 'RANGE', 'CHOP', 'DOWNTREND']:
+        subset = [t for t in trades if t.regime == regime]
+        if subset:
+            wr = calculate_win_rate(subset)
+            print(f"  {regime}: {len(subset)} trades, {wr:.1%} WR")
+    
+    # Find weaknesses
+    print("\n🔍 AREAS TO IMPROVE:")
+    
+    # Worst performing signal type
+    worst_sig = min(signal_types, key=lambda s: win_rate(s))
+    print(f"  Consider removing {worst_sig} signals")
+    
+    # Worst performing time
+    worst_hour = min(hours, key=lambda h: win_rate(h))
+    print(f"  Avoid trading at {worst_hour}:00 hour")
+    
+    # Best opportunities
+    print("\n🎯 BEST OPPORTUNITIES:")
+    best_sig = max(signal_types, key=lambda s: win_rate(s))
+    print(f"  Focus on {best_sig} signals")
+```
+
+---
+
+## Red Flags & Circuit Breakers
+
+### Automatic Trading Halt
+```python
+# Check BEFORE every trade
+
+def check_circuit_breakers():
+    """Stop trading if risk limits breached"""
+    
+    today_dd = calculate_daily_drawdown()
+    week_dd = calculate_weekly_drawdown()
+    
+    # Daily drawdown limit
+    if today_dd >= 0.05:  # 5%
+        raise CircuitBreakerTripped("Daily DD limit reached - STOP TRADING")
+    
+    # Weekly drawdown limit
+    if week_dd >= 0.08:  # 8%
+        raise CircuitBreakerTripped("Weekly DD limit - STOP TRADING")
+    
+    # Consecutive losses
+    recent_trades = get_last_n_trades(5)
+    if all(t.pnl < 0 for t in recent_trades):
+        raise CircuitBreakerTripped("5 losses in a row - TAKE A BREAK")
+    
+    # Win rate collapse
+    last_20 = get_last_n_trades(20)
+    wr = calculate_win_rate(last_20)
+    if wr < 0.40:  # Well below target
+        raise CircuitBreakerTripped(f"Win rate collapsed to {wr:.1%} - REVIEW STRATEGY")
+```
+
+### Manual Review Required
+```python
+# Situations requiring human intervention
+
+MANUAL_REVIEW_TRIGGERS = [
+    "New all-time high drawdown",
+    "Win rate below 45% over 20 trades",
+    "3+ stop losses in same day",
+    "Avg R/R below 1.5 over 10 trades",
+    "System error during trade execution",
+    "Data quality issues detected"
+]
+```
+
+---
+
+## Implementation Files
+
+- Validation Scripts: [validate_rigorous_10_17.py](mdc:validate_rigorous_10_17.py)
+- Historical Pipeline: [historical_data_pipeline.py](mdc:core/data/historical_data_pipeline.py)
+- Test Scripts: [test_historical_fetch.py](mdc:test_historical_fetch.py)
+
+---
+
+**GOLDEN RULE:** *"Paper losses hurt the ego. Real losses hurt the bank account. Always validate on paper first."*

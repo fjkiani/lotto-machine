@@ -1,0 +1,433 @@
+---
+description: "Rigorous standards for signal generation - never compromise on quality"
+globs: "core/rigorous_dp_signal_engine.py,core/ultra_institutional_engine.py,core/master_signal_generator.py,validate_*.py"
+---
+
+# Signal Generation Standards - Zero Compromise
+
+## Core Philosophy
+**A mediocre signal is worse than no signal.** Every signal must meet ALL criteria or be rejected.
+
+---
+
+## Signal Classification Hierarchy
+
+### MASTER SIGNALS (75%+ Confidence)
+**Requirements:**
+- DP Battleground (>1M shares) interaction
+- Volume 2x+ average
+- Momentum >0.5% (aligned with direction)
+- 2nd+ touch of level (never first)
+- Regime favorable (TREND for breakouts, RANGE for bounces)
+- Risk/Reward 2:1 minimum
+
+**Expected Frequency:** 5-10 per day across SPY/QQQ
+**Action:** Full position size (2% of capital)
+
+### HIGH CONFIDENCE SIGNALS (60-74% Confidence)
+**Requirements:**
+- DP Major Level (>500K shares) interaction
+- Volume 1.8x+ average
+- Momentum >0.3%
+- 2nd+ touch
+- Regime neutral or favorable
+
+**Expected Frequency:** 10-20 per day
+**Action:** Half position size (1% of capital)
+
+### MEDIUM SIGNALS (<60% Confidence)
+**Action:** SKIP - Not worth the risk
+**Rationale:** Edge too thin, cost of slippage + commission eats profit
+
+---
+
+## Multi-Factor Confirmation Matrix
+
+### REQUIRED (All Must Pass)
+
+#### 1. Dark Pool Confirmation
+```python
+AT_LEVEL = abs(price - dp_level) / price < 0.003  # Within 0.3%
+OR
+CLEAN_BREAK = price > (dp_level * 1.002)  # Closed 0.2%+ above resistance
+
+IF not (AT_LEVEL or CLEAN_BREAK):
+    REJECT_SIGNAL("Not at DP level")
+```
+
+#### 2. Volume Confirmation (Regime-Dependent)
+```python
+REGIME_MULTIPLIERS = {
+    'UPTREND': 1.5,      # Easier in trend
+    'DOWNTREND': 1.5,
+    'RANGE': 1.8,        # Need more confirmation
+    'CHOP': 2.0          # Much more confirmation
+}
+
+required_multiplier = REGIME_MULTIPLIERS[regime]
+IF volume_vs_avg < required_multiplier:
+    REJECT_SIGNAL("Insufficient volume")
+```
+
+#### 3. Momentum Confirmation
+```python
+FOR BUY signals:
+    IF momentum < 0.003:  # 0.3% positive
+        REJECT_SIGNAL("Weak bullish momentum")
+
+FOR SELL signals:
+    IF momentum > -0.003:  # 0.3% negative
+        REJECT_SIGNAL("Weak bearish momentum")
+```
+
+#### 4. First Touch Rejection
+```python
+IF dp_level.touch_count == 1:
+    REJECT_SIGNAL("First touch - wait for confirmation")
+    LOG_INTERACTION("Awaiting second test")
+```
+
+### OPTIONAL (Boost Confidence)
+
+#### 5. Institutional Flow Support
+```python
+CONFIDENCE_BOOST = 0
+IF short_volume_pct < 30:
+    CONFIDENCE_BOOST += 0.1  # Low shorting = bullish
+IF dp_buy_sell_ratio > 1.5:
+    CONFIDENCE_BOOST += 0.15  # More buys than sells
+IF borrow_fee > 5:
+    CONFIDENCE_BOOST += 0.15  # Squeeze potential
+IF put_call_ratio < 0.8:
+    CONFIDENCE_BOOST += 0.1  # Bullish options sentiment
+```
+
+---
+
+## Signal Type Specifications
+
+### 1. SQUEEZE SIGNAL
+**Criteria:**
+```python
+short_interest > 15% AND
+borrow_fee > 5% AND
+(price > dp_support * 0.997) AND  # At or above support
+momentum > 0.005 AND  # Strong upward
+volume_vs_avg > 2.0
+```
+
+**Stop Loss:** 3% below entry (or below DP support, whichever tighter)
+**Take Profit:** Nearest DP resistance OR +10% (squeeze target)
+**Expected R/R:** 3:1+
+
+### 2. GAMMA RAMP SIGNAL
+**Criteria:**
+```python
+put_call_ratio < 0.8 AND
+total_call_oi > 100000 AND
+max_pain > current_price AND  # Dealer long gamma, will push up
+(price > dp_support * 0.997) AND
+momentum > 0.003 AND
+volume_vs_avg > 1.8
+```
+
+**Stop Loss:** Below DP support
+**Take Profit:** Max pain level OR next DP resistance
+**Expected R/R:** 2:1
+
+### 3. BREAKOUT SIGNAL
+**Criteria:**
+```python
+price > (dp_resistance * 1.002) AND  # Clean break (closed above)
+volume_vs_avg > 2.0 AND  # Heavy volume
+momentum > 0.005 AND  # Strong momentum
+candle_type in ['STRONG_BULLISH', 'BULLISH'] AND
+regime in ['UPTREND', 'RANGE']
+```
+
+**Stop Loss:** Just below broken resistance (now support)
+**Take Profit:** Next DP resistance OR measured move
+**Expected R/R:** 2:1+
+
+### 4. BOUNCE SIGNAL (Mean Reversion)
+**Criteria:**
+```python
+abs(price - dp_support) / price < 0.003 AND  # At support
+momentum > 0.003 AND  # Reversing up
+volume_vs_avg > 1.8 AND
+candle_type in ['STRONG_BULLISH', 'BULLISH'] AND
+dp_support_volume > 1000000  # Strong support
+```
+
+**Stop Loss:** 0.5% below DP support
+**Take Profit:** Midpoint to resistance OR 2:1 R/R
+**Expected R/R:** 2:1
+
+---
+
+## Rejection Reasons (Log All)
+
+### Common Rejections
+```python
+REJECTION_CATEGORIES = {
+    'first_touch': "First touch of DP level - need confirmation",
+    'low_volume': "Volume {vol_mult:.1f}x < required {required:.1f}x",
+    'weak_momentum': "Momentum {mom:.3f}% insufficient",
+    'wrong_regime': "Regime {regime} unfavorable for {signal_type}",
+    'no_dp_level': "Not at any significant DP level",
+    'risk_reward': "R/R {rr:.1f}:1 < minimum 2:1",
+    'daily_limit': "Already at 5% daily drawdown - no more trades",
+    'position_limit': "Already holding max position in {symbol}"
+}
+```
+
+### Rejection Analysis
+```python
+# Track rejection reasons to tune thresholds
+rejection_counts = Counter()
+for signal in all_evaluated_signals:
+    if signal.rejected:
+        rejection_counts[signal.rejection_reason] += 1
+
+# Report weekly
+print("Top Rejection Reasons:")
+for reason, count in rejection_counts.most_common(5):
+    print(f"  {reason}: {count} times")
+```
+
+---
+
+## Confidence Scoring Algorithm
+
+### Base Score (0-1)
+```python
+score = 0.5  # Start neutral
+
+# DP Level Strength (35% weight)
+if dp_volume >= 3000000:
+    score += 0.35
+elif dp_volume >= 1000000:
+    score += 0.25
+elif dp_volume >= 500000:
+    score += 0.15
+
+# Volume Confirmation (25% weight)
+if volume_vs_avg >= 3.0:
+    score += 0.25
+elif volume_vs_avg >= 2.0:
+    score += 0.20
+elif volume_vs_avg >= 1.5:
+    score += 0.15
+
+# Momentum Strength (20% weight)
+if abs(momentum) >= 0.01:
+    score += 0.20
+elif abs(momentum) >= 0.005:
+    score += 0.15
+elif abs(momentum) >= 0.003:
+    score += 0.10
+
+# Regime Alignment (10% weight)
+if regime_favorable:
+    score += 0.10
+elif regime_neutral:
+    score += 0.05
+
+# Magnet Interaction (10% weight)
+if interaction_type == 'BOUNCE' and dp_volume > 1000000:
+    score += 0.10
+elif interaction_type == 'BREAK' and volume_vs_avg > 2.0:
+    score += 0.10
+
+return min(score, 1.0)
+```
+
+### Master Filter
+```python
+MASTER_THRESHOLD = 0.75
+
+if score >= MASTER_THRESHOLD:
+    return MasterSignal(confidence=score, position_size=2.0)
+elif score >= 0.60:
+    return HighConfidenceSignal(confidence=score, position_size=1.0)
+else:
+    return None  # Reject
+```
+
+---
+
+## Risk Management Integration
+
+### Position Sizing
+```python
+def calculate_position_size(confidence, entry, stop, account_size):
+    """
+    Position sizing based on Kelly Criterion (conservative)
+    """
+    max_risk_per_trade = account_size * 0.02  # 2% max
+    
+    risk_per_share = abs(entry - stop)
+    max_shares = max_risk_per_trade / risk_per_share
+    
+    # Scale by confidence
+    if confidence >= 0.90:
+        size_multiplier = 1.0  # Full 2%
+    elif confidence >= 0.75:
+        size_multiplier = 0.75  # 1.5%
+    else:
+        size_multiplier = 0.5  # 1%
+    
+    shares = int(max_shares * size_multiplier)
+    
+    return shares
+```
+
+### Stop Loss Placement
+```python
+def calculate_stop_loss(signal_type, entry, dp_level):
+    """
+    Stops OUTSIDE battlefield zones
+    """
+    if signal_type == 'BOUNCE':
+        # Below support, but outside noise zone
+        stop = dp_level * 0.997  # 0.3% below support
+    
+    elif signal_type == 'BREAKOUT':
+        # Below broken resistance (now support)
+        stop = dp_level * 0.997
+    
+    elif signal_type in ['SQUEEZE', 'GAMMA']:
+        # Based on entry with 3% max
+        stop = entry * 0.97
+    
+    # Never risk more than 3%
+    max_stop = entry * 0.97
+    return max(stop, max_stop)
+```
+
+### Take Profit Targets
+```python
+def calculate_take_profit(entry, stop, dp_resistance=None):
+    """
+    Minimum 2:1 R/R
+    """
+    risk = abs(entry - stop)
+    min_target = entry + (risk * 2.0)
+    
+    # Prefer DP resistance if within range
+    if dp_resistance and dp_resistance > entry:
+        rr = (dp_resistance - entry) / risk
+        if rr >= 1.5:  # Accept 1.5:1 if at DP level
+            return dp_resistance
+    
+    return min_target
+```
+
+---
+
+## Logging Requirements
+
+### Every Signal Must Log
+```python
+signal_log = {
+    'timestamp': datetime.now(),
+    'symbol': 'SPY',
+    'signal_type': 'BREAKOUT',
+    'action': 'BUY',
+    'entry': 665.20,
+    'stop': 664.50,
+    'target': 666.60,
+    'risk_reward': 2.0,
+    'confidence': 0.82,
+    
+    # Context
+    'dp_level': 665.00,
+    'dp_volume': 2500000,
+    'volume_vs_avg': 2.3,
+    'momentum': 0.0065,
+    'regime': 'UPTREND',
+    
+    # Confirmation
+    'volume_confirmed': True,
+    'momentum_confirmed': True,
+    'dp_confirmed': True,
+    'touch_count': 2,
+    
+    # Decision
+    'accepted': True,
+    'rejection_reason': None
+}
+```
+
+### Rejected Signals Also Log
+```python
+rejection_log = {
+    'timestamp': datetime.now(),
+    'symbol': 'QQQ',
+    'price': 450.30,
+    'dp_level': 450.00,
+    'rejection_reason': 'first_touch',
+    'details': {
+        'touch_count': 1,
+        'volume_vs_avg': 2.1,  # Would pass
+        'momentum': 0.005,  # Would pass
+    }
+}
+```
+
+---
+
+## Testing & Validation
+
+### Unit Tests Required
+```python
+def test_signal_rejection_first_touch():
+    signal = create_signal(touch_count=1, volume=2.0, momentum=0.005)
+    assert signal.rejected == True
+    assert 'first_touch' in signal.rejection_reason
+
+def test_signal_acceptance_all_criteria():
+    signal = create_signal(
+        touch_count=2,
+        dp_volume=2000000,
+        volume_vs_avg=2.5,
+        momentum=0.008,
+        regime='UPTREND'
+    )
+    assert signal.confidence >= 0.75
+    assert signal.accepted == True
+```
+
+### Backtest Validation
+```python
+# Run on historical data
+results = backtest_signals(
+    start_date='2025-09-01',
+    end_date='2025-10-17',
+    symbols=['SPY', 'QQQ']
+)
+
+print(f"Total Signals: {results.total}")
+print(f"Win Rate: {results.win_rate:.1%}")
+print(f"Avg R/R: {results.avg_rr:.2f}")
+print(f"Max DD: {results.max_dd:.1%}")
+print(f"Sharpe: {results.sharpe:.2f}")
+
+# Must beat benchmarks
+assert results.win_rate > 0.55
+assert results.avg_rr > 2.0
+assert results.max_dd < 0.10
+```
+
+---
+
+## Implementation Files
+
+- Signal Engine: [rigorous_dp_signal_engine.py](mdc:core/rigorous_dp_signal_engine.py)
+- Master Filter: [master_signal_generator.py](mdc:core/master_signal_generator.py)
+- Institutional Analysis: [ultra_institutional_engine.py](mdc:core/ultra_institutional_engine.py)
+- Replay Validation: [validate_rigorous_10_17.py](mdc:validate_rigorous_10_17.py)
+
+---
+
+**REMEMBER:** *"Every rejected signal is a dodged bullet. Every accepted signal is calculated risk with proven edge."*

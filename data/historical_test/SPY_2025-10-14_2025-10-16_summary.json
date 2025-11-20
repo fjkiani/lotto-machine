@@ -1,0 +1,13 @@
+{
+    "symbol": "SPY",
+    "start_date": "2025-10-14",
+    "end_date": "2025-10-16",
+    "dates_processed": 3,
+    "dp_levels_fetched": 3000,
+    "dp_prints_fetched": 3000,
+    "short_data_fetched": 300,
+    "options_fetched": 0,
+    "ftds_fetched": 0,
+    "exchange_vol_fetched": 300,
+    "borrow_fees_fetched": 0
+}

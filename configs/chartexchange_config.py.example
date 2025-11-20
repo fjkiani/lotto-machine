@@ -1,0 +1,18 @@
+# ChartExchange API Configuration
+# Copy this file to chartexchange_config.py and add your API key
+
+CHARTEXCHANGE_API_KEY = "your_api_key_here"
+CHARTEXCHANGE_TIER = 3  # 1, 2, or 3
+
+# Rate Limits by Tier:
+# Tier 1: 60 requests per minute
+# Tier 2: 250 requests per minute  
+# Tier 3: 1000 requests per minute
+
+# To get your API key:
+# 1. Sign up at https://chartexchange.com
+# 2. Go to API section
+# 3. Generate API key
+# 4. Copy key to this file
+
+

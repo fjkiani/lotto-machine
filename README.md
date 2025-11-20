@@ -1,166 +1,310 @@
-# AI Hedge Fund
+# AI Hedge Fund - Core Signals System
 
-This is a proof of concept for an AI-powered hedge fund.  The goal of this project is to explore the use of AI to make trading decisions.  This project is for **educational** purposes only and is not intended for real trading or investment.
+## 🎯 Overview
 
-This system employs several agents working together:
+A real-time market intelligence system that detects institutional breakouts and reversals using dark pool (DP) data confirmation. The system prioritizes **institutional flow validation** over retail signals to avoid traps and identify high-probability moves.
 
-1. Ben Graham Agent - The godfather of value investing, only buys hidden gems with a margin of safety
-2. Bill Ackman Agent - An activist investors, takes bold positions and pushes for change
-3. Cathie Wood Agent - The queen of growth investing, believes in the power of innovation and disruption
-4. Warren Buffett Agent - The oracle of Omaha, seeks wonderful companies at a fair price
-5. Charlie Munger Agent - Warren Buffett's partner, only buys wonderful businesses at fair prices
-6. Valuation Agent - Calculates the intrinsic value of a stock and generates trading signals
-7. Sentiment Agent - Analyzes market sentiment and generates trading signals
-8. Fundamentals Agent - Analyzes fundamental data and generates trading signals
-9. Technicals Agent - Analyzes technical indicators and generates trading signals
-10. Risk Manager - Calculates risk metrics and sets position limits
-11. Portfolio Manager - Makes final trading decisions and generates orders
+## 🏗️ Architecture
 
-<img width="1117" alt="Screenshot 2025-02-09 at 11 26 14 AM" src="https://github.com/user-attachments/assets/16509cc2-4b64-4c67-8de6-00d224893d58" />
+### Core Components
 
-
-**Note**: the system simulates trading decisions, it does not actually trade.
-
-[![Twitter Follow](https://img.shields.io/twitter/follow/virattt?style=social)](https://twitter.com/virattt)
-
-## Disclaimer
-
-This project is for **educational and research purposes only**.
-
-- Not intended for real trading or investment
-- No warranties or guarantees provided
-- Past performance does not indicate future results
-- Creator assumes no liability for financial losses
-- Consult a financial advisor for investment decisions
-
-By using this software, you agree to use it solely for learning purposes.
-
-## Table of Contents
-- [Setup](#setup)
-- [Usage](#usage)
-  - [Running the Hedge Fund](#running-the-hedge-fund)
-  - [Running the Backtester](#running-the-backtester)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [Feature Requests](#feature-requests)
-- [License](#license)
-
-## Setup
-
-Clone the repository:
-```bash
-git clone https://github.com/virattt/ai-hedge-fund.git
-cd ai-hedge-fund
+```
+core/
+├── core_signals_runner.py          # Main orchestration system
+├── data/                           # Data connectors
+│   ├── chartexchange_api_client.py # ChartExchange DP data API
+│   ├── real_breakout_reversal_detector_yahoo_direct.py # Yahoo Direct scraper
+│   └── production_rate_limit_solver.py # Rate limiting utilities
+├── detectors/                      # Signal detection
+│   ├── live_high_resolution_detector.py
+│   └── real_breakout_reversal_detector_yahoo_direct.py
+└── filters/                        # Signal filtering
+    └── dp_aware_signal_filter.py  # DP-aware signal validation
 ```
 
-1. Install Poetry (if not already installed):
-```bash
-curl -sSL https://install.python-poetry.org | python3 -
-```
+### Data Flow
 
-2. Install dependencies:
-```bash
-poetry install
-```
+1. **Price Data**: Yahoo Direct API (no rate limits)
+2. **DP Data**: ChartExchange API (Tier 3, 1000 req/min)
+3. **Signal Detection**: Breakout/reversal detection with rolling windows
+4. **DP Filtering**: Institutional confirmation required
+5. **Output**: Timestamped signals with confidence scores
 
-3. Set up your environment variables:
-```bash
-# Create .env file for your API keys
-cp .env.example .env
-```
+## 🚀 Quick Start
 
-4. Set your API keys:
-```bash
-# For running LLMs hosted by openai (gpt-4o, gpt-4o-mini, etc.)
-# Get your OpenAI API key from https://platform.openai.com/
-OPENAI_API_KEY=your-openai-api-key
-
-# For running LLMs hosted by groq (deepseek, llama3, etc.)
-# Get your Groq API key from https://groq.com/
-GROQ_API_KEY=your-groq-api-key
-
-# For getting financial data to power the hedge fund
-# Get your Financial Datasets API key from https://financialdatasets.ai/
-FINANCIAL_DATASETS_API_KEY=your-financial-datasets-api-key
-```
-
-**Important**: You must set `OPENAI_API_KEY`, `GROQ_API_KEY`, or `ANTHROPIC_API_KEY` for the hedge fund to work.  If you want to use LLMs from all providers, you will need to set all API keys.
-
-Financial data for AAPL, GOOGL, MSFT, NVDA, and TSLA is free and does not require an API key.
-
-For any other ticker, you will need to set the `FINANCIAL_DATASETS_API_KEY` in the .env file.
-
-## Usage
-
-### Running the Hedge Fund
-```bash
-poetry run python src/main.py --ticker AAPL,MSFT,NVDA
-```
-
-**Example Output:**
-<img width="992" alt="Screenshot 2025-01-06 at 5 50 17 PM" src="https://github.com/user-attachments/assets/e8ca04bf-9989-4a7d-a8b4-34e04666663b" />
-
-You can also specify a `--show-reasoning` flag to print the reasoning of each agent to the console.
+### Prerequisites
 
 ```bash
-poetry run python src/main.py --ticker AAPL,MSFT,NVDA --show-reasoning
+pip install requests numpy yfinance
 ```
-You can optionally specify the start and end dates to make decisions for a specific time period.
+
+### Configuration
+
+Create `configs/chartexchange_config.py`:
+```python
+CHARTEXCHANGE_API_KEY = "your_api_key_here"
+CHARTEXCHANGE_TIER = 3
+```
+
+### Run Core System
 
 ```bash
-poetry run python src/main.py --ticker AAPL,MSFT,NVDA --start-date 2024-01-01 --end-date 2024-03-01 
+# Test the system
+python3 tests/test_core_system.py
+
+# Run live signals (RTH only)
+python3 core/core_signals_runner.py
 ```
 
-### Running the Backtester
+## 📊 APIs & Data Sources
 
-```bash
-poetry run python src/backtester.py --ticker AAPL,MSFT,NVDA
+### 1. ChartExchange API (Primary DP Data)
+
+**Endpoints:**
+- `/data/dark-pool-levels/` - DP support/resistance levels
+- `/data/dark-pool-prints/` - Real-time DP transactions
+
+**Usage:**
+```python
+from core.data.chartexchange_api_client import ChartExchangeAPI
+from configs.chartexchange_config import CHARTEXCHANGE_API_KEY
+
+api = ChartExchangeAPI(CHARTEXCHANGE_API_KEY, tier=3)
+dp_levels = api.get_dark_pool_levels('SPY', days_back=1)
+dp_prints = api.get_dark_pool_prints('SPY', days_back=1)
 ```
 
-**Example Output:**
-<img width="941" alt="Screenshot 2025-01-06 at 5 47 52 PM" src="https://github.com/user-attachments/assets/00e794ea-8628-44e6-9a84-8f8a31ad3b47" />
+**Rate Limits:**
+- Tier 1: 60 req/min
+- Tier 2: 250 req/min  
+- Tier 3: 1000 req/min
 
-You can optionally specify the start and end dates to backtest over a specific time period.
+### 2. Yahoo Direct API (Price Data)
 
-```bash
-poetry run python src/backtester.py --ticker AAPL,MSFT,NVDA --start-date 2024-01-01 --end-date 2024-03-01
+**Features:**
+- No rate limits
+- Real-time quotes
+- Historical data
+- Options chains
+
+**Usage:**
+```python
+from core.detectors.real_breakout_reversal_detector_yahoo_direct import YahooDirectDataProvider
+
+provider = YahooDirectDataProvider()
+data = provider.get_market_data('SPY')
 ```
 
-## Project Structure 
-```
-ai-hedge-fund/
-├── src/
-│   ├── agents/                   # Agent definitions and workflow
-│   │   ├── bill_ackman.py        # Bill Ackman agent
-│   │   ├── fundamentals.py       # Fundamental analysis agent
-│   │   ├── portfolio_manager.py  # Portfolio management agent
-│   │   ├── risk_manager.py       # Risk management agent
-│   │   ├── sentiment.py          # Sentiment analysis agent
-│   │   ├── technicals.py         # Technical analysis agent
-│   │   ├── valuation.py          # Valuation analysis agent
-│   │   ├── warren_buffett.py     # Warren Buffett agent
-│   ├── tools/                    # Agent tools
-│   │   ├── api.py                # API tools
-│   ├── backtester.py             # Backtesting tools
-│   ├── main.py # Main entry point
-├── pyproject.toml
-├── ...
+### 3. DP-Aware Signal Filter
+
+**Purpose:** Only trigger signals when institutional flow confirms the move
+
+**Key Features:**
+- DP level proximity detection
+- Institutional battleground avoidance
+- Risk level calculation
+- Signal tightening based on DP agreement
+
+**Usage:**
+```python
+from core.filters.dp_aware_signal_filter import DPAwareSignalFilter
+
+filter = DPAwareSignalFilter()
+signals = await filter.filter_signals_with_dp_confirmation('SPY')
 ```
 
-## Contributing
+## 🔍 Signal Detection Logic
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+### Breakout Detection
+- **Rolling Windows**: 5, 10, 20, 30 minutes
+- **Thresholds**: 0.2% - 1.5% price movement
+- **Volume Confirmation**: Above average volume
+- **DP Confirmation**: Price above DP resistance levels
 
-**Important**: Please keep your pull requests small and focused.  This will make it easier to review and merge.
+### Reversal Detection  
+- **Support Levels**: DP support level proximity
+- **Mean Reversion**: Price below DP support
+- **Volume Confirmation**: Above average volume
+- **DP Confirmation**: Price near DP support levels
 
-## Feature Requests
+### DP Structure Analysis
+- **Support Levels**: Price levels with high DP volume below current price
+- **Resistance Levels**: Price levels with high DP volume above current price
+- **Battlegrounds**: High-volume DP levels (>1M shares or >10K contracts)
+- **Strength Score**: Normalized DP volume (0-1 scale)
 
-If you have a feature request, please open an [issue](https://github.com/virattt/ai-hedge-fund/issues) and make sure it is tagged with `enhancement`.
+## 📈 Signal Output Format
 
-## License
+```json
+{
+  "ticker": "SPY",
+  "action": "BUY",
+  "entry_price": 664.39,
+  "confidence": 0.75,
+  "risk_level": "HIGH",
+  "dp_agreement": 0.30,
+  "breakout": false,
+  "mean_reversion": true,
+  "dp_factors": ["near_support"],
+  "timestamp": "2025-10-17T23:00:12Z"
+}
+```
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## 🎛️ Configuration Parameters
+
+### DP Filter Settings
+```python
+# DP structure thresholds
+dp_support_threshold = 0.7      # 70% of volume at support
+dp_resistance_threshold = 0.7    # 70% of volume at resistance  
+battleground_threshold = 0.8     # 80% institutional ratio = battleground
+breakout_confirmation_threshold = 0.25  # 25% above magnet for breakout
+mean_reversion_threshold = 0.15  # 15% below DP support for mean reversion
+
+# Signal tightening parameters
+min_dp_agreement = 0.3          # Minimum DP agreement (lowered for testing)
+min_composite_confidence = 0.75 # 75% composite signal confidence
+max_risk_level = "MEDIUM"       # Maximum risk level allowed
+```
+
+### Detection Windows
+```python
+# Rolling window sizes (minutes)
+windows = [5, 10, 20, 30]
+
+# Breakout thresholds (%)
+breakout_thresholds = [0.2, 0.5, 1.0, 1.5]
+
+# Volume multipliers
+volume_multipliers = [1.5, 2.0, 2.5, 3.0]
+```
+
+## 🚨 Risk Management
+
+### Risk Levels
+- **LOW**: Strong DP confirmation, low volatility
+- **MEDIUM**: Moderate DP confirmation, normal volatility  
+- **HIGH**: Weak DP confirmation, high volatility
+
+### DP Agreement Factors
+- **near_support**: Price within 3% of DP support level
+- **near_resistance**: Price within 3% of DP resistance level
+- **battleground**: Price near institutional battleground
+- **volume_confirmation**: Above-average volume
+- **momentum_alignment**: Price momentum aligns with DP structure
+
+## 📊 Monitoring & Logging
+
+### Log Files
+- `logs/core_signals.csv` - Signal history
+- `logs/core_signals.jsonl` - Detailed signal logs
+
+### Key Metrics
+- Signal frequency
+- DP agreement scores
+- Risk level distribution
+- Win/loss ratios
+- Drawdown periods
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+1. **No DP Data**: Check ChartExchange API key and tier
+2. **Rate Limits**: Verify API tier limits
+3. **No Signals**: Check DP agreement thresholds
+4. **Import Errors**: Verify folder structure and paths
+
+### Debug Mode
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+## 📚 Examples
+
+### Basic Signal Detection
+```python
+import asyncio
+from core.filters.dp_aware_signal_filter import DPAwareSignalFilter
+
+async def detect_signals():
+    filter = DPAwareSignalFilter()
+    signals = await filter.filter_signals_with_dp_confirmation('SPY')
+    
+    for signal in signals:
+        print(f"{signal.action} {signal.ticker} @ ${signal.entry_price:.2f}")
+        print(f"Risk: {signal.risk_level}, DP Agreement: {signal.dp_agreement:.2f}")
+
+asyncio.run(detect_signals())
+```
+
+### DP Structure Analysis
+```python
+import asyncio
+from core.filters.dp_aware_signal_filter import DPAwareSignalFilter
+
+async def analyze_dp_structure():
+    filter = DPAwareSignalFilter()
+    structure = await filter.analyze_dp_structure('SPY')
+    
+    print(f"Support Levels: {len(structure.dp_support_levels)}")
+    print(f"Resistance Levels: {len(structure.dp_resistance_levels)}")
+    print(f"Battlegrounds: {len(structure.institutional_battlegrounds)}")
+    print(f"DP Strength: {structure.dp_strength_score:.2f}")
+
+asyncio.run(analyze_dp_structure())
+```
+
+## 🎯 Performance
+
+### Current Status
+- **DP Data**: ✅ Real ChartExchange integration
+- **Price Data**: ✅ Yahoo Direct (no rate limits)
+- **Signal Detection**: ✅ Breakout/reversal logic
+- **DP Filtering**: ✅ Institutional confirmation
+- **Risk Management**: ✅ Multi-level risk assessment
+
+### Test Results
+```
+✅ DP structure analyzed successfully
+   Support levels: 56
+   Resistance levels: 99  
+   Battlegrounds: 5
+   DP strength: 1.00
+
+✅ Signals detected!
+  1. BUY @ $664.39 - Risk: HIGH
+```
+
+## 🔮 Roadmap
+
+### Phase 1: Core System ✅
+- [x] DP data integration
+- [x] Signal detection
+- [x] DP filtering
+- [x] Risk management
+
+### Phase 2: Enhancement
+- [ ] Multi-timeframe analysis
+- [ ] Sector rotation detection
+- [ ] Options flow integration
+- [ ] News sentiment analysis
+
+### Phase 3: Production
+- [ ] Live trading integration
+- [ ] Portfolio management
+- [ ] Performance analytics
+- [ ] Alert systems
+
+## 📞 Support
+
+For issues or questions:
+1. Check the troubleshooting section
+2. Review log files for errors
+3. Verify API configurations
+4. Test with `tests/test_core_system.py`
+
+---
+
+**Built for institutional-grade market intelligence** 🚀

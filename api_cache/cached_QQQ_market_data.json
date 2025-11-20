@@ -1,0 +1,16 @@
+{
+  "ticker": "QQQ",
+  "price": 603.9299926757812,
+  "volume": 69102906,
+  "change": 0.0,
+  "change_percent": 0.0,
+  "high": 605.510009765625,
+  "low": 596.3699951171875,
+  "options": {
+    "call_volume": 1377154,
+    "put_volume": 1756227,
+    "put_call_ratio": 1.2752582499851142
+  },
+  "source": "yfinance",
+  "timestamp": "2025-10-17T19:27:27.000742"
+}

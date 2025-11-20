@@ -1,0 +1,16 @@
+{
+  "ticker": "AAPL",
+  "price": 252.2899932861328,
+  "volume": 48839918,
+  "change": 0.0,
+  "change_percent": 0.0,
+  "high": 253.3800048828125,
+  "low": 247.27000427246094,
+  "options": {
+    "call_volume": 338829,
+    "put_volume": 196339,
+    "put_call_ratio": 0.5794633871362841
+  },
+  "source": "yfinance",
+  "timestamp": "2025-10-17T19:27:29.594954"
+}

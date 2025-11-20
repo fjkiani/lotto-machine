@@ -1,0 +1,453 @@
+---
+alwaysApply: true
+description: "Implementation roadmap and priorities - what to build next"
+---
+
+# Implementation Roadmap - Path to Production
+
+## Current Status: INFRASTRUCTURE COMPLETE ✅
+
+### What We Have (Operational)
+```
+✅ Ultimate ChartExchange Client (464 lines)
+   - All Tier 3 API endpoints integrated
+   - DP levels, prints, short data, options, FTDs
+   - Working authentication
+   
+✅ Rigorous DP Signal Engine (508 lines)
+   - Never acts on first touch
+   - Multi-factor confirmation required
+   - Regime-aware thresholds
+   
+✅ DP Magnet Tracker (370 lines)
+   - Approach velocity calculation
+   - Bounce/break/rejection detection
+   - Interaction history tracking
+   
+✅ Master Signal Generator (290 lines)
+   - 0-1 scoring with weighted factors
+   - 75%+ threshold for master signals
+   - Risk/reward calculation
+   
+✅ Ultra Institutional Engine (419 lines)
+   - Multi-factor analysis (DP + short + options + FTDs)
+   - Squeeze/gamma/breakout detection
+   - Composite scoring (buying pressure, squeeze potential, gamma)
+   
+✅ Historical Data Pipeline (360 lines)
+   - Programmatic data fetching
+   - Local storage and retrieval
+   - 30+ day historical database capability
+   
+✅ Replay Engine (490 lines)
+   - Minute-by-minute historical replay
+   - Complete cycle logging
+   - Signal generation validation
+```
+
+**Total Infrastructure: ~2,900 lines of production-grade code**
+
+---
+
+## Immediate Priorities (Next 48 Hours)
+
+### Priority 1: Populate Historical Database ⏳
+**Why:** Need 30 days of data for backtesting
+**Status:** Infrastructure ready, needs execution
+
+```bash
+# Run this script
+python3 populate_historical_data.py
+
+# Expected output:
+# - SPY: 30 days × (1000 DP levels + 1000 prints + 100 short records) = 63,000 records
+# - QQQ: 30 days × 63,000 = 63,000 records
+# - Total: ~130,000 institutional data points
+# - Time: ~1 hour (rate limited)
+```
+
+**Deliverable:** `data/historical/` populated with 30 days of SPY/QQQ data
+
+### Priority 2: Complete Backtesting Script ⏳
+**Why:** Need to validate edge on historical data
+**Status:** Template exists, needs completion
+
+**File:** `backtest_30d_validation.py`
+
+```python
+# Must generate:
+- Win rate by signal type
+- Average R/R achieved
+- Max drawdown
+- Sharpe ratio
+- Equity curve visualization
+- Trade journal CSV
+
+# Pass criteria:
+assert win_rate > 0.55
+assert avg_rr > 2.0
+assert max_dd < 0.10
+assert sharpe > 1.5
+```
+
+**Deliverable:** Validated strategy with proven edge OR identified weaknesses to fix
+
+### Priority 3: Real-Time Alert System ⏳
+**Why:** Need to act on signals intraday
+**Status:** Not started
+
+**File:** `live_signal_monitor.py`
+
+```python
+# Requirements:
+- Run during RTH (9:30-4:00 ET)
+- Check for signals every 1 minute
+- Send alerts via:
+  * Console (immediate)
+  * Slack webhook (preferred)
+  * Email (backup)
+  * CSV log (audit trail)
+
+# Alert format:
+"""
+🎯 MASTER SIGNAL: SPY
+Action: BUY @ $665.20
+Type: BREAKOUT
+Confidence: 87%
+Entry: $665.20
+Stop: $664.50
+Target: $666.60
+R/R: 2:1
+Reasoning: BREAKOUT above institutional resistance $665.00 (2.5M shares)
+Supporting: Volume 2.3x avg, Momentum +0.65%, Regime UPTREND
+"""
+```
+
+**Deliverable:** Live monitoring system with alerts
+
+---
+
+## Next Phase (Week 2)
+
+### Priority 4: Paper Trading Integration ⏳
+**Why:** Validate in live market before risking capital
+**Status:** Requires broker paper account setup
+
+**Options:**
+- Alpaca Paper Trading API (free, easy)
+- TD Ameritrade PaperMoney
+- Interactive Brokers Paper Account
+
+**Implementation:**
+```python
+# File: paper_trading_executor.py
+
+def execute_signal(signal, paper_account):
+    """
+    Take signal and execute in paper account
+    """
+    order = {
+        'symbol': signal.symbol,
+        'side': signal.action.lower(),
+        'type': 'limit',
+        'qty': calculate_shares(signal),
+        'limit_price': signal.entry_price,
+        'stop_loss': signal.stop_loss,
+        'take_profit': signal.take_profit
+    }
+    
+    response = paper_account.submit_order(order)
+    log_execution(signal, response)
+```
+
+**Deliverable:** 20+ paper trades executed with full tracking
+
+### Priority 5: Machine Learning Enhancement ⏳
+**Why:** Improve bounce/break probability predictions
+**Status:** Data collection phase (need 30+ days of results)
+
+**Approach:**
+```python
+# Train on historical DP interactions
+
+FEATURES = [
+    'dp_volume',
+    'distance_to_level',
+    'volume_vs_avg',
+    'momentum',
+    'regime',
+    'touch_count',
+    'time_of_day',
+    'vix_level',
+    'trend_strength'
+]
+
+TARGET = 'bounce_success'  # 1 if bounced, 0 if broke
+
+# Model: XGBoost or Random Forest
+# Train/val split: 70/30
+# Metric: AUC-ROC, precision, recall
+```
+
+**Deliverable:** ML model that improves bounce/break prediction by 5%+
+
+### Priority 6: Pre-Market Analysis ⏳
+**Why:** Get positioned BEFORE market opens
+**Status:** Concept phase
+
+**Script:** `premarket_intelligence.py`
+
+```python
+# Run at 8:00 AM ET
+
+def premarket_analysis():
+    """
+    Analyze overnight changes
+    """
+    # 1. Compare yesterday's closing DP levels to pre-market price
+    # 2. Identify new battlegrounds that formed overnight
+    # 3. Check for news/catalysts (earnings, Fed, macro)
+    # 4. Calculate opening range projections
+    # 5. Generate "watch list" for market open
+    
+    print("📊 PRE-MARKET INTELLIGENCE")
+    print(f"SPY: ${spy_price:.2f} (vs close: {spy_close:.2f})")
+    print(f"Key DP Levels Today:")
+    print(f"  Support: ${nearest_support:.2f} ({support_vol:,} shares)")
+    print(f"  Resistance: ${nearest_resistance:.2f} ({res_vol:,} shares)")
+    print(f"\n🎯 WATCH FOR:")
+    print(f"  - Break above {resistance:.2f} = LONG signal")
+    print(f"  - Bounce off {support:.2f} = LONG signal")
+```
+
+**Deliverable:** Daily pre-market report with key levels
+
+---
+
+## Future Enhancements (Month 2+)
+
+### Advanced Features (Optional)
+```
+⏳ Options Flow Integration
+   - Track unusual options activity
+   - Detect sweeps and blocks
+   - Correlate with DP activity
+   
+⏳ News Catalyst Detection
+   - Integrate news API (Benzinga, Reuters)
+   - Trade on catalyst + DP confirmation
+   - Earnings gap strategies
+   
+⏳ Multi-Timeframe Analysis
+   - 1-min, 5-min, 15-min confluence
+   - Higher timeframe DP levels
+   - Intraday trend following
+   
+⏳ Portfolio Management
+   - Track multiple positions
+   - Correlation analysis (SPY vs QQQ)
+   - Portfolio-level risk management
+   
+⏳ Execution Optimization
+   - Smart order routing
+   - Limit vs market order logic
+   - Slippage minimization
+   
+⏳ Advanced ML Models
+   - LSTM for sequence prediction
+   - Reinforcement learning for entry timing
+   - Ensemble models
+```
+
+---
+
+## Weekly Sprint Plan
+
+### Week 1: Data & Validation
+```
+Mon: Populate 30-day historical database
+Tue: Build backtesting script
+Wed: Run backtests, analyze results
+Thu: Fix any issues found in backtest
+Fri: Re-run validation, document results
+Weekend: Review, adjust thresholds if needed
+```
+
+### Week 2: Live Monitoring
+```
+Mon: Build live signal monitor
+Tue: Integrate alert system (Slack)
+Wed: Paper trade setup (Alpaca)
+Thu: Connect paper trading to signals
+Fri: Monitor live signals (no execution yet)
+Weekend: Review alerts, tune sensitivity
+```
+
+### Week 3: Paper Trading
+```
+Mon-Fri: Take EVERY signal in paper account
+         Track execution, slippage, P&L
+Weekend: Calculate metrics vs backtest
+         Decide: continue paper or go live (small)
+```
+
+### Week 4: Go Live (If Validated)
+```
+Mon: Start with $1000 max position
+Tue-Fri: Execute signals, track everything
+Weekend: Weekly review, scale up if profitable
+```
+
+---
+
+## Key Metrics to Track
+
+### Daily (During Trading)
+```
+- Signals generated
+- Signals taken
+- Signals rejected (why)
+- Active positions
+- Daily P&L
+- Daily drawdown
+```
+
+### Weekly (Sunday Evening)
+```
+- Total trades
+- Win rate
+- Avg R/R
+- Max drawdown
+- Sharpe ratio
+- Comparison to backtest
+- Emotional discipline score
+```
+
+### Monthly (First Sunday)
+```
+- Deep dive by signal type
+- Best/worst times of day
+- Regime performance
+- Threshold adjustments
+- Strategy evolution decisions
+```
+
+---
+
+## Circuit Breakers (HARD STOPS)
+
+### Halt All Trading If:
+```
+1. Daily drawdown ≥ 5%
+2. Weekly drawdown ≥ 8%
+3. Win rate < 40% over last 20 trades
+4. 5 consecutive losses
+5. System error/data quality issue
+6. Emotional breakdown (revenge trading, FOMO)
+```
+
+### Resume Trading Only After:
+```
+1. Drawdown reviewed and root cause found
+2. Emotional state is calm and rational
+3. System issues resolved and tested
+4. Confidence in edge restored
+5. Written plan for avoiding repeat
+```
+
+---
+
+## Success Definition
+
+### Paper Trading Success (Proceed to Live)
+```
+✓ 20+ trades executed
+✓ Win rate ≥ 55%
+✓ Avg R/R ≥ 2.0
+✓ Max DD < 10%
+✓ Sharpe > 1.5
+✓ Emotional discipline maintained
+✓ All trades journaled and reviewed
+```
+
+### Live Trading Success (Scale Up)
+```
+✓ 30+ trades executed
+✓ Win rate ≥ 52% (slightly worse than paper OK)
+✓ Avg R/R ≥ 1.8
+✓ Max DD < 10%
+✓ Positive P&L (any amount)
+✓ No circuit breaker trips
+✓ Sleep at night without stress
+```
+
+---
+
+## Critical Dependencies
+
+### External Services
+```
+✅ ChartExchange API (Tier 3) - $X/month
+✅ Yahoo Finance (free) - backup data
+⏳ Alpaca API (free paper) - execution
+⏳ Slack webhook (free) - alerts
+⏳ Email (free) - backup alerts
+```
+
+### Internal Systems
+```
+✅ Historical data pipeline
+✅ Signal generation engines
+✅ Master signal filter
+⏳ Live monitoring loop
+⏳ Paper trading connector
+⏳ Performance tracking database
+```
+
+---
+
+## Implementation Files Index
+
+### Core Engine
+- [ultimate_chartexchange_client.py](mdc:core/data/ultimate_chartexchange_client.py)
+- [rigorous_dp_signal_engine.py](mdc:core/rigorous_dp_signal_engine.py)
+- [ultra_institutional_engine.py](mdc:core/ultra_institutional_engine.py)
+- [master_signal_generator.py](mdc:core/master_signal_generator.py)
+- [dp_magnet_tracker.py](mdc:core/detectors/dp_magnet_tracker.py)
+
+### Data & Validation
+- [historical_data_pipeline.py](mdc:core/data/historical_data_pipeline.py)
+- [validate_rigorous_10_17.py](mdc:validate_rigorous_10_17.py)
+- [populate_historical_data.py](mdc:populate_historical_data.py)
+
+### To Be Created
+- `backtest_30d_validation.py` ⏳
+- `live_signal_monitor.py` ⏳
+- `paper_trading_executor.py` ⏳
+- `premarket_intelligence.py` ⏳
+- `performance_tracker.py` ⏳
+
+---
+
+## Next Action (RIGHT NOW)
+
+```bash
+# 1. Populate historical database
+python3 populate_historical_data.py
+
+# 2. While that runs (1 hour), create backtest script
+# Open new file: backtest_30d_validation.py
+
+# 3. Run backtest on historical data
+python3 backtest_30d_validation.py --symbol SPY --days 30
+
+# 4. Analyze results, iterate if needed
+
+# 5. If edge proven, build live monitor
+# Open new file: live_signal_monitor.py
+```
+
+---
+
+**ALPHA'S MANTRA:** 
+*"Infrastructure is done. Edge is coded. Now we validate, deploy, and dominate."* 🚀💰🎯

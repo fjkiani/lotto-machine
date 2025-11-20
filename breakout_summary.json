@@ -1,0 +1,28 @@
+{
+  "breakout_detected": true,
+  "dp_confirmation": false,
+  "signal_strength": 0,
+  "action": "HOLD",
+  "key_levels": {
+    "resistance": 664.18,
+    "resistance_volume": 4079136
+  },
+  "breakout_details": [
+    {
+      "timestamp": "2025-10-17 14:20:00-04:00",
+      "price": 664.989990234375,
+      "volume": 519920.0
+    },
+    {
+      "timestamp": "2025-10-17 14:21:00-04:00",
+      "price": 664.77001953125,
+      "volume": 296493.0
+    },
+    {
+      "timestamp": "2025-10-17 14:22:00-04:00",
+      "price": 664.8099975585938,
+      "volume": 78202.0
+    }
+  ],
+  "dp_confirmation_details": []
+}

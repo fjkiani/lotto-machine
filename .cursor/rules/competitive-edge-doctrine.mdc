@@ -1,0 +1,256 @@
+---
+alwaysApply: true
+description: "Core competitive advantages and strategic doctrine for beating institutional players"
+---
+
+# Competitive Edge Doctrine - Alpha's Trading Philosophy
+
+## Mission Statement
+Build an **INTRADAY SPY/QQQ INSTITUTIONAL INTELLIGENCE SYSTEM** that beats hedge funds by exploiting:
+1. Real-time multi-factor data integration
+2. Pattern recognition on institutional flow
+3. Trap detection (fake breakouts, distribution)
+4. Predictive squeeze/gamma modeling
+5. Sub-second signal generation
+
+---
+
+## Our Unfair Advantages
+
+### 1. SPEED ADVANTAGE ⚡
+**Edge:** Detect DP battleground interactions, options sweeps, and short squeezes in REAL-TIME
+- **Hedge Funds:** Get DP data end-of-day or via expensive terminals
+- **Us:** ChartExchange Tier 3 API + custom processing pipeline
+- **Implementation:** [ultimate_chartexchange_client.py](mdc:core/data/ultimate_chartexchange_client.py)
+
+### 2. MULTI-FACTOR INTEGRATION 🧠
+**Edge:** Combine 6+ data sources in ONE composite score
+- Dark Pool levels + prints
+- Short volume + interest + borrow fees
+- Options flow + max pain + gamma exposure
+- Exchange volume breakdown
+- FTDs + insider activity
+- **Hedge Funds:** Siloed data, manual correlation
+- **Us:** Automated composite scoring in [ultra_institutional_engine.py](mdc:core/ultra_institutional_engine.py)
+
+### 3. INSTITUTIONAL TRAP DETECTION 🎯
+**Edge:** Never act on first touch, detect distribution at battlegrounds
+- **Hedge Funds:** Fall victim to their own fakeouts
+- **Us:** Multi-factor confirmation required (volume + momentum + DP agreement)
+- **Implementation:** [rigorous_dp_signal_engine.py](mdc:core/rigorous_dp_signal_engine.py)
+
+### 4. PATTERN LEARNING 📈
+**Edge:** Historical backtesting on DP bounce/break success rates
+- Track which battlegrounds hold vs break
+- Learn regime-specific thresholds (CHOP vs TREND)
+- Squeeze probability scoring based on historical squeezes
+
+### 5. ZERO EMOTIONAL BIAS 🤖
+**Edge:** Algorithmic discipline, no FOMO, no revenge trading
+- Strict risk management (2% per trade, 5% max drawdown)
+- Exit when invalidated, no hope holding
+- Paper trade validation before live capital
+
+---
+
+## Trading Parameters (NON-NEGOTIABLE)
+
+### Risk Management
+```
+Max Position Size: 2% of capital per trade
+Max Daily Drawdown: 5%
+Stop Loss: Always outside DP battlefield zone (0.3%+ from level)
+Risk/Reward: Minimum 2:1 required
+```
+
+### Universe
+```
+Primary: SPY, QQQ only
+Rationale: 
+- Highest liquidity (tight spreads)
+- Best data quality (most DP activity)
+- Lowest manipulation risk
+- Focus > diversification
+```
+
+### Time Horizon
+```
+Intraday: 9:30 AM - 4:00 PM ET
+Hold Time: Minutes to hours (close by EOD)
+Sessions:
+- Market Open (9:30-10:30): Highest volume, breakout opportunities
+- Midday (11:00-2:00): Range trading, DP tests
+- Power Hour (3:00-4:00): Institutional positioning, gamma pin
+```
+
+### Signal Types (ALL PURSUED)
+```
+1. Squeeze Plays (15-20% Short Interest + High Borrow Fee + DP Support)
+2. Gamma Ramps (Low P/C Ratio + High Call OI + Max Pain Above)
+3. DP Breakouts (Battleground Break + Volume Surge + Momentum)
+4. Mean Reversions (Battleground Bounce + Volume + Momentum Reversal)
+```
+
+---
+
+## Execution Workflow
+
+### Phase 1: Real-Time Monitoring (RTH)
+```python
+Every 1 minute:
+1. Update DP battleground proximity
+2. Calculate institutional buying pressure
+3. Check squeeze/gamma potential
+4. Generate signals if criteria met
+```
+
+### Phase 2: Signal Validation
+```python
+REQUIRED for ANY signal:
+1. DP Confirmation: At battleground OR clean break through
+2. Volume Confirmation: 1.5x+ average (regime-dependent)
+3. Momentum Confirmation: Aligned with trade direction
+4. NO first touch: Must be 2nd+ test of level
+5. Regime Check: Match strategy to market condition
+```
+
+### Phase 3: Alert Generation (Manual Execution)
+```
+Signal Format:
+- Timestamp
+- Action (BUY/SELL)
+- Entry Price
+- Stop Loss (outside battlefield)
+- Take Profit (2:1 R/R minimum)
+- Signal Type (SQUEEZE/GAMMA/BREAKOUT/BOUNCE)
+- Confidence Score
+- Supporting Factors
+- Warnings
+```
+
+### Phase 4: Paper Trading Validation
+```
+Before ANY live capital:
+1. Run signals on paper account for 20+ trades
+2. Track win rate, avg R/R, max drawdown
+3. Validate edge exists (>55% win rate + 2:1 R/R = profitable)
+4. Only then deploy small live capital (scale up slowly)
+```
+
+---
+
+## Strategic Priorities
+
+### Immediate (This Sprint)
+1. ✅ Real-time DP battleground tracking
+2. ✅ Multi-factor signal scoring
+3. ✅ Rigorous confirmation filters
+4. ⏳ Historical data population (30 days)
+5. ⏳ Backtesting on known squeeze/breakout days
+
+### Next (Following Sprint)
+1. ⏳ ML model: DP bounce/break probability
+2. ⏳ Squeeze predictor: Short + borrow fee + momentum
+3. ⏳ Gamma calculator: Dealer exposure + max pain distance
+4. ⏳ Pre-market analysis: Overnight DP level changes
+5. ⏳ Regime classifier: CHOP/RANGE/TREND auto-detection
+
+### Future (Continuous Improvement)
+1. ⏳ Options flow integration (sweeps, unusual activity)
+2. ⏳ News catalyst detection (earnings, Fed, macro)
+3. ⏳ Cross-asset signals (VIX spike, bond moves)
+4. ⏳ Broker API integration (semi-auto execution)
+5. ⏳ Advanced ML: Deep learning on price/volume/DP patterns
+
+---
+
+## Core Principles (THE RULES)
+
+### 1. DATA QUALITY > SPEED
+```
+- No mock data EVER in production
+- Log every missing/failed data fetch
+- Gracefully degrade (skip signal) if data incomplete
+- Historical validation required for all new data sources
+```
+
+### 2. CONFIRMATION > CONVICTION
+```
+- Never act on single factor
+- Require 3+ confirmations for any signal
+- Higher confidence = larger position size (within 2% limit)
+- When in doubt, sit out
+```
+
+### 3. RISK MANAGEMENT > PROFIT CHASING
+```
+- Stop loss ALWAYS set before entry
+- Never move stop further from entry
+- Exit immediately if thesis invalidated
+- 5% daily drawdown = STOP TRADING for the day
+```
+
+### 4. BACKTESTING > INTUITION
+```
+- Every new strategy MUST backtest on historical data
+- Paper trade BEFORE live capital
+- Track ALL metrics: win rate, R/R, max DD, Sharpe ratio
+- Kill strategies that don't show edge after 30 trades
+```
+
+### 5. SIMPLICITY > COMPLEXITY
+```
+- Focus on SPY/QQQ only (master these first)
+- 3-4 signal types max
+- Clear entry/exit criteria
+- If you can't explain it in 30 seconds, it's too complex
+```
+
+### 6. CONTINUOUS LEARNING
+```
+- Review EVERY trade (win or loss)
+- Journal: What worked? What didn't? Why?
+- Update thresholds based on data
+- Archive all signals for future ML training
+```
+
+---
+
+## Success Metrics
+
+### Paper Trading Phase (20+ trades required)
+```
+Minimum Acceptable:
+- Win Rate: >55%
+- Avg R/R: >2.0
+- Max Drawdown: <10%
+- Sharpe Ratio: >1.5
+
+Proceed to Live if ALL metrics hit
+```
+
+### Live Trading Phase (small capital)
+```
+Weekly Review:
+- P&L
+- Win rate vs paper
+- Slippage analysis
+- Emotional discipline check
+
+Scale up ONLY if beating paper results
+```
+
+---
+
+## References
+
+- Core System: [ULTRA_SYSTEM_OVERVIEW.md](mdc:ULTRA_SYSTEM_OVERVIEW.md)
+- Signal Engine: [rigorous_dp_signal_engine.py](mdc:core/rigorous_dp_signal_engine.py)
+- Institutional Analysis: [ultra_institutional_engine.py](mdc:core/ultra_institutional_engine.py)
+- Data Pipeline: [historical_data_pipeline.py](mdc:core/data/historical_data_pipeline.py)
+- Master Filter: [master_signal_generator.py](mdc:core/master_signal_generator.py)
+
+---
+
+**ALPHA'S MANTRA:**
+*"Trade like a machine. Think like an institution. Execute with discipline. Win with edge."*

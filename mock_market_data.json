@@ -1,0 +1,58 @@
+[
+  {
+    "ticker": "SPY",
+    "timestamp": "2025-10-17T02:28:26.926365",
+    "source": "broker",
+    "event_type": "trade",
+    "data": {
+      "price": 450.25,
+      "volume": 1500000,
+      "size": 75000
+    },
+    "raw_text": "Large institutional trade: 75k SPY @ $450.25"
+  },
+  {
+    "ticker": "AAPL",
+    "timestamp": "2025-10-17T02:28:26.926378",
+    "source": "broker",
+    "event_type": "trade",
+    "data": {
+      "price": 180.5,
+      "volume": 800000,
+      "size": 120000
+    },
+    "raw_text": "Massive AAPL trade: 120k shares @ $180.50"
+  },
+  {
+    "ticker": "SPY",
+    "timestamp": "2025-10-17T02:28:26.926379",
+    "source": "cnbc",
+    "event_type": "news",
+    "data": {
+      "headline": "Fed signals potential rate cut amid market volatility"
+    },
+    "raw_text": "Fed signals potential rate cut amid market volatility"
+  },
+  {
+    "ticker": "TSLA",
+    "timestamp": "2025-10-17T02:28:26.926381",
+    "source": "twitter",
+    "event_type": "news",
+    "data": {
+      "text": "Tesla announces new Gigafactory expansion plans"
+    },
+    "raw_text": "Tesla announces new Gigafactory expansion plans"
+  },
+  {
+    "ticker": "SPY",
+    "timestamp": "2025-10-17T02:28:26.926382",
+    "source": "barchart",
+    "event_type": "options",
+    "data": {
+      "contracts": 1500,
+      "type": "call",
+      "strike": 450
+    },
+    "raw_text": "Large options sweep: 1500 SPY 450C contracts"
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "ticker": "SPY",
+  "price": 664.3900146484375,
+  "volume": 86060473,
+  "change": 0.0,
+  "change_percent": 0.0,
+  "high": 665.7550048828125,
+  "low": 658.1400146484375,
+  "options": {
+    "call_volume": 3129958,
+    "put_volume": 3569156,
+    "put_call_ratio": 1.1403207327382667
+  },
+  "source": "yfinance",
+  "timestamp": "2025-10-17T19:27:25.957211"
+}

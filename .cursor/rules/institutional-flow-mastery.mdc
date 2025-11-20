@@ -1,0 +1,476 @@
+---
+description: "Master institutional flow analysis - understand what the big players are doing"
+globs: "core/data/*.py,core/ultra_institutional_engine.py,core/filters/*.py"
+---
+
+# Institutional Flow Mastery - Reading the Smart Money
+
+## Philosophy
+**"Follow the elephant footprints, not the noise."**
+
+Retail chases price. Institutions CREATE price. We detect institutions and follow them.
+
+---
+
+## Data Sources Hierarchy (Priority Order)
+
+### Tier 1: Dark Pool Intelligence (HIGHEST PRIORITY)
+**Source:** ChartExchange API - [ultimate_chartexchange_client.py](mdc:core/data/ultimate_chartexchange_client.py)
+
+#### Dark Pool Levels
+```python
+# Endpoint: /data/dark-pool-levels/
+# What it shows: Price levels with accumulated DP volume
+
+BATTLEGROUNDS = volume >= 1000000  # Institutional warfare zones
+MAJOR_LEVELS = volume >= 500000    # Significant support/resistance
+
+Interpretation:
+- >3M shares: CRITICAL level, institutions defend/attack aggressively
+- 1-3M: Major level, strong S/R
+- 500K-1M: Minor support/resistance
+- <500K: Noise, ignore
+```
+
+#### Dark Pool Prints
+```python
+# Endpoint: /data/dark-pool-prints/
+# What it shows: Individual DP trades in real-time
+
+BLOCK_TRADE = size >= 10000 shares
+INSTITUTIONAL_PRINT = size >= 5000 shares
+
+Interpretation:
+- Cluster of buys near support = Institutional accumulation
+- Cluster of sells near resistance = Distribution
+- Sudden spike in DP volume = Something big happening
+```
+
+#### Buy/Sell Ratio
+```python
+# Calculated from DP prints summary
+
+dp_buy_sell_ratio > 1.5: BULLISH (institutions buying)
+dp_buy_sell_ratio < 0.7: BEARISH (institutions selling)
+dp_buy_sell_ratio 0.7-1.5: NEUTRAL
+```
+
+### Tier 2: Short Interest Intelligence
+**Sources:** ChartExchange + FINRA
+
+#### Short Volume
+```python
+# Daily short volume as % of total volume
+
+short_pct > 40%: HIGH SHORTING (potential squeeze setup)
+short_pct 30-40%: MODERATE SHORTING
+short_pct < 30%: LOW SHORTING (bullish for longs)
+
+SPY/QQQ Normal Range: 25-35%
+Above 40% = Institutions betting on downside
+```
+
+#### Short Interest
+```python
+# Total shares sold short / float
+
+SPY/QQQ: Usually <5% (too liquid to squeeze)
+Small Caps: >20% = SQUEEZE POTENTIAL
+
+short_interest > 20% AND borrow_fee > 5% = HIGH SQUEEZE RISK
+```
+
+#### Borrow Fee
+```python
+# Cost to borrow shares for shorting (annual %)
+
+< 1%: Easy to borrow, no squeeze risk
+1-5%: Moderate, watch for changes
+5-10%: HARD TO BORROW, squeeze possible
+> 10%: VERY HARD, high squeeze risk
+
+SPY/QQQ: Usually <1% (ignore squeeze plays)
+Track CHANGES: Fee spiking = shorts desperate
+```
+
+### Tier 3: Options Flow Intelligence
+**Source:** ChartExchange options chain summary
+
+#### Put/Call Ratio
+```python
+# Open Interest: Puts / Calls
+
+P/C < 0.7: VERY BULLISH (institutions buying calls)
+P/C 0.7-1.0: BULLISH to NEUTRAL
+P/C 1.0-1.3: NEUTRAL to BEARISH
+P/C > 1.3: VERY BEARISH (institutions buying puts)
+
+Track CHANGES: Sudden shift = sentiment change
+```
+
+#### Max Pain Theory
+```python
+# Price where most options expire worthless
+
+price < max_pain: Dealers LONG gamma, push price UP
+price > max_pain: Dealers SHORT gamma, push price DOWN
+distance = abs(price - max_pain) / price
+
+< 1%: AT max pain, likely to pin
+1-2%: NEAR max pain, gravitational pull
+> 2%: FAR from max pain, less influence
+
+Best trades: Enter when far from max pain, exit near it
+```
+
+#### Gamma Exposure
+```python
+# Dealers' sensitivity to price changes
+
+HIGH positive gamma (lots of call OI, low P/C):
+- Dealers hedging by buying shares
+- Creates upward momentum
+- Gamma ramp potential
+
+HIGH negative gamma (lots of put OI, high P/C):
+- Dealers hedging by selling shares
+- Creates downward pressure
+- Volatility increases
+```
+
+### Tier 4: Exchange Volume Analysis
+**Source:** ChartExchange exchange volume breakdown
+
+#### Dark Pool Percentage
+```python
+# DP volume / total volume
+
+SPY/QQQ Normal: 35-45%
+> 50%: VERY HIGH institutional activity (watch direction)
+< 30%: LOW institutional activity (retail dominant)
+
+Interpretation:
+High DP % + bullish price action = Institutions buying
+High DP % + bearish price action = Institutions selling
+```
+
+#### Exchange Routing
+```python
+# Volume by exchange
+
+XADF, XNMS, FINRA TRFs = Dark pools
+NYSE, NASDAQ, ARCA = Lit exchanges
+
+Institutions prefer dark pools (hide size)
+Retail prefers lit exchanges
+
+Dark pool spike = Institutions moving
+```
+
+### Tier 5: Failure to Deliver (FTDs)
+**Source:** ChartExchange FTD data
+
+#### FTD Analysis
+```python
+# Failed to deliver shares (naked shorting indicator)
+
+recent_ftds > 100000: SIGNIFICANT (for SPY/QQQ)
+ftd_trend = 'INCREASING': Potential forced buying coming
+
+Interpretation:
+- Increasing FTDs = Shorts struggling to locate shares
+- Decreasing FTDs = Pressure easing
+- Spike in FTDs = Potential short squeeze catalyst
+
+SPY/QQQ: Usually low (ignore unless huge spike)
+Small caps: Watch closely
+```
+
+---
+
+## Composite Intelligence Scoring
+
+### Institutional Buying Pressure (0-1)
+```python
+def calculate_buying_pressure(data):
+    score = 0.0
+    
+    # DP buying (30% weight)
+    if data.dp_buy_sell_ratio > 1.5:
+        score += 0.30
+    elif data.dp_buy_sell_ratio > 1.2:
+        score += 0.20
+    elif data.dp_buy_sell_ratio > 1.0:
+        score += 0.10
+    
+    # Low shorting (20% weight)
+    if data.short_volume_pct < 25:
+        score += 0.20
+    elif data.short_volume_pct < 30:
+        score += 0.10
+    
+    # High DP activity (20% weight)
+    if data.dark_pool_pct > 45:
+        score += 0.20
+    elif data.dark_pool_pct > 40:
+        score += 0.10
+    
+    # Large print sizes (15% weight)
+    if data.avg_print_size > 10000:
+        score += 0.15
+    elif data.avg_print_size > 5000:
+        score += 0.10
+    
+    # Options sentiment (15% weight)
+    if data.put_call_ratio < 0.8:
+        score += 0.15
+    elif data.put_call_ratio < 1.0:
+        score += 0.10
+    
+    return min(score, 1.0)
+```
+
+### Squeeze Potential (0-1)
+```python
+def calculate_squeeze_potential(data):
+    """
+    SPY/QQQ: Usually 0 (too liquid)
+    Only relevant for volatile stocks
+    """
+    score = 0.0
+    
+    if not data.short_interest:
+        return 0.0
+    
+    # High short interest (40% weight)
+    si_pct = data.short_interest / float_shares
+    if si_pct > 30:
+        score += 0.40
+    elif si_pct > 20:
+        score += 0.30
+    elif si_pct > 15:
+        score += 0.20
+    
+    # High borrow fee (30% weight)
+    if data.borrow_fee > 10:
+        score += 0.30
+    elif data.borrow_fee > 5:
+        score += 0.20
+    elif data.borrow_fee > 3:
+        score += 0.10
+    
+    # Days to cover (20% weight)
+    if data.days_to_cover > 5:
+        score += 0.20
+    elif data.days_to_cover > 3:
+        score += 0.15
+    elif data.days_to_cover > 2:
+        score += 0.10
+    
+    # Increasing FTDs (10% weight)
+    if data.ftd_trend == 'INCREASING':
+        score += 0.10
+    
+    return min(score, 1.0)
+```
+
+### Gamma Pressure (0-1)
+```python
+def calculate_gamma_pressure(data):
+    score = 0.0
+    
+    if not data.max_pain:
+        return 0.0
+    
+    # Low P/C ratio (40% weight)
+    if data.put_call_ratio < 0.7:
+        score += 0.40
+    elif data.put_call_ratio < 0.85:
+        score += 0.30
+    elif data.put_call_ratio < 1.0:
+        score += 0.20
+    
+    # High total OI (30% weight)
+    if data.total_option_oi > 500000:
+        score += 0.30
+    elif data.total_option_oi > 200000:
+        score += 0.20
+    elif data.total_option_oi > 100000:
+        score += 0.10
+    
+    # Max pain above price (30% weight)
+    distance = (data.max_pain - data.current_price) / data.current_price
+    if distance > 0.02:  # >2% above
+        score += 0.30
+    elif distance > 0.01:  # >1% above
+        score += 0.20
+    elif distance > 0:  # Any amount above
+        score += 0.10
+    
+    return min(score, 1.0)
+```
+
+---
+
+## Pattern Recognition
+
+### Accumulation Pattern
+```
+Signs:
+1. DP buy/sell ratio > 1.3 for 3+ days
+2. Price consolidating (low volatility)
+3. DP volume increasing
+4. Put/call ratio decreasing
+
+Action: BULLISH - Institutions accumulating before move up
+Entry: On break above consolidation + DP resistance
+```
+
+### Distribution Pattern
+```
+Signs:
+1. DP buy/sell ratio < 0.8 for 3+ days
+2. Price at highs but volume declining
+3. Large DP sells near resistance
+4. Put/call ratio increasing
+
+Action: BEARISH - Institutions unloading
+Entry: SHORT on break below DP support OR stay away
+```
+
+### Squeeze Setup Pattern
+```
+Signs:
+1. Short interest >20%, borrow fee >5%
+2. Days to cover >3
+3. Price at DP support + accumulation pattern
+4. FTDs increasing
+
+Action: BULLISH - Squeeze potential
+Entry: On break above resistance with volume
+Target: Previous highs OR +20-30%
+```
+
+### Gamma Ramp Pattern
+```
+Signs:
+1. P/C ratio <0.8, high call OI
+2. Max pain >2% above current price
+3. Price above DP support
+4. Options expiration approaching (OpEx Friday)
+
+Action: BULLISH - Dealers will push price to max pain
+Entry: Monday-Wednesday before OpEx
+Exit: Thursday/Friday before OpEx close
+```
+
+### Institutional Trap Pattern
+```
+Signs:
+1. Break above DP resistance on LOW volume
+2. DP buy/sell ratio declining
+3. Large DP sells after breakout
+4. No follow-through next day
+
+Action: BEARISH - Fake breakout, distribution
+Avoid: Don't chase breakouts without volume confirmation
+```
+
+---
+
+## Real-Time Monitoring Checklist
+
+### Every Minute (During RTH)
+```python
+1. Update current price
+2. Check distance to nearest DP battleground
+3. Calculate volume vs average
+4. Check momentum (1-min return)
+5. Look for DP print clusters
+```
+
+### Every 5 Minutes
+```python
+1. Recalculate institutional buying pressure
+2. Check if approaching/at key levels
+3. Update regime classification
+4. Generate signals if criteria met
+```
+
+### Every Hour
+```python
+1. Review open positions vs DP levels
+2. Adjust stops if DP levels change
+3. Check for news/catalysts
+4. Update daily P&L and risk metrics
+```
+
+### Daily (Pre-Market)
+```python
+1. Fetch overnight DP data
+2. Identify new battlegrounds
+3. Note any DP level changes (>10%)
+4. Check short interest updates
+5. Review options OI changes
+6. Plan key levels to watch
+```
+
+### Weekly (Weekend)
+```python
+1. Review all signals from week
+2. Calculate win rate, R/R, max DD
+3. Analyze rejected signals (should they have been accepted?)
+4. Analyze losing trades (did criteria actually hold?)
+5. Update thresholds if needed
+6. Prepare for next week's major levels
+```
+
+---
+
+## Data Quality Checks
+
+### Required for Every Signal
+```python
+def validate_data_quality(data):
+    """Ensure data is complete and recent"""
+    
+    checks = {
+        'dp_levels': len(data.dp_levels) > 0,
+        'dp_timestamp': (now() - data.dp_timestamp) < timedelta(days=1),
+        'price': data.current_price > 0,
+        'volume': data.volume > 0
+    }
+    
+    if not all(checks.values()):
+        missing = [k for k, v in checks.items() if not v]
+        raise DataQualityError(f"Missing/stale: {missing}")
+    
+    return True
+```
+
+### Fallback Strategy
+```python
+IF ChartExchange API fails:
+    1. Use local cached DP data (from previous day)
+    2. Log warning
+    3. Reduce confidence by 0.1
+    4. Continue with degraded data
+    
+IF local cache also missing:
+    1. SKIP signal generation
+    2. Log critical error
+    3. Send alert to operator
+```
+
+---
+
+## Implementation Files
+
+- ChartExchange Client: [ultimate_chartexchange_client.py](mdc:core/data/ultimate_chartexchange_client.py)
+- Historical Pipeline: [historical_data_pipeline.py](mdc:core/data/historical_data_pipeline.py)
+- Institutional Engine: [ultra_institutional_engine.py](mdc:core/ultra_institutional_engine.py)
+- DP Filter: [dp_aware_signal_filter.py](mdc:core/filters/dp_aware_signal_filter.py)
+
+---
+
+**KEY INSIGHT:** *"Institutions can't hide forever. Their footprints are in the dark pools, their bets are in the options chain, their desperation is in the borrow fees. Learn to read these signs."*

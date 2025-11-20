@@ -1,0 +1,50 @@
+---
+alwaysApply: true
+description: "Operational doctrine: ship minimal live DP-aware SPY/QQQ signals (RTH), logs only; defer UI/backtests until proven"
+---
+
+# Core Signals Doctrine (No-BS)
+
+Our main priority right now is to GET THE CORE SIGNALS RUNNING—live, DP-aware, and actionable—for SPY and QQQ across full RTH. No extras. No broad code scaffolding. The rest (multi-ticker, exhaustive replay, Streamlit UI, or backtest) is secondary and can be batch-added after we're live and have audit logs on real signals and edge.
+
+## Immediate Marching Orders
+- Pull real SPY/QQQ price/volume + DP/block + options flow (public sources first).
+- Run composite breakouts/reversals with DP filtering (no trades in battlegrounds).
+- Log and output timestamped signal decisions and regime (CSV/JSON).
+- RTH only (09:30–16:00 ET). Ignore pre/post for now.
+- Slack/Telegram alerts not required until daily working logs exist.
+- No new UI or visualization until edge is proven in real markets.
+- If a source is rate-limited/blocked, echo the missed interval and move on—no perfection day one.
+
+## Deliverable (Definition of Done)
+- Minimal live proof-of-signal version that:
+  - Runs continuously during RTH for SPY and QQQ
+  - Produces CSV/JSON logs with timestamps, regime, signal type, levels, confidence
+  - Applies DP-aware filter to avoid institutional magnets
+  - Survives rate limits via backoff/failover and records gaps
+
+## Non-Goals (Defer)
+- Multi-ticker beyond SPY/QQQ
+- Backtests and full replays
+- Streamlit or rich charts
+- Realtime chat/alerts wiring (until logs prove edge)
+
+## Implementation Anchors
+- Signal runner / detection:
+  - [real_breakout_reversal_detector_yahoo_direct.py](mdc:real_breakout_reversal_detector_yahoo_direct.py)
+  - [real_breakout_reversal_detector_with_solver.py](mdc:real_breakout_reversal_detector_with_solver.py)
+- DP-aware filtering:
+  - [dp_aware_signal_filter.py](mdc:dp_aware_signal_filter.py)
+- Data resilience / rate limits:
+  - [production_rate_limit_solver.py](mdc:production_rate_limit_solver.py)
+  - [real_yahoo_finance_api.py](mdc:real_yahoo_finance_api.py)
+
+## Operational Notes
+- Prefer Yahoo Direct; fall back to yfinance; RapidAPI last.
+- Add jittered polling and user-agent rotation; cache minimally to avoid blocks.
+- Log everything needed for audit; no mock data in production.
+
+## Review Gate
+- Provide a same-day CSV/JSON with: caught breakouts, avoided traps (DP battleground), regime calls, and basic P&L fields.
+- Once this is bulletproof, layer on backtests, replay, and interop.
+

@@ -1,0 +1,74 @@
+{
+  "session_date": "2025-10-17",
+  "total_signals": 0,
+  "breakout_signals": 0,
+  "magnet_interactions": 0,
+  "signals": [],
+  "magnet_levels": [
+    {
+      "price": 660.71,
+      "volume": 5206817,
+      "type": "support",
+      "strength": 5.0
+    },
+    {
+      "price": 664.18,
+      "volume": 4079136,
+      "type": "resistance",
+      "strength": 4.079136
+    },
+    {
+      "price": 659.2,
+      "volume": 3136299,
+      "type": "support",
+      "strength": 3.136299
+    },
+    {
+      "price": 664.39,
+      "volume": 1872826,
+      "type": "resistance",
+      "strength": 1.872826
+    },
+    {
+      "price": 659.19,
+      "volume": 1148123,
+      "type": "support",
+      "strength": 1.148123
+    },
+    {
+      "price": 664.19,
+      "volume": 307452,
+      "type": "resistance",
+      "strength": 0.307452
+    },
+    {
+      "price": 659.15,
+      "volume": 131365,
+      "type": "support",
+      "strength": 0.131365
+    },
+    {
+      "price": 664.7,
+      "volume": 123605,
+      "type": "resistance",
+      "strength": 0.123605
+    },
+    {
+      "price": 664.66,
+      "volume": 116507,
+      "type": "resistance",
+      "strength": 0.116507
+    },
+    {
+      "price": 664.62,
+      "volume": 107041,
+      "type": "resistance",
+      "strength": 0.107041
+    }
+  ],
+  "dp_summary": {
+    "total_prints": 100,
+    "total_levels": 100,
+    "large_prints": 3
+  }
+}

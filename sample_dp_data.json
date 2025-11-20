@@ -1,0 +1,370 @@
+{
+  "dark_pool_prints": [
+    {
+      "timestamp": "2025-10-17T09:35:00",
+      "symbol": "SPY",
+      "price": 564.39,
+      "size": 369828,
+      "side": "SELL",
+      "exchange": "DARK_POOL",
+      "venue": "NASDAQ"
+    },
+    {
+      "timestamp": "2025-10-17T09:42:00",
+      "symbol": "SPY",
+      "price": 652.19,
+      "size": 105469,
+      "side": "SELL",
+      "exchange": "DARK_POOL",
+      "venue": "NASDAQ"
+    },
+    {
+      "timestamp": "2025-10-17T09:58:00",
+      "symbol": "SPY",
+      "price": 551.3,
+      "size": 413244,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "IEX"
+    },
+    {
+      "timestamp": "2025-10-17T10:15:00",
+      "symbol": "SPY",
+      "price": 539.61,
+      "size": 153853,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "NASDAQ"
+    },
+    {
+      "timestamp": "2025-10-17T10:33:00",
+      "symbol": "SPY",
+      "price": 506.99,
+      "size": 160182,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "NYSE"
+    },
+    {
+      "timestamp": "2025-10-17T10:47:00",
+      "symbol": "SPY",
+      "price": 653.69,
+      "size": 318733,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "IEX"
+    },
+    {
+      "timestamp": "2025-10-17T11:12:00",
+      "symbol": "SPY",
+      "price": 745.69,
+      "size": 401082,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "IEX"
+    },
+    {
+      "timestamp": "2025-10-17T11:28:00",
+      "symbol": "SPY",
+      "price": 602.46,
+      "size": 260430,
+      "side": "SELL",
+      "exchange": "DARK_POOL",
+      "venue": "IEX"
+    },
+    {
+      "timestamp": "2025-10-17T11:45:00",
+      "symbol": "SPY",
+      "price": 669.92,
+      "size": 461043,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "CBOE"
+    },
+    {
+      "timestamp": "2025-10-17T12:08:00",
+      "symbol": "SPY",
+      "price": 670.8,
+      "size": 191013,
+      "side": "SELL",
+      "exchange": "DARK_POOL",
+      "venue": "NYSE"
+    },
+    {
+      "timestamp": "2025-10-17T12:25:00",
+      "symbol": "SPY",
+      "price": 600.73,
+      "size": 496276,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "NYSE"
+    },
+    {
+      "timestamp": "2025-10-17T12:41:00",
+      "symbol": "SPY",
+      "price": 562.69,
+      "size": 463843,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "IEX"
+    },
+    {
+      "timestamp": "2025-10-17T13:15:00",
+      "symbol": "SPY",
+      "price": 439.17,
+      "size": 499853,
+      "side": "SELL",
+      "exchange": "DARK_POOL",
+      "venue": "NASDAQ"
+    },
+    {
+      "timestamp": "2025-10-17T13:32:00",
+      "symbol": "SPY",
+      "price": 316.08,
+      "size": 269642,
+      "side": "SELL",
+      "exchange": "DARK_POOL",
+      "venue": "IEX"
+    },
+    {
+      "timestamp": "2025-10-17T13:48:00",
+      "symbol": "SPY",
+      "price": 613.18,
+      "size": 74099,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "IEX"
+    },
+    {
+      "timestamp": "2025-10-17T14:05:00",
+      "symbol": "SPY",
+      "price": 683.95,
+      "size": 322925,
+      "side": "SELL",
+      "exchange": "DARK_POOL",
+      "venue": "CBOE"
+    },
+    {
+      "timestamp": "2025-10-17T14:22:00",
+      "symbol": "SPY",
+      "price": 468.21,
+      "size": 206023,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "CBOE"
+    },
+    {
+      "timestamp": "2025-10-17T14:38:00",
+      "symbol": "SPY",
+      "price": 731.01,
+      "size": 170922,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "CBOE"
+    },
+    {
+      "timestamp": "2025-10-17T15:12:00",
+      "symbol": "SPY",
+      "price": 733.71,
+      "size": 360188,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "IEX"
+    },
+    {
+      "timestamp": "2025-10-17T15:28:00",
+      "symbol": "SPY",
+      "price": 296.27,
+      "size": 261616,
+      "side": "SELL",
+      "exchange": "DARK_POOL",
+      "venue": "IEX"
+    },
+    {
+      "timestamp": "2025-10-17T15:45:00",
+      "symbol": "SPY",
+      "price": 519.82,
+      "size": 170656,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "NASDAQ"
+    },
+    {
+      "timestamp": "2025-10-17T15:52:00",
+      "symbol": "SPY",
+      "price": 593.46,
+      "size": 65110,
+      "side": "BUY",
+      "exchange": "DARK_POOL",
+      "venue": "CBOE"
+    }
+  ],
+  "block_trades": [
+    {
+      "timestamp": "2025-10-17T09:45:00",
+      "symbol": "SPY",
+      "price": 601.85,
+      "size": 936950,
+      "side": "SELL",
+      "exchange": "BLOCK_TRADE",
+      "venue": "NYSE"
+    },
+    {
+      "timestamp": "2025-10-17T10:30:00",
+      "symbol": "SPY",
+      "price": 157.68,
+      "size": 323610,
+      "side": "BUY",
+      "exchange": "BLOCK_TRADE",
+      "venue": "NASDAQ"
+    },
+    {
+      "timestamp": "2025-10-17T11:15:00",
+      "symbol": "SPY",
+      "price": 728.93,
+      "size": 410904,
+      "side": "SELL",
+      "exchange": "BLOCK_TRADE",
+      "venue": "NYSE"
+    },
+    {
+      "timestamp": "2025-10-17T12:00:00",
+      "symbol": "SPY",
+      "price": 686.5,
+      "size": 845168,
+      "side": "BUY",
+      "exchange": "BLOCK_TRADE",
+      "venue": "NYSE"
+    },
+    {
+      "timestamp": "2025-10-17T13:30:00",
+      "symbol": "SPY",
+      "price": 218.07,
+      "size": 952476,
+      "side": "SELL",
+      "exchange": "BLOCK_TRADE",
+      "venue": "NASDAQ"
+    },
+    {
+      "timestamp": "2025-10-17T14:15:00",
+      "symbol": "SPY",
+      "price": 746.7,
+      "size": 184986,
+      "side": "BUY",
+      "exchange": "BLOCK_TRADE",
+      "venue": "NASDAQ"
+    },
+    {
+      "timestamp": "2025-10-17T15:30:00",
+      "symbol": "SPY",
+      "price": 103.61,
+      "size": 863441,
+      "side": "BUY",
+      "exchange": "BLOCK_TRADE",
+      "venue": "NASDAQ"
+    }
+  ],
+  "options_flows": [
+    {
+      "timestamp": "2025-10-17T09:40:00",
+      "symbol": "SPY",
+      "strike": 530,
+      "expiry": "2024-10-25",
+      "option_type": "CALL",
+      "price": 1.84,
+      "size": 314,
+      "side": "BUY",
+      "exchange": "OPTIONS_FLOW"
+    },
+    {
+      "timestamp": "2025-10-17T10:20:00",
+      "symbol": "SPY",
+      "strike": 530,
+      "expiry": "2024-10-18",
+      "option_type": "CALL",
+      "price": 2.31,
+      "size": 1502,
+      "side": "BUY",
+      "exchange": "OPTIONS_FLOW"
+    },
+    {
+      "timestamp": "2025-10-17T11:00:00",
+      "symbol": "SPY",
+      "strike": 530,
+      "expiry": "2024-10-25",
+      "option_type": "CALL",
+      "price": 3.14,
+      "size": 3063,
+      "side": "BUY",
+      "exchange": "OPTIONS_FLOW"
+    },
+    {
+      "timestamp": "2025-10-17T11:40:00",
+      "symbol": "SPY",
+      "strike": 525,
+      "expiry": "2024-11-01",
+      "option_type": "CALL",
+      "price": 7.98,
+      "size": 3681,
+      "side": "BUY",
+      "exchange": "OPTIONS_FLOW"
+    },
+    {
+      "timestamp": "2025-10-17T12:20:00",
+      "symbol": "SPY",
+      "strike": 525,
+      "expiry": "2024-10-18",
+      "option_type": "PUT",
+      "price": 6.81,
+      "size": 1228,
+      "side": "BUY",
+      "exchange": "OPTIONS_FLOW"
+    },
+    {
+      "timestamp": "2025-10-17T13:00:00",
+      "symbol": "SPY",
+      "strike": 520,
+      "expiry": "2024-10-18",
+      "option_type": "CALL",
+      "price": 13.86,
+      "size": 558,
+      "side": "BUY",
+      "exchange": "OPTIONS_FLOW"
+    },
+    {
+      "timestamp": "2025-10-17T13:40:00",
+      "symbol": "SPY",
+      "strike": 515,
+      "expiry": "2024-10-18",
+      "option_type": "PUT",
+      "price": 9.29,
+      "size": 4980,
+      "side": "BUY",
+      "exchange": "OPTIONS_FLOW"
+    },
+    {
+      "timestamp": "2025-10-17T14:20:00",
+      "symbol": "SPY",
+      "strike": 515,
+      "expiry": "2024-10-18",
+      "option_type": "PUT",
+      "price": 11.0,
+      "size": 1499,
+      "side": "SELL",
+      "exchange": "OPTIONS_FLOW"
+    },
+    {
+      "timestamp": "2025-10-17T15:00:00",
+      "symbol": "SPY",
+      "strike": 530,
+      "expiry": "2024-10-18",
+      "option_type": "PUT",
+      "price": 4.39,
+      "size": 3443,
+      "side": "SELL",
+      "exchange": "OPTIONS_FLOW"
+    }
+  ],
+  "created_at": "2025-10-17T21:44:55.407795",
+  "symbol": "SPY"
+}

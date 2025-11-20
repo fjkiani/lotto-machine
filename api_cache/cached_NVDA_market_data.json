@@ -1,0 +1,16 @@
+{
+  "ticker": "NVDA",
+  "price": 183.22000122070312,
+  "volume": 170079787,
+  "change": 0.0,
+  "change_percent": 0.0,
+  "high": 184.10000610351562,
+  "low": 179.8000030517578,
+  "options": {
+    "call_volume": 827539,
+    "put_volume": 591166,
+    "put_call_ratio": 0.71436633197952
+  },
+  "source": "yfinance",
+  "timestamp": "2025-10-17T19:27:31.036775"
+}
