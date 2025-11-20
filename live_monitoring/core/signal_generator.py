@@ -196,8 +196,10 @@ class SignalGenerator:
                     try:
                         analysis = self.sentiment_analyzer.fetch_reddit_sentiment(signal.symbol, days=7)
                         if analysis:
+                            # Convert enum to string if needed
+                            action_str = signal.action.value if isinstance(signal.action, SignalAction) else str(signal.action)
                             should_trade, reason = self.sentiment_analyzer.should_trade_based_on_sentiment(
-                                analysis, signal.action
+                                analysis, action_str
                             )
                             if not should_trade:
                                 logger.info(f"   ❌ Sentiment veto for {signal.symbol}: {reason}")
@@ -221,8 +223,10 @@ class SignalGenerator:
                             signal.symbol, current_price
                         )
                         if gamma_data:
+                            # Convert enum to string if needed
+                            action_str = signal.action.value if isinstance(signal.action, SignalAction) else str(signal.action)
                             should_trade, reason = self.gamma_tracker.should_trade_based_on_gamma(
-                                current_price, gamma_data, signal.action
+                                current_price, gamma_data, action_str
                             )
                             if not should_trade:
                                 logger.info(f"   ❌ Gamma veto for {signal.symbol}: {reason}")
