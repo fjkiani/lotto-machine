@@ -28,38 +28,8 @@ from volatility_expansion import VolatilityExpansionDetector
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class LiveSignal:
-    """Simplified signal for live trading"""
-    timestamp: datetime
-    symbol: str
-    action: str  # BUY or SELL
-    signal_type: str  # SQUEEZE, GAMMA, BREAKOUT, BOUNCE
-    
-    # Prices
-    current_price: float
-    entry_price: float
-    stop_loss: float
-    take_profit: float
-    
-    # Metrics
-    confidence: float
-    risk_reward_ratio: float
-    position_size_pct: float  # % of account
-    
-    # Context
-    dp_level: float
-    dp_volume: int
-    institutional_score: float
-    
-    # Reasoning
-    primary_reason: str
-    supporting_factors: List[str]
-    warnings: List[str]
-    
-    # State
-    is_master_signal: bool
-    is_actionable: bool
+# Note: LiveSignal is now imported from lottery_signals.py (new structure)
+# Removed old LiveSignal definition to use new structure
 
 class SignalGenerator:
     """Generate signals from institutional intelligence"""
@@ -737,30 +707,45 @@ class SignalGenerator:
         
         level = nearest_support if signal_type == "BOUNCE" else nearest_resistance
         
+        # Determine signal type enum
+        if signal_type == "BREAKOUT":
+            signal_type_enum = SignalType.BREAKOUT
+        else:
+            signal_type_enum = SignalType.BOUNCE
+        
+        # Build rationale (was 'primary_reason')
+        rationale = (
+            f"INSTITUTIONAL {signal_type}: "
+            f"{context.dp_total_volume:,} DP volume, "
+            f"{context.dp_buy_sell_ratio:.2f} B/S"
+        )
+        
+        supporting_factors = [
+            f"Buying pressure: {context.institutional_buying_pressure:.0%}",
+            f"Dark pool: {context.dark_pool_pct:.0f}%",
+            f"DP level @ ${level:.2f}",
+            f"DP volume: {context.dp_total_volume:,} shares"
+        ]
+        
         return LiveSignal(
-            timestamp=datetime.now(),
             symbol=symbol,
-            action="BUY",
-            signal_type=signal_type,
-            current_price=price,
-            entry_price=price,
-            stop_loss=stop,
-            take_profit=target,
+            action=SignalAction.BUY,  # Was string "BUY"
+            timestamp=datetime.now(),
+            entry_price=price,  # Was 'current_price'
+            target_price=target,  # Was 'take_profit'
+            stop_price=stop,  # Was 'stop_loss'
             confidence=confidence,
-            risk_reward_ratio=(target - price) / (price - stop),
-            position_size_pct=position_pct,
+            signal_type=signal_type_enum,  # Was string
+            rationale=rationale,  # Was 'primary_reason'
             dp_level=level,
             dp_volume=context.dp_total_volume,
             institutional_score=context.institutional_buying_pressure,
-            primary_reason=f"INSTITUTIONAL {signal_type}: {context.dp_total_volume:,} DP volume, {context.dp_buy_sell_ratio:.2f} B/S",
-            supporting_factors=[
-                f"Buying pressure: {context.institutional_buying_pressure:.0%}",
-                f"Dark pool: {context.dark_pool_pct:.0f}%",
-                f"DP level @ ${level:.2f}"
-            ],
+            supporting_factors=supporting_factors,
             warnings=[],
             is_master_signal=context.institutional_buying_pressure >= self.min_master_confidence,
-            is_actionable=True
+            is_actionable=True,
+            position_size_pct=position_pct,
+            risk_reward_ratio=(target - price) / (price - stop) if (price - stop) > 0 else 0
         )
 
     def _create_breakdown_signal(self, symbol: str, price: float,
