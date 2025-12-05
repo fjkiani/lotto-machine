@@ -1,0 +1,100 @@
+# Fed Officials Monitor - MODULAR & DYNAMIC Architecture
+
+## 🎯 Goal
+Replace hardcoded, static Fed monitoring with a **data-driven, learning system**.
+
+## ❌ What Was Wrong (Old System)
+1. **Hardcoded FOMC members list** - Static list, doesn't adapt
+2. **Keyword-based sentiment** - Simple counting, no context understanding
+3. **Hardcoded queries** - Same queries every time, no learning
+4. **Static market impact** - Hardcoded weights, not based on actual moves
+5. **Monolithic file** - 600+ lines, hard to maintain
+
+## ✅ New Architecture (Modular & Dynamic)
+
+### **File Structure:**
+```
+fed_officials/
+├── __init__.py          # Package init
+├── models.py            # Data contracts (FedComment, FedOfficial, etc.)
+├── database.py          # SQLite persistence + pattern learning
+├── query_generator.py   # Dynamic queries (learns what works)
+├── sentiment_analyzer.py # LLM-based sentiment (not keywords!)
+├── official_tracker.py  # Dynamically discovers officials
+├── impact_learner.py    # Learns market impact from actual moves
+└── engine.py            # Main orchestrator
+```
+
+### **Key Features:**
+
+#### **1. Dynamic Official Discovery** (`official_tracker.py`)
+- **NOT hardcoded list!**
+- Discovers officials from news mentions
+- Learns their names, positions, keywords
+- Tracks comment frequency
+- Updates database automatically
+
+#### **2. LLM-Based Sentiment** (`sentiment_analyzer.py`)
+- **NOT keyword matching!**
+- Uses Perplexity LLM to understand context
+- Learns patterns over time
+- Stores successful patterns in database
+- Falls back to keywords only if LLM unavailable
+
+#### **3. Query Learning** (`query_generator.py`)
+- **NOT hardcoded queries!**
+- Tracks which queries find most comments
+- Prioritizes best-performing queries
+- Explores new templates (70% learned, 30% exploration)
+
+#### **4. Market Impact Learning** (`impact_learner.py`)
+- **NOT hardcoded weights!**
+- Tracks actual SPY moves after comments
+- Learns: Official + Sentiment → Actual Market Move
+- Updates predictions based on historical accuracy
+- Example: "Powell DOVISH" → +0.5% SPY (learned from data)
+
+#### **5. Database Learning** (`database.py`)
+- Stores all comments
+- Tracks query performance
+- Learns sentiment patterns
+- Learns market impact patterns
+- Gets smarter over time!
+
+## 📊 Data Flow
+
+```
+1. Query Generator → Generates queries (learned + exploration)
+2. Perplexity → Fetches news
+3. Official Tracker → Discovers officials from mentions
+4. Sentiment Analyzer → LLM analyzes sentiment
+5. Impact Learner → Predicts market impact (learned)
+6. Database → Stores everything for learning
+7. Engine → Orchestrates all components
+```
+
+## 🚀 Benefits
+
+1. **Adapts to new officials** - No code changes needed
+2. **Learns what works** - Queries improve over time
+3. **Understands context** - LLM > keyword matching
+4. **Real market data** - Impact based on actual moves
+5. **Modular** - Each component <200 lines, easy to maintain
+
+## ⏳ Implementation Status
+
+- ✅ `models.py` - Data contracts
+- ✅ `database.py` - SQLite + learning
+- ✅ `query_generator.py` - Dynamic queries
+- ✅ `sentiment_analyzer.py` - LLM-based
+- ⏳ `official_tracker.py` - Dynamic discovery
+- ⏳ `impact_learner.py` - Market impact learning
+- ⏳ `engine.py` - Orchestrator
+
+## 🔄 Migration Plan
+
+1. Keep old `fed_officials_monitor.py` as fallback
+2. Build new modular system
+3. Test side-by-side
+4. Switch over when ready
+5. Remove old code

@@ -74,6 +74,7 @@ class UnifiedAlphaMonitor:
         
         # Alerted events (avoid duplicate alerts)
         self.alerted_events = set()
+        self.seen_fed_comments = set()  # Track sent Fed comments
         
         # Import monitors
         self._init_monitors()
@@ -346,11 +347,24 @@ class UnifiedAlphaMonitor:
             report = self.fed_officials.get_report()
             
             if report.comments:
+                import hashlib
                 for comment in report.comments[:3]:
-                    comment_id = f"{comment.official.name}:{comment.content[:30]}"
-                    if comment_id not in self.seen_trump_news:  # Reusing set for dedup
-                        self.seen_trump_news.add(comment_id)
+                    # Create unique ID from hash of full content + official name
+                    content_hash = hashlib.md5(
+                        f"{comment.official.name}:{comment.content}".encode()
+                    ).hexdigest()[:12]
+                    comment_id = f"{comment.official.name}:{content_hash}"
+                    
+                    # Only alert if we haven't seen this exact comment before
+                    if comment_id not in self.seen_fed_comments:
+                        self.seen_fed_comments.add(comment_id)
                         
+                        # Keep set size manageable (last 100 comments)
+                        if len(self.seen_fed_comments) > 100:
+                            # Remove oldest (convert to list, remove first, convert back)
+                            self.seen_fed_comments = set(list(self.seen_fed_comments)[-100:])
+                        
+                        # Only alert on significant comments
                         if comment.official.name == "Jerome Powell" or comment.confidence >= 0.5:
                             # Alert on significant Fed comments
                             sent_emoji = {"HAWKISH": "🦅", "DOVISH": "🕊️", "NEUTRAL": "➡️"}.get(comment.sentiment, "❓")

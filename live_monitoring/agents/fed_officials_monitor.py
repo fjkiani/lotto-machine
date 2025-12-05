@@ -238,6 +238,7 @@ class FedOfficialsMonitor:
     def __init__(self):
         self.members = {m.name: m for m in FOMC_MEMBERS}
         self.recent_comments: List[FedComment] = []
+        self.seen_comment_hashes = set()  # Track seen comments to prevent duplicates
         
         # Try to load Perplexity for news fetching
         self.perplexity_client = None
@@ -339,12 +340,13 @@ class FedOfficialsMonitor:
             logger.warning("No Perplexity client - using fallback")
             return comments
         
-        # Search for recent Fed comments
+        # Search for recent Fed comments (last 24 hours only!)
+        today = datetime.now().strftime("%B %d, %Y")
         queries = [
-            "What did Federal Reserve officials say about interest rates today?",
-            "Recent comments from Fed Chair Powell on rate cuts or hikes",
-            "FOMC members statements on monetary policy today",
-            "Fed governor speeches about inflation and rates"
+            f"What did Federal Reserve officials say about interest rates today ({today})?",
+            f"Recent comments from Fed Chair Powell on rate cuts or hikes today ({today})",
+            f"FOMC members statements on monetary policy today ({today})",
+            f"Fed governor speeches about inflation and rates in the last 24 hours"
         ]
         
         for query in queries:
@@ -381,9 +383,21 @@ class FedOfficialsMonitor:
                                     dovish_keywords=dove_kw
                                 )
                                 
-                                # Avoid duplicates
-                                if not any(c.official.name == member.name and c.content == context for c in comments):
+                                # Create hash for deduplication
+                                import hashlib
+                                comment_hash = hashlib.md5(
+                                    f"{member.name}:{context}".encode()
+                                ).hexdigest()
+                                
+                                # Avoid duplicates (both in this fetch and across calls)
+                                if comment_hash not in self.seen_comment_hashes:
+                                    self.seen_comment_hashes.add(comment_hash)
                                     comments.append(comment)
+                                    
+                                    # Keep set size manageable (last 200 comments)
+                                    if len(self.seen_comment_hashes) > 200:
+                                        # Remove oldest (convert to list, remove first 100, convert back)
+                                        self.seen_comment_hashes = set(list(self.seen_comment_hashes)[-100:])
                                 break
                 
             except Exception as e:
@@ -561,7 +575,7 @@ class FedOfficialsMonitor:
         print("=" * 80 + "\n")
 
 
-# ============================================================================
+# ======================a======================================================
 # MAIN
 # ============================================================================
 
