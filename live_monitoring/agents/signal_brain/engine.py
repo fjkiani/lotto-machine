@@ -30,17 +30,25 @@ class SignalBrainEngine:
     Main orchestrator for the Signal Synthesis Brain.
     
     Takes raw DP levels → outputs ONE unified synthesis.
+    NOW INTEGRATES WITH DP LEARNING ENGINE! 🧠
     """
     
     # Only alert if confluence changes by this much
     ALERT_THRESHOLD = 10  # 10 point change
     
-    def __init__(self):
+    def __init__(self, dp_learning_engine=None):
+        """
+        Args:
+            dp_learning_engine: Optional DPLearningEngine instance for predictions
+        """
         self.clusterer = ZoneClusterer()
         self.context_enricher = ContextEnricher()
         self.cross_asset_analyzer = CrossAssetAnalyzer()
         self.confluence_scorer = ConfluenceScorer()
         self.synthesizer = SignalSynthesizer()
+        
+        # DP Learning integration
+        self.dp_learning = dp_learning_engine
         
         # State for deduplication
         self._last_synthesis: Optional[SynthesisResult] = None
@@ -107,12 +115,20 @@ class SignalBrainEngine:
         cross_result = self.cross_asset_analyzer.analyze(spy_state, qqq_state)
         logger.info(f"🔗 Cross-Asset: {cross_result['signal'].value} - {cross_result['detail']}")
         
-        # 6. Calculate confluence
+        # 6. Get DP Learning prediction (if engine available)
+        dp_learning_prediction = self._get_learning_prediction(spy_state, context.spy_price)
+        if dp_learning_prediction:
+            prob = dp_learning_prediction.get('bounce_probability', 0.5)
+            conf = dp_learning_prediction.get('confidence', 'MEDIUM')
+            logger.info(f"🧠 DP Learning: {prob:.0%} bounce | {conf}")
+        
+        # 7. Calculate confluence (now includes learning)
         confluence = self.confluence_scorer.calculate(
-            spy_state, qqq_state, context, cross_result
+            spy_state, qqq_state, context, cross_result,
+            dp_learning_prediction=dp_learning_prediction  # NEW: Learning integration
         )
         
-        # 7. Synthesize
+        # 8. Synthesize
         result = self.synthesizer.synthesize(
             spy_state, qqq_state, context, confluence, cross_result
         )
@@ -156,6 +172,58 @@ class SignalBrainEngine:
         state.at_resistance = at_resistance
         
         return state
+    
+    def _get_learning_prediction(
+        self, 
+        spy_state: Optional[SignalState], 
+        current_price: float
+    ) -> Optional[Dict]:
+        """
+        Get prediction from DP Learning Engine for nearest zone.
+        
+        Returns:
+            {
+                'bounce_probability': 0.78,
+                'confidence': 'HIGH',
+                'patterns': ['vol_2m_plus', 'support', 'touch_1'],
+            }
+        """
+        if not self.dp_learning or not spy_state:
+            return None
+        
+        try:
+            # Find nearest zone to get prediction for
+            nearest_zone = None
+            if spy_state.at_support and spy_state.nearest_support:
+                nearest_zone = spy_state.nearest_support
+            elif spy_state.at_resistance and spy_state.nearest_resistance:
+                nearest_zone = spy_state.nearest_resistance
+            elif spy_state.support_zones:
+                nearest_zone = spy_state.support_zones[0]
+            
+            if not nearest_zone:
+                return None
+            
+            # Get prediction from learning engine
+            # The learning engine's predict method expects the level context
+            prediction = self.dp_learning.predict(
+                symbol='SPY',
+                price=nearest_zone.center_price,
+                volume=nearest_zone.combined_volume,
+                level_type=nearest_zone.zone_type,
+                touch_count=1,  # Will be refined with tracking
+            )
+            
+            if prediction:
+                return {
+                    'bounce_probability': prediction.probability,
+                    'confidence': prediction.confidence.value if hasattr(prediction.confidence, 'value') else prediction.confidence,
+                    'patterns': prediction.supporting_patterns,
+                }
+        except Exception as e:
+            logger.debug(f"DP Learning prediction error: {e}")
+        
+        return None
     
     def should_alert(self, result: SynthesisResult) -> bool:
         """

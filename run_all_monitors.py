@@ -164,14 +164,19 @@ class UnifiedAlphaMonitor:
             logger.warning(f"   ⚠️ DP Monitor Engine failed: {e}")
             self.dp_monitor_engine = None
         
-        # Signal Synthesis BRAIN (NEW!)
+        # Signal Synthesis BRAIN (NEW!) - NOW WITH DP LEARNING!
         try:
             from live_monitoring.agents.signal_brain import SignalBrainEngine
-            self.signal_brain = SignalBrainEngine()
+            # Pass DP Learning Engine to Signal Brain for integrated predictions
+            self.signal_brain = SignalBrainEngine(
+                dp_learning_engine=self.dp_learning if self.dp_learning_enabled else None
+            )
             self.brain_enabled = True
             self.last_synthesis_check = None
             self.synthesis_interval = 120  # 2 minutes - synthesize after individual alerts
             logger.info("   ✅ Signal Synthesis Brain initialized (THINKING LAYER)")
+            if self.dp_learning_enabled:
+                logger.info("   🧠 Brain integrated with DP Learning Engine!")
         except Exception as e:
             logger.warning(f"   ⚠️ Signal Brain failed: {e}")
             self.signal_brain = None
