@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-12-04T21:36:30.224980",
+  "symbol": "SPY",
+  "date": "2025-12-04",
+  "macro_narrative": "Realized SPY move on 2025-12-04: closed at $684.39 vs $683.89 (+0.07%), overall UP day.\n\n",
+  "sector_narrative": "",
+  "asset_narrative": "",
+  "cross_asset_narrative": "",
+  "causal_chain": "No clear causal chain (V1 heuristic).",
+  "overall_direction": "NEUTRAL",
+  "conviction": "MEDIUM",
+  "duration": "INTRADAY",
+  "risk_environment": "NEUTRAL",
+  "sources": [],
+  "uncertainties": [],
+  "institutional_reality": {
+    "summary": "No strong institutional flow pattern detected (V1 heuristic)."
+  },
+  "mainstream_narrative": {
+    "summary": "Realized SPY move on 2025-12-04: closed at $684.39 vs $683.89 (+0.07%), overall UP day.\n\n"
+  },
+  "divergences": []
+}

@@ -161,4 +161,20 @@ class DiscordAlerter:
             requests.post(self.webhook_url, json=payload, timeout=10)
         except Exception as e:
             print(f"❌ Error sending to Discord: {e}")
+    
+    def send_embed(self, embed: dict):
+        """Send a raw embed to Discord."""
+        if not self.enabled:
+            return False
+        
+        try:
+            payload = {
+                "username": self.username,
+                "embeds": [embed]
+            }
+            response = requests.post(self.webhook_url, json=payload, timeout=10)
+            return response.status_code == 204
+        except Exception as e:
+            print(f"❌ Error sending embed to Discord: {e}")
+            return False
 

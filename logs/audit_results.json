@@ -1,0 +1,72 @@
+{
+  "1. Environment & Configuration": {
+    "status": "\u2705 PASS",
+    "error": null,
+    "details": "{'python_version': '3.9.6 (default, Feb  3 2024, 15:58:27) \\n[Clang 15.0.0 (clang-1500.3.9.4)]', 'env_file_exists': True, 'directories': {'live_monitoring': True, 'live_monitoring/core': True, 'live_monitoring/enrichment': True, 'live_monitoring/alerting': True, 'live_monitoring/trading': True, 'core': True, 'core/data': True, 'configs': True}, 'logs_dir_exists': True}"
+  },
+  "2. ChartExchange API Client": {
+    "status": "\u2705 PASS",
+    "error": null,
+    "details": "{'api_key_configured': True, 'tier': 3, 'api_key_length': 32, 'client_instantiated': True, 'api_call_success': True, 'dp_levels_count': 436}"
+  },
+  "3. Signal Generator": {
+    "status": "\u2705 PASS",
+    "error": null,
+    "details": "{'import_success': True, 'instantiated': True, 'methods': {'generate_signals': True, '_calculate_confidence_score': True, '_apply_narrative_enrichment': True}}"
+  },
+  "4. Institutional Engine": {
+    "status": "\u2705 PASS",
+    "error": null,
+    "details": "{'import_success': True, 'instantiated': True, 'methods': {'build_context': False, 'analyze_dark_pool': False, 'analyze_short_data': False}}"
+  },
+  "5. Data Fetcher": {
+    "status": "\u274c FAIL",
+    "error": "'DataFetcher' object has no attribute 'fetch_price'",
+    "details": null
+  },
+  "6. Narrative Enrichment Pipeline": {
+    "status": "\u2705 PASS",
+    "error": null,
+    "details": "{'components': {'market_narrative_pipeline': {'import_success': True, 'class_found': False}, 'narrative_agent': {'import_success': True, 'class_found': True}, 'narrative_logger': {'import_success': True, 'class_found': True}, 'narrative_validation': {'import_success': True, 'class_found': True}, 'institutional_narrative': {'import_success': True, 'class_found': True}, 'crypto_correlation': {'import_success': True, 'class_found': True}}, 'api_components': {'perplexity_search': {'import_success': "
+  },
+  "7. Risk Manager": {
+    "status": "\u274c FAIL",
+    "error": "__init__() got an unexpected keyword argument 'account_value'",
+    "details": null
+  },
+  "8. Price Action Filter": {
+    "status": "\u2705 PASS",
+    "error": null,
+    "details": "{'import_success': True, 'instantiated': True, 'methods': {'confirm_signal': True, '_check_price_proximity': False, '_check_volume_spike': False}}"
+  },
+  "9. Alerting System": {
+    "status": "\u2705 PASS",
+    "error": null,
+    "details": "{'components': {'alert_router': {'import_success': True, 'class_found': True}, 'console_alerter': {'import_success': True, 'class_found': True}, 'csv_logger': {'import_success': True, 'class_found': True}, 'slack_alerter': {'import_success': True, 'class_found': True}}}"
+  },
+  "10. Paper Trading": {
+    "status": "\u2705 PASS",
+    "error": null,
+    "details": "{'import_success': False, 'import_error': \"No module named 'live_monitoring.trading.position_manager'\"}"
+  },
+  "11. Lotto Machine Imports": {
+    "status": "\u2705 PASS",
+    "error": null,
+    "details": "{'imports': {'SignalGenerator': True, 'DataFetcher': True, 'RiskManager': True, 'PriceActionFilter': True, 'AlertRouter': True, 'UltraInstitutionalEngine': True}, 'all_imports_ok': True}"
+  },
+  "12. Replay System": {
+    "status": "\u2705 PASS",
+    "error": null,
+    "details": "{'replay_file_exists': True, 'syntax_valid': True, 'data_dirs': {'data/historical': True, 'data/historical/institutional_contexts': True}}"
+  },
+  "13. YFinance Integration": {
+    "status": "\u2705 PASS",
+    "error": null,
+    "details": "{'import_success': True, 'data_fetched': True, 'last_close': np.float64(684.3900146484375)}"
+  },
+  "14. Gemini API": {
+    "status": "\u2705 PASS",
+    "error": null,
+    "details": "{'api_key_found': True, 'api_working': False, 'error': '404 models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.'}"
+  }
+}

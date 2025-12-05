@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-12-04T21:36:30.074227",
+  "symbol": "SPY",
+  "source": "chartexchange",
+  "date": "2025-12-04",
+  "dark_pool": {
+    "pct": 34.84214976509275,
+    "volume": 21551333
+  },
+  "lit_exchange": {
+    "pct": 65.15785023490724,
+    "volume": 40302867
+  },
+  "max_pain": null,
+  "current_price": 684.3900146484375,
+  "pct_change": 0.07311117128344555,
+  "crypto_correlation": "NEUTRAL",
+  "crypto_regime": "NEUTRAL",
+  "has_dp_data": true
+}

@@ -1,15 +1,16 @@
 services:
   - type: web
-    name: alpha-signal-monitor
+    name: alpha-intelligence-monitor
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python3 run_production_monitor_web.py
+    startCommand: python3 run_all_monitors.py --web
     envVars:
       - key: DISCORD_WEBHOOK_URL
         sync: false  # Set this in Render dashboard
       - key: CHARTEXCHANGE_API_KEY
         sync: false  # Set this in Render dashboard
+      - key: PERPLEXITY_API_KEY
+        sync: false  # Set this in Render dashboard
       - key: PYTHON_VERSION
         value: 3.9
     plan: free  # FREE tier - Web Service is free!
-

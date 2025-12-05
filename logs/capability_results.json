@@ -1,0 +1,57 @@
+{
+  "dark_pool_intelligence": {
+    "status": "WORKING",
+    "edge": "Institutional positioning visibility",
+    "battlegrounds": 3,
+    "battleground_levels": [
+      681.6,
+      683.34,
+      683.89
+    ],
+    "dp_volume": 20167181,
+    "buy_sell_ratio": 1.5,
+    "dark_pool_pct": 35.23359452117019,
+    "avg_print_size": 18.254
+  },
+  "signal_generation": {
+    "status": "WORKING",
+    "edge": "Multi-factor signal filtering",
+    "signals_generated": 0,
+    "master_signals": 0
+  },
+  "volume_profile": {
+    "status": "PARTIAL"
+  },
+  "stock_screener": {
+    "status": "WORKING",
+    "edge": "Ticker discovery",
+    "tickers_found": 9
+  },
+  "gamma_exposure": {
+    "status": "PARTIAL"
+  },
+  "volatility_expansion": {
+    "status": "WORKING",
+    "edge": "Pre-move detection",
+    "lottery_potential": "LOW"
+  },
+  "zero_dte_strategy": {
+    "status": "WORKING",
+    "edge": "Options leverage for lottery plays",
+    "is_valid": false,
+    "has_strike": false
+  },
+  "narrative_enrichment": {
+    "status": "PARTIAL"
+  },
+  "price_action_filter": {
+    "status": "WORKING",
+    "edge": "Real-time confirmation",
+    "confirmed": true
+  },
+  "risk_manager": {
+    "status": "WORKING",
+    "edge": "Capital preservation",
+    "max_positions": 5
+  }
+}

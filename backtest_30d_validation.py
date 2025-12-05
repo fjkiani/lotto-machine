@@ -35,7 +35,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'live_monitoring/config'
 sys.path.append(os.path.join(os.path.dirname(__file__), 'configs'))
 
 try:
-    from ultra_institutional_engine import InstitutionalContext
+from ultra_institutional_engine import InstitutionalContext
 except ImportError:
     InstitutionalContext = None
     logger.warning("UltraInstitutionalEngine not found - using dict for context")
@@ -197,8 +197,8 @@ class BacktestEngine:
                         saved_data = pickle.load(f)
                         context = saved_data.get('context') if isinstance(saved_data, dict) else saved_data
                         if context:
-                            data.append((current_date, context))
-                            logger.debug(f"Loaded {symbol} {date_str}")
+                        data.append((current_date, context))
+                        logger.debug(f"Loaded {symbol} {date_str}")
                 except Exception as e:
                     logger.warning(f"Failed to load {file_path}: {e}")
             
@@ -277,12 +277,12 @@ class BacktestEngine:
                 # Simple check: did price move toward target or stop?
                 if action == "BUY":
                     if daily_price >= target:
-                        exit_price = target
-                        exit_reason = "HIT_TARGET"
+            exit_price = target
+            exit_reason = "HIT_TARGET"
                     elif daily_price <= stop:
                         exit_price = stop
                         exit_reason = "HIT_STOP"
-                    else:
+        else:
                         # EOD - use closing price
                         exit_price = daily_price
                         exit_reason = "END_OF_DAY"
@@ -291,8 +291,8 @@ class BacktestEngine:
                         exit_price = target
                         exit_reason = "HIT_TARGET"
                     elif daily_price >= stop:
-                        exit_price = stop
-                        exit_reason = "HIT_STOP"
+            exit_price = stop
+            exit_reason = "HIT_STOP"
                     else:
                         exit_price = daily_price
                         exit_reason = "END_OF_DAY"
@@ -409,19 +409,19 @@ class BacktestEngine:
                 intraday_data = self.get_intraday_prices(signal.symbol, timestamp)
                 
                 trade = self.simulate_trade(signal, timestamp, intraday_data)
-                if trade:
-                    self.results.all_trades.append(trade)
-                    
-                    if trade.pnl > 0:
-                        self.results.winning_trades += 1
-                    elif trade.pnl < 0:
-                        self.results.losing_trades += 1
-                    else:
-                        self.results.breakeven_trades += 1
-                    
-                    self.results.total_pnl += trade.pnl
-                    self.results.total_pnl_pct += trade.pnl_pct
-                    self.results.total_trades += 1
+            if trade:
+                self.results.all_trades.append(trade)
+                
+                if trade.pnl > 0:
+                    self.results.winning_trades += 1
+                elif trade.pnl < 0:
+                    self.results.losing_trades += 1
+                else:
+                    self.results.breakeven_trades += 1
+                
+                self.results.total_pnl += trade.pnl
+                self.results.total_pnl_pct += trade.pnl_pct
+                self.results.total_trades += 1
                     
                     logger.debug(f"  Trade: {signal.signal_type} {signal.action} @ ${signal.entry_price:.2f} → ${trade.exit_price:.2f} ({trade.exit_reason}) P&L: ${trade.pnl:.2f}")
             except Exception as e:

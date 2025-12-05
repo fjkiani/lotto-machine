@@ -1,0 +1,492 @@
+# 🎯 AGENT DEPLOYMENT PLAN: One-Button Lotto Machine
+**Status:** READY FOR IMPLEMENTATION  
+**Duration:** 4-6 weeks  
+**Current Phase:** Infrastructure Setup  
+
+---
+
+## 📋 EXECUTIVE SUMMARY
+
+**What We Have:**
+- ✅ 2,900+ lines of production code (SignalGenerator, UltraInstitutionalEngine, ChartExchange client)
+- ✅ Complete data infrastructure (Alpha Vantage, ChartExchange Tier 3)
+- ✅ Working signal generation (squeeze, gamma, DP breakout/bounce, selloff detection)
+- ✅ Narrative enrichment pipeline
+- ✅ Replay and backtest tooling
+
+**What We Need:**
+- 🔄 **Modularize** into discrete agent modules
+- 🔄 **Orchestrate** agents to work together
+- 🔄 **Test** and validate edge
+- 🔄 **Deploy** with user-facing commands
+
+**End Goal:**  
+User types `/lotto SPY` → 15-25 seconds later → "BUY SPY @ $660.50, Stop $658.00, Target $665.00, Confidence 87%" + full narrative
+
+---
+
+## 🏗️ IMPLEMENTATION PHASES
+
+### **PHASE 1: MODULARIZATION (Week 1-2)**
+**Goal:** Break existing monolithic code into agent modules
+
+#### **Deliverables:**
+```
+agents/
+├── data_providers/
+│   ├── market_data_agent.py        ← Extract from AlphaVantageClient
+│   ├── institutional_flow_agent.py ← Extract from UltraInstitutionalEngine
+│   ├── macro_event_agent.py        ← Extract from EventLoader
+│   ├── sentiment_agent.py          ← Already exists (RedditSentimentAnalyzer)
+│   └── cross_asset_agent.py        ← Extract from CryptoCorrelationDetector
+│
+├── context/
+│   └── context_builder_agent.py    ← UltraInstitutionalEngine wrapper
+│
+├── analysis/
+│   ├── liquidity_agent.py          ← NEW: ChartExchange intraday volume
+│   ├── dp_filter_agent.py          ← Refactor dp_aware_signal_filter
+│   ├── signal_agent.py             ← Refactor SignalGenerator
+│   ├── narrative_agent.py          ← Wrap market_narrative_pipeline
+│   └── validation_agent.py         ← NEW: Cross-checks
+│
+├── decision/
+│   └── synthesis_agent.py          ← NEW: Combines all outputs
+│
+└── orchestrator/
+    └── lotto_orchestrator.py       ← NEW: Main coordinator
+```
+
+#### **Tasks:**
+1. **Create folder structure**
+   ```bash
+   mkdir -p agents/{data_providers,context,analysis,decision,orchestrator}
+   touch agents/__init__.py
+   ```
+
+2. **Extract Market Data Agent**
+   - **Input:** Symbol, date
+   - **Output:** `MarketDataOutput` (price, OHLCV bars, volume profile)
+   - **Source:** Wrap `AlphaVantageClient`
+   - **File:** `agents/data_providers/market_data_agent.py`
+
+3. **Extract Institutional Flow Agent**
+   - **Input:** Symbol, date
+   - **Output:** `InstitutionalFlowOutput` (DP levels/prints, short, options, gamma)
+   - **Source:** Wrap `UltimateChartExchangeClient` calls
+   - **File:** `agents/data_providers/institutional_flow_agent.py`
+
+4. **Create Context Builder Agent**
+   - **Input:** All Layer 1 agent outputs
+   - **Output:** `InstitutionalContext`
+   - **Source:** `UltraInstitutionalEngine.build_institutional_context()`
+   - **File:** `agents/context/context_builder_agent.py`
+
+5. **Refactor Signal Agent**
+   - **Input:** `InstitutionalContext`, minute bars, account value
+   - **Output:** `List[LiveSignal | LotterySignal]`
+   - **Source:** `live_monitoring/core/signal_generator.py`
+   - **File:** `agents/analysis/signal_agent.py`
+
+6. **Create NEW Liquidity Agent**
+   - **Input:** Symbol, current time
+   - **Output:** `LiquidityRegimeOutput` (trade now? Yes/No + reason)
+   - **Source:** ChartExchange `/data/stocks/exchange-volume-intraday/`
+   - **File:** `agents/analysis/liquidity_agent.py`
+
+---
+
+### **PHASE 2: ORCHESTRATION (Week 2-3)**
+**Goal:** Wire agents together with async execution
+
+#### **Deliverables:**
+```python
+# agents/orchestrator/lotto_orchestrator.py
+
+class LottoOrchestrator:
+    async def run_lotto(self, symbol: str) -> TradeRecommendation:
+        # Layer 1: Data (parallel)
+        market_data, inst_flow, macro, sentiment, cross_asset = await asyncio.gather(
+            market_data_agent.fetch(symbol),
+            inst_flow_agent.fetch(symbol),
+            macro_agent.fetch(symbol),
+            sentiment_agent.fetch(symbol),
+            cross_asset_agent.fetch(symbol)
+        )
+        
+        # Layer 2: Context (sequential)
+        context = context_builder_agent.build(inst_flow, market_data)
+        
+        # Layer 3: Analysis (parallel)
+        liquidity, dp_filter, signals, narrative, validation = await asyncio.gather(
+            liquidity_agent.analyze(context),
+            dp_filter_agent.analyze(context, market_data),
+            signal_agent.analyze(context, market_data),
+            narrative_agent.analyze(context, macro, sentiment, cross_asset),
+            validation_agent.analyze(context)
+        )
+        
+        # Layer 4: Synthesis (sequential)
+        recommendation = synthesis_agent.decide(context, liquidity, dp_filter, signals, narrative, validation)
+        
+        return recommendation
+```
+
+#### **Tasks:**
+1. **Define data contracts** (all `@dataclass` structures from feedback.mdc)
+2. **Implement agent message passing** (`AgentMessage` wrapper)
+3. **Build orchestrator** with async/await
+4. **Add error handling** (graceful degradation)
+5. **Add caching** (narrative per day, context per symbol/date)
+
+---
+
+### **PHASE 3: USER INTERFACE (Week 3-4)**
+**Goal:** Build user-facing command handlers
+
+#### **Deliverables:**
+```python
+# user_commands.py
+
+@command("lotto")
+async def hit_the_lotto(symbol: str):
+    """Run full lotto machine"""
+    orchestrator = LottoOrchestrator()
+    recommendation = await orchestrator.run_lotto(symbol)
+    ui_agent.display(recommendation)
+
+@command("narrative")
+async def explain_today(symbol: str):
+    """Get narrative only"""
+    narrative = narrative_agent.analyze_standalone(symbol)
+    ui_agent.display_narrative(narrative)
+
+@command("replay")
+async def replay_day(symbol: str, date: str):
+    """Replay historical day"""
+    replay_agent.run(symbol, date)
+
+@command("dp")
+async def check_dp_status(symbol: str):
+    """Check dark pool status"""
+    dp_agent = DPFilterAgent()
+    status = dp_agent.get_status(symbol)
+    ui_agent.display_dp_status(status)
+```
+
+#### **Tasks:**
+1. **Build CLI interface** (argparse or Click)
+2. **Build Discord bot** (discord.py)
+3. **Build Slack integration** (slack-sdk)
+4. **Build web UI** (Streamlit or FastAPI + React)
+5. **Add progress indicators** (real-time status updates)
+
+---
+
+### **PHASE 4: TESTING & VALIDATION (Week 4-5)**
+**Goal:** Prove edge exists
+
+#### **Tasks:**
+
+**4.1 Unit Tests**
+```bash
+# Create test suite
+mkdir -p tests/agents
+pytest tests/ --cov=agents --cov-report=html
+```
+
+**4.2 Integration Tests**
+```python
+# Test full orchestration
+async def test_full_lotto_run():
+    result = await LottoOrchestrator().run_lotto("SPY")
+    assert result.action in ["BUY", "SELL", "WAIT"]
+    assert result.confidence >= 0.60
+```
+
+**4.3 Historical Backtesting**
+```bash
+# Populate 30 days of data
+python agents/scripts/populate_historical.py --symbols SPY QQQ --days 30
+
+# Run backtest
+python agents/scripts/backtest_validation.py --days 30 --min-confidence 0.75
+
+# Expected output:
+# ✅ Win rate: 62% (target: >60%)
+# ✅ Avg R/R: 2.3:1 (target: >2.0:1)
+# ✅ Max DD: 8.2% (target: <10%)
+# ✅ Sharpe: 1.8 (target: >1.5)
+```
+
+**4.4 Live Replay Testing**
+```bash
+# Replay last 5 trading days
+python agents/scripts/replay_multi_day.py --start 2025-11-18 --end 2025-11-22
+
+# Check signal quality
+# - How many signals fired?
+# - What was hit rate?
+# - Did DP filter work?
+# - Did narrative align?
+```
+
+---
+
+### **PHASE 5: PRODUCTION DEPLOYMENT (Week 5-6)**
+**Goal:** Deploy with monitoring
+
+#### **Tasks:**
+
+**5.1 Production Orchestrator**
+```python
+# agents/orchestrator/production_orchestrator.py
+
+class ProductionOrchestrator(LottoOrchestrator):
+    def __init__(self):
+        super().__init__()
+        self.metrics = PrometheusMetrics()
+        self.alerting = PagerDuty()
+        self.db = PostgreSQL()
+    
+    async def run_lotto_with_monitoring(self, symbol: str):
+        with self.metrics.timer('lotto_execution'):
+            try:
+                result = await self.run_lotto(symbol)
+                self.db.save_recommendation(result)
+                return result
+            except Exception as e:
+                self.alerting.alert(f"Lotto failed for {symbol}: {e}")
+                raise
+```
+
+**5.2 Monitoring Dashboard**
+- Grafana + Prometheus for metrics
+- Track: latency, success rate, confidence distribution, P&L
+- Alerts: API failures, low confidence runs, execution errors
+
+**5.3 Continuous Backtesting**
+```bash
+# Cron job: Run daily at 5pm ET
+0 17 * * 1-5 python agents/scripts/daily_backtest.py
+```
+
+---
+
+## 🚀 COMMANDS TO START
+
+### **For Agent 1: Modularization**
+```bash
+# Command: Create folder structure and extract Market Data Agent
+mkdir -p agents/{data_providers,context,analysis,decision,orchestrator}
+touch agents/__init__.py
+
+# Extract Market Data Agent from AlphaVantageClient
+# TODO: Create agents/data_providers/market_data_agent.py
+# - Wrap AlphaVantageClient
+# - Implement fetch() method
+# - Return MarketDataOutput dataclass
+```
+
+### **For Agent 2: Context Builder**
+```bash
+# Command: Create Context Builder Agent
+# TODO: Create agents/context/context_builder_agent.py
+# - Import UltraInstitutionalEngine
+# - Wrap build_institutional_context()
+# - Add error handling
+# - Return InstitutionalContext
+```
+
+### **For Agent 3: NEW Liquidity Agent**
+```bash
+# Command: Create Liquidity Agent from scratch
+# TODO: Create agents/analysis/liquidity_agent.py
+# - Call ChartExchange /data/stocks/exchange-volume-intraday/
+# - Calculate 30-min lit/off-exchange percentages
+# - Determine liquidity regime (THIN/NORMAL/HEAVY)
+# - Return LiquidityRegimeOutput
+```
+
+### **For Agent 4: Signal Agent Refactor**
+```bash
+# Command: Refactor SignalGenerator into Signal Agent
+# TODO: Create agents/analysis/signal_agent.py
+# - Copy logic from live_monitoring/core/signal_generator.py
+# - Simplify interface to analyze(context, bars, account_value)
+# - Return SignalOutput (list of signals + best signal)
+# - Remove narrative/sentiment logic (move to separate agents)
+```
+
+### **For Agent 5: Orchestrator**
+```bash
+# Command: Create Orchestrator
+# TODO: Create agents/orchestrator/lotto_orchestrator.py
+# - Implement 5-layer async execution
+# - Add agent message passing protocol
+# - Add caching for narrative/context
+# - Add error handling and fallbacks
+```
+
+---
+
+## 📊 SUCCESS CRITERIA
+
+### **Phase 1 Complete:**
+- [ ] All agent modules created
+- [ ] All agents have unit tests
+- [ ] Agents can run independently
+
+### **Phase 2 Complete:**
+- [ ] Orchestrator runs end-to-end
+- [ ] All 5 layers execute correctly
+- [ ] Latency <25 seconds
+
+### **Phase 3 Complete:**
+- [ ] CLI works: `/lotto SPY` returns recommendation
+- [ ] Discord bot works
+- [ ] Web UI displays results
+
+### **Phase 4 Complete:**
+- [ ] Backtest passes all criteria (60%+ win rate, 2:1 R/R, <10% DD, >1.5 Sharpe)
+- [ ] Replay shows valid signals on historical days
+- [ ] No critical bugs found
+
+### **Phase 5 Complete:**
+- [ ] Production orchestrator deployed
+- [ ] Monitoring dashboard live
+- [ ] Daily backtest cron running
+- [ ] User can run `/lotto SPY` in production
+
+---
+
+## ⚠️ CRITICAL DECISIONS
+
+### **Keep or Modularize feedback.mdc?**
+
+**Option A: Keep as Reference (RECOMMENDED)**
+- Pros: Complete data source reference, agent guidelines, implementation roadmap
+- Cons: 1,300 lines is long
+- Action: Keep but add clear section markers for agents to navigate
+
+**Option B: Split into Multiple Files**
+```
+.cursor/rules/
+├── data_sources.mdc          # Tier 1-5 data descriptions
+├── agent_contracts.mdc       # All dataclass definitions
+├── agent_guidelines.mdc      # Agent responsibilities and rules
+└── implementation_roadmap.mdc # Week-by-week plan
+```
+- Pros: Easier to navigate, agents can read specific sections
+- Cons: More files to maintain, cross-references needed
+
+**DECISION:** Option A - Keep as single file, add section markers
+
+---
+
+## 🎯 NEXT IMMEDIATE ACTIONS (NOW)
+
+### **Action 1: Create Folder Structure**
+```bash
+cd /Users/fahadkiani/Desktop/development/nyu-hackathon/ai-hedge-fund-main
+mkdir -p agents/{data_providers,context,analysis,decision,orchestrator}
+touch agents/__init__.py
+touch agents/data_providers/__init__.py
+touch agents/context/__init__.py
+touch agents/analysis/__init__.py
+touch agents/decision/__init__.py
+touch agents/orchestrator/__init__.py
+```
+
+### **Action 2: Define Data Contracts**
+```bash
+# Create shared contracts file
+cat > agents/contracts.py << 'EOF'
+from dataclasses import dataclass
+from typing import List, Optional
+from datetime import datetime
+import pandas as pd
+
+@dataclass
+class MarketDataOutput:
+    symbol: str
+    current_price: float
+    minute_bars: pd.DataFrame
+    daily_bars: pd.DataFrame
+    volume_profile: dict
+    timestamp: datetime
+
+@dataclass
+class InstitutionalFlowOutput:
+    symbol: str
+    date: str
+    dp_levels: List[dict]
+    dp_prints: List[dict]
+    dark_pool_pct: float
+    dp_buy_sell_ratio: float
+    short_volume_pct: float
+    short_interest: Optional[int]
+    borrow_fee_rate: float
+    max_pain: Optional[float]
+    put_call_ratio: float
+    total_option_oi: int
+    gamma_exposure: dict
+
+# ... (add remaining contracts from feedback.mdc)
+EOF
+```
+
+### **Action 3: Extract First Agent (Market Data)**
+```bash
+# Start with simplest agent
+python -c "
+# TODO: Create agents/data_providers/market_data_agent.py
+# See implementation in feedback.mdc Layer 1, Agent 1
+"
+```
+
+---
+
+## 📝 AGENT ASSIGNMENT TEMPLATE
+
+**For each new agent to implement:**
+
+```markdown
+## Agent: [NAME]
+
+**File:** `agents/[layer]/[name]_agent.py`
+
+**Responsibility:** [One sentence]
+
+**Inputs:**
+- param1: type (description)
+- param2: type (description)
+
+**Outputs:**
+- `[OutputContract]` dataclass
+
+**Dependencies:**
+- External: [API or library]
+- Internal: [Other agents]
+
+**Error Handling:**
+- If [error condition]: [fallback action]
+
+**Tests:**
+- Unit test: `tests/agents/test_[name]_agent.py`
+- Integration test: Verify output format
+
+**Acceptance Criteria:**
+- [ ] Agent can run standalone
+- [ ] Output matches contract
+- [ ] Handles errors gracefully
+- [ ] Has unit tests
+```
+
+---
+
+**STATUS: READY TO DEPLOY AGENTS**  
+**Command to start:** Create folder structure (Action 1 above)  
+**Estimated completion:** 4-6 weeks with 2-3 agents working in parallel  
+
+🚀💰🎯

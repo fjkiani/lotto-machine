@@ -1,2 +1,1 @@
-web: python3 run_production_monitor_web.py
-
+web: python3 run_all_monitors.py --web

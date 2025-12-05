@@ -1,0 +1,63 @@
+{
+  "date": "2025-11-20",
+  "macro_events": [
+    {
+      "name": "Unemployment Rate",
+      "time": "13:30",
+      "actual": "4.4%",
+      "forecast": "4.3%",
+      "previous": "4.3%",
+      "impact": "high",
+      "surprise_sigma": 0.23,
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "name": "Average Hourly Earnings MoM",
+      "time": "13:30",
+      "actual": "0.2%",
+      "forecast": "0.2%",
+      "previous": "0.3%",
+      "impact": "high",
+      "surprise_sigma": 0.0,
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "name": "Nonfarm Payrolls",
+      "time": "13:30",
+      "actual": "119.0k",
+      "forecast": "50.0k",
+      "previous": "22.0k",
+      "impact": "high",
+      "surprise_sigma": 3.0,
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "name": "Initial Jobless Claims",
+      "time": "13:30",
+      "actual": "220.0k",
+      "forecast": "262.0k",
+      "previous": "228.0k",
+      "impact": "high",
+      "surprise_sigma": -1.0,
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "name": "Existing Home Sales",
+      "time": "15:00",
+      "actual": "4.1M",
+      "forecast": "4.1M",
+      "previous": "4.06M",
+      "impact": "high",
+      "surprise_sigma": 0.0,
+      "country": "US",
+      "currency": "USD"
+    }
+  ],
+  "earnings": [],
+  "opex": false,
+  "has_events": true
+}

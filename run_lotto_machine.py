@@ -291,8 +291,8 @@ class LottoMachine:
                     continue
                 
                 # Update stop loss using risk manager (ATR-based)
-                if signal.signal_type in ['BOUNCE', 'BREAKOUT']:
-                    signal.stop_loss = self.risk_manager.calculate_stop_loss(
+                if str(signal.signal_type) in ['SignalType.BOUNCE', 'SignalType.BREAKOUT', 'BOUNCE', 'BREAKOUT']:
+                    signal.stop_price = self.risk_manager.calculate_stop_loss(
                         signal.entry_price,
                         signal.dp_level,
                         signal.symbol
@@ -348,15 +348,18 @@ class LottoMachine:
             logger.info(f"   📊 Execution costs: Slippage ${slippage_cost:.2f}, Commission ${commission:.2f}")
             logger.info(f"   📊 Adjusted entry: ${adjusted_entry:.2f} (slippage: ${slippage_per_share:.3f}/share)")
             
+            # Normalize action to string for broker side
+            side = signal.action.value.lower() if hasattr(signal.action, "value") else str(signal.action).lower()
+
             # Submit order with adjusted price
             order = self.trader.submit_order(
                 symbol=signal.symbol,
-                side=signal.action.lower(),
+                side=side,
                 qty=shares,
                 order_type='limit',
                 limit_price=adjusted_entry,
-                stop_loss=signal.stop_loss,
-                take_profit=signal.take_profit
+                stop_loss=getattr(signal, "stop_price", None),
+                take_profit=getattr(signal, "target_price", None),
             )
             
             if order:
@@ -366,9 +369,9 @@ class LottoMachine:
                 position = Position(
                     symbol=signal.symbol,
                     entry_price=adjusted_entry,
-                    stop_loss=signal.stop_loss,
+                    stop_loss=getattr(signal, "stop_price", 0.0),
                     position_size_pct=signal.position_size_pct,
-                    signal_type=signal.signal_type,
+                    signal_type=str(signal.signal_type),
                     opened_at=datetime.now()
                 )
                 self.risk_manager.add_position(position)

@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-11-21T15:22:51.617320",
+  "symbol": "SPY",
+  "date": "2025-11-21",
+  "macro_narrative": "",
+  "sector_narrative": "",
+  "asset_narrative": "",
+  "cross_asset_narrative": "",
+  "causal_chain": "No clear causal chain (V1 heuristic).",
+  "overall_direction": "UNKNOWN",
+  "conviction": "MEDIUM",
+  "duration": "INTRADAY",
+  "risk_environment": "NEUTRAL",
+  "sources": [],
+  "uncertainties": [
+    "VALIDATION ERROR: Too Many Requests. Rate limited. Try after a while.",
+    "OVERRIDE: PRICE_VERIFICATION_OVERRIDE - Too Many Requests. Rate limited. Try after a while."
+  ],
+  "institutional_reality": {
+    "summary": "No strong institutional flow pattern detected (V1 heuristic)."
+  },
+  "mainstream_narrative": {
+    "summary": ""
+  },
+  "divergences": []
+}

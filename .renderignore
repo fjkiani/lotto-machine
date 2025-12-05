@@ -1,4 +1,7 @@
 # Ignore files for Render deployment
+# Only deploy what's needed for production monitor
+
+# Virtual environments
 venv/
 __pycache__/
 *.pyc
@@ -10,6 +13,8 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# Environment & secrets
 .env
 .env.local
 *.log
@@ -17,15 +22,51 @@ logs/
 cache/
 *.db
 *.sqlite
+configs/chartexchange_config.py  # Contains API keys
+
+# IDE & OS
 .DS_Store
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# Media files
 *.png
 *.jpg
 *.jpeg
 *.gif
 *.pdf
+
+# Node modules (if any)
 node_modules/
+
+# Git
 .git/
 .gitignore
+
+# NOT NEEDED FOR PRODUCTION MONITOR:
+# Old Streamlit app and agents (2.3MB)
+src/
+tests/
+docs/
+.cursor/
+.specstory/
+
+# Documentation files (not needed for runtime)
+*.md
+!README.md
+!requirements.txt
+!Procfile
+!render.yaml
+
+# Test files
+test_*.py
+*_test.py
+validate_*.py
+demo_*.py
+analyze_*.py
+replay_*.py
+populate_*.py
+backtest_*.py
 

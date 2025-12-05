@@ -1,0 +1,16 @@
+{
+  "timestamp": "2025-11-21T00:59:35.676453",
+  "symbol": "SPY",
+  "source": "chartexchange",
+  "date": "2025-11-20",
+  "dark_pool": {
+    "pct": null
+  },
+  "lit_exchange": {
+    "pct": null
+  },
+  "max_pain": null,
+  "current_price": 652.530029296875,
+  "pct_change": -1.5242255122032546,
+  "crypto_correlation": "NEUTRAL"
+}
