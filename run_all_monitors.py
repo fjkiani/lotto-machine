@@ -5,7 +5,8 @@
 Runs ALL monitoring systems in parallel:
 1. 🏦 Fed Watch - Rate cut/hike probabilities + Fed official comments
 2. 🎯 Trump Intelligence - Trump statements + market exploitation
-3. 📰 News Exploit - News vs Dark Pool divergences
+3. 📊 Economic Learning - LEARNED patterns predict Fed Watch moves
+4. 🚨 Proactive Alerts - Pre-event positioning alerts
 
 This is the MASTER DEPLOYMENT script for 24/7 monitoring.
 
@@ -56,22 +57,28 @@ class UnifiedAlphaMonitor:
         self.fed_interval = 300      # 5 minutes for Fed
         self.trump_interval = 180    # 3 minutes for Trump
         self.news_interval = 300     # 5 minutes for news
+        self.econ_interval = 3600    # 1 hour for economic calendar check
         
         # Track last run times
         self.last_fed_check = None
         self.last_trump_check = None
         self.last_news_check = None
+        self.last_econ_check = None
+        
+        # Alerted events (avoid duplicate alerts)
+        self.alerted_events = set()
         
         # Import monitors
         self._init_monitors()
         
         logger.info("=" * 70)
         logger.info("🎯 ALPHA INTELLIGENCE - UNIFIED MONITOR STARTED")
+        logger.info("   🧠 WITH ECONOMIC LEARNING ENGINE")
         logger.info("=" * 70)
         logger.info(f"   Discord: {'✅' if self.discord_webhook else '❌'}")
         logger.info(f"   Fed Watch: Every {self.fed_interval/60:.0f} min")
         logger.info(f"   Trump Intel: Every {self.trump_interval/60:.0f} min")
-        logger.info(f"   News Exploit: Every {self.news_interval/60:.0f} min")
+        logger.info(f"   Economic AI: Every {self.econ_interval/60:.0f} min")
         logger.info("=" * 70)
     
     def _init_monitors(self):
@@ -100,6 +107,18 @@ class UnifiedAlphaMonitor:
         except Exception as e:
             logger.warning(f"   ⚠️ Trump monitors failed: {e}")
             self.trump_enabled = False
+        
+        # Economic Learning Engine
+        try:
+            from live_monitoring.agents.economic_learning_engine import EconomicLearningEngine
+            self.econ_engine = EconomicLearningEngine()
+            # Seed with historical data on first run
+            self.econ_engine.seed_historical_data()
+            self.econ_enabled = True
+            logger.info("   ✅ Economic Learning Engine initialized")
+        except Exception as e:
+            logger.warning(f"   ⚠️ Economic engine failed: {e}")
+            self.econ_enabled = False
         
         # Track previous states
         self.prev_fed_status = None
@@ -228,21 +247,175 @@ class UnifiedAlphaMonitor:
         except Exception as e:
             logger.error(f"   ❌ Trump check error: {e}")
     
+    def check_economics(self):
+        """
+        Check for upcoming economic events and generate PROACTIVE alerts.
+        
+        This is the LEARNING engine that predicts Fed Watch moves!
+        """
+        if not self.econ_enabled:
+            return
+        
+        logger.info("📊 Checking Economic Calendar (Learning Engine)...")
+        
+        try:
+            from datetime import timedelta
+            
+            # Get current Fed Watch for context
+            current_cut_prob = 89.0  # Default
+            if self.prev_fed_status:
+                current_cut_prob = self.prev_fed_status.prob_cut
+            
+            # Check today and tomorrow for events
+            for days_ahead in [0, 1]:
+                check_date = (datetime.now() + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+                
+                # Try to get events from Perplexity
+                events = self._fetch_economic_events(check_date)
+                
+                for event in events:
+                    event_id = f"{event['date']}:{event['name']}"
+                    
+                    # Skip if already alerted
+                    if event_id in self.alerted_events:
+                        continue
+                    
+                    # Generate pre-event alert
+                    alert = self.econ_engine.get_pre_event_alert(
+                        event_name=event['name'],
+                        event_date=event['date'],
+                        event_time=event.get('time', '08:30'),
+                        current_cut_prob=current_cut_prob
+                    )
+                    
+                    if alert.hours_until_event < 24 and alert.hours_until_event > 0:
+                        self.alerted_events.add(event_id)
+                        
+                        # Get scenarios
+                        weak = alert.scenarios.get('weak', {})
+                        strong = alert.scenarios.get('strong', {})
+                        
+                        # Calculate potential swing
+                        swing = abs(weak.get('predicted_shift', 0) - strong.get('predicted_shift', 0))
+                        
+                        if swing >= 3:  # Only alert for significant events
+                            embed = {
+                                "title": f"📊 ECONOMIC ALERT: {event['name']}",
+                                "color": 3447003,
+                                "description": f"⏰ In {alert.hours_until_event:.1f} hours | Potential {swing:.1f}% Fed Watch swing!",
+                                "fields": [
+                                    {"name": "📅 When", "value": f"{event['date']} {event.get('time', '08:30')} ET", "inline": True},
+                                    {"name": "📊 Current Cut %", "value": f"{current_cut_prob:.1f}%", "inline": True},
+                                    {"name": "🎯 Swing Range", "value": f"{swing:.1f}%", "inline": True},
+                                    {"name": "📉 If WEAK", "value": f"Cut → {weak.get('predicted_cut_prob', 0):.0f}% | {weak.get('trade_idea', 'BUY TLT/SPY')}", "inline": False},
+                                    {"name": "📈 If STRONG", "value": f"Cut → {strong.get('predicted_cut_prob', 0):.0f}% | {strong.get('trade_idea', 'SELL TLT')}", "inline": False},
+                                ],
+                                "footer": {"text": "Economic Learning Engine | Learned from historical patterns!"},
+                                "timestamp": datetime.utcnow().isoformat()
+                            }
+                            self.send_discord(embed, content=f"⚠️ High-impact economic event in {alert.hours_until_event:.0f}h!")
+                            logger.info(f"   🚨 ALERT: {event['name']} in {alert.hours_until_event:.1f}h (swing: {swing:.1f}%)")
+                
+                logger.info(f"   ✅ Checked {check_date}: {len(events)} events found")
+            
+        except Exception as e:
+            logger.error(f"   ❌ Economic check error: {e}")
+    
+    def _fetch_economic_events(self, date: str) -> list:
+        """
+        Fetch economic events using Perplexity.
+        """
+        try:
+            api_key = os.getenv('PERPLEXITY_API_KEY')
+            if not api_key:
+                return []
+            
+            sys.path.insert(0, os.path.join(base_path, 'live_monitoring', 'enrichment', 'apis'))
+            from perplexity_search import PerplexitySearchClient
+            
+            client = PerplexitySearchClient(api_key=api_key)
+            
+            query = f"""
+            What major US economic data releases are scheduled for {date}?
+            List ONLY high-impact events like:
+            - NFP (Nonfarm Payrolls)
+            - CPI / Core CPI
+            - PPI / Core PPI
+            - PCE / Core PCE
+            - GDP
+            - Retail Sales
+            - ISM Manufacturing
+            - Initial Jobless Claims
+            
+            For each, give: TIME (ET), EVENT NAME
+            """
+            
+            result = client.search(query)
+            if not result or 'answer' not in result:
+                return []
+            
+            answer = result['answer']
+            events = []
+            
+            # Parse for known events
+            import re
+            event_keywords = [
+                'nonfarm', 'payrolls', 'nfp',
+                'cpi', 'consumer price',
+                'ppi', 'producer price',
+                'pce', 'personal consumption',
+                'gdp', 'gross domestic',
+                'retail sales',
+                'ism manufacturing', 'ism services',
+                'jobless claims', 'unemployment'
+            ]
+            
+            for line in answer.split('\n'):
+                line_lower = line.lower()
+                for kw in event_keywords:
+                    if kw in line_lower:
+                        # Extract time if present
+                        time_match = re.search(r'(\d{1,2}:\d{2})', line)
+                        event_time = time_match.group(1) if time_match else "08:30"
+                        
+                        events.append({
+                            "date": date,
+                            "time": event_time,
+                            "name": kw.replace('_', ' ').title()
+                        })
+                        break
+            
+            return events
+            
+        except Exception as e:
+            logger.debug(f"Economic events fetch error: {e}")
+            return []
+    
     def send_startup_alert(self):
         """Send startup notification."""
         if not self.discord_webhook:
             return
         
+        # Get engine status
+        econ_status = ""
+        if self.econ_enabled:
+            status = self.econ_engine.get_status()
+            patterns = status.get('learned_patterns', {})
+            pattern_str = ", ".join([f"{k}: {v['base_impact']:+.1f}%" for k, v in list(patterns.items())[:2]])
+            econ_status = f"Patterns: {pattern_str}" if pattern_str else "Learning..."
+        
         embed = {
             "title": "🎯 ALPHA INTELLIGENCE - ONLINE",
             "color": 3066993,
-            "description": "All monitoring systems activated",
+            "description": "All monitoring systems activated with LEARNING ENGINE",
             "fields": [
                 {"name": "🏦 Fed Watch", "value": "✅ Active" if self.fed_enabled else "❌ Disabled", "inline": True},
                 {"name": "🎯 Trump Intel", "value": "✅ Active" if self.trump_enabled else "❌ Disabled", "inline": True},
-                {"name": "⏱️ Intervals", "value": f"Fed: {self.fed_interval/60:.0f}m | Trump: {self.trump_interval/60:.0f}m", "inline": False},
+                {"name": "📊 Economic AI", "value": "✅ Active" if self.econ_enabled else "❌ Disabled", "inline": True},
+                {"name": "🧠 Learned Patterns", "value": econ_status or "Disabled", "inline": False},
+                {"name": "⏱️ Intervals", "value": f"Fed: {self.fed_interval/60:.0f}m | Trump: {self.trump_interval/60:.0f}m | Econ: {self.econ_interval/60:.0f}m", "inline": False},
             ],
-            "footer": {"text": "Monitoring markets 24/7"},
+            "footer": {"text": "Monitoring markets 24/7 with machine learning"},
             "timestamp": datetime.utcnow().isoformat()
         }
         self.send_discord(embed)
@@ -257,6 +430,7 @@ class UnifiedAlphaMonitor:
         # Initial checks
         self.check_fed()
         self.check_trump()
+        self.check_economics()
         
         while self.running:
             try:
@@ -271,6 +445,11 @@ class UnifiedAlphaMonitor:
                 if self.last_trump_check is None or (now - self.last_trump_check).seconds >= self.trump_interval:
                     self.check_trump()
                     self.last_trump_check = now
+                
+                # Check Economics (every hour)
+                if self.last_econ_check is None or (now - self.last_econ_check).seconds >= self.econ_interval:
+                    self.check_economics()
+                    self.last_econ_check = now
                 
                 # Sleep for 60 seconds between checks
                 time.sleep(60)
