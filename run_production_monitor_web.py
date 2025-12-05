@@ -30,14 +30,23 @@ from typing import List, Dict
 import traceback
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# Add paths
-sys.path.append(str(Path(__file__).parent / 'live_monitoring' / 'core'))
-sys.path.append(str(Path(__file__).parent / 'live_monitoring' / 'monitoring'))
-sys.path.append(str(Path(__file__).parent / 'live_monitoring' / 'alerting'))
-sys.path.append(str(Path(__file__).parent / 'live_monitoring' / 'config'))
-sys.path.append(str(Path(__file__).parent / 'configs'))
+# Add paths - handle both local and Render deployment
+base_path = Path(__file__).parent
+sys.path.insert(0, str(base_path))
+sys.path.append(str(base_path / 'live_monitoring' / 'core'))
+sys.path.append(str(base_path / 'live_monitoring' / 'monitoring'))
+sys.path.append(str(base_path / 'live_monitoring' / 'alerting'))
+sys.path.append(str(base_path / 'live_monitoring' / 'config'))
+sys.path.append(str(base_path / 'configs'))
 
-from configs.chartexchange_config import get_api_key
+# Get API key from environment (production-friendly)
+# Config file is in .gitignore, so use env vars directly on Render
+def get_api_key():
+    """Get ChartExchange API key from environment"""
+    key = os.getenv('CHARTEXCHANGE_API_KEY')
+    if not key:
+        raise ValueError("CHARTEXCHANGE_API_KEY not set in environment variables")
+    return key
 from data_fetcher import DataFetcher
 from signal_generator import SignalGenerator, LiveSignal
 from alert_router import AlertRouter
