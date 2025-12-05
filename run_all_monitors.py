@@ -108,17 +108,62 @@ class UnifiedAlphaMonitor:
             logger.warning(f"   ⚠️ Trump monitors failed: {e}")
             self.trump_enabled = False
         
-        # Economic Learning Engine
+        # Economic Learning Engine (NEW MODULAR VERSION)
         try:
-            from live_monitoring.agents.economic_learning_engine import EconomicLearningEngine
-            self.econ_engine = EconomicLearningEngine()
-            # Seed with historical data on first run
-            self.econ_engine.seed_historical_data()
+            from live_monitoring.agents.economic import EconomicIntelligenceEngine
+            from live_monitoring.agents.economic.calendar import EconomicCalendar, Importance
+            from live_monitoring.agents.economic.models import EconomicRelease, EventType
+            
+            self.econ_engine = EconomicIntelligenceEngine()
+            self.econ_calendar = EconomicCalendar()
+            
+            # Seed with sample historical data
+            historical = [
+                EconomicRelease(
+                    date="2024-12-06", time="08:30", event_type=EventType.NFP,
+                    event_name="Nonfarm Payrolls", actual=227, forecast=200, previous=36,
+                    surprise_pct=13.5, surprise_sigma=1.35,
+                    fed_watch_before=66, fed_watch_after_1hr=74, fed_watch_shift_1hr=8,
+                    days_to_fomc=12
+                ),
+                EconomicRelease(
+                    date="2024-11-01", time="08:30", event_type=EventType.NFP,
+                    event_name="Nonfarm Payrolls", actual=12, forecast=100, previous=254,
+                    surprise_pct=-88, surprise_sigma=-2.2,
+                    fed_watch_before=70, fed_watch_after_1hr=82, fed_watch_shift_1hr=12,
+                    days_to_fomc=6
+                ),
+                EconomicRelease(
+                    date="2024-10-04", time="08:30", event_type=EventType.NFP,
+                    event_name="Nonfarm Payrolls", actual=254, forecast=140, previous=159,
+                    surprise_pct=81, surprise_sigma=2.5,
+                    fed_watch_before=95, fed_watch_after_1hr=85, fed_watch_shift_1hr=-10,
+                    days_to_fomc=33
+                ),
+                EconomicRelease(
+                    date="2024-09-06", time="08:30", event_type=EventType.NFP,
+                    event_name="Nonfarm Payrolls", actual=142, forecast=160, previous=89,
+                    surprise_pct=-11, surprise_sigma=-0.9,
+                    fed_watch_before=60, fed_watch_after_1hr=70, fed_watch_shift_1hr=10,
+                    days_to_fomc=12
+                ),
+                EconomicRelease(
+                    date="2024-08-02", time="08:30", event_type=EventType.NFP,
+                    event_name="Nonfarm Payrolls", actual=114, forecast=175, previous=179,
+                    surprise_pct=-35, surprise_sigma=-1.8,
+                    fed_watch_before=75, fed_watch_after_1hr=90, fed_watch_shift_1hr=15,
+                    days_to_fomc=46
+                ),
+            ]
+            self.econ_engine.add_historical_data(historical)
+            
             self.econ_enabled = True
-            logger.info("   ✅ Economic Learning Engine initialized")
+            logger.info("   ✅ Economic Intelligence Engine initialized")
+            logger.info("   ✅ Economic Calendar initialized")
         except Exception as e:
             logger.warning(f"   ⚠️ Economic engine failed: {e}")
             self.econ_enabled = False
+            self.econ_calendar = None
         
         # Track previous states
         self.prev_fed_status = None
@@ -251,72 +296,98 @@ class UnifiedAlphaMonitor:
         """
         Check for upcoming economic events and generate PROACTIVE alerts.
         
-        This is the LEARNING engine that predicts Fed Watch moves!
+        Uses the MODULAR Economic Intelligence Engine with proper calendar!
         """
-        if not self.econ_enabled:
+        if not self.econ_enabled or not self.econ_calendar:
             return
         
-        logger.info("📊 Checking Economic Calendar (Learning Engine)...")
+        logger.info("📊 Checking Economic Calendar...")
         
         try:
-            from datetime import timedelta
+            from live_monitoring.agents.economic.calendar import Importance
             
             # Get current Fed Watch for context
-            current_cut_prob = 89.0  # Default
+            current_cut_prob = 89.0
             if self.prev_fed_status:
                 current_cut_prob = self.prev_fed_status.prob_cut
             
-            # Check today and tomorrow for events
-            for days_ahead in [0, 1]:
-                check_date = (datetime.now() + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+            # Get upcoming HIGH importance events (next 2 days)
+            upcoming = self.econ_calendar.get_upcoming_events(days=2, min_importance=Importance.HIGH)
+            
+            logger.info(f"   📅 Found {len(upcoming)} HIGH importance events in next 48h")
+            
+            for event in upcoming:
+                event_id = f"{event.date}:{event.name}"
+                hours = event.hours_until()
                 
-                # Try to get events from Perplexity
-                events = self._fetch_economic_events(check_date)
+                # Skip if already alerted or past
+                if event_id in self.alerted_events or hours < 0:
+                    continue
                 
-                for event in events:
-                    event_id = f"{event['date']}:{event['name']}"
-                    
-                    # Skip if already alerted
-                    if event_id in self.alerted_events:
-                        continue
-                    
-                    # Generate pre-event alert
+                # Alert conditions:
+                # - 24h before HIGH event
+                # - 4h before ANY event
+                should_alert = (hours < 24 and event.importance == Importance.HIGH) or hours < 4
+                
+                if not should_alert:
+                    continue
+                
+                self.alerted_events.add(event_id)
+                
+                # Get prediction scenarios
+                try:
                     alert = self.econ_engine.get_pre_event_alert(
-                        event_name=event['name'],
-                        event_date=event['date'],
-                        event_time=event.get('time', '08:30'),
-                        current_cut_prob=current_cut_prob
+                        event_type=event.name.lower().replace(' ', '_'),
+                        event_date=event.date,
+                        event_time=event.time,
+                        current_fed_watch=current_cut_prob
                     )
                     
-                    if alert.hours_until_event < 24 and alert.hours_until_event > 0:
-                        self.alerted_events.add(event_id)
-                        
-                        # Get scenarios
-                        weak = alert.scenarios.get('weak', {})
-                        strong = alert.scenarios.get('strong', {})
-                        
-                        # Calculate potential swing
-                        swing = abs(weak.get('predicted_shift', 0) - strong.get('predicted_shift', 0))
-                        
-                        if swing >= 3:  # Only alert for significant events
-                            embed = {
-                                "title": f"📊 ECONOMIC ALERT: {event['name']}",
-                                "color": 3447003,
-                                "description": f"⏰ In {alert.hours_until_event:.1f} hours | Potential {swing:.1f}% Fed Watch swing!",
-                                "fields": [
-                                    {"name": "📅 When", "value": f"{event['date']} {event.get('time', '08:30')} ET", "inline": True},
-                                    {"name": "📊 Current Cut %", "value": f"{current_cut_prob:.1f}%", "inline": True},
-                                    {"name": "🎯 Swing Range", "value": f"{swing:.1f}%", "inline": True},
-                                    {"name": "📉 If WEAK", "value": f"Cut → {weak.get('predicted_cut_prob', 0):.0f}% | {weak.get('trade_idea', 'BUY TLT/SPY')}", "inline": False},
-                                    {"name": "📈 If STRONG", "value": f"Cut → {strong.get('predicted_cut_prob', 0):.0f}% | {strong.get('trade_idea', 'SELL TLT')}", "inline": False},
-                                ],
-                                "footer": {"text": "Economic Learning Engine | Learned from historical patterns!"},
-                                "timestamp": datetime.utcnow().isoformat()
-                            }
-                            self.send_discord(embed, content=f"⚠️ High-impact economic event in {alert.hours_until_event:.0f}h!")
-                            logger.info(f"   🚨 ALERT: {event['name']} in {alert.hours_until_event:.1f}h (swing: {swing:.1f}%)")
+                    # Extract scenario data
+                    weak_shift = alert.weak_scenario.predicted_fed_watch_shift
+                    strong_shift = alert.strong_scenario.predicted_fed_watch_shift
+                    weak_fw = alert.weak_scenario.predicted_fed_watch
+                    strong_fw = alert.strong_scenario.predicted_fed_watch
+                    swing = abs(weak_shift - strong_shift)
+                    
+                except Exception as e:
+                    logger.debug(f"Prediction error: {e}")
+                    # Use static estimate from calendar
+                    swing = event.typical_surprise_impact * 2
+                    weak_shift = event.typical_surprise_impact
+                    strong_shift = -event.typical_surprise_impact
+                    weak_fw = current_cut_prob + weak_shift
+                    strong_fw = current_cut_prob + strong_shift
                 
-                logger.info(f"   ✅ Checked {check_date}: {len(events)} events found")
+                # Send Discord alert
+                imp_emoji = "🔴" if event.importance == Importance.HIGH else "🟡"
+                
+                embed = {
+                    "title": f"{imp_emoji} ECONOMIC ALERT: {event.name}",
+                    "color": 15548997 if event.importance == Importance.HIGH else 16776960,
+                    "description": f"⏰ In **{hours:.0f} hours** | Potential **±{swing:.1f}%** Fed Watch swing!",
+                    "fields": [
+                        {"name": "📅 When", "value": f"{event.date} {event.time} ET", "inline": True},
+                        {"name": "📊 Current Cut %", "value": f"{current_cut_prob:.1f}%", "inline": True},
+                        {"name": "🎯 Category", "value": event.category.value.upper(), "inline": True},
+                        {"name": "📉 If WEAK Data", "value": f"Fed Watch → **{weak_fw:.0f}%** ({weak_shift:+.1f}%)\n→ BUY SPY, TLT", "inline": True},
+                        {"name": "📈 If STRONG Data", "value": f"Fed Watch → **{strong_fw:.0f}%** ({strong_shift:+.1f}%)\n→ Reduce exposure", "inline": True},
+                    ],
+                    "footer": {"text": f"Economic Intelligence Engine | {event.release_frequency.upper()} release"},
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                
+                content = f"⚠️ **{event.name}** in {hours:.0f}h! Potential {swing:.1f}% Fed Watch swing!"
+                self.send_discord(embed, content=content)
+                
+                logger.info(f"   🚨 ALERT: {event.name} in {hours:.0f}h | ±{swing:.1f}% swing")
+            
+            # Log today's summary
+            today_events = self.econ_calendar.get_today_events()
+            if today_events:
+                logger.info(f"   📅 Today: {', '.join([e.name for e in today_events])}")
+            else:
+                logger.info(f"   📅 No events today")
             
         except Exception as e:
             logger.error(f"   ❌ Economic check error: {e}")
