@@ -205,6 +205,7 @@ class UnifiedAlphaMonitor:
             self.recent_dp_alerts = []  # Buffer for Signal Brain synthesis
             self.unified_mode = True  # Suppress individual alerts, only send synthesis
             logger.info("   ✅ Signal Synthesis Brain initialized (THINKING LAYER)")
+            logger.info(f"   🔇 UNIFIED MODE: ENABLED - Individual alerts suppressed, only synthesis will be sent")
             if self.dp_learning_enabled:
                 logger.info("   🧠 Brain integrated with DP Learning Engine!")
             if narrative_enricher:
@@ -698,16 +699,17 @@ class UnifiedAlphaMonitor:
                 
                 # In unified mode, suppress individual alerts (Signal Brain will synthesize)
                 if self.unified_mode and self.brain_enabled:
-                    logger.debug(f"   📊 DP alert buffered for synthesis: {alert.symbol} @ ${bg.price:.2f}")
+                    logger.debug(f"   📊 DP alert buffered for synthesis: {alert.symbol} @ ${bg.price:.2f} (UNIFIED MODE: suppressing individual alert)")
                     # Don't send individual alert - Signal Brain will synthesize
+                    continue  # Skip to next alert
+                
+                # Send individual alert (only if unified mode is OFF or brain is disabled)
+                logger.info(f"   📤 Sending DP alert: {alert.symbol} {alert.alert_type.value} ${bg.price:.2f} (unified_mode={self.unified_mode}, brain_enabled={self.brain_enabled})")
+                success = self.send_discord(embed, content=content)
+                if success:
+                    logger.info(f"   ✅ DP ALERT SENT: {alert.symbol} @ ${bg.price:.2f} ({alert.priority.value})")
                 else:
-                    # Send individual alert (fallback if brain disabled)
-                    logger.info(f"   📤 Sending DP alert: {alert.symbol} {alert.alert_type.value} ${bg.price:.2f}")
-                    success = self.send_discord(embed, content=content)
-                    if success:
-                        logger.info(f"   ✅ DP ALERT SENT: {alert.symbol} @ ${bg.price:.2f} ({alert.priority.value})")
-                    else:
-                        logger.error(f"   ❌ Failed to send DP alert")
+                    logger.error(f"   ❌ Failed to send DP alert")
                 
                 # Log to learning engine for outcome tracking
                 if self.dp_learning_enabled:
@@ -1022,7 +1024,10 @@ class UnifiedAlphaMonitor:
         # Signal Brain status
         brain_status = "❌ Disabled"
         if self.brain_enabled:
-            brain_status = "✅ ACTIVE - Zone clustering, cross-asset, unified alerts"
+            if self.unified_mode:
+                brain_status = "✅ ACTIVE - UNIFIED MODE (individual alerts suppressed)"
+            else:
+                brain_status = "✅ ACTIVE - Zone clustering, cross-asset, unified alerts"
         
         # Macro Context status (NO MORE HARDCODING!)
         macro_status = "❌ Disabled"
