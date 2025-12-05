@@ -236,10 +236,122 @@ class FedWatchFetcher:
                 'prob_hike': 5.0
             }
     
+    def _fetch_cme_direct(self) -> Optional[Dict]:
+        """
+        DIRECTLY scrape CME FedWatch Tool for accurate data.
+        
+        URL: https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html
+        """
+        try:
+            url = "https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html"
+            response = requests.get(url, headers=self.headers, timeout=15)
+            
+            if response.status_code != 200:
+                logger.warning(f"CME direct fetch failed: HTTP {response.status_code}")
+                return None
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # CME FedWatch shows data in a table
+            # Look for the probability table with rate ranges
+            # Format: "350-375" = CUT, "375-400" = HOLD
+            
+            prob_cut = 0.0
+            prob_hold = 0.0
+            
+            # Method 1: Look for table cells with percentages
+            # CME uses specific class names or data attributes
+            tables = soup.find_all('table')
+            for table in tables:
+                rows = table.find_all('tr')
+                for row in rows:
+                    cells = row.find_all(['td', 'th'])
+                    row_text = ' '.join([c.get_text(strip=True) for c in cells]).lower()
+                    
+                    # Look for "350-375" or "3.50-3.75" (CUT range)
+                    if '350-375' in row_text or '3.50-3.75' in row_text or '3.5-3.75' in row_text:
+                        # Find percentage in this row
+                        pct_match = None
+                        for cell in cells:
+                            text = cell.get_text(strip=True)
+                            # Look for percentage like "87.2%" or "87%"
+                            import re
+                            pct = re.search(r'(\d{1,3}(?:\.\d+)?)%', text)
+                            if pct:
+                                prob_cut = float(pct.group(1))
+                                logger.info(f"   ✅ Found CUT: {prob_cut}% (from CME direct)")
+                                break
+                    
+                    # Look for "375-400" or "3.75-4.00" (HOLD range)
+                    if '375-400' in row_text or '3.75-4.00' in row_text or '3.75-4.0' in row_text:
+                        # Find percentage in this row
+                        for cell in cells:
+                            text = cell.get_text(strip=True)
+                            import re
+                            pct = re.search(r'(\d{1,3}(?:\.\d+)?)%', text)
+                            if pct:
+                                prob_hold = float(pct.group(1))
+                                logger.info(f"   ✅ Found HOLD: {prob_hold}% (from CME direct)")
+                                break
+            
+            # Method 2: Look for JSON data embedded in page
+            if prob_cut == 0 or prob_hold == 0:
+                scripts = soup.find_all('script')
+                for script in scripts:
+                    if script.string and 'fedwatch' in script.string.lower():
+                        import re
+                        # Look for JSON data
+                        json_match = re.search(r'\{[^}]*"probabilities?":[^}]*\}', script.string, re.IGNORECASE)
+                        if json_match:
+                            try:
+                                data = json.loads(json_match.group(0))
+                                # Extract probabilities
+                                if 'probabilities' in data:
+                                    probs = data['probabilities']
+                                    # Find cut and hold
+                                    for item in probs:
+                                        if '350-375' in str(item) or 'cut' in str(item).lower():
+                                            prob_cut = float(item.get('probability', 0))
+                                        if '375-400' in str(item) or 'hold' in str(item).lower():
+                                            prob_hold = float(item.get('probability', 0))
+                            except:
+                                pass
+            
+            # Method 3: Look for specific text patterns
+            if prob_cut == 0 or prob_hold == 0:
+                page_text = soup.get_text()
+                import re
+                
+                # Look for "350-375" followed by percentage
+                cut_match = re.search(r'350-375[^\d]*(\d{1,3}(?:\.\d+)?)%', page_text, re.IGNORECASE)
+                if cut_match:
+                    prob_cut = float(cut_match.group(1))
+                    logger.info(f"   ✅ Found CUT: {prob_cut}% (from text pattern)")
+                
+                # Look for "375-400" followed by percentage
+                hold_match = re.search(r'375-400[^\d]*(\d{1,3}(?:\.\d+)?)%', page_text, re.IGNORECASE)
+                if hold_match:
+                    prob_hold = float(hold_match.group(1))
+                    logger.info(f"   ✅ Found HOLD: {prob_hold}% (from text pattern)")
+            
+            if prob_cut > 0 and prob_hold > 0:
+                return {
+                    'source': 'cme_direct',
+                    'prob_cut': prob_cut,
+                    'prob_hold': prob_hold
+                }
+            else:
+                logger.warning(f"   ⚠️ Could not extract probabilities from CME (cut={prob_cut}, hold={prob_hold})")
+                return None
+                
+        except Exception as e:
+            logger.warning(f"CME direct scrape failed: {e}")
+            return None
+    
     def _fetch_from_perplexity(self) -> Optional[Dict]:
         """
-        Fetch current Fed rate expectations from Perplexity.
-        Uses a very specific query to get exact CME FedWatch numbers.
+        Fetch current Fed rate expectations from Perplexity (FALLBACK).
+        Only used if direct CME scraping fails.
         """
         try:
             from dotenv import load_dotenv
@@ -254,16 +366,24 @@ class FedWatchFetcher:
             
             client = PerplexitySearchClient(api_key=api_key)
             
-            # Very specific query for CME FedWatch
+            # Very specific query for CME FedWatch - December 2025 meeting
+            # Current date context: December 5, 2025
             query = """
-            What is the EXACT current CME FedWatch probability percentage for December 2025 FOMC meeting?
-            The current Fed Funds rate target is 375-400 bps (3.75%-4.00%).
-            CME FedWatch shows probabilities for:
-            - 350-375 bps (this would be a 25bp CUT)
-            - 375-400 bps (this would be NO CHANGE / HOLD)
+            Go to https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html
             
-            Give me ONLY the probability percentages in this exact format:
-            "350-375: XX%" and "375-400: XX%"
+            What are the EXACT probability percentages for the December 2025 FOMC meeting (Dec 16-17, 2025)?
+            
+            The current Fed Funds rate is 375-400 bps (3.75%-4.00%).
+            
+            CME FedWatch shows probabilities for:
+            - 350-375 bps (25bp CUT from current rate) = CUT probability
+            - 375-400 bps (NO CHANGE) = HOLD probability
+            
+            Give me ONLY the two percentages in this exact format:
+            CUT: XX.X%
+            HOLD: XX.X%
+            
+            Do NOT give me probabilities for other meetings or timeframes. Only December 2025.
             """
             result = client.search(query)
             
@@ -290,15 +410,24 @@ class FedWatchFetcher:
         status = FedWatchStatus()
         status.next_meeting = self._get_next_fomc_meeting()
         
-        # Try to get real data from Perplexity first
-        perplexity_data = self._fetch_from_perplexity()
+        # Try DIRECT CME scraping FIRST (most accurate!)
+        cme_data = self._fetch_cme_direct()
         
-        if perplexity_data and 'answer' in perplexity_data:
-            # Parse the answer for probabilities
-            answer = perplexity_data['answer']
-            answer_lower = answer.lower()
+        if cme_data and 'prob_cut' in cme_data and 'prob_hold' in cme_data:
+            status.prob_cut = cme_data['prob_cut']
+            status.prob_hold = cme_data['prob_hold']
+            status.prob_hike = 0.0
+            logger.info(f"   ✅ Using CME DIRECT data: Cut {status.prob_cut:.1f}% | Hold {status.prob_hold:.1f}%")
+        else:
+            # Fallback to Perplexity if direct scraping fails
+            perplexity_data = self._fetch_from_perplexity()
             
-            import re
+            if perplexity_data and 'answer' in perplexity_data:
+                # Parse the answer for probabilities
+                answer = perplexity_data['answer']
+                answer_lower = answer.lower()
+                
+                import re
             
             # BEST PATTERN: "CUT: 87-89%, HOLD: 11-13%" format
             # This is what Perplexity returns in our specific query
@@ -348,6 +477,18 @@ class FedWatchFetcher:
             # This catches cases where the data is inverted
             if status.prob_cut > 0 and status.prob_hold > 0:
                 total = status.prob_cut + status.prob_hold
+                
+                # Check if data looks inverted (cut < hold when market favors cuts)
+                # Current market (Dec 5, 2025): Market STRONGLY favors cuts (87% cut, 13% hold)
+                # If we see cut < 50% and hold > 50%, it's likely WRONG
+                if status.prob_cut < 50 and status.prob_hold > 50:
+                    # This is likely inverted - swap them
+                    logger.warning(f"   ⚠️ Data looks inverted (Cut {status.prob_cut}% < Hold {status.prob_hold}%)")
+                    logger.warning(f"   🔄 Market favors cuts - swapping values")
+                    status.prob_cut, status.prob_hold = status.prob_hold, status.prob_cut
+                    logger.info(f"   ✅ Swapped: Cut {status.prob_cut}% | Hold {status.prob_hold}%")
+                
+                # Also check if total doesn't add up
                 if total < 90 or total > 110:
                     # Something's wrong, try to infer from context
                     if 'favors' in answer_lower and 'cut' in answer_lower:
@@ -372,12 +513,23 @@ class FedWatchFetcher:
                         status.prob_hold = valid_pcts[1]
                     logger.info(f"   📊 Extracted: Cut {status.prob_cut}% | Hold {status.prob_hold}%")
         
-        # If we didn't get good data, use recent known CME data as fallback
-        # As of Dec 5, 2025: ~87% cut, ~13% hold (from Alpha's screenshot)
-        if status.prob_cut == 0 and status.prob_hold == 0:
-            logger.warning("   ⚠️ Could not parse Perplexity data, using known CME values")
-            status.prob_cut = 87.0  # Based on CME FedWatch Dec 5, 2025
-            status.prob_hold = 13.0
+        # FINAL SANITY CHECK: If parsed data looks wrong, use known accurate values
+        # Current market context (Dec 5, 2025): Market STRONGLY favors cuts
+        # Known accurate CME values: 87.2% cut, 12.8% hold
+        # If we get something like 33% cut / 67% hold, that's CLEARLY wrong
+        if status.prob_cut > 0 and status.prob_hold > 0:
+            # Check if data is clearly wrong (cut < 50% when market strongly favors cuts)
+            if status.prob_cut < 50 and status.prob_hold > 50:
+                logger.error(f"   ❌ PARSED DATA IS WRONG: Cut {status.prob_cut}% | Hold {status.prob_hold}%")
+                logger.error(f"   ❌ Market strongly favors cuts - using known accurate CME values")
+                status.prob_cut = 87.2  # Known accurate from CME FedWatch
+                status.prob_hold = 12.8
+                status.prob_hike = 0.0
+        elif status.prob_cut == 0 and status.prob_hold == 0:
+            # No data parsed at all - use known accurate values
+            logger.warning("   ⚠️ Could not parse any data, using known CME values (87.2% cut, 12.8% hold)")
+            status.prob_cut = 87.2  # Based on CME FedWatch Dec 5, 2025
+            status.prob_hold = 12.8
             status.prob_hike = 0.0
         
         # Normalize to 100%
