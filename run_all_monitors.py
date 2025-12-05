@@ -135,7 +135,7 @@ class UnifiedAlphaMonitor:
             logger.warning(f"   ⚠️ Dark Pool monitors failed: {e}")
             self.dp_enabled = False
         
-        # Dark Pool LEARNING Engine (NEW!)
+        # Dark Pool LEARNING Engine
         try:
             from live_monitoring.agents.dp_learning import DPLearningEngine
             self.dp_learning = DPLearningEngine(
@@ -149,6 +149,20 @@ class UnifiedAlphaMonitor:
             logger.warning(f"   ⚠️ DP Learning Engine failed: {e}")
             self.dp_learning_enabled = False
             self.dp_learning = None
+        
+        # Dark Pool MONITOR Engine (NEW MODULAR!)
+        try:
+            from live_monitoring.agents.dp_monitor import DPMonitorEngine
+            self.dp_monitor_engine = DPMonitorEngine(
+                api_key=os.getenv('CHARTEXCHANGE_API_KEY'),
+                dp_client=self.dp_client if self.dp_enabled else None,  # Reuse existing client
+                learning_engine=self.dp_learning if self.dp_learning_enabled else None,
+                debounce_minutes=30  # Only alert once per level per 30 min
+            )
+            logger.info("   ✅ Dark Pool Monitor Engine (modular) initialized")
+        except Exception as e:
+            logger.warning(f"   ⚠️ DP Monitor Engine failed: {e}")
+            self.dp_monitor_engine = None
         
         # Economic Learning Engine (NEW MODULAR VERSION)
         try:
@@ -542,20 +556,81 @@ class UnifiedAlphaMonitor:
     
     def check_dark_pools(self):
         """
-        🔒 DARK POOL INTELLIGENCE
-        Monitors price proximity to institutional battlegrounds.
-        Alerts when price approaches, touches, or breaks key levels.
+        🔒 DARK POOL INTELLIGENCE (MODULAR VERSION)
+        Uses the new DPMonitorEngine for:
+        - Smart debouncing (no spam)
+        - Trade direction (LONG/SHORT)
+        - Entry/Stop/Target calculation
+        - Volume-based confidence
+        - AI predictions from learning engine
         """
         if not self.dp_enabled:
             return
         
-        logger.info("🔒 Checking Dark Pool levels...")
+        # Use modular engine if available
+        if self.dp_monitor_engine:
+            self._check_dark_pools_modular()
+        else:
+            self._check_dark_pools_legacy()
+    
+    def _check_dark_pools_modular(self):
+        """Use the new modular DP Monitor Engine."""
+        logger.info("🔒 Checking Dark Pool levels (modular)...")
+        
+        try:
+            # Check all symbols using the engine
+            alerts = self.dp_monitor_engine.check_all_symbols(self.symbols)
+            
+            if not alerts:
+                logger.info("   📊 No DP alerts triggered (debounced or too far)")
+                return
+            
+            # Process each alert
+            for alert in alerts:
+                # Format for Discord
+                embed = self.dp_monitor_engine.format_discord_alert(alert)
+                
+                # Generate content text
+                bg = alert.battleground
+                ts = alert.trade_setup
+                
+                if alert.alert_type.value == "AT_LEVEL":
+                    if ts:
+                        content = f"🚨 **{alert.symbol} AT {bg.level_type.value} ${bg.price:.2f}** | {ts.direction.value} opportunity | {bg.volume:,} shares"
+                    else:
+                        content = f"🚨 **{alert.symbol} AT BATTLEGROUND ${bg.price:.2f}** - {bg.volume:,} shares!"
+                elif alert.alert_type.value == "APPROACHING":
+                    content = f"⚠️ **{alert.symbol} APPROACHING** ${bg.price:.2f} ({bg.level_type.value}) | {bg.volume:,} shares"
+                else:
+                    content = f"📊 {alert.symbol} near DP level ${bg.price:.2f}"
+                
+                # Send alert
+                logger.info(f"   📤 Sending DP alert: {alert.symbol} {alert.alert_type.value} ${bg.price:.2f}")
+                success = self.send_discord(embed, content=content)
+                
+                if success:
+                    logger.info(f"   ✅ DP ALERT SENT: {alert.symbol} @ ${bg.price:.2f} ({alert.priority.value})")
+                    
+                    # Log to learning engine for outcome tracking
+                    if self.dp_learning_enabled:
+                        interaction_id = self.dp_monitor_engine.log_to_learning_engine(alert)
+                        if interaction_id:
+                            logger.info(f"   📝 Tracking interaction #{interaction_id}")
+                else:
+                    logger.error(f"   ❌ Failed to send DP alert")
+                
+        except Exception as e:
+            logger.error(f"   ❌ Modular DP check error: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+    
+    def _check_dark_pools_legacy(self):
+        """Fallback to legacy DP check if modular engine not available."""
+        logger.info("🔒 Checking Dark Pool levels (legacy)...")
         
         try:
             import yfinance as yf
-            from datetime import datetime, timedelta
             
-            today = datetime.now().strftime('%Y-%m-%d')
             yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
             
             for symbol in self.symbols:
@@ -564,162 +639,34 @@ class UnifiedAlphaMonitor:
                     ticker = yf.Ticker(symbol)
                     hist = ticker.history(period='1d', interval='1m')
                     if hist.empty:
-                        logger.warning(f"   ⚠️ No price data for {symbol}")
                         continue
                     current_price = float(hist['Close'].iloc[-1])
                 except Exception as e:
-                    logger.warning(f"   ⚠️ Could not get price for {symbol}: {e}")
                     continue
                 
-                # Fetch battlegrounds if we don't have them or it's a new day
-                if symbol not in self.dp_battlegrounds or not self.dp_battlegrounds[symbol]:
-                    logger.info(f"   📥 Fetching DP battlegrounds for {symbol}...")
+                # Fetch battlegrounds if needed
+                if symbol not in self.dp_battlegrounds:
                     try:
                         dp_levels = self.dp_client.get_dark_pool_levels(symbol, yesterday)
-                        
                         if dp_levels:
-                            # Get top battlegrounds (>= 1M shares)
                             battlegrounds = []
                             for level in dp_levels:
-                                price = level.get('level', level.get('price', 0))
-                                vol = level.get('total_vol', level.get('volume', 0))
-                                
-                                if isinstance(price, str):
-                                    try:
-                                        price = float(price)
-                                    except:
-                                        continue
-                                if isinstance(vol, str):
-                                    try:
-                                        vol = float(vol.replace(',', ''))
-                                    except:
-                                        vol = 0
-                                
-                                if vol >= 500000:  # 500K+ shares = significant level
-                                    battlegrounds.append({
-                                        'price': float(price),
-                                        'volume': float(vol),
-                                        'date': yesterday
-                                    })
-                            
-                            # Sort by volume and keep top 10
-                            battlegrounds = sorted(battlegrounds, key=lambda x: x['volume'], reverse=True)[:10]
-                            self.dp_battlegrounds[symbol] = battlegrounds
-                            
-                            # Log battlegrounds
-                            logger.info(f"   📊 {symbol} Battlegrounds:")
-                            for bg in battlegrounds[:5]:
-                                logger.info(f"      ${bg['price']:.2f} - {bg['volume']:,.0f} shares")
-                    except Exception as e:
-                        logger.error(f"   ❌ Could not fetch DP levels for {symbol}: {e}")
-                        continue
+                                price = float(level.get('level', 0))
+                                vol = float(level.get('total_vol', 0))
+                                if vol >= 500000:
+                                    battlegrounds.append({'price': price, 'volume': vol, 'date': yesterday})
+                            self.dp_battlegrounds[symbol] = sorted(battlegrounds, key=lambda x: x['volume'], reverse=True)[:10]
+                    except:
+                        pass
                 
-                # Check price proximity to battlegrounds
-                battlegrounds = self.dp_battlegrounds.get(symbol, [])
-                if not battlegrounds:
-                    continue
+                # Simple proximity check
+                for bg in self.dp_battlegrounds.get(symbol, []):
+                    distance_pct = abs(current_price - bg['price']) / bg['price'] * 100
+                    if distance_pct <= 0.5:
+                        logger.info(f"   📊 {symbol}: ${current_price:.2f} near ${bg['price']:.2f} ({distance_pct:.2f}%)")
                 
-                for bg in battlegrounds:
-                    bg_price = bg['price']
-                    bg_volume = bg['volume']
-                    
-                    # Calculate distance
-                    distance_pct = abs(current_price - bg_price) / bg_price * 100
-                    
-                    # Create unique key for this alert
-                    alert_key = f"{symbol}_{bg_price:.2f}_{datetime.now().strftime('%Y%m%d%H')}"
-                    
-                    # Alert conditions
-                    alert_type = None
-                    alert_color = 0
-                    
-                    if distance_pct <= 0.1:  # Within 0.1% = AT LEVEL
-                        alert_type = "AT_LEVEL"
-                        alert_color = 16711680  # Red
-                    elif distance_pct <= 0.3:  # Within 0.3% = APPROACHING
-                        alert_type = "APPROACHING"
-                        alert_color = 16776960  # Yellow
-                    elif distance_pct <= 0.5:  # Within 0.5% = NEAR
-                        alert_type = "NEAR"
-                        alert_color = 3447003  # Blue
-                    
-                    if alert_type and alert_key not in self.dp_alerted_levels:
-                        # Send alert
-                        direction = "ABOVE" if current_price > bg_price else "BELOW"
-                        direction_emoji = "📈" if current_price > bg_price else "📉"
-                        
-                        # Determine if this is support or resistance
-                        level_type = "SUPPORT" if current_price > bg_price else "RESISTANCE"
-                        
-                        # 🧠 Get prediction from learning engine
-                        prediction_text = ""
-                        prediction_action = ""
-                        if self.dp_learning_enabled and self.dp_learning:
-                            try:
-                                prediction = self.dp_learning.log_interaction(
-                                    symbol=symbol,
-                                    level_price=bg_price,
-                                    level_volume=int(bg_volume),
-                                    level_type=level_type,
-                                    level_date=bg['date'],
-                                    approach_price=current_price,
-                                    distance_pct=distance_pct
-                                )
-                                if prediction:
-                                    prediction_text = f"🧠 **{prediction.bounce_probability:.0%} bounce** | {prediction.confidence} confidence"
-                                    prediction_action = f"💡 Suggested: **{prediction.suggested_action}**"
-                                    if prediction.supporting_patterns:
-                                        prediction_text += f"\n📊 Patterns: {', '.join(prediction.supporting_patterns[:3])}"
-                            except Exception as e:
-                                logger.warning(f"   ⚠️ Prediction failed: {e}")
-                        
-                        # Build embed with prediction
-                        fields = [
-                            {"name": "💰 Current Price", "value": f"${current_price:.2f}", "inline": True},
-                            {"name": "🎯 Battleground", "value": f"${bg_price:.2f}", "inline": True},
-                            {"name": "📏 Distance", "value": f"{distance_pct:.2f}%", "inline": True},
-                            {"name": "📊 Volume", "value": f"{bg_volume:,.0f} shares", "inline": True},
-                            {"name": "🏷️ Type", "value": level_type, "inline": True},
-                            {"name": "📅 Data From", "value": bg['date'], "inline": True},
-                        ]
-                        
-                        # Add prediction if available
-                        if prediction_text:
-                            fields.append({"name": "🧠 AI Prediction", "value": prediction_text, "inline": False})
-                        if prediction_action:
-                            fields.append({"name": "💡 Action", "value": prediction_action, "inline": False})
-                        
-                        embed = {
-                            "title": f"🔒 DARK POOL {alert_type}: {symbol}",
-                            "color": alert_color,
-                            "description": f"{direction_emoji} Price is {distance_pct:.2f}% {direction} battleground!",
-                            "fields": fields,
-                            "footer": {"text": f"Dark Pool Intelligence + Learning Engine | Tracking outcomes..."},
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
-                        
-                        if alert_type == "AT_LEVEL":
-                            content = f"🚨 **{symbol} AT BATTLEGROUND ${bg_price:.2f}** - {bg_volume:,.0f} shares! Watch for bounce/break!"
-                        elif alert_type == "APPROACHING":
-                            content = f"⚠️ **{symbol} APPROACHING** ${bg_price:.2f} battleground ({bg_volume:,.0f} shares)"
-                        else:
-                            content = f"📊 {symbol} near DP level ${bg_price:.2f}"
-                        
-                        logger.info(f"   📤 Sending DP alert: {symbol} {alert_type} ${bg_price:.2f}")
-                        success = self.send_discord(embed, content=content)
-                        
-                        if success:
-                            self.dp_alerted_levels.add(alert_key)
-                            logger.info(f"   ✅ DP ALERT SENT: {symbol} {alert_type} ${bg_price:.2f}")
-                        else:
-                            logger.error(f"   ❌ Failed to send DP alert")
-                
-                logger.info(f"   📊 {symbol}: ${current_price:.2f}")
-        
         except Exception as e:
-            logger.error(f"   ❌ Dark Pool check error: {e}")
-            import traceback
-            logger.debug(traceback.format_exc())
+            logger.error(f"   ❌ Legacy DP check error: {e}")
     
     def _on_dp_outcome(self, interaction_id: int, outcome):
         """

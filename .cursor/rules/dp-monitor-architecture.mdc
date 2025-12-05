@@ -1,0 +1,206 @@
+# Dark Pool Monitor Architecture
+
+## Current Problem
+`run_all_monitors.py` is 953 lines and growing. The DP monitoring logic is embedded in a massive unified monitor, making it hard to:
+- Test individual components
+- Improve specific functionality
+- Maintain and debug
+- Add new features without breaking others
+
+## Modular Architecture Plan
+
+### Directory Structure
+```
+live_monitoring/agents/dp_monitor/
+├── __init__.py
+├── models.py           # Data contracts (~50 lines)
+├── battleground.py     # Fetch & analyze battlegrounds (~150 lines)
+├── alert_generator.py  # Smart alerts with debouncing (~200 lines)
+├── trade_calculator.py # Entry/stop/target calculation (~100 lines)
+└── engine.py          # Main orchestrator (~150 lines)
+
+Total: ~650 lines in 6 modular files vs 300+ lines embedded in monolith
+```
+
+### Component Responsibilities
+
+#### 1. `models.py` - Data Contracts
+- `Battleground` dataclass: price, volume, date, symbol
+- `DPAlert` dataclass: level, type, direction, confidence, trade_setup
+- `TradeSetup` dataclass: entry, stop, target, risk_reward, hold_time
+- `AlertPriority` enum: CRITICAL, HIGH, MEDIUM, LOW
+
+#### 2. `battleground.py` - Battleground Analyzer
+- Fetch battlegrounds from ChartExchange API
+- Rank by volume significance (2M+ = MAJOR, 1M+ = STRONG, 500K+ = MODERATE)
+- Calculate distance from current price
+- Determine support/resistance based on price position
+- Cluster nearby levels (within 0.1% = same zone)
+
+#### 3. `alert_generator.py` - Smart Alert Generator
+**Debouncing:**
+- Track last alert time per level
+- Only alert once per level per 30 minutes (configurable)
+- Exception: Alert immediately if distance changes significantly
+
+**Trade Direction:**
+- SUPPORT → LONG on bounce, SHORT on break
+- RESISTANCE → SHORT on bounce, LONG on break
+
+**Volume-Based Confidence:**
+- 2M+ shares = 90% confidence
+- 1M+ shares = 75% confidence
+- 500K+ shares = 60% confidence
+- <500K = 50% confidence
+
+#### 4. `trade_calculator.py` - Trade Setup Calculator
+**For SUPPORT levels:**
+- Entry: At level price
+- Stop: Level - (ATR * 0.5) or Level - 0.15%, whichever is larger
+- Target: Entry + (Risk * 2) for 2:1 R/R
+- Hold time: 15-60 min (based on timeframe)
+
+**For RESISTANCE levels:**
+- Entry: At level price
+- Stop: Level + (ATR * 0.5) or Level + 0.15%, whichever is larger
+- Target: Entry - (Risk * 2) for 2:1 R/R
+- Hold time: 15-60 min (based on timeframe)
+
+#### 5. `engine.py` - DP Monitor Engine
+- Initialize all components
+- Main `check_battlegrounds()` method
+- Integrate with DP Learning Engine for predictions
+- Format Discord alerts
+- Callback for outcomes
+
+### Integration with run_all_monitors.py
+
+**Before (embedded):**
+```python
+def check_dark_pools(self):
+    # 200+ lines of DP logic in monolith
+```
+
+**After (modular):**
+```python
+from live_monitoring.agents.dp_monitor import DPMonitorEngine
+
+self.dp_engine = DPMonitorEngine(
+    api_key=api_key,
+    learning_engine=self.dp_learning_engine,
+    discord_callback=self.send_discord
+)
+
+def check_dark_pools(self):
+    alerts = self.dp_engine.check_all_symbols(['SPY', 'QQQ'])
+    # Engine handles everything: debouncing, trade setup, confidence
+```
+
+### Alert Format (Improved)
+
+**Old Alert:**
+```
+🔒 DARK POOL AT_LEVEL: SPY
+📈 Price is 0.07% ABOVE battleground!
+💰 Current Price: $684.90
+🎯 Battleground: $684.43
+📏 Distance: 0.07%
+📊 Volume: 760,913 shares
+🏷️ Type: SUPPORT
+```
+
+**New Alert:**
+```
+🔥 HIGH CONFIDENCE DP ALERT: SPY
+═══════════════════════════════════
+📍 SUPPORT ZONE @ $684.43 (760K shares)
+📈 Current: $684.90 (0.07% above)
+
+🎯 TRADE SETUP: LONG ON BOUNCE
+────────────────────────────────
+   Entry: $684.50 (wait for touch)
+   Stop: $683.50 (0.15% below level)
+   Target: $686.50 (2:1 R/R)
+   
+💪 Confidence: 75% (1M volume zone)
+🧠 AI Prediction: 78% bounce probability
+⏱️ Hold Time: 15-60 minutes
+═══════════════════════════════════
+```
+
+### Data Sources
+
+**Yesterday's DP Levels (Available Now):**
+- Used for trading today
+- Fetched at market open
+- Cached until next day
+
+**Today's DP Levels (After Market):**
+- Only available after 4:00 PM ET
+- Used for next day's trading
+- Could add "end of day summary" feature
+
+### Configuration
+
+```python
+DP_MONITOR_CONFIG = {
+    'symbols': ['SPY', 'QQQ'],
+    'poll_interval_sec': 60,
+    'alert_debounce_min': 30,
+    'min_volume': 500_000,
+    'distance_thresholds': {
+        'AT_LEVEL': 0.001,      # 0.1%
+        'APPROACHING': 0.003,   # 0.3%
+        'NEAR': 0.005,          # 0.5%
+    },
+    'volume_confidence': {
+        2_000_000: 0.90,  # 90% confidence
+        1_000_000: 0.75,  # 75% confidence
+        500_000: 0.60,    # 60% confidence
+    },
+    'default_rr_ratio': 2.0,
+    'hold_time_min': 15,
+    'hold_time_max': 60,
+}
+```
+
+### Implementation Order
+
+1. **Phase 1: Models + Battleground Analyzer** (30 min)
+   - Create data contracts
+   - Extract battleground fetching logic
+   - Add volume-based ranking
+
+2. **Phase 2: Alert Generator** (45 min)
+   - Implement debouncing
+   - Add trade direction logic
+   - Volume-based confidence
+
+3. **Phase 3: Trade Calculator** (30 min)
+   - Entry/stop/target calculation
+   - R/R ratio enforcement
+   - Hold time estimation
+
+4. **Phase 4: Engine Integration** (45 min)
+   - Create orchestrator
+   - Integrate with DP Learning
+   - Update run_all_monitors.py
+   - New Discord alert format
+
+### Success Criteria
+
+- [ ] `run_all_monitors.py` reduced by 200+ lines
+- [ ] Each component file < 200 lines
+- [ ] Alerts include trade setup (entry/stop/target)
+- [ ] Debouncing works (no spam)
+- [ ] Volume-based confidence shown
+- [ ] Easy to test individual components
+- [ ] Easy to add new features
+
+### Future Enhancements
+
+1. **Multi-timeframe analysis** - Weekly/monthly DP levels for swing trades
+2. **Level clustering** - Combine nearby levels into zones
+3. **Historical hit rate** - "This level held 8/10 times"
+4. **Options gamma overlay** - Combine DP with gamma levels
+5. **Real-time intraday DP** - If API supports it
