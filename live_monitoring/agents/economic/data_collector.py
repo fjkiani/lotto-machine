@@ -218,25 +218,26 @@ class EconomicDataCollector:
             tlt = yf.download('TLT', start=date, end=next_day.strftime('%Y-%m-%d'), progress=False)
             vix = yf.download('^VIX', start=date, end=next_day.strftime('%Y-%m-%d'), progress=False)
             
-            if not spy.empty:
+            if not spy.empty and len(spy) > 0:
                 # Calculate intraday move (open to close as proxy for 1hr)
-                open_price = spy['Open'].iloc[0]
-                close_price = spy['Close'].iloc[0]
-                result['spy_change_1hr'] = ((close_price - open_price) / open_price * 100)
+                open_price = float(spy['Open'].iloc[0])
+                close_price = float(spy['Close'].iloc[0])
+                result['spy_change_1hr'] = float((close_price - open_price) / open_price * 100) if open_price > 0 else 0.0
                 
                 # Volume spike
-                avg_vol = spy['Volume'].mean() if len(spy) > 0 else 1
-                result['volume_spike'] = spy['Volume'].iloc[0] / avg_vol if avg_vol > 0 else 1
+                avg_vol = float(spy['Volume'].mean()) if len(spy) > 0 else 1.0
+                vol = float(spy['Volume'].iloc[0])
+                result['volume_spike'] = float(vol / avg_vol) if avg_vol > 0 else 1.0
             
-            if not tlt.empty:
-                open_price = tlt['Open'].iloc[0]
-                close_price = tlt['Close'].iloc[0]
-                result['tlt_change_1hr'] = ((close_price - open_price) / open_price * 100)
+            if not tlt.empty and len(tlt) > 0:
+                open_price = float(tlt['Open'].iloc[0])
+                close_price = float(tlt['Close'].iloc[0])
+                result['tlt_change_1hr'] = float((close_price - open_price) / open_price * 100) if open_price > 0 else 0.0
             
-            if not vix.empty:
-                open_price = vix['Open'].iloc[0]
-                close_price = vix['Close'].iloc[0]
-                result['vix_change_1hr'] = close_price - open_price  # VIX in points
+            if not vix.empty and len(vix) > 0:
+                open_price = float(vix['Open'].iloc[0])
+                close_price = float(vix['Close'].iloc[0])
+                result['vix_change_1hr'] = float(close_price - open_price)  # VIX in points
             
         except Exception as e:
             logger.debug(f"Market reaction fetch error for {date}: {e}")

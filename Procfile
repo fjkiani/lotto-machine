@@ -1,1 +1,1 @@
-web: python3 run_all_monitors.py --web
+web: python3 run_all_monitors_web.py

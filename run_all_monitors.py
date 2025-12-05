@@ -173,6 +173,7 @@ class UnifiedAlphaMonitor:
     def send_discord(self, embed: dict, content: str = None) -> bool:
         """Send Discord notification."""
         if not self.discord_webhook:
+            logger.warning("   ⚠️ DISCORD_WEBHOOK_URL not set!")
             return False
         
         try:
@@ -181,9 +182,21 @@ class UnifiedAlphaMonitor:
                 payload["content"] = content
             
             response = requests.post(self.discord_webhook, json=payload, timeout=10)
-            return response.status_code in [200, 204]
+            
+            if response.status_code in [200, 204]:
+                logger.debug(f"   ✅ Discord sent successfully (status: {response.status_code})")
+                return True
+            else:
+                logger.error(f"   ❌ Discord returned status {response.status_code}: {response.text[:200]}")
+                return False
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"   ❌ Discord request error: {e}")
+            return False
         except Exception as e:
-            logger.error(f"Discord error: {e}")
+            logger.error(f"   ❌ Discord error: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
             return False
     
     def check_fed(self):
@@ -298,7 +311,12 @@ class UnifiedAlphaMonitor:
         
         Uses the MODULAR Economic Intelligence Engine with proper calendar!
         """
-        if not self.econ_enabled or not self.econ_calendar:
+        if not self.econ_enabled:
+            logger.warning("   ⚠️ Economic engine disabled")
+            return
+        
+        if not self.econ_calendar:
+            logger.warning("   ⚠️ Economic calendar not initialized")
             return
         
         logger.info("📊 Checking Economic Calendar...")
@@ -316,18 +334,31 @@ class UnifiedAlphaMonitor:
             
             logger.info(f"   📅 Found {len(upcoming)} HIGH importance events in next 48h")
             
+            # Also check MEDIUM for events happening soon
+            medium_upcoming = self.econ_calendar.get_upcoming_events(days=2, min_importance=Importance.MEDIUM)
+            logger.info(f"   📅 Found {len(medium_upcoming)} MEDIUM importance events in next 48h")
+            
             for event in upcoming:
                 event_id = f"{event.date}:{event.name}"
                 hours = event.hours_until()
                 
+                logger.info(f"   📊 Event: {event.name} on {event.date} {event.time} | {hours:.1f}h away | Importance: {event.importance.value}")
+                
                 # Skip if already alerted or past
-                if event_id in self.alerted_events or hours < 0:
+                if event_id in self.alerted_events:
+                    logger.info(f"      ⏭️  Already alerted, skipping")
+                    continue
+                
+                if hours < 0:
+                    logger.info(f"      ⏭️  Event passed, skipping")
                     continue
                 
                 # Alert conditions:
                 # - 24h before HIGH event
                 # - 4h before ANY event
                 should_alert = (hours < 24 and event.importance == Importance.HIGH) or hours < 4
+                
+                logger.info(f"      🎯 Should alert: {should_alert} (hours={hours:.1f}, importance={event.importance.value})")
                 
                 if not should_alert:
                     continue
@@ -378,9 +409,14 @@ class UnifiedAlphaMonitor:
                 }
                 
                 content = f"⚠️ **{event.name}** in {hours:.0f}h! Potential {swing:.1f}% Fed Watch swing!"
-                self.send_discord(embed, content=content)
                 
-                logger.info(f"   🚨 ALERT: {event.name} in {hours:.0f}h | ±{swing:.1f}% swing")
+                logger.info(f"   📤 Sending Discord alert for {event.name}...")
+                success = self.send_discord(embed, content=content)
+                
+                if success:
+                    logger.info(f"   ✅ ALERT SENT: {event.name} in {hours:.0f}h | ±{swing:.1f}% swing")
+                else:
+                    logger.error(f"   ❌ FAILED to send Discord alert for {event.name}")
             
             # Log today's summary
             today_events = self.econ_calendar.get_today_events()
@@ -465,15 +501,20 @@ class UnifiedAlphaMonitor:
     def send_startup_alert(self):
         """Send startup notification."""
         if not self.discord_webhook:
+            logger.warning("⚠️ DISCORD_WEBHOOK_URL not set - no alerts will be sent!")
             return
         
         # Get engine status
         econ_status = ""
         if self.econ_enabled:
-            status = self.econ_engine.get_status()
-            patterns = status.get('learned_patterns', {})
-            pattern_str = ", ".join([f"{k}: {v['base_impact']:+.1f}%" for k, v in list(patterns.items())[:2]])
-            econ_status = f"Patterns: {pattern_str}" if pattern_str else "Learning..."
+            try:
+                status = self.econ_engine.get_status()
+                patterns = status.get('learned_patterns', {})
+                pattern_str = ", ".join([f"{k}: {v['base_impact']:+.1f}%" for k, v in list(patterns.items())[:2]])
+                econ_status = f"Patterns: {pattern_str}" if pattern_str else "Learning..."
+            except Exception as e:
+                logger.debug(f"Error getting econ status: {e}")
+                econ_status = "Initializing..."
         
         embed = {
             "title": "🎯 ALPHA INTELLIGENCE - ONLINE",
@@ -489,7 +530,13 @@ class UnifiedAlphaMonitor:
             "footer": {"text": "Monitoring markets 24/7 with machine learning"},
             "timestamp": datetime.utcnow().isoformat()
         }
-        self.send_discord(embed)
+        
+        logger.info("📤 Sending startup alert to Discord...")
+        success = self.send_discord(embed)
+        if success:
+            logger.info("   ✅ Startup alert sent successfully!")
+        else:
+            logger.error("   ❌ FAILED to send startup alert - check DISCORD_WEBHOOK_URL!")
     
     def run(self):
         """Main run loop."""
