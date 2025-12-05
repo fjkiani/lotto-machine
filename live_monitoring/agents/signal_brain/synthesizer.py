@@ -151,7 +151,14 @@ class SignalSynthesizer:
             size = "QUARTER"
         
         # BULLISH setup at support
+        # BUT: REDUCE confidence if Fed is HAWKISH (fighting the Fed)
         if confluence.bias == Bias.BULLISH and spy_state.support_zones:
+            # 🔥 MACRO CHECK: Warn if going LONG against HAWKISH Fed
+            if context.fed_sentiment == "HAWKISH":
+                # Still allow LONG at strong support, but reduce size and add warning
+                size = "QUARTER"  # Reduce position size
+                confluence.conflicts.append("⚠️ Fed is HAWKISH (<30% cut prob) - going LONG against headwind")
+            
             target_zone = self._find_best_zone(spy_state.support_zones, context.spy_price)
             
             if target_zone:
@@ -180,27 +187,34 @@ class SignalSynthesizer:
                     rec.action = "WAIT"
         
         # BEARISH setup at resistance
+        # BUT: VETO SHORT if Fed is DOVISH (don't fight the Fed!)
         elif confluence.bias == Bias.BEARISH and spy_state.resistance_zones:
-            target_zone = self._find_best_zone(spy_state.resistance_zones, context.spy_price)
-            
-            if target_zone:
-                entry = round(target_zone.center_price - 0.10, 2)
-                stop = round(target_zone.center_price + (target_zone.max_price - target_zone.min_price) + 0.50, 2)
-                risk = stop - entry
-                target = round(entry - (risk * 2.5), 2)
+            # 🔥 MACRO VETO: Don't SHORT when Fed is DOVISH!
+            if context.fed_sentiment == "DOVISH":
+                rec.primary_reason = "VETO: Fed DOVISH - don't SHORT against rate cut expectations"
+                rec.action = "WAIT"
+                rec.risks.append("⚠️ Fed is DOVISH (>70% cut prob) - shorting is against macro tailwind")
+            else:
+                target_zone = self._find_best_zone(spy_state.resistance_zones, context.spy_price)
                 
-                rec = TradeRecommendation(
-                    action="SHORT",
-                    symbol="SPY",
-                    entry_price=entry,
-                    stop_price=stop,
-                    target_price=target,
-                    size=size,
-                    risk_reward=round((entry - target) / (stop - entry), 1),
-                    primary_reason=f"Bearish confluence at {target_zone.rank.value} resistance",
-                    why_this_level=f"{target_zone.volume_str} institutional volume at {target_zone.range_str}",
-                    risks=confluence.conflicts.copy(),
-                )
+                if target_zone:
+                    entry = round(target_zone.center_price - 0.10, 2)
+                    stop = round(target_zone.center_price + (target_zone.max_price - target_zone.min_price) + 0.50, 2)
+                    risk = stop - entry
+                    target = round(entry - (risk * 2.5), 2)
+                    
+                    rec = TradeRecommendation(
+                        action="SHORT",
+                        symbol="SPY",
+                        entry_price=entry,
+                        stop_price=stop,
+                        target_price=target,
+                        size=size,
+                        risk_reward=round((entry - target) / (stop - entry), 1),
+                        primary_reason=f"Bearish confluence at {target_zone.rank.value} resistance",
+                        why_this_level=f"{target_zone.volume_str} institutional volume at {target_zone.range_str}",
+                        risks=confluence.conflicts.copy(),
+                    )
         
         return rec
     
