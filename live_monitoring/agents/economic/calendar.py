@@ -214,6 +214,16 @@ KNOWN_EVENTS = {
     # =========================================================================
     # MANUFACTURING & SERVICES
     # =========================================================================
+    "DURABLES": {
+        "name": "Durable Goods Orders",
+        "time": "08:30",
+        "importance": Importance.MEDIUM,
+        "category": EventCategory.MANUFACTURING,
+        "frequency": "monthly",
+        "schedule": "end_month",  # Usually last week of month
+        "typical_impact": 2.0,
+        "description": "Big-ticket item orders. Leading indicator of manufacturing."
+    },
     "ISM_MFG": {
         "name": "ISM Manufacturing PMI",
         "time": "10:00",

@@ -81,13 +81,13 @@ class DPLearningEngine:
     
     def log_interaction(
         self,
-        symbol: str,
-        level_price: float,
-        level_volume: int,
-        level_type: str,  # "SUPPORT" or "RESISTANCE"
-        level_date: str,
-        approach_price: float,
-        distance_pct: float,
+        symbol_or_interaction,  # Can be str (symbol) or DPInteraction object
+        level_price: float = None,
+        level_volume: int = None,
+        level_type: str = None,  # "SUPPORT" or "RESISTANCE"
+        level_date: str = None,
+        approach_price: float = None,
+        distance_pct: float = None,
         market_trend: str = "UNKNOWN",
         volume_vs_avg: float = 1.0,
         momentum_pct: float = 0.0,
@@ -97,10 +97,34 @@ class DPLearningEngine:
         Log a new interaction and get a prediction.
         
         This should be called when an alert fires.
+        Accepts either individual arguments or a DPInteraction object.
         
         Returns:
             DPPrediction with confidence and suggested action
         """
+        # Handle DPInteraction object passed as first argument
+        if hasattr(symbol_or_interaction, 'symbol'):
+            # It's a DPInteraction object
+            interaction_obj = symbol_or_interaction
+            symbol = interaction_obj.symbol
+            level_price = interaction_obj.level_price
+            level_volume = interaction_obj.level_volume
+            # Handle level_type which might be enum or string
+            if hasattr(interaction_obj.level_type, 'value'):
+                level_type = interaction_obj.level_type.value
+            else:
+                level_type = str(interaction_obj.level_type)
+            level_date = interaction_obj.level_date
+            approach_price = interaction_obj.approach_price
+            distance_pct = getattr(interaction_obj, 'distance_pct', 0.0) or 0.0
+            market_trend = getattr(interaction_obj, 'market_trend', 'UNKNOWN') or 'UNKNOWN'
+            volume_vs_avg = getattr(interaction_obj, 'volume_vs_avg', 1.0) or 1.0
+            momentum_pct = getattr(interaction_obj, 'momentum_pct', 0.0) or 0.0
+            vix_level = getattr(interaction_obj, 'vix_level', 0.0) or 0.0
+        else:
+            # Individual arguments
+            symbol = symbol_or_interaction
+        
         # Determine level type
         lt = LevelType.RESISTANCE if level_type.upper() == "RESISTANCE" else LevelType.SUPPORT
         
