@@ -164,6 +164,19 @@ class UnifiedAlphaMonitor:
             logger.warning(f"   ⚠️ DP Monitor Engine failed: {e}")
             self.dp_monitor_engine = None
         
+        # Signal Synthesis BRAIN (NEW!)
+        try:
+            from live_monitoring.agents.signal_brain import SignalBrainEngine
+            self.signal_brain = SignalBrainEngine()
+            self.brain_enabled = True
+            self.last_synthesis_check = None
+            self.synthesis_interval = 120  # 2 minutes - synthesize after individual alerts
+            logger.info("   ✅ Signal Synthesis Brain initialized (THINKING LAYER)")
+        except Exception as e:
+            logger.warning(f"   ⚠️ Signal Brain failed: {e}")
+            self.signal_brain = None
+            self.brain_enabled = False
+        
         # Economic Learning Engine (NEW MODULAR VERSION)
         try:
             from live_monitoring.agents.economic import EconomicIntelligenceEngine
@@ -712,6 +725,118 @@ class UnifiedAlphaMonitor:
         except Exception as e:
             logger.error(f"❌ Outcome alert error: {e}")
     
+    def check_synthesis(self):
+        """
+        🧠 SIGNAL SYNTHESIS BRAIN
+        Combines all DP alerts into ONE unified analysis.
+        Instead of 7 separate alerts → 1 actionable synthesis.
+        """
+        if not self.brain_enabled or not self.signal_brain:
+            return
+        
+        try:
+            import yfinance as yf
+            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+            
+            logger.info("🧠 Running Signal Synthesis Brain...")
+            
+            # Collect all DP levels for SPY and QQQ
+            spy_levels = []
+            qqq_levels = []
+            spy_price = 0.0
+            qqq_price = 0.0
+            
+            for symbol in ['SPY', 'QQQ']:
+                # Get current price
+                try:
+                    ticker = yf.Ticker(symbol)
+                    hist = ticker.history(period='1d', interval='1m')
+                    if not hist.empty:
+                        price = float(hist['Close'].iloc[-1])
+                        if symbol == 'SPY':
+                            spy_price = price
+                        else:
+                            qqq_price = price
+                except:
+                    continue
+                
+                # Get DP levels from cache or fetch
+                if symbol in self.dp_battlegrounds:
+                    levels = [
+                        {'price': bg['price'], 'volume': int(bg['volume'])}
+                        for bg in self.dp_battlegrounds[symbol]
+                    ]
+                else:
+                    # Fetch fresh
+                    try:
+                        dp_levels = self.dp_client.get_dark_pool_levels(symbol, yesterday)
+                        if dp_levels:
+                            levels = []
+                            for level in dp_levels:
+                                price = float(level.get('level', 0))
+                                vol = int(level.get('total_vol', 0))
+                                if vol >= 500000:
+                                    levels.append({'price': price, 'volume': vol})
+                    except:
+                        levels = []
+                
+                if symbol == 'SPY':
+                    spy_levels = levels
+                else:
+                    qqq_levels = levels
+            
+            if not spy_levels and not qqq_levels:
+                logger.info("   📊 No DP levels available for synthesis")
+                return
+            
+            # Get macro context
+            fed_sentiment = "NEUTRAL"
+            trump_risk = "LOW"
+            
+            if self.fed_enabled and self.prev_fed_status:
+                cut = self.prev_fed_status.get('cut_probability', 50)
+                if cut > 70:
+                    fed_sentiment = "DOVISH"
+                elif cut < 30:
+                    fed_sentiment = "HAWKISH"
+            
+            if self.trump_enabled and self.prev_trump_sentiment:
+                if 'risk' in str(self.prev_trump_sentiment).lower():
+                    trump_risk = "HIGH"
+            
+            # Run synthesis
+            result = self.signal_brain.analyze(
+                spy_levels=spy_levels,
+                qqq_levels=qqq_levels,
+                spy_price=spy_price,
+                qqq_price=qqq_price,
+                fed_sentiment=fed_sentiment,
+                trump_risk=trump_risk,
+            )
+            
+            # Check if we should alert
+            if self.signal_brain.should_alert(result):
+                embed = self.signal_brain.to_discord(result)
+                content = f"🧠 **MARKET SYNTHESIS** | {result.confluence.score:.0f}% {result.confluence.bias.value}"
+                
+                if result.recommendation and result.recommendation.wait_for:
+                    content += f" | ⏳ {result.recommendation.wait_for}"
+                elif result.recommendation and result.recommendation.action != "WAIT":
+                    content += f" | 🎯 {result.recommendation.action} SPY"
+                
+                logger.info(f"   📤 Sending synthesis alert: {result.confluence.score:.0f}% {result.confluence.bias.value}")
+                success = self.send_discord(embed, content=content)
+                
+                if success:
+                    logger.info(f"   ✅ SYNTHESIS ALERT SENT!")
+            else:
+                logger.info(f"   📊 Synthesis: {result.confluence.score:.0f}% {result.confluence.bias.value} (no alert needed)")
+                
+        except Exception as e:
+            logger.error(f"   ❌ Synthesis error: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+    
     def send_startup_alert(self):
         """Send startup notification."""
         if not self.discord_webhook:
@@ -744,20 +869,26 @@ class UnifiedAlphaMonitor:
                 logger.debug(f"Error getting DP learning status: {e}")
                 dp_learning_status = "Initializing..."
         
+        # Signal Brain status
+        brain_status = "❌ Disabled"
+        if self.brain_enabled:
+            brain_status = "✅ ACTIVE - Zone clustering, cross-asset, unified alerts"
+        
         embed = {
             "title": "🎯 ALPHA INTELLIGENCE - ONLINE",
             "color": 3066993,
-            "description": "All monitoring systems activated with LEARNING ENGINE + DARK POOL INTELLIGENCE",
+            "description": "All monitoring systems activated with LEARNING ENGINE + SIGNAL BRAIN",
             "fields": [
                 {"name": "🏦 Fed Watch", "value": "✅ Active" if self.fed_enabled else "❌ Disabled", "inline": True},
                 {"name": "🎯 Trump Intel", "value": "✅ Active" if self.trump_enabled else "❌ Disabled", "inline": True},
                 {"name": "📊 Economic AI", "value": "✅ Active" if self.econ_enabled else "❌ Disabled", "inline": True},
                 {"name": "🔒 Dark Pools", "value": f"✅ {', '.join(self.symbols)}" if self.dp_enabled else "❌ Disabled", "inline": True},
                 {"name": "🧠 DP Learning", "value": f"✅ {dp_learning_status}" if self.dp_learning_enabled else "❌ Disabled", "inline": False},
+                {"name": "🧠 Signal Brain", "value": brain_status, "inline": False},
                 {"name": "📈 Econ Patterns", "value": econ_status or "Disabled", "inline": False},
-                {"name": "⏱️ Intervals", "value": f"Fed: {self.fed_interval/60:.0f}m | Trump: {self.trump_interval/60:.0f}m | DP: {self.dp_interval}s | Econ: {self.econ_interval/60:.0f}m", "inline": False},
+                {"name": "⏱️ Intervals", "value": f"Fed: {self.fed_interval/60:.0f}m | Trump: {self.trump_interval/60:.0f}m | DP: {self.dp_interval}s | Brain: {self.synthesis_interval}s", "inline": False},
             ],
-            "footer": {"text": "Monitoring markets 24/7 with machine learning + institutional flow"},
+            "footer": {"text": "Monitoring markets 24/7 with machine learning + signal synthesis"},
             "timestamp": datetime.utcnow().isoformat()
         }
         
@@ -804,6 +935,11 @@ class UnifiedAlphaMonitor:
                 if self.last_dp_check is None or (now - self.last_dp_check).seconds >= self.dp_interval:
                     self.check_dark_pools()
                     self.last_dp_check = now
+                
+                # Signal Synthesis Brain (every 2 minutes)
+                if self.brain_enabled and (self.last_synthesis_check is None or (now - self.last_synthesis_check).seconds >= self.synthesis_interval):
+                    self.check_synthesis()
+                    self.last_synthesis_check = now
                 
                 # Sleep for 30 seconds between checks (faster for DP)
                 time.sleep(30)
