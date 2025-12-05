@@ -246,7 +246,26 @@ class MacroContextProvider:
             except Exception as e:
                 logger.warning(f"Economic calendar error: {e}")
         
-        # 2. Try to get LIVE economic data (actual vs forecast)
+        # 2. Try Alpha Vantage for LIVE economic data (actual values!)
+        if context.event_name:
+            try:
+                from live_monitoring.enrichment.apis.economic_data_fetcher import EconomicDataFetcher
+                av_fetcher = EconomicDataFetcher()
+                
+                sentiment = av_fetcher.get_sentiment_for_event(context.event_name)
+                if sentiment:
+                    context.economic_sentiment = sentiment.sentiment
+                    context.recent_event = EconomicEvent(
+                        name=context.event_name,
+                        actual=sentiment.latest_value,
+                        surprise_pct=sentiment.change_pct or 0,
+                        importance='HIGH',
+                    )
+                    logger.info(f"📊 Alpha Vantage: {sentiment.event_name} → {sentiment.sentiment} ({sentiment.reasoning})")
+            except Exception as e:
+                logger.debug(f"Alpha Vantage error: {e}")
+        
+        # 3. Try Economic Learning Engine as fallback
         if self.economic_engine:
             try:
                 # Check for recent predictions or events

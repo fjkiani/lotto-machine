@@ -13,6 +13,8 @@ services:
         sync: false  # Set this in Render dashboard
       - key: FRED_API_KEY
         sync: false  # Set this in Render dashboard
+      - key: ALPHA_VANTAGE_API_KEY
+        sync: false  # Set this in Render dashboard - get key from alphavantage.co
       - key: PYTHON_VERSION
         value: 3.9
     plan: free  # FREE tier - Web Service is free!
