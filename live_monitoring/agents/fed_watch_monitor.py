@@ -429,10 +429,10 @@ class FedWatchFetcher:
                 
                 import re
             
-            # BEST PATTERN: "CUT: 87-89%, HOLD: 11-13%" format
-            # This is what Perplexity returns in our specific query
-            cut_direct = re.search(r'cut[:\s]+(\d{2,3})(?:-\d+)?%', answer_lower)
-            hold_direct = re.search(r'hold[:\s]+(\d{1,3})(?:-\d+)?%', answer_lower)
+            # BEST PATTERN: "CUT: 87.2%, HOLD: 12.8%" format
+            # This is what Perplexity returns - handles decimals!
+            cut_direct = re.search(r'cut[:\s]+(\d{1,3}(?:\.\d+)?)\s*%', answer_lower)
+            hold_direct = re.search(r'hold[:\s]+(\d{1,3}(?:\.\d+)?)\s*%', answer_lower)
             
             if cut_direct:
                 status.prob_cut = float(cut_direct.group(1))

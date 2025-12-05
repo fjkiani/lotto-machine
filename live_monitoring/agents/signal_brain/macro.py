@@ -16,6 +16,7 @@ Output: MacroContext with real, live data
 """
 
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
@@ -53,6 +54,9 @@ class MacroContext:
     # Economic Events
     recent_event: Optional[EconomicEvent] = None
     economic_sentiment: str = "NEUTRAL"  # Based on recent releases
+    today_has_high_impact_event: bool = False  # NFP, CPI, etc today?
+    event_name: str = ""  # Name of today's event
+    event_time: str = ""  # Time of today's event (e.g., "08:30")
     
     # Fed Officials
     fed_official_latest: str = ""  # Most recent comment
@@ -199,8 +203,50 @@ class MacroContextProvider:
             logger.warning(f"⚠️ Fed Watch load error: {e}")
     
     def _load_economic_events(self, context: MacroContext):
-        """Load recent economic events (NFP, CPI, etc.)."""
-        # Try Economic Learning Engine first
+        """Load recent economic events (NFP, CPI, etc.) with LIVE data."""
+        today_events = []
+        
+        # 1. Get today's events from Economic Calendar (static schedule)
+        if self.economic_calendar:
+            try:
+                # Try both method names
+                if hasattr(self.economic_calendar, 'get_today_events'):
+                    today_events = self.economic_calendar.get_today_events()
+                elif hasattr(self.economic_calendar, 'get_upcoming_events'):
+                    # Filter to today only
+                    from datetime import date
+                    today_str = date.today().isoformat()
+                    all_events = self.economic_calendar.get_upcoming_events(days=1)
+                    today_events = [e for e in all_events if getattr(e, 'date', '') == today_str]
+                
+                if today_events:
+                    # Find HIGH importance events
+                    high_events = [
+                        e for e in today_events 
+                        if getattr(e, 'importance', None) and 
+                        (str(getattr(e, 'importance', '')).upper() == 'HIGH' or 
+                         'HIGH' in str(getattr(e, 'importance', '')))
+                    ]
+                    
+                    if high_events:
+                        event = high_events[0]
+                        event_name = getattr(event, 'name', 'Unknown')
+                        event_time = getattr(event, 'time', '08:30')
+                        impact = getattr(event, 'typical_surprise_impact', 3.0)
+                        
+                        context.recent_event = EconomicEvent(
+                            name=event_name,
+                            importance='HIGH',
+                        )
+                        context.today_has_high_impact_event = True
+                        context.event_name = event_name
+                        context.event_time = event_time
+                        
+                        logger.info(f"📅 Today's HIGH Event: {event_name} @ {event_time}")
+            except Exception as e:
+                logger.warning(f"Economic calendar error: {e}")
+        
+        # 2. Try to get LIVE economic data (actual vs forecast)
         if self.economic_engine:
             try:
                 # Check for recent predictions or events
@@ -215,42 +261,74 @@ class MacroContextProvider:
                             importance=event_data.get('importance', 'MEDIUM'),
                         )
                         
-                        # Determine economic sentiment
-                        # Positive surprise in jobs = HAWKISH (less cuts)
-                        # Negative surprise in jobs = DOVISH (more cuts)
-                        if context.recent_event.name in ['NFP', 'Nonfarm Payrolls']:
-                            if context.recent_event.surprise_pct > 0:
-                                context.economic_sentiment = "HAWKISH"
-                            elif context.recent_event.surprise_pct < 0:
-                                context.economic_sentiment = "DOVISH"
-                        # CPI: Higher = HAWKISH, Lower = DOVISH
-                        elif context.recent_event.name in ['CPI', 'PCE']:
-                            if context.recent_event.surprise_pct > 0:
-                                context.economic_sentiment = "HAWKISH"
-                            elif context.recent_event.surprise_pct < 0:
-                                context.economic_sentiment = "DOVISH"
+                        # Determine economic sentiment from surprise
+                        self._calculate_economic_sentiment(context)
                         
-                        logger.info(f"📅 Economic: {context.recent_event.name} → {context.economic_sentiment}")
+                        logger.info(f"📊 Economic Data: {context.recent_event.name} → {context.economic_sentiment}")
             except Exception as e:
                 logger.debug(f"Economic engine error: {e}")
         
-        # Try Economic Calendar as fallback
-        if not context.recent_event and self.economic_calendar:
-            try:
-                if hasattr(self.economic_calendar, 'get_todays_events'):
-                    events = self.economic_calendar.get_todays_events()
-                    if events:
-                        # Find the most recent HIGH importance event
-                        high_events = [e for e in events if e.get('importance') == 'HIGH']
-                        if high_events:
-                            event = high_events[0]
-                            context.recent_event = EconomicEvent(
-                                name=event.get('name', 'Unknown'),
-                                importance='HIGH',
-                            )
-                            logger.info(f"📅 Today's Event: {context.recent_event.name}")
-            except Exception as e:
-                logger.debug(f"Economic calendar error: {e}")
+        # 3. If we have today's event but no actual data, try to fetch from Perplexity
+        if context.today_has_high_impact_event and not context.recent_event.actual:
+            self._fetch_live_economic_data(context)
+    
+    def _calculate_economic_sentiment(self, context: MacroContext):
+        """Calculate economic sentiment from event surprise."""
+        if not context.recent_event or not context.recent_event.surprise_pct:
+            return
+        
+        event_name = context.recent_event.name.upper()
+        surprise = context.recent_event.surprise_pct
+        
+        # Jobs data: Positive surprise = HAWKISH (strong economy, less cuts)
+        if 'NFP' in event_name or 'PAYROLL' in event_name or 'EMPLOYMENT' in event_name:
+            if surprise > 0.5:
+                context.economic_sentiment = "HAWKISH"
+            elif surprise < -0.5:
+                context.economic_sentiment = "DOVISH"
+        # Inflation data: Higher = HAWKISH, Lower = DOVISH
+        elif 'CPI' in event_name or 'PCE' in event_name or 'INFLATION' in event_name:
+            if surprise > 0.1:
+                context.economic_sentiment = "HAWKISH"
+            elif surprise < -0.1:
+                context.economic_sentiment = "DOVISH"
+        # Jobless claims: LOWER is HAWKISH (strong jobs), HIGHER is DOVISH
+        elif 'JOBLESS' in event_name or 'CLAIMS' in event_name:
+            if surprise < -0.5:
+                context.economic_sentiment = "HAWKISH"
+            elif surprise > 0.5:
+                context.economic_sentiment = "DOVISH"
+    
+    def _fetch_live_economic_data(self, context: MacroContext):
+        """Try to fetch live economic data from Perplexity."""
+        try:
+            # Try to use Perplexity for live data
+            perplexity_key = os.environ.get('PERPLEXITY_API_KEY')
+            if not perplexity_key:
+                return
+            
+            from live_monitoring.enrichment.apis.perplexity_search import PerplexitySearchClient
+            client = PerplexitySearchClient(api_key=perplexity_key)
+            
+            event_name = context.event_name or 'NFP jobs'
+            query = f"What was today's {event_name} report result? Was it above or below expectations?"
+            
+            result = client.search(query)
+            if result and result.text:
+                text = result.text.lower()
+                
+                # Parse sentiment from result
+                if 'better than expected' in text or 'beat' in text or 'above' in text:
+                    context.economic_sentiment = "HAWKISH"
+                    logger.info(f"📊 Live Data: {event_name} BEAT expectations → HAWKISH")
+                elif 'worse than expected' in text or 'miss' in text or 'below' in text:
+                    context.economic_sentiment = "DOVISH"
+                    logger.info(f"📊 Live Data: {event_name} MISSED expectations → DOVISH")
+                elif 'inline' in text or 'as expected' in text or 'in line' in text:
+                    context.economic_sentiment = "NEUTRAL"
+                    logger.info(f"📊 Live Data: {event_name} inline → NEUTRAL")
+        except Exception as e:
+            logger.debug(f"Live economic data fetch error: {e}")
     
     def _load_fed_officials(self, context: MacroContext):
         """Load Fed official comments."""
