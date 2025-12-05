@@ -58,12 +58,19 @@ class UnifiedAlphaMonitor:
         self.trump_interval = 180    # 3 minutes for Trump
         self.news_interval = 300     # 5 minutes for news
         self.econ_interval = 3600    # 1 hour for economic calendar check
+        self.dp_interval = 60        # 1 minute for dark pool (need real-time!)
         
         # Track last run times
         self.last_fed_check = None
         self.last_trump_check = None
         self.last_news_check = None
         self.last_econ_check = None
+        self.last_dp_check = None
+        
+        # Dark Pool tracking
+        self.dp_battlegrounds = {}  # symbol -> list of levels
+        self.dp_alerted_levels = set()  # Avoid duplicate alerts
+        self.symbols = ['SPY', 'QQQ']  # Symbols to monitor
         
         # Alerted events (avoid duplicate alerts)
         self.alerted_events = set()
@@ -74,11 +81,14 @@ class UnifiedAlphaMonitor:
         logger.info("=" * 70)
         logger.info("🎯 ALPHA INTELLIGENCE - UNIFIED MONITOR STARTED")
         logger.info("   🧠 WITH ECONOMIC LEARNING ENGINE")
+        logger.info("   🔒 WITH DARK POOL INTELLIGENCE")
         logger.info("=" * 70)
         logger.info(f"   Discord: {'✅' if self.discord_webhook else '❌'}")
         logger.info(f"   Fed Watch: Every {self.fed_interval/60:.0f} min")
         logger.info(f"   Trump Intel: Every {self.trump_interval/60:.0f} min")
         logger.info(f"   Economic AI: Every {self.econ_interval/60:.0f} min")
+        logger.info(f"   Dark Pool: Every {self.dp_interval} sec (real-time)")
+        logger.info(f"   Symbols: {', '.join(self.symbols)}")
         logger.info("=" * 70)
     
     def _init_monitors(self):
@@ -107,6 +117,23 @@ class UnifiedAlphaMonitor:
         except Exception as e:
             logger.warning(f"   ⚠️ Trump monitors failed: {e}")
             self.trump_enabled = False
+        
+        # Dark Pool Intelligence
+        try:
+            api_key = os.getenv('CHARTEXCHANGE_API_KEY')
+            if api_key:
+                from core.ultra_institutional_engine import UltraInstitutionalEngine
+                from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
+                self.dp_client = UltimateChartExchangeClient(api_key)
+                self.dp_engine = UltraInstitutionalEngine(api_key)
+                self.dp_enabled = True
+                logger.info("   ✅ Dark Pool monitors initialized")
+            else:
+                logger.warning("   ⚠️ CHARTEXCHANGE_API_KEY not set - DP disabled")
+                self.dp_enabled = False
+        except Exception as e:
+            logger.warning(f"   ⚠️ Dark Pool monitors failed: {e}")
+            self.dp_enabled = False
         
         # Economic Learning Engine (NEW MODULAR VERSION)
         try:
@@ -498,6 +525,156 @@ class UnifiedAlphaMonitor:
             logger.debug(f"Economic events fetch error: {e}")
             return []
     
+    def check_dark_pools(self):
+        """
+        🔒 DARK POOL INTELLIGENCE
+        Monitors price proximity to institutional battlegrounds.
+        Alerts when price approaches, touches, or breaks key levels.
+        """
+        if not self.dp_enabled:
+            return
+        
+        logger.info("🔒 Checking Dark Pool levels...")
+        
+        try:
+            import yfinance as yf
+            from datetime import datetime, timedelta
+            
+            today = datetime.now().strftime('%Y-%m-%d')
+            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+            
+            for symbol in self.symbols:
+                # Get current price
+                try:
+                    ticker = yf.Ticker(symbol)
+                    hist = ticker.history(period='1d', interval='1m')
+                    if hist.empty:
+                        logger.warning(f"   ⚠️ No price data for {symbol}")
+                        continue
+                    current_price = float(hist['Close'].iloc[-1])
+                except Exception as e:
+                    logger.warning(f"   ⚠️ Could not get price for {symbol}: {e}")
+                    continue
+                
+                # Fetch battlegrounds if we don't have them or it's a new day
+                if symbol not in self.dp_battlegrounds or not self.dp_battlegrounds[symbol]:
+                    logger.info(f"   📥 Fetching DP battlegrounds for {symbol}...")
+                    try:
+                        dp_levels = self.dp_client.get_dark_pool_levels(symbol, yesterday)
+                        
+                        if dp_levels:
+                            # Get top battlegrounds (>= 1M shares)
+                            battlegrounds = []
+                            for level in dp_levels:
+                                price = level.get('level', level.get('price', 0))
+                                vol = level.get('total_vol', level.get('volume', 0))
+                                
+                                if isinstance(price, str):
+                                    try:
+                                        price = float(price)
+                                    except:
+                                        continue
+                                if isinstance(vol, str):
+                                    try:
+                                        vol = float(vol.replace(',', ''))
+                                    except:
+                                        vol = 0
+                                
+                                if vol >= 500000:  # 500K+ shares = significant level
+                                    battlegrounds.append({
+                                        'price': float(price),
+                                        'volume': float(vol),
+                                        'date': yesterday
+                                    })
+                            
+                            # Sort by volume and keep top 10
+                            battlegrounds = sorted(battlegrounds, key=lambda x: x['volume'], reverse=True)[:10]
+                            self.dp_battlegrounds[symbol] = battlegrounds
+                            
+                            # Log battlegrounds
+                            logger.info(f"   📊 {symbol} Battlegrounds:")
+                            for bg in battlegrounds[:5]:
+                                logger.info(f"      ${bg['price']:.2f} - {bg['volume']:,.0f} shares")
+                    except Exception as e:
+                        logger.error(f"   ❌ Could not fetch DP levels for {symbol}: {e}")
+                        continue
+                
+                # Check price proximity to battlegrounds
+                battlegrounds = self.dp_battlegrounds.get(symbol, [])
+                if not battlegrounds:
+                    continue
+                
+                for bg in battlegrounds:
+                    bg_price = bg['price']
+                    bg_volume = bg['volume']
+                    
+                    # Calculate distance
+                    distance_pct = abs(current_price - bg_price) / bg_price * 100
+                    
+                    # Create unique key for this alert
+                    alert_key = f"{symbol}_{bg_price:.2f}_{datetime.now().strftime('%Y%m%d%H')}"
+                    
+                    # Alert conditions
+                    alert_type = None
+                    alert_color = 0
+                    
+                    if distance_pct <= 0.1:  # Within 0.1% = AT LEVEL
+                        alert_type = "AT_LEVEL"
+                        alert_color = 16711680  # Red
+                    elif distance_pct <= 0.3:  # Within 0.3% = APPROACHING
+                        alert_type = "APPROACHING"
+                        alert_color = 16776960  # Yellow
+                    elif distance_pct <= 0.5:  # Within 0.5% = NEAR
+                        alert_type = "NEAR"
+                        alert_color = 3447003  # Blue
+                    
+                    if alert_type and alert_key not in self.dp_alerted_levels:
+                        # Send alert
+                        direction = "ABOVE" if current_price > bg_price else "BELOW"
+                        direction_emoji = "📈" if current_price > bg_price else "📉"
+                        
+                        # Determine if this is support or resistance
+                        level_type = "SUPPORT" if current_price > bg_price else "RESISTANCE"
+                        
+                        embed = {
+                            "title": f"🔒 DARK POOL {alert_type}: {symbol}",
+                            "color": alert_color,
+                            "description": f"{direction_emoji} Price is {distance_pct:.2f}% {direction} battleground!",
+                            "fields": [
+                                {"name": "💰 Current Price", "value": f"${current_price:.2f}", "inline": True},
+                                {"name": "🎯 Battleground", "value": f"${bg_price:.2f}", "inline": True},
+                                {"name": "📏 Distance", "value": f"{distance_pct:.2f}%", "inline": True},
+                                {"name": "📊 Volume", "value": f"{bg_volume:,.0f} shares", "inline": True},
+                                {"name": "🏷️ Type", "value": level_type, "inline": True},
+                                {"name": "📅 Data From", "value": bg['date'], "inline": True},
+                            ],
+                            "footer": {"text": f"Dark Pool Intelligence | Institutions positioned here"},
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+                        
+                        if alert_type == "AT_LEVEL":
+                            content = f"🚨 **{symbol} AT BATTLEGROUND ${bg_price:.2f}** - {bg_volume:,.0f} shares! Watch for bounce/break!"
+                        elif alert_type == "APPROACHING":
+                            content = f"⚠️ **{symbol} APPROACHING** ${bg_price:.2f} battleground ({bg_volume:,.0f} shares)"
+                        else:
+                            content = f"📊 {symbol} near DP level ${bg_price:.2f}"
+                        
+                        logger.info(f"   📤 Sending DP alert: {symbol} {alert_type} ${bg_price:.2f}")
+                        success = self.send_discord(embed, content=content)
+                        
+                        if success:
+                            self.dp_alerted_levels.add(alert_key)
+                            logger.info(f"   ✅ DP ALERT SENT: {symbol} {alert_type} ${bg_price:.2f}")
+                        else:
+                            logger.error(f"   ❌ Failed to send DP alert")
+                
+                logger.info(f"   📊 {symbol}: ${current_price:.2f}")
+        
+        except Exception as e:
+            logger.error(f"   ❌ Dark Pool check error: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+    
     def send_startup_alert(self):
         """Send startup notification."""
         if not self.discord_webhook:
@@ -519,15 +696,16 @@ class UnifiedAlphaMonitor:
         embed = {
             "title": "🎯 ALPHA INTELLIGENCE - ONLINE",
             "color": 3066993,
-            "description": "All monitoring systems activated with LEARNING ENGINE",
+            "description": "All monitoring systems activated with LEARNING ENGINE + DARK POOL INTELLIGENCE",
             "fields": [
                 {"name": "🏦 Fed Watch", "value": "✅ Active" if self.fed_enabled else "❌ Disabled", "inline": True},
                 {"name": "🎯 Trump Intel", "value": "✅ Active" if self.trump_enabled else "❌ Disabled", "inline": True},
                 {"name": "📊 Economic AI", "value": "✅ Active" if self.econ_enabled else "❌ Disabled", "inline": True},
+                {"name": "🔒 Dark Pools", "value": f"✅ {', '.join(self.symbols)}" if self.dp_enabled else "❌ Disabled", "inline": True},
                 {"name": "🧠 Learned Patterns", "value": econ_status or "Disabled", "inline": False},
-                {"name": "⏱️ Intervals", "value": f"Fed: {self.fed_interval/60:.0f}m | Trump: {self.trump_interval/60:.0f}m | Econ: {self.econ_interval/60:.0f}m", "inline": False},
+                {"name": "⏱️ Intervals", "value": f"Fed: {self.fed_interval/60:.0f}m | Trump: {self.trump_interval/60:.0f}m | DP: {self.dp_interval}s | Econ: {self.econ_interval/60:.0f}m", "inline": False},
             ],
-            "footer": {"text": "Monitoring markets 24/7 with machine learning"},
+            "footer": {"text": "Monitoring markets 24/7 with machine learning + institutional flow"},
             "timestamp": datetime.utcnow().isoformat()
         }
         
@@ -549,6 +727,7 @@ class UnifiedAlphaMonitor:
         self.check_fed()
         self.check_trump()
         self.check_economics()
+        self.check_dark_pools()
         
         while self.running:
             try:
@@ -569,8 +748,13 @@ class UnifiedAlphaMonitor:
                     self.check_economics()
                     self.last_econ_check = now
                 
-                # Sleep for 60 seconds between checks
-                time.sleep(60)
+                # Check Dark Pools (every 60 seconds - real-time!)
+                if self.last_dp_check is None or (now - self.last_dp_check).seconds >= self.dp_interval:
+                    self.check_dark_pools()
+                    self.last_dp_check = now
+                
+                # Sleep for 30 seconds between checks (faster for DP)
+                time.sleep(30)
                 
             except KeyboardInterrupt:
                 logger.info("\n🛑 Monitor stopped by user")
@@ -616,6 +800,8 @@ def create_web_app():
         return JSONResponse({"status": "healthy", "monitors": {
             "fed": getattr(monitor, 'fed_enabled', False) if monitor else False,
             "trump": getattr(monitor, 'trump_enabled', False) if monitor else False,
+            "dark_pools": getattr(monitor, 'dp_enabled', False) if monitor else False,
+            "symbols": getattr(monitor, 'symbols', []) if monitor else [],
         }})
     
     @app.get("/status")
