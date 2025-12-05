@@ -256,11 +256,14 @@ class FedWatchFetcher:
             
             # Very specific query for CME FedWatch
             query = """
-            What is the EXACT current CME FedWatch Tool probability for the December 18, 2025 FOMC meeting?
-            I need the specific percentages from CME Group's FedWatch tool for:
-            1. Probability of a 25 basis point rate CUT (to 350-375 range or 3.50%-3.75%)
-            2. Probability of NO CHANGE / HOLD (staying at 375-400 or 3.75%-4.00%)
-            Give me the exact current percentages as shown on CME FedWatch today.
+            What is the EXACT current CME FedWatch probability percentage for December 2025 FOMC meeting?
+            The current Fed Funds rate target is 375-400 bps (3.75%-4.00%).
+            CME FedWatch shows probabilities for:
+            - 350-375 bps (this would be a 25bp CUT)
+            - 375-400 bps (this would be NO CHANGE / HOLD)
+            
+            Give me ONLY the probability percentages in this exact format:
+            "350-375: XX%" and "375-400: XX%"
             """
             result = client.search(query)
             
@@ -292,59 +295,82 @@ class FedWatchFetcher:
         
         if perplexity_data and 'answer' in perplexity_data:
             # Parse the answer for probabilities
-            answer = perplexity_data['answer'].lower()
-            raw_answer = perplexity_data['answer']  # Keep original case for logging
+            answer = perplexity_data['answer']
+            answer_lower = answer.lower()
             
-            logger.debug(f"Perplexity raw answer: {raw_answer[:500]}...")
-            
-            # Try to extract percentages
             import re
             
-            # Look for specific CME FedWatch patterns
-            # Pattern 1: "87% probability of a cut" or "cut: 87%"
-            cut_patterns = [
-                r'(\d+(?:\.\d+)?)\s*%\s*(?:probability\s+)?(?:of\s+)?(?:a\s+)?(?:rate\s+)?cut',
-                r'cut[:\s]+(\d+(?:\.\d+)?)\s*%',
-                r'350-375[^\d]*(\d+(?:\.\d+)?)\s*%',
-                r'25\s*(?:basis\s+)?(?:point\s+)?cut[^\d]*(\d+(?:\.\d+)?)\s*%',
-                r'(\d+(?:\.\d+)?)\s*%[^\d]*cut',
-            ]
+            # BEST PATTERN: "CUT: 87-89%, HOLD: 11-13%" format
+            # This is what Perplexity returns in our specific query
+            cut_direct = re.search(r'cut[:\s]+(\d{2,3})(?:-\d+)?%', answer_lower)
+            hold_direct = re.search(r'hold[:\s]+(\d{1,3})(?:-\d+)?%', answer_lower)
             
-            for pattern in cut_patterns:
-                match = re.search(pattern, answer)
-                if match:
-                    status.prob_cut = float(match.group(1))
-                    logger.info(f"   📉 Found CUT probability: {status.prob_cut}%")
-                    break
+            if cut_direct:
+                status.prob_cut = float(cut_direct.group(1))
+                logger.info(f"   📉 Found CUT: {status.prob_cut}%")
             
-            # Pattern 2: "13% probability of hold" or "hold: 13%" or "no change: 13%"
-            hold_patterns = [
-                r'(\d+(?:\.\d+)?)\s*%\s*(?:probability\s+)?(?:of\s+)?(?:no\s+change|hold|unchanged)',
-                r'(?:hold|no\s+change|unchanged)[:\s]+(\d+(?:\.\d+)?)\s*%',
-                r'375-400[^\d]*(\d+(?:\.\d+)?)\s*%',
-                r'(\d+(?:\.\d+)?)\s*%[^\d]*(?:hold|no\s+change)',
-            ]
+            if hold_direct:
+                status.prob_hold = float(hold_direct.group(1))
+                logger.info(f"   ➡️ Found HOLD: {status.prob_hold}%")
             
-            for pattern in hold_patterns:
-                match = re.search(pattern, answer)
-                if match:
-                    status.prob_hold = float(match.group(1))
-                    logger.info(f"   ➡️ Found HOLD probability: {status.prob_hold}%")
-                    break
+            # If direct format didn't work, try other patterns
+            if status.prob_cut == 0:
+                # Look for "probability of cut is 87%" or "87% probability of a cut"
+                patterns = [
+                    r'probability\s+of\s+(?:a\s+)?(?:rate\s+)?cut[^\d]*(?:is\s+)?(\d{2,3})(?:\.\d+)?%',
+                    r'(\d{2,3})(?:\.\d+)?%\s+probability\s+of\s+(?:a\s+)?(?:rate\s+)?cut',
+                    r'cut\s+(?:is\s+)?(?:at\s+)?(?:approximately\s+)?(\d{2,3})(?:\.\d+)?%',
+                    r'(\d{2,3})(?:\.\d+)?%\s+(?:to\s+\d+%\s+)?(?:chance\s+)?(?:of\s+)?(?:a\s+)?cut',
+                ]
+                for p in patterns:
+                    m = re.search(p, answer_lower)
+                    if m:
+                        status.prob_cut = float(m.group(1))
+                        logger.info(f"   📉 Found CUT (pattern): {status.prob_cut}%")
+                        break
             
-            # Pattern 3: Look for hike (less common now)
-            hike_patterns = [
-                r'(\d+(?:\.\d+)?)\s*%\s*(?:probability\s+)?(?:of\s+)?(?:a\s+)?(?:rate\s+)?hike',
-                r'hike[:\s]+(\d+(?:\.\d+)?)\s*%',
-                r'(\d+(?:\.\d+)?)\s*%[^\d]*hike',
-            ]
+            if status.prob_hold == 0:
+                # Look for "probability of hold is 13%" or "13% probability of hold"
+                patterns = [
+                    r'probability\s+of\s+(?:the\s+)?(?:fed\s+)?hold[^\d]*(?:is\s+)?(\d{1,3})(?:\.\d+)?%',
+                    r'(\d{1,3})(?:\.\d+)?%\s+probability\s+of\s+(?:a\s+)?hold',
+                    r'hold[^\d]*(?:is\s+)?(?:at\s+)?(?:around\s+)?(\d{1,3})(?:\.\d+)?%',
+                    r'steady[^\d]*(\d{1,3})(?:\.\d+)?%',
+                ]
+                for p in patterns:
+                    m = re.search(p, answer_lower)
+                    if m:
+                        status.prob_hold = float(m.group(1))
+                        logger.info(f"   ➡️ Found HOLD (pattern): {status.prob_hold}%")
+                        break
             
-            for pattern in hike_patterns:
-                match = re.search(pattern, answer)
-                if match:
-                    status.prob_hike = float(match.group(1))
-                    logger.info(f"   📈 Found HIKE probability: {status.prob_hike}%")
-                    break
+            # SANITY CHECK: If cut is very high (>80%), hold should be low (<20%) and vice versa
+            # This catches cases where the data is inverted
+            if status.prob_cut > 0 and status.prob_hold > 0:
+                total = status.prob_cut + status.prob_hold
+                if total < 90 or total > 110:
+                    # Something's wrong, try to infer from context
+                    if 'favors' in answer_lower and 'cut' in answer_lower:
+                        # Market favors cut = cut should be higher
+                        if status.prob_cut < status.prob_hold:
+                            status.prob_cut, status.prob_hold = status.prob_hold, status.prob_cut
+                            logger.info(f"   🔄 Swapped (market favors cut): Cut {status.prob_cut}% | Hold {status.prob_hold}%")
+            
+            # If we still don't have data, look for the first two percentages > 10%
+            if status.prob_cut == 0 and status.prob_hold == 0:
+                all_pcts = re.findall(r'(\d{2,3})(?:\.\d+)?%', answer)
+                valid_pcts = [float(p) for p in all_pcts if float(p) > 10 and float(p) <= 100]
+                
+                if len(valid_pcts) >= 2:
+                    # Determine which is cut vs hold based on context
+                    # "favors cut" or "cut at 87%" means first high number is cut
+                    if 'favors' in answer_lower:
+                        status.prob_cut = max(valid_pcts[:2])
+                        status.prob_hold = min(valid_pcts[:2])
+                    else:
+                        status.prob_cut = valid_pcts[0]
+                        status.prob_hold = valid_pcts[1]
+                    logger.info(f"   📊 Extracted: Cut {status.prob_cut}% | Hold {status.prob_hold}%")
         
         # If we didn't get good data, use recent known CME data as fallback
         # As of Dec 5, 2025: ~87% cut, ~13% hold (from Alpha's screenshot)
