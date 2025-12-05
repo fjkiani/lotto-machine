@@ -168,6 +168,7 @@ class UnifiedAlphaMonitor:
         try:
             from live_monitoring.agents.signal_brain import SignalBrainEngine
             from live_monitoring.agents.signal_brain.narrative import NarrativeEnricher
+            from live_monitoring.agents.signal_brain.macro import MacroContextProvider
             
             # Initialize Narrative Enricher
             narrative_enricher = None
@@ -176,6 +177,20 @@ class UnifiedAlphaMonitor:
                 logger.info("   📰 Narrative Enricher initialized")
             except Exception as ne:
                 logger.warning(f"   ⚠️ Narrative Enricher failed: {ne}")
+            
+            # Initialize MacroContextProvider - REAL DATA, NO HARDCODING!
+            self.macro_provider = None
+            try:
+                self.macro_provider = MacroContextProvider(
+                    fed_watch=self.fed_watch if self.fed_enabled else None,
+                    fed_officials=self.fed_officials if self.fed_enabled else None,
+                    economic_engine=self.econ_engine if self.econ_enabled else None,
+                    economic_calendar=self.econ_calendar if self.econ_enabled else None,
+                    trump_monitor=self.trump_pulse if self.trump_enabled else None,
+                )
+                logger.info("   📊 MacroContextProvider initialized (REAL DATA!)")
+            except Exception as me:
+                logger.warning(f"   ⚠️ MacroContextProvider failed: {me}")
             
             # Pass DP Learning Engine + Narrative to Signal Brain
             self.signal_brain = SignalBrainEngine(
@@ -190,10 +205,13 @@ class UnifiedAlphaMonitor:
                 logger.info("   🧠 Brain integrated with DP Learning Engine!")
             if narrative_enricher:
                 logger.info("   📰 Brain integrated with Narrative Engine!")
+            if self.macro_provider:
+                logger.info("   📊 Brain uses REAL macro data (no hardcoding)!")
         except Exception as e:
             logger.warning(f"   ⚠️ Signal Brain failed: {e}")
             self.signal_brain = None
             self.brain_enabled = False
+            self.macro_provider = None
         
         # Economic Learning Engine (NEW MODULAR VERSION)
         try:
@@ -807,22 +825,50 @@ class UnifiedAlphaMonitor:
                 logger.info("   📊 No DP levels available for synthesis")
                 return
             
-            # Get macro context
+            # Get REAL macro context from all data sources!
+            # NO MORE HARDCODING - uses FedWatch, Economic Calendar, Fed Officials, Trump!
             fed_sentiment = "NEUTRAL"
             trump_risk = "LOW"
+            macro_reasoning = ""
             
-            if self.fed_enabled and self.prev_fed_status:
-                cut = self.prev_fed_status.get('cut_probability', 50)
-                if cut > 70:
-                    fed_sentiment = "DOVISH"
-                elif cut < 30:
-                    fed_sentiment = "HAWKISH"
+            if self.macro_provider:
+                try:
+                    macro_context = self.macro_provider.get_context()
+                    fed_sentiment = macro_context.fed_sentiment
+                    trump_risk = macro_context.trump_risk
+                    macro_reasoning = macro_context.reasoning
+                    
+                    logger.info(f"   📊 REAL Macro Data:")
+                    logger.info(f"      Fed Watch: {macro_context.fed_cut_probability:.0f}% cut → {fed_sentiment}")
+                    if macro_context.recent_event:
+                        logger.info(f"      Economic: {macro_context.recent_event.name} → {macro_context.economic_sentiment}")
+                    if macro_context.fed_official_name:
+                        logger.info(f"      Fed Official: {macro_context.fed_official_name} → {macro_context.fed_official_sentiment}")
+                    logger.info(f"      Trump Risk: {trump_risk}")
+                    logger.info(f"      Overall Bias: {macro_context.overall_bias}")
+                except Exception as me:
+                    logger.warning(f"   ⚠️ Macro context error: {me}")
+            else:
+                # Fallback to old method if MacroContextProvider not available
+                if self.fed_enabled and self.prev_fed_status:
+                    try:
+                        cut = getattr(self.prev_fed_status, 'prob_cut', None)
+                        if cut is None:
+                            cut = self.prev_fed_status.get('cut_probability', 50) if isinstance(self.prev_fed_status, dict) else 50
+                        if cut > 70:
+                            fed_sentiment = "DOVISH"
+                        elif cut < 30:
+                            fed_sentiment = "HAWKISH"
+                    except:
+                        pass
+                
+                if self.trump_enabled and self.prev_trump_sentiment:
+                    if 'risk' in str(self.prev_trump_sentiment).lower():
+                        trump_risk = "HIGH"
+                
+                logger.info(f"   ⚠️ Using fallback (no MacroProvider): fed={fed_sentiment}, trump={trump_risk}")
             
-            if self.trump_enabled and self.prev_trump_sentiment:
-                if 'risk' in str(self.prev_trump_sentiment).lower():
-                    trump_risk = "HIGH"
-            
-            # Run synthesis
+            # Run synthesis with REAL data
             result = self.signal_brain.analyze(
                 spy_levels=spy_levels,
                 qqq_levels=qqq_levels,
@@ -892,10 +938,15 @@ class UnifiedAlphaMonitor:
         if self.brain_enabled:
             brain_status = "✅ ACTIVE - Zone clustering, cross-asset, unified alerts"
         
+        # Macro Context status (NO MORE HARDCODING!)
+        macro_status = "❌ Disabled"
+        if hasattr(self, 'macro_provider') and self.macro_provider:
+            macro_status = "✅ REAL DATA (Fed + Econ + Trump)"
+        
         embed = {
             "title": "🎯 ALPHA INTELLIGENCE - ONLINE",
             "color": 3066993,
-            "description": "All monitoring systems activated with LEARNING ENGINE + SIGNAL BRAIN",
+            "description": "All monitoring systems activated with REAL MACRO DATA + SIGNAL BRAIN",
             "fields": [
                 {"name": "🏦 Fed Watch", "value": "✅ Active" if self.fed_enabled else "❌ Disabled", "inline": True},
                 {"name": "🎯 Trump Intel", "value": "✅ Active" if self.trump_enabled else "❌ Disabled", "inline": True},
@@ -903,10 +954,11 @@ class UnifiedAlphaMonitor:
                 {"name": "🔒 Dark Pools", "value": f"✅ {', '.join(self.symbols)}" if self.dp_enabled else "❌ Disabled", "inline": True},
                 {"name": "🧠 DP Learning", "value": f"✅ {dp_learning_status}" if self.dp_learning_enabled else "❌ Disabled", "inline": False},
                 {"name": "🧠 Signal Brain", "value": brain_status, "inline": False},
+                {"name": "📊 Macro Context", "value": macro_status, "inline": False},
                 {"name": "📈 Econ Patterns", "value": econ_status or "Disabled", "inline": False},
                 {"name": "⏱️ Intervals", "value": f"Fed: {self.fed_interval/60:.0f}m | Trump: {self.trump_interval/60:.0f}m | DP: {self.dp_interval}s | Brain: {self.synthesis_interval}s", "inline": False},
             ],
-            "footer": {"text": "Monitoring markets 24/7 with machine learning + signal synthesis"},
+            "footer": {"text": "Monitoring markets 24/7 with REAL macro data + signal synthesis"},
             "timestamp": datetime.utcnow().isoformat()
         }
         
