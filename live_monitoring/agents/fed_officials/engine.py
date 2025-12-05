@@ -60,10 +60,17 @@ class FedOfficialsEngine:
             
             api_key = os.getenv('PERPLEXITY_API_KEY')
             if api_key:
-                base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
-                sys.path.insert(0, os.path.join(base_path, 'live_monitoring', 'enrichment', 'apis'))
-                from perplexity_search import PerplexitySearchClient
-                self.perplexity_client = PerplexitySearchClient(api_key=api_key)
+                # Try multiple import paths
+                try:
+                    from live_monitoring.enrichment.apis.perplexity_search import PerplexitySearchClient
+                    self.perplexity_client = PerplexitySearchClient(api_key=api_key)
+                except ImportError:
+                    # Fallback: direct path
+                    base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+                    sys.path.insert(0, os.path.join(base_path, 'live_monitoring', 'enrichment', 'apis'))
+                    from perplexity_search import PerplexitySearchClient
+                    self.perplexity_client = PerplexitySearchClient(api_key=api_key)
+                
                 logger.info("   ✅ Perplexity client initialized")
         except Exception as e:
             logger.warning(f"   ⚠️ Perplexity not available: {e}")
@@ -84,10 +91,18 @@ class FedOfficialsEngine:
         officials = self.db.get_officials()
         if not officials:
             # Seed with common officials if database is empty
-            officials = [
-                FedOfficial(name="Jerome Powell", position=None),
-                FedOfficial(name="John Williams", position=None),
+            from .models import FedPosition
+            seed_officials = [
+                FedOfficial(name="Jerome Powell", position=FedPosition.CHAIR, comment_frequency=0),
+                FedOfficial(name="John Williams", position=FedPosition.VICE_CHAIR, comment_frequency=0),
+                FedOfficial(name="Christopher Waller", position=FedPosition.GOVERNOR, comment_frequency=0),
+                FedOfficial(name="Michelle Bowman", position=FedPosition.GOVERNOR, comment_frequency=0),
             ]
+            # Save seed officials
+            for official in seed_officials:
+                self.db.update_official(official)
+            officials = seed_officials
+            logger.info(f"   🌱 Seeded database with {len(seed_officials)} initial officials")
         
         official_names = [o.name for o in officials[:5]]  # Top 5 most active
         

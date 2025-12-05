@@ -28,11 +28,17 @@ class SentimentAnalyzer:
             # Try Perplexity first (we already have it)
             api_key = os.getenv('PERPLEXITY_API_KEY')
             if api_key:
-                import sys
-                base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
-                sys.path.insert(0, os.path.join(base_path, 'live_monitoring', 'enrichment', 'apis'))
-                from perplexity_search import PerplexitySearchClient
-                self.llm_client = PerplexitySearchClient(api_key=api_key)
+                try:
+                    from live_monitoring.enrichment.apis.perplexity_search import PerplexitySearchClient
+                    self.llm_client = PerplexitySearchClient(api_key=api_key)
+                except ImportError:
+                    # Fallback: direct path
+                    import sys
+                    base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+                    sys.path.insert(0, os.path.join(base_path, 'live_monitoring', 'enrichment', 'apis'))
+                    from perplexity_search import PerplexitySearchClient
+                    self.llm_client = PerplexitySearchClient(api_key=api_key)
+                
                 logger.info("✅ LLM client initialized for sentiment analysis")
         except Exception as e:
             logger.warning(f"LLM client not available: {e}")

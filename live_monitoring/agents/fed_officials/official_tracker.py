@@ -44,19 +44,31 @@ class OfficialTracker:
                 found.append(real_name)
         
         # Try to discover new officials (look for "Name, Fed Title" pattern)
+        # Exclude common place names
+        place_names = {'new york', 'san francisco', 'chicago', 'atlanta', 'cleveland', 'st louis', 'minneapolis'}
+        
         patterns = [
             r'([A-Z][a-z]+ [A-Z][a-z]+),?\s+(?:Federal Reserve|Fed|FOMC)',
             r'Fed (?:Chair|Governor|President) ([A-Z][a-z]+ [A-Z][a-z]+)',
+            r'([A-Z][a-z]+ [A-Z][a-z]+)\s+(?:said|stated|commented|noted|indicated)',
         ]
         
         for pattern in patterns:
             matches = re.findall(pattern, text)
             for match in matches:
+                # Skip if it's a place name
+                if match.lower() in place_names:
+                    continue
+                
+                # Skip if it's already found or known
                 if match not in found and match not in [o.name for o in self.db.get_officials()]:
-                    # New official discovered!
-                    logger.info(f"🔍 Discovered new official: {match}")
-                    self._create_official(match, text)
-                    found.append(match)
+                    # Validate: should be a person's name (2 words, both capitalized)
+                    words = match.split()
+                    if len(words) == 2 and all(w[0].isupper() for w in words):
+                        # New official discovered!
+                        logger.info(f"🔍 Discovered new official: {match}")
+                        self._create_official(match, text)
+                        found.append(match)
         
         return found
     
