@@ -728,25 +728,37 @@ class UnifiedAlphaMonitor:
         """
         try:
             outcome_emoji = {
-                'BOUNCE': '✅ BOUNCED',
-                'BREAK': '❌ BROKE',
-                'FADE': '⚪ FADED'
+                'BOUNCE': '✅ LEVEL HELD',
+                'BREAK': '❌ LEVEL BROKE',
+                'FADE': '⚪ NO CLEAR OUTCOME'
             }.get(outcome.outcome.value, '❓ UNKNOWN')
+            
+            # Color based on outcome
+            if outcome.outcome.value == 'BOUNCE':
+                color = 3066993  # Green
+                action_result = "Support/Resistance HELD - Trade would have worked!"
+            elif outcome.outcome.value == 'BREAK':
+                color = 15158332  # Red
+                action_result = "Level BROKE - Would have been stopped out"
+            else:
+                color = 9807270  # Gray
+                action_result = "Unclear outcome - No trade"
             
             # Send outcome alert
             embed = {
                 "title": f"🎯 DP OUTCOME: {outcome_emoji}",
-                "color": 3066993 if outcome.outcome.value == 'BOUNCE' else 15158332,
-                "description": f"Interaction #{interaction_id} resolved!",
+                "color": color,
+                "description": f"Interaction #{interaction_id} resolved after {outcome.time_to_outcome_min} min",
                 "fields": [
-                    {"name": "📊 Max Move", "value": f"{outcome.max_move_pct:.2f}%", "inline": True},
-                    {"name": "⏱️ Time", "value": f"{outcome.time_to_outcome_min} min", "inline": True},
+                    {"name": "📊 Max Move", "value": f"{outcome.max_move_pct:+.2f}%", "inline": True},
+                    {"name": "⏱️ Tracking Time", "value": f"{outcome.time_to_outcome_min} min", "inline": True},
+                    {"name": "💡 Result", "value": action_result, "inline": False},
                 ],
-                "footer": {"text": "Learning from this outcome..."},
+                "footer": {"text": "Learning from this outcome... Patterns updated!"},
                 "timestamp": datetime.utcnow().isoformat()
             }
             
-            content = f"🎯 DP Level **{outcome_emoji}** after {outcome.time_to_outcome_min} min | Max move: {outcome.max_move_pct:.2f}%"
+            content = f"🎯 **{outcome_emoji}** after {outcome.time_to_outcome_min} min | Max move: {outcome.max_move_pct:+.2f}%"
             self.send_discord(embed, content=content)
             
             logger.info(f"📣 Outcome alert sent: #{interaction_id} {outcome.outcome.value}")
