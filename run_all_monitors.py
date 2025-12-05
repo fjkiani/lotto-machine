@@ -200,6 +200,7 @@ class UnifiedAlphaMonitor:
             self.brain_enabled = True
             self.last_synthesis_check = None
             self.synthesis_interval = 120  # 2 minutes - synthesize after individual alerts
+            self.recent_dp_alerts = []  # Buffer for Signal Brain synthesis
             logger.info("   ✅ Signal Synthesis Brain initialized (THINKING LAYER)")
             if self.dp_learning_enabled:
                 logger.info("   🧠 Brain integrated with DP Learning Engine!")
@@ -660,6 +661,17 @@ class UnifiedAlphaMonitor:
                 if success:
                     logger.info(f"   ✅ DP ALERT SENT: {alert.symbol} @ ${bg.price:.2f} ({alert.priority.value})")
                     
+                    # Store alert for Signal Brain synthesis
+                    self.recent_dp_alerts.append(alert)
+                    # Keep only last 20 alerts (prevent memory bloat)
+                    if len(self.recent_dp_alerts) > 20:
+                        self.recent_dp_alerts = self.recent_dp_alerts[-20:]
+                    
+                    # Trigger synthesis if we have 3+ alerts (cluster threshold)
+                    if len(self.recent_dp_alerts) >= 3 and self.brain_enabled:
+                        logger.info(f"   🧠 {len(self.recent_dp_alerts)} alerts → Triggering synthesis...")
+                        self.check_synthesis()
+                    
                     # Log to learning engine for outcome tracking
                     if self.dp_learning_enabled:
                         interaction_id = self.dp_monitor_engine.log_to_learning_engine(alert)
@@ -776,14 +788,10 @@ class UnifiedAlphaMonitor:
             
             logger.info("🧠 Running Signal Synthesis Brain...")
             
-            # Collect all DP levels for SPY and QQQ
-            spy_levels = []
-            qqq_levels = []
+            # Get current prices
             spy_price = 0.0
             qqq_price = 0.0
-            
             for symbol in ['SPY', 'QQQ']:
-                # Get current price
                 try:
                     ticker = yf.Ticker(symbol)
                     hist = ticker.history(period='1d', interval='1m')
@@ -795,31 +803,51 @@ class UnifiedAlphaMonitor:
                             qqq_price = price
                 except:
                     continue
-                
-                # Get DP levels from cache or fetch
-                if symbol in self.dp_battlegrounds:
-                    levels = [
-                        {'price': bg['price'], 'volume': int(bg['volume'])}
-                        for bg in self.dp_battlegrounds[symbol]
-                    ]
-                else:
-                    # Fetch fresh
-                    try:
-                        dp_levels = self.dp_client.get_dark_pool_levels(symbol, yesterday)
-                        if dp_levels:
+            
+            # Use RECENT ALERTS if available (better than re-fetching!)
+            spy_levels = []
+            qqq_levels = []
+            
+            if self.recent_dp_alerts:
+                # Convert recent alerts to level format
+                logger.info(f"   📊 Using {len(self.recent_dp_alerts)} recent DP alerts for synthesis")
+                for alert in self.recent_dp_alerts:
+                    bg = alert.battleground
+                    level_data = {
+                        'price': bg.price,
+                        'volume': bg.volume
+                    }
+                    if alert.symbol == 'SPY':
+                        spy_levels.append(level_data)
+                    elif alert.symbol == 'QQQ':
+                        qqq_levels.append(level_data)
+            else:
+                # Fallback: Get DP levels from cache or fetch
+                logger.info("   📊 No recent alerts - fetching DP levels from cache")
+                for symbol in ['SPY', 'QQQ']:
+                    if symbol in self.dp_battlegrounds:
+                        levels = [
+                            {'price': bg['price'], 'volume': int(bg['volume'])}
+                            for bg in self.dp_battlegrounds[symbol]
+                        ]
+                    else:
+                        # Fetch fresh
+                        try:
+                            dp_levels = self.dp_client.get_dark_pool_levels(symbol, yesterday)
+                            if dp_levels:
+                                levels = []
+                                for level in dp_levels:
+                                    price = float(level.get('level', 0))
+                                    vol = int(level.get('volume', 0))  # Fixed: was total_vol
+                                    if vol >= 500000:
+                                        levels.append({'price': price, 'volume': vol})
+                        except:
                             levels = []
-                            for level in dp_levels:
-                                price = float(level.get('level', 0))
-                                vol = int(level.get('total_vol', 0))
-                                if vol >= 500000:
-                                    levels.append({'price': price, 'volume': vol})
-                    except:
-                        levels = []
-                
-                if symbol == 'SPY':
-                    spy_levels = levels
-                else:
-                    qqq_levels = levels
+                    
+                    if symbol == 'SPY':
+                        spy_levels = levels
+                    else:
+                        qqq_levels = levels
             
             if not spy_levels and not qqq_levels:
                 logger.info("   📊 No DP levels available for synthesis")
@@ -893,8 +921,12 @@ class UnifiedAlphaMonitor:
                 
                 if success:
                     logger.info(f"   ✅ SYNTHESIS ALERT SENT!")
+                    # Clear buffer after successful synthesis
+                    self.recent_dp_alerts = []
             else:
                 logger.info(f"   📊 Synthesis: {result.confluence.score:.0f}% {result.confluence.bias.value} (no alert needed)")
+                # Clear buffer even if no alert (prevent stale data)
+                self.recent_dp_alerts = []
                 
         except Exception as e:
             logger.error(f"   ❌ Synthesis error: {e}")
