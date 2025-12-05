@@ -99,6 +99,13 @@ class MarketContext:
     
     # Volume
     volume_vs_avg: float = 1.0  # 1.5 = 50% above average
+    
+    # Narrative context (NEW!)
+    narrative_summary: str = ""  # "WHY is market here?"
+    narrative_catalyst: str = ""  # Key catalyst
+    narrative_risk: str = "NEUTRAL"  # RISK_ON/RISK_OFF/NEUTRAL
+    narrative_divergence: bool = False  # Institutions vs mainstream diverging?
+    narrative_confidence: float = 0.0  # 0-1 narrative confidence
 
 
 @dataclass

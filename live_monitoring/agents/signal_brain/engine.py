@@ -30,16 +30,17 @@ class SignalBrainEngine:
     Main orchestrator for the Signal Synthesis Brain.
     
     Takes raw DP levels → outputs ONE unified synthesis.
-    NOW INTEGRATES WITH DP LEARNING ENGINE! 🧠
+    NOW INTEGRATES WITH DP LEARNING ENGINE + NARRATIVE! 🧠📰
     """
     
     # Only alert if confluence changes by this much
     ALERT_THRESHOLD = 10  # 10 point change
     
-    def __init__(self, dp_learning_engine=None):
+    def __init__(self, dp_learning_engine=None, narrative_enricher=None):
         """
         Args:
             dp_learning_engine: Optional DPLearningEngine instance for predictions
+            narrative_enricher: Optional NarrativeEnricher instance for "WHY" context
         """
         self.clusterer = ZoneClusterer()
         self.context_enricher = ContextEnricher()
@@ -49,6 +50,9 @@ class SignalBrainEngine:
         
         # DP Learning integration
         self.dp_learning = dp_learning_engine
+        
+        # Narrative integration
+        self.narrative_enricher = narrative_enricher
         
         # State for deduplication
         self._last_synthesis: Optional[SynthesisResult] = None
@@ -122,10 +126,18 @@ class SignalBrainEngine:
             conf = dp_learning_prediction.get('confidence', 'MEDIUM')
             logger.info(f"🧠 DP Learning: {prob:.0%} bounce | {conf}")
         
-        # 7. Calculate confluence (now includes learning)
+        # 7. Get Narrative context (if enricher available)
+        narrative_context = self._get_narrative_context(fed_sentiment, trump_risk)
+        if narrative_context and narrative_context.get('summary'):
+            logger.info(f"📰 Narrative: {narrative_context['summary'][:50]}...")
+            if narrative_context.get('divergence_detected'):
+                logger.info(f"⚠️ Divergence: {narrative_context.get('divergence_detail', 'Detected')[:50]}")
+        
+        # 8. Calculate confluence (now includes learning + narrative)
         confluence = self.confluence_scorer.calculate(
             spy_state, qqq_state, context, cross_result,
-            dp_learning_prediction=dp_learning_prediction  # NEW: Learning integration
+            dp_learning_prediction=dp_learning_prediction,
+            narrative_context=narrative_context  # NEW: Narrative integration
         )
         
         # 8. Synthesize
@@ -222,6 +234,47 @@ class SignalBrainEngine:
                 }
         except Exception as e:
             logger.debug(f"DP Learning prediction error: {e}")
+        
+        return None
+    
+    def _get_narrative_context(
+        self,
+        fed_sentiment: str = "NEUTRAL",
+        trump_risk: str = "LOW"
+    ) -> Optional[Dict]:
+        """
+        Get narrative context ("WHY is market here?").
+        
+        Returns:
+            {
+                'summary': 'Market testing NFP lows...',
+                'catalyst': 'Fed comments',
+                'risk_environment': 'RISK_ON',
+                'divergence_detected': False,
+                'divergence_detail': '',
+                'confidence': 0.8,
+            }
+        """
+        if not self.narrative_enricher:
+            return None
+        
+        try:
+            narrative = self.narrative_enricher.get_narrative(
+                symbol='SPY',
+                fed_sentiment=fed_sentiment,
+                trump_risk=trump_risk
+            )
+            
+            return {
+                'summary': narrative.summary,
+                'catalyst': narrative.catalyst,
+                'risk_environment': narrative.risk_environment,
+                'divergence_detected': narrative.divergence_detected,
+                'divergence_detail': narrative.divergence_detail,
+                'confidence': narrative.confidence,
+            }
+        except Exception as e:
+            logger.debug(f"Narrative context error: {e}")
         
         return None
     

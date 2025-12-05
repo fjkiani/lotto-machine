@@ -164,12 +164,23 @@ class UnifiedAlphaMonitor:
             logger.warning(f"   ⚠️ DP Monitor Engine failed: {e}")
             self.dp_monitor_engine = None
         
-        # Signal Synthesis BRAIN (NEW!) - NOW WITH DP LEARNING!
+        # Signal Synthesis BRAIN (NEW!) - NOW WITH DP LEARNING + NARRATIVE!
         try:
             from live_monitoring.agents.signal_brain import SignalBrainEngine
-            # Pass DP Learning Engine to Signal Brain for integrated predictions
+            from live_monitoring.agents.signal_brain.narrative import NarrativeEnricher
+            
+            # Initialize Narrative Enricher
+            narrative_enricher = None
+            try:
+                narrative_enricher = NarrativeEnricher()
+                logger.info("   📰 Narrative Enricher initialized")
+            except Exception as ne:
+                logger.warning(f"   ⚠️ Narrative Enricher failed: {ne}")
+            
+            # Pass DP Learning Engine + Narrative to Signal Brain
             self.signal_brain = SignalBrainEngine(
-                dp_learning_engine=self.dp_learning if self.dp_learning_enabled else None
+                dp_learning_engine=self.dp_learning if self.dp_learning_enabled else None,
+                narrative_enricher=narrative_enricher
             )
             self.brain_enabled = True
             self.last_synthesis_check = None
@@ -177,6 +188,8 @@ class UnifiedAlphaMonitor:
             logger.info("   ✅ Signal Synthesis Brain initialized (THINKING LAYER)")
             if self.dp_learning_enabled:
                 logger.info("   🧠 Brain integrated with DP Learning Engine!")
+            if narrative_enricher:
+                logger.info("   📰 Brain integrated with Narrative Engine!")
         except Exception as e:
             logger.warning(f"   ⚠️ Signal Brain failed: {e}")
             self.signal_brain = None

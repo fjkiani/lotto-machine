@@ -3,12 +3,13 @@
 ====================================
 Calculates overall confluence from all signal sources.
 
-Weights (with DP Learning):
-- DP signals: 35%
+Weights (with DP Learning + Narrative):
+- DP signals: 30%
 - DP Learning predictions: 15%
-- Cross-asset: 15%
-- Macro (Fed/Trump): 20%
-- Timing: 15%
+- Cross-asset: 12%
+- Macro (Fed/Trump): 15%
+- Narrative: 15%  ← NEW!
+- Timing: 13%
 """
 
 import logging
@@ -25,15 +26,16 @@ logger = logging.getLogger(__name__)
 class ConfluenceScorer:
     """
     Calculates multi-factor confluence score.
-    NOW INTEGRATES DP LEARNING ENGINE! 🧠
+    NOW INTEGRATES DP LEARNING ENGINE + NARRATIVE! 🧠📰
     """
     
-    # Weights (updated to include DP Learning)
-    WEIGHT_DP = 0.35
-    WEIGHT_DP_LEARNING = 0.15  # NEW: DP Learning predictions
-    WEIGHT_CROSS_ASSET = 0.15
-    WEIGHT_MACRO = 0.20
-    WEIGHT_TIMING = 0.15
+    # Weights (updated to include DP Learning + Narrative)
+    WEIGHT_DP = 0.30
+    WEIGHT_DP_LEARNING = 0.15  # DP Learning predictions
+    WEIGHT_CROSS_ASSET = 0.12
+    WEIGHT_MACRO = 0.15
+    WEIGHT_NARRATIVE = 0.15  # NEW: Narrative context
+    WEIGHT_TIMING = 0.13
     
     def calculate(
         self,
@@ -41,7 +43,8 @@ class ConfluenceScorer:
         qqq_state: Optional[SignalState],
         context: MarketContext,
         cross_asset_result: Dict,
-        dp_learning_prediction: Optional[Dict] = None,  # NEW: Learning engine prediction
+        dp_learning_prediction: Optional[Dict] = None,  # Learning engine prediction
+        narrative_context: Optional[Dict] = None,  # NEW: Narrative context
     ) -> ConfluenceScore:
         """
         Calculate overall confluence score.
@@ -52,19 +55,25 @@ class ConfluenceScorer:
                 'confidence': 'HIGH',
                 'patterns': ['vol_2m_plus', 'support', 'touch_1'],
             }
+            narrative_context: {
+                'summary': 'Market testing NFP lows...',
+                'divergence_detected': False,
+                'risk_environment': 'RISK_ON',
+                'confidence': 0.8,
+            }
         
         Returns:
             ConfluenceScore with 0-100 score and bias
         """
         score = ConfluenceScore(score=0.0, bias=Bias.NEUTRAL)
         
-        # 1. DP SCORE (35%)
+        # 1. DP SCORE (30%)
         dp_score, dp_bias, dp_confirmations, dp_conflicts = self._score_dp(spy_state, qqq_state)
         score.dp_score = dp_score
         score.confirmations.extend(dp_confirmations)
         score.conflicts.extend(dp_conflicts)
         
-        # 2. DP LEARNING SCORE (15%) - NEW!
+        # 2. DP LEARNING SCORE (15%)
         learning_score = self._score_dp_learning(dp_learning_prediction, dp_bias)
         if dp_learning_prediction:
             prob = dp_learning_prediction.get('bounce_probability', 0.5)
@@ -72,7 +81,7 @@ class ConfluenceScorer:
             patterns = dp_learning_prediction.get('patterns', [])
             score.confirmations.append(f"DP Learning: {prob:.0%} bounce ({conf}), patterns: {', '.join(patterns[:3])}")
         
-        # 3. CROSS-ASSET SCORE (15%)
+        # 3. CROSS-ASSET SCORE (12%)
         cross_score = self._score_cross_asset(cross_asset_result)
         score.cross_asset_score = cross_score
         if cross_asset_result['signal'] == CrossAssetSignal.CONFIRMS:
@@ -80,20 +89,29 @@ class ConfluenceScorer:
         elif cross_asset_result['signal'] == CrossAssetSignal.DIVERGENT:
             score.conflicts.append(cross_asset_result['detail'])
         
-        # 4. MACRO SCORE (20%)
+        # 4. MACRO SCORE (15%)
         macro_score, macro_bias = self._score_macro(context, dp_bias)
         score.macro_score = macro_score
         
-        # 5. TIMING SCORE (15%)
+        # 5. NARRATIVE SCORE (15%) - NEW!
+        narrative_score = self._score_narrative(narrative_context, dp_bias)
+        if narrative_context:
+            if narrative_context.get('summary'):
+                score.confirmations.append(f"NARRATIVE: {narrative_context['summary'][:80]}...")
+            if narrative_context.get('divergence_detected'):
+                score.conflicts.append(f"⚠️ DIVERGENCE: {narrative_context.get('divergence_detail', 'Detected')[:60]}")
+        
+        # 6. TIMING SCORE (13%)
         timing_score = self._score_timing(context)
         score.timing_score = timing_score
         
-        # Calculate weighted total (now includes learning)
+        # Calculate weighted total (now includes learning + narrative)
         total = (
             dp_score * self.WEIGHT_DP +
             learning_score * self.WEIGHT_DP_LEARNING +
             cross_score * self.WEIGHT_CROSS_ASSET +
             macro_score * self.WEIGHT_MACRO +
+            narrative_score * self.WEIGHT_NARRATIVE +
             timing_score * self.WEIGHT_TIMING
         )
         
@@ -196,6 +214,57 @@ class ConfluenceScorer:
         
         # Clamp to 0-1
         return max(0, min(1.0, score))
+    
+    def _score_narrative(self, narrative: Optional[Dict], dp_bias: Bias) -> float:
+        """
+        Score based on Narrative context.
+        
+        Narrative provides "WHY" context:
+        - Risk environment (RISK_ON/RISK_OFF)
+        - Divergence detection (institutions vs mainstream)
+        - Catalyst identification
+        
+        Args:
+            narrative: {
+                'summary': 'Market testing NFP lows...',
+                'risk_environment': 'RISK_ON',
+                'divergence_detected': False,
+                'confidence': 0.8,
+            }
+            dp_bias: Current DP-based bias
+        """
+        if not narrative:
+            return 0.5  # Neutral if no narrative
+        
+        base_score = 0.5
+        
+        # Risk environment alignment
+        risk = narrative.get('risk_environment', 'NEUTRAL')
+        if risk == 'RISK_ON' and dp_bias == Bias.BULLISH:
+            base_score += 0.2  # Risk-on + bullish DP = strong
+        elif risk == 'RISK_OFF' and dp_bias == Bias.BEARISH:
+            base_score += 0.2  # Risk-off + bearish DP = strong
+        elif risk == 'RISK_ON' and dp_bias == Bias.BEARISH:
+            base_score -= 0.1  # Conflict
+        elif risk == 'RISK_OFF' and dp_bias == Bias.BULLISH:
+            base_score -= 0.1  # Conflict
+        
+        # Divergence penalty (if institutions vs mainstream diverging, be cautious)
+        if narrative.get('divergence_detected'):
+            # Actually, divergence can be bullish (smart money accumulating)
+            divergence_detail = narrative.get('divergence_detail', '').upper()
+            if 'BULLISH' in divergence_detail and dp_bias == Bias.BULLISH:
+                base_score += 0.15  # Smart money buying = bullish
+            elif 'BEARISH' in divergence_detail and dp_bias == Bias.BEARISH:
+                base_score += 0.15  # Smart money selling = bearish
+            else:
+                base_score -= 0.1  # Unknown divergence = caution
+        
+        # Narrative confidence boost
+        narrative_conf = narrative.get('confidence', 0.5)
+        base_score *= (0.8 + narrative_conf * 0.4)  # 0.8-1.2x multiplier
+        
+        return max(0, min(1.0, base_score))
     
     def _score_cross_asset(self, cross_result: Dict) -> float:
         """Score cross-asset correlation."""
