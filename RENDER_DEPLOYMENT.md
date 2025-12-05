@@ -17,9 +17,9 @@ git push origin main
 2. Sign up with GitHub (easiest)
 3. Authorize Render to access your repos
 
-### Step 3: Create Background Worker
+### Step 3: Create Web Service (FREE!)
 
-1. In Render dashboard, click **"New +"** → **"Background Worker"**
+1. In Render dashboard, click **"New +"** → **"Web Service"** (NOT Background Worker - that costs $7!)
 2. Connect your GitHub repo (`ai-hedge-fund-main`)
 3. Configure:
 
@@ -27,10 +27,10 @@ git push origin main
 - **Name:** `alpha-signal-monitor`
 - **Environment:** `Python 3`
 - **Region:** Choose closest to you (US East recommended)
-- **Branch:** `main`
+- **Branch:** `refactor-signal-structure` (or `main` if merged)
 - **Root Directory:** Leave empty (or `.` if needed)
 - **Build Command:** `pip install -r requirements.txt`
-- **Start Command:** `python3 run_production_monitor.py`
+- **Start Command:** `python3 run_production_monitor_web.py`
 
 **Environment Variables:**
 Click **"Add Environment Variable"** and add:
@@ -41,12 +41,12 @@ CHARTEXCHANGE_API_KEY = your_chartexchange_api_key
 ```
 
 **Plan:**
-- Start with **Free** tier (750 hours/month)
-- Upgrade to **Starter** ($7/month) if you need more uptime
+- **FREE** tier - Web Services are free! 🎉
+- No upgrade needed - runs 24/7 for free
 
 ### Step 4: Deploy!
 
-Click **"Create Background Worker"** and Render will:
+Click **"Create Web Service"** and Render will:
 1. Clone your repo
 2. Install dependencies
 3. Start the monitor

@@ -13,8 +13,8 @@
 - [ ] Sign up with GitHub
 - [ ] Authorize Render access
 
-### 2. Create Background Worker
-- [ ] Click **"New +"** → **"Background Worker"**
+### 2. Create Web Service (FREE!)
+- [ ] Click **"New +"** → **"Web Service"** (NOT Background Worker - that costs $7!)
 - [ ] Connect GitHub repo: `ai-hedge-fund-main`
 - [ ] Configure:
 
@@ -24,18 +24,18 @@
 - [ ] Region: `US East` (or closest)
 - [ ] Branch: `main`
 - [ ] Build Command: `pip install -r requirements.txt`
-- [ ] Start Command: `python3 run_production_monitor.py`
+- [ ] Start Command: `python3 run_production_monitor_web.py`
 
 **Environment Variables:**
 - [ ] `DISCORD_WEBHOOK_URL` = `https://discord.com/api/webhooks/YOUR_URL`
 - [ ] `CHARTEXCHANGE_API_KEY` = `your_api_key_here`
 
 **Plan:**
-- [ ] Start with **Free** (750 hours/month)
-- [ ] Upgrade to **Starter** ($7/month) for 24/7 uptime
+- [ ] **FREE** tier - Web Services are free! 🎉
+- [ ] No upgrade needed - runs 24/7 for free
 
 ### 3. Deploy
-- [ ] Click **"Create Background Worker"**
+- [ ] Click **"Create Web Service"**
 - [ ] Wait for build to complete (~2-3 minutes)
 - [ ] Check logs for: `🚀 PRODUCTION SIGNAL MONITOR STARTING`
 

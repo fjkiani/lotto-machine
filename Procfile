@@ -1,2 +1,2 @@
-worker: python3 run_production_monitor.py
+web: python3 run_production_monitor_web.py
 

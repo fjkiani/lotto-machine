@@ -1,9 +1,9 @@
 services:
-  - type: worker
+  - type: web
     name: alpha-signal-monitor
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python3 run_production_monitor.py
+    startCommand: python3 run_production_monitor_web.py
     envVars:
       - key: DISCORD_WEBHOOK_URL
         sync: false  # Set this in Render dashboard
@@ -11,5 +11,5 @@ services:
         sync: false  # Set this in Render dashboard
       - key: PYTHON_VERSION
         value: 3.9
-    plan: free  # Start with free tier, upgrade if needed
+    plan: free  # FREE tier - Web Service is free!
 
