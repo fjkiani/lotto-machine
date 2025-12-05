@@ -156,6 +156,15 @@ def main():
     """Main entry point."""
     global monitor
     
+    print("=" * 80)
+    print("🎯 ALPHA INTELLIGENCE - UNIFIED MONITOR (WEB SERVICE)")
+    print("=" * 80)
+    print("✅ This is run_all_monitors_web.py - Unified monitor with:")
+    print("   🏦 Fed Watch Monitor")
+    print("   🎯 Trump Intelligence")
+    print("   📊 Economic Calendar + Learning Engine")
+    print("=" * 80)
+    
     logger.info("=" * 70)
     logger.info("🌐 ALPHA INTELLIGENCE - WEB SERVICE STARTING")
     logger.info("=" * 70)
@@ -172,6 +181,35 @@ def main():
     logger.info(f"   Perplexity: {'✅' if os.getenv('PERPLEXITY_API_KEY') else '❌'}")
     logger.info(f"   ChartExchange: {'✅' if os.getenv('CHARTEXCHANGE_API_KEY') else '❌'}")
     logger.info(f"   FRED: {'✅' if os.getenv('FRED_API_KEY') else '❌'}")
+    
+    # Send test Discord message to verify webhook works
+    logger.info("📤 Sending test Discord message...")
+    test_embed = {
+        "title": "🧪 TEST ALERT - Unified Monitor Starting",
+        "color": 3447003,
+        "description": "If you see this, Discord webhook is working!",
+        "fields": [
+            {"name": "Service", "value": "alpha-intelligence-monitor", "inline": True},
+            {"name": "Script", "value": "run_all_monitors_web.py", "inline": True},
+            {"name": "Status", "value": "✅ Starting", "inline": True},
+        ],
+        "footer": {"text": "This is a test message to verify Discord integration"},
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    
+    try:
+        import requests
+        webhook = os.getenv('DISCORD_WEBHOOK_URL')
+        if webhook:
+            response = requests.post(webhook, json={"embeds": [test_embed]}, timeout=10)
+            if response.status_code in [200, 204]:
+                logger.info("   ✅ Test Discord message sent successfully!")
+            else:
+                logger.error(f"   ❌ Test Discord failed: {response.status_code} - {response.text[:200]}")
+        else:
+            logger.error("   ❌ DISCORD_WEBHOOK_URL not set!")
+    except Exception as e:
+        logger.error(f"   ❌ Test Discord error: {e}")
     
     # Start monitor in background thread
     monitor_thread = threading.Thread(target=run_monitors, daemon=True)
