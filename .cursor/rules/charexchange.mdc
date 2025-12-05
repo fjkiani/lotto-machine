@@ -1,0 +1,282 @@
+Reference
+
+
+GET
+/ref/stocks/exchange/
+List of stock exchanges
+
+
+
+GET
+/ref/stocks/symbol/
+List of stock symbols
+
+
+
+GET
+/ref/crypto/exchange/
+List of crypto exchanges
+
+
+
+GET
+/ref/crypto/symbol/
+List of crypto pairs
+
+
+
+GET
+/ref/forex/symbol/
+List of forex pairs
+
+
+
+GET
+/ref/options/contracts/
+List of option contracts
+
+
+
+GET
+/ref/reddit/subreddits/
+List of subreddits that we track
+
+
+Data
+
+
+GET
+/data/stocks/exchange-volume/
+Exchange volume for a given stock
+
+
+
+GET
+/data/stocks/exchange-volume-intraday/
+Historical exchange volume for a given stock at 30 minute intervals
+
+
+
+GET
+/data/stocks/short-volume/
+Short volume for a given stock
+
+
+
+GET
+/data/stocks/short-interest/
+Short Interest for a given stock
+
+
+
+GET
+/data/stocks/short-interest-daily/
+Daily Short Interest for a given stock
+
+
+
+GET
+/data/stocks/borrow-fee/ib/
+Cost-to-borrow from Interactive Brokers
+
+
+
+GET
+/data/stocks/failure-to-deliver/
+FTDs for a given stock
+
+
+
+GET
+/data/stocks/dividends/
+Dividends for a given stock
+
+
+
+GET
+/data/stocks/splits/
+Splits for a given stock
+
+
+
+GET
+/data/options/chain-summary/
+Option chain summary (max pain, ITM/OTM)
+
+
+Data - Reddit
+
+
+GET
+/data/reddit/mentions/top/
+Top mentioned tickers for a given timeframe
+
+
+
+GET
+/data/reddit/mentions/stock/
+Reddit mentions for a given stock
+
+
+
+GET
+/data/reddit/mentions/daily/stock/
+Daily Reddit mention counts for a given stock
+
+
+
+GET
+/data/reddit/mentions/crypto/
+Reddit mentions for a given crypto base
+
+
+
+GET
+/data/reddit/mentions/daily/crypto/
+Daily Reddit mention counts for a given crypto base
+
+
+Feed
+
+
+GET
+/feed/stocks/quote/
+Quote for a given stock
+
+
+
+GET
+/feed/crypto/quote/
+Quote for a given crypto
+
+
+
+GET
+/feed/forex/quote/
+Quote for a given forex
+
+
+Data - Tier 2
+
+
+GET
+/data/crypto/bars/
+Crypto aggregate OHLC bars (k-line)
+
+
+
+GET
+/data/forex/bars/
+Forex aggregate OHLC bars (k-line)
+
+
+
+GET
+/data/stocks/bars/
+Stock aggregate OHLC bars (k-line)
+
+
+
+GET
+/data/options/bars/
+Option aggregate OHLC bars (k-line)
+
+
+
+GET
+/data/stocks/shares/
+Historical Float and Shares Outstanding for a given stock
+
+
+Data - Tier 3
+
+
+GET
+/data/dark-pool-levels/
+Dark Pool Levels for a given stock
+
+
+
+GET
+/data/dark-pool-prints/
+Dark Pool Prints (trades) for a given stock
+
+
+
+GET
+/data/dark-pool-prints/summary/
+Dark Pool Prints (trades) summary for a given stock
+
+
+
+GET
+/data/crypto/level-2-snapshots/
+Crypto level 2 snapshots
+
+
+Stock Screener - Tier 3
+
+
+GET
+/screener/stocks/
+Screen thousands of stocks on numerous fields
+
+
+
+GET
+/screener/stocks/columns/
+List of Columns
+
+
+
+GET
+/screener/stocks/groups/region/
+List of Regions
+
+
+
+GET
+/screener/stocks/groups/equity-type/
+List of EquityTypes
+
+
+
+GET
+/screener/stocks/groups/exchange/
+List of Exchanges
+
+
+
+GET
+/screener/stocks/groups/currency/
+List of Currencies
+
+
+
+GET
+/screener/stocks/groups/sector/
+List of Sectors
+
+
+
+GET
+/screener/stocks/groups/industry/
+List of Industries
+
+
+
+GET
+/screener/stocks/groups/country/
+List of Countries
+
+
+
+GET
+/screener/stocks/groups/next-earnings/
+List of NextEarnings
+
+
+
+GET
+/screener/stocks/groups/options/
+List of Options

@@ -7,7 +7,6 @@ DATA FETCHER - Modular data acquisition
 """
 
 import pandas as pd
-import yfinance as yf
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import logging
@@ -21,6 +20,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent / 'core'))
 
 from ultimate_chartexchange_client import UltimateChartExchangeClient
 from ultra_institutional_engine import UltraInstitutionalEngine
+from alpha_vantage_client import AlphaVantageClient
 
 logger = logging.getLogger(__name__)
 
@@ -36,16 +36,16 @@ class DataFetcher:
         # Initialize clients
         self.cx_client = UltimateChartExchangeClient(api_key, tier=3)
         self.inst_engine = UltraInstitutionalEngine(api_key)
+        self.av_client = AlphaVantageClient(api_key="DWUGOPJJ75DPU39D")  # Alpha Vantage for price data
         
-        logger.info("📊 Data Fetcher initialized")
+        logger.info("📊 Data Fetcher initialized (with Alpha Vantage)")
     
     def get_current_price(self, symbol: str) -> Optional[float]:
-        """Get current price for symbol"""
+        """Get current price for symbol using Alpha Vantage"""
         try:
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period='1d', interval='1m')
-            if not data.empty:
-                return float(data['Close'].iloc[-1])
+            quote = self.av_client.get_quote(symbol)
+            if quote and 'price' in quote:
+                return float(quote['price'])
         except Exception as e:
             logger.error(f"Error fetching price for {symbol}: {e}")
         return None
@@ -95,10 +95,10 @@ class DataFetcher:
             return None
     
     def get_minute_bars(self, symbol: str, lookback_minutes: int = 30) -> Optional[pd.DataFrame]:
-        """Get recent minute bars for volume/momentum calculation"""
+        """Get recent minute bars for volume/momentum calculation using Alpha Vantage"""
         try:
-            ticker = yf.Ticker(symbol)
-            df = ticker.history(period='1d', interval='1m')
+            # Fetch 1-minute data from Alpha Vantage
+            df = self.av_client.get_intraday_1min(symbol, outputsize="compact")
             
             if not df.empty:
                 # Get last N minutes

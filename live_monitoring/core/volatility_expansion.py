@@ -14,14 +14,12 @@ COMPONENT-BASED ARCHITECTURE:
 """
 
 from dataclasses import dataclass
-from typing import Optional, Dict
-from datetime import datetime, timedelta, date
+from typing import Optional
+from datetime import datetime
 import logging
-import yfinance as yf
+
 import pandas as pd
 import numpy as np
-import pickle
-import os
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -29,13 +27,19 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class VolatilityExpansionStatus:
-    """Volatility expansion detection result"""
+    """
+    Volatility expansion detection result.
+
+    NOTE: Field names are IV-oriented for backwards compatibility, but in this
+    implementation they are computed from REALIZED INTRADAY VOLATILITY
+    (1-minute returns) instead of options IV to avoid rate limits.
+    """
     symbol: str
     status: str  # 'VOLATILITY_EXPANSION', 'COMPRESSION', 'NORMAL'
     lottery_potential: str  # 'HIGH', 'MEDIUM', 'LOW'
-    current_iv: float
-    avg_iv: float
-    iv_spike_pct: float  # % increase from average
+    current_iv: float       # actually: current realized volatility
+    avg_iv: float           # actually: average realized volatility
+    iv_spike_pct: float     # % increase from average realized vol
     bb_width: float
     bb_width_ratio: float  # Current width / 20-period average
     compression_detected: bool
@@ -61,7 +65,7 @@ class VolatilityExpansionDetector:
         expansion_threshold: float = 1.2,
         high_expansion_threshold: float = 1.5,
         lookback_periods: int = 20,
-        cache_dir: str = "cache/iv_history"
+        cache_dir: str = "cache/iv_history",
     ):
         """
         Initialize volatility expansion detector with caching
@@ -77,11 +81,11 @@ class VolatilityExpansionDetector:
         self.expansion_threshold = expansion_threshold
         self.high_expansion_threshold = high_expansion_threshold
         self.lookback_periods = lookback_periods
-        
-        # Setup cache directory
+
+        # Cache dir kept for backwards compatibility (not used in realized-vol mode)
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        
+
         logger.info("📊 Volatility Expansion Detector initialized")
         logger.info(f"   Compression threshold: {compression_threshold:.0%}")
         logger.info(f"   Expansion threshold: {expansion_threshold:.0%}")
@@ -91,28 +95,45 @@ class VolatilityExpansionDetector:
     def detect_expansion(
         self,
         symbol: str,
-        lookback_minutes: int = 30
+        minute_bars: pd.DataFrame,
+        lookback_minutes: int = 30,
     ) -> Optional[VolatilityExpansionStatus]:
         """
-        Detect IV compression → expansion (lottery setup)
+        Detect volatility compression → expansion (lottery setup)
         
         This is the MAIN entry point for the component.
         
         Args:
             symbol: Ticker symbol (e.g., 'SPY')
+            minute_bars: DataFrame with recent 1-minute bars (Open, High, Low, Close, Volume)
             lookback_minutes: How many minutes to look back (30)
         
         Returns:
             VolatilityExpansionStatus or None if error
         """
         try:
-            # Fetch IV history
-            iv_history = self._fetch_iv_history(symbol, lookback_minutes)
-            
-            if iv_history is None or len(iv_history) < 10:
-                logger.warning(f"Insufficient IV history for {symbol}")
+            # Use realized volatility from minute bars instead of options IV
+            if minute_bars is None or len(minute_bars) < self.lookback_periods + 5:
+                logger.warning(f"Insufficient minute bars for realized volatility for {symbol}")
                 return None
-            
+
+            # Use last N minutes window
+            window = minute_bars.tail(lookback_minutes)
+
+            # Compute 1-minute log returns
+            closes = window["Close"].astype(float)
+            returns = np.log(closes).diff().dropna()
+            if returns.empty:
+                logger.warning(f"No returns for realized volatility for {symbol}")
+                return None
+
+            # Realized vol proxy: rolling std of returns
+            iv_history = returns.rolling(window=5, min_periods=5).std().dropna()
+
+            if iv_history is None or len(iv_history) < self.lookback_periods:
+                logger.warning(f"Insufficient realized vol history for {symbol}")
+                return None
+
             # Calculate Bollinger Band width (volatility measure)
             bb_width = self._calculate_bb_width(iv_history)
             
@@ -127,9 +148,12 @@ class VolatilityExpansionDetector:
             compression_detected = bb_width_ratio < self.compression_threshold
             
             # Check for expansion
-            current_iv = iv_history.iloc[-1]
+            current_iv = float(iv_history.iloc[-1])
             # Use last 5 periods as "recent average" (exclude current)
-            avg_iv = iv_history.iloc[:-5].tail(self.lookback_periods).mean() if len(iv_history) > 5 else iv_history.mean()
+            if len(iv_history) > 5:
+                avg_iv = float(iv_history.iloc[:-5].tail(self.lookback_periods).mean())
+            else:
+                avg_iv = float(iv_history.mean())
             iv_spike_pct = ((current_iv / avg_iv) - 1.0) * 100 if avg_iv > 0 else 0.0
             expansion_detected = current_iv > (avg_iv * self.expansion_threshold)
             
@@ -169,113 +193,6 @@ class VolatilityExpansionDetector:
             
         except Exception as e:
             logger.error(f"Error detecting volatility expansion for {symbol}: {e}")
-            return None
-    
-    def _fetch_iv_history(self, symbol: str, lookback_minutes: int) -> Optional[pd.Series]:
-        """
-        Fetch IV history for symbol with caching
-        
-        Uses yfinance to get options chain and extract IV
-        Caches results to avoid hitting API 100x/day
-        
-        Args:
-            symbol: Ticker symbol
-            lookback_minutes: How many minutes to look back
-        
-        Returns:
-            Series of IV values or None
-        """
-        try:
-            # Try cache first
-            cache_key = f"{symbol}_{datetime.now().strftime('%Y%m%d')}.pkl"
-            cache_path = self.cache_dir / cache_key
-            
-            if cache_path.exists():
-                try:
-                    with open(cache_path, 'rb') as f:
-                        cached_data = pickle.load(f)
-                        # If cache is recent (< 5 min old), use it
-                        cache_age = (datetime.now() - cached_data['timestamp']).total_seconds()
-                        if cache_age < 300:  # 5 minutes
-                            logger.debug(f"Using cached IV history for {symbol} (age: {cache_age:.0f}s)")
-                            return cached_data['iv_history']
-                except Exception as e:
-                    logger.debug(f"Error loading cache: {e}")
-            
-            # Fetch from yfinance
-            ticker = yf.Ticker(symbol)
-            expirations = ticker.options
-            
-            if not expirations:
-                logger.warning(f"No options expirations for {symbol}")
-                return None
-            
-            # Get nearest expiration (0DTE or 1DTE)
-            today = date.today()
-            today_str = today.strftime('%Y-%m-%d')
-            
-            if today_str in expirations:
-                expiry_to_use = today_str
-            else:
-                nearest = min(expirations, key=lambda x: abs((datetime.strptime(x, '%Y-%m-%d').date() - today).days))
-                nearest_date = datetime.strptime(nearest, '%Y-%m-%d').date()
-                
-                if (nearest_date - today).days > 1:
-                    logger.warning(f"No near-term expiration for {symbol}")
-                    return None
-                
-                expiry_to_use = nearest
-            
-            # Get options chain
-            opt_chain = ticker.option_chain(expiry_to_use)
-            
-            # Use ATM options for IV (most liquid, most representative)
-            current_price = ticker.history(period='1d', interval='1m')
-            if current_price.empty:
-                return None
-            
-            current_price_value = current_price['Close'].iloc[-1]
-            
-            # Find ATM strike
-            calls = opt_chain.calls
-            puts = opt_chain.puts
-            
-            # Get ATM call IV (usually more liquid)
-            atm_call = calls.iloc[(calls['strike'] - current_price_value).abs().argsort()[:1]]
-            
-            if not atm_call.empty:
-                current_iv = atm_call['impliedVolatility'].iloc[0]
-                
-                # Approximate IV history by using current IV with some variation
-                # In production, you'd track historical IV over time
-                # For now, create a series that simulates recent IV movement
-                # This is a simplified approximation - can be improved with real historical data
-                
-                # Create series with slight variation around current IV
-                np.random.seed(42)  # For reproducibility
-                iv_variation = np.random.normal(0, 0.05, 30)  # 5% std dev
-                iv_history = pd.Series([current_iv * (1 + v) for v in iv_variation])
-                
-                # Cache it
-                try:
-                    with open(cache_path, 'wb') as f:
-                        pickle.dump({
-                            'timestamp': datetime.now(),
-                            'iv_history': iv_history,
-                            'symbol': symbol,
-                            'current_iv': current_iv
-                        }, f)
-                    logger.debug(f"Cached IV history for {symbol}")
-                except Exception as e:
-                    logger.debug(f"Error caching IV history: {e}")
-                
-                return iv_history
-            else:
-                logger.warning(f"No ATM options found for {symbol}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error fetching IV history for {symbol}: {e}")
             return None
     
     def _calculate_bb_width(self, iv_history: pd.Series) -> Optional[pd.Series]:

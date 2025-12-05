@@ -63,7 +63,7 @@ class PriceActionFilter:
                 return PriceActionConfirmation(
                     confirmed=False,
                     reason="Insufficient price data",
-                    current_price=signal.current_price,
+                    current_price=getattr(signal, "entry_price", 0.0),
                     distance_from_entry_pct=0.0,
                     volume_spike=False,
                     candlestick_pattern="UNKNOWN",
@@ -95,7 +95,9 @@ class PriceActionFilter:
             
             # Check 3: Candlestick pattern
             recent_candles = hist.tail(5)
-            pattern = self._detect_candlestick_pattern(recent_candles, signal.action)
+            # Normalize action to string ('BUY' / 'SELL')
+            action_str = signal.action.value if hasattr(signal.action, "value") else str(signal.action)
+            pattern = self._detect_candlestick_pattern(recent_candles, action_str)
             
             # Check 4: Regime
             regime = self._detect_regime(hist, signal.symbol)
@@ -104,10 +106,15 @@ class PriceActionFilter:
             vix_level = self._get_vix_level()
             
             # Final confirmation
+            if action_str == 'BUY':
+                pattern_ok = pattern in ['BULLISH', 'STRONG_BULLISH']
+            else:
+                pattern_ok = pattern in ['BEARISH', 'STRONG_BEARISH']
+
             confirmed = (
                 distance_pct <= 0.005 and
                 volume_spike and
-                pattern in ['BULLISH', 'STRONG_BULLISH'] if signal.action == 'BUY' else pattern in ['BEARISH', 'STRONG_BEARISH']
+                pattern_ok
             )
             
             reason = "Confirmed" if confirmed else f"Failed: pattern={pattern}, volume_spike={volume_spike}"
@@ -128,7 +135,7 @@ class PriceActionFilter:
             return PriceActionConfirmation(
                 confirmed=False,
                 reason=f"Error: {e}",
-                current_price=signal.current_price,
+                current_price=getattr(signal, "entry_price", 0.0),
                 distance_from_entry_pct=0.0,
                 volume_spike=False,
                 candlestick_pattern="ERROR",

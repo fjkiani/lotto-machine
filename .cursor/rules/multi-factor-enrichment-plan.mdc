@@ -1,0 +1,818 @@
+# Multi-Factor Signal Enrichment System - Blueprint
+
+**Date:** 2025-11-20  
+**Mission:** Transform raw momentum signals into narrative-driven, multi-factor confirmed trades  
+**Goal:** Answer "WHY is the market moving?" not just "WHAT is moving?"
+
+---
+
+## 🎯 THE VISION
+
+### **Current State (What We Have):**
+```
+Momentum Signal (0.5% drop + 1.5x volume)
+    ↓
+SELL SIGNAL @ $669
+```
+
+### **Target State (What We're Building):**
+```
+Momentum Signal (0.5% drop + 1.5x volume)
+    ↓
+[LLM NARRATIVE AGENT] → "Why is this happening?"
+    ↓
+[SENTIMENT SCRAPER] → "What are smart money saying? (Not MSM)"
+    ↓
+[CRYPTO CORRELATION] → "Is Bitcoin selling off too? Risk-off?"
+    ↓
+[OPTIONS FLOW] → "Are institutions hedging? Put buying?"
+    ↓
+[NEWS CATALYST] → "Fed speak? Geopolitical? Earnings?"
+    ↓
+ENRICHED SIGNAL:
+  - Confidence: 85% (was 66%)
+  - Rationale: "Bitcoin -4%, risk-off rotation, Fed hawkish, put sweeps at 3pm"
+  - Position size: 1.0% (was 0.5%)
+  - Strategy: 0DTE puts + short ETFs
+```
+
+---
+
+## 🏗️ MODULAR ARCHITECTURE
+
+### **Core Principle:** Plug-and-Play Enrichment Modules
+
+```
+BaseSignal (momentum-driven)
+    ↓
+[Enrichment Pipeline]
+    ├── NarrativeAgent (LLM)
+    ├── SentimentModule (alternative sources)
+    ├── CryptoCorrelation (BTC/ETH)
+    ├── OptionsFlowDetector (unusual activity)
+    ├── CatalystTracker (FOMC, earnings, geopolitical)
+    └── InstitutionalConfirmation (DP breakdown)
+    ↓
+EnrichedSignal (multi-factor confirmed)
+```
+
+### **Design Patterns:**
+1. **Each module is OPTIONAL** (can enable/disable per signal)
+2. **Each module adds confidence boost** (0-15% max per module)
+3. **Each module adds narrative context** (appends to rationale)
+4. **Each module can VETO** (if conflict detected)
+
+---
+
+## 📡 MODULE 1: LLM NARRATIVE AGENT
+
+### **Purpose:** Answer "WHY is this happening?"
+
+### **Architecture:**
+```python
+# live_monitoring/enrichment/narrative_agent.py
+
+class NarrativeAgent:
+    """
+    Uses LLM to analyze market context and generate narrative
+    """
+    def __init__(self, provider='anthropic'):  # Claude Sonnet 3.5
+        self.llm = LLMClient(provider=provider)
+        self.context_window = 30  # minutes
+    
+    def analyze_selloff(self, signal: LiveSignal, market_data: Dict) -> NarrativeAnalysis:
+        """
+        Generate narrative for why selloff is happening
+        
+        Inputs:
+        - Signal: SELLOFF @ $669, -0.65% in 20min
+        - Market data: BTC, VIX, sector performance, news headlines
+        
+        Output:
+        - Narrative: "Risk-off rotation triggered by Bitcoin breakdown"
+        - Catalysts: ["BTC -4%", "Tech weakness", "Fed hawkish"]
+        - Confidence boost: +10% (strong narrative)
+        """
+        
+        prompt = f"""
+        You are an institutional trader analyzing a real-time market selloff.
+        
+        SIGNAL:
+        - Symbol: {signal.symbol}
+        - Action: {signal.action}
+        - Price: ${signal.entry_price}
+        - Move: -0.65% in 20 minutes with 2.4x volume spike
+        
+        MARKET CONTEXT:
+        - Bitcoin: {market_data['btc_price']} ({market_data['btc_change']}%)
+        - VIX: {market_data['vix']}
+        - Tech sector: {market_data['xlk_change']}%
+        - Recent headlines: {market_data['headlines'][:3]}
+        
+        ANALYZE:
+        1. WHY is this selloff happening? (root cause)
+        2. Is this noise or a real trend? (signal vs noise)
+        3. What are the catalysts driving this move?
+        4. What is the likely follow-through? (hours, days)
+        5. Risk-on or risk-off environment?
+        
+        OUTPUT FORMAT (JSON):
+        {{
+            "narrative": "2-sentence summary of WHY this is happening",
+            "catalysts": ["BTC breakdown", "Fed hawkish", etc.],
+            "conviction": "HIGH/MEDIUM/LOW",
+            "duration": "INTRADAY/MULTI_DAY/WEEK",
+            "risk_environment": "RISK_OFF/RISK_ON/NEUTRAL",
+            "confidence_boost": 10  // 0-15
+        }}
+        """
+        
+        response = self.llm.query(prompt, json_mode=True)
+        return NarrativeAnalysis(**response)
+```
+
+### **Example Output:**
+```json
+{
+    "narrative": "Bitcoin's 4% breakdown below $90k triggered a cascade of risk-off selling across all assets. Tech sector leading downside as crypto correlation remains high.",
+    "catalysts": ["Bitcoin -4% breakdown", "Crypto contagion", "Tech sector weakness"],
+    "conviction": "HIGH",
+    "duration": "INTRADAY",
+    "risk_environment": "RISK_OFF",
+    "confidence_boost": 12
+}
+```
+
+---
+
+## 📰 MODULE 2: ALTERNATIVE SENTIMENT SCRAPER
+
+### **Purpose:** Monitor smart money sentiment (NOT mainstream media)
+
+### **Sources:**
+1. **Twitter/X** (Crypto Twitter, FinTwit)
+   - @APompliano, @CryptoCobain, @MacroScope17
+   - Track: Fear/greed, BTC sentiment, "sell the rip" mentions
+2. **Telegram Channels** (Premium groups, not public)
+   - Institutional flow channels
+   - Whale alert groups
+3. **Discord Servers** (Crypto alpha, trading communities)
+4. **Reddit** (r/WallStreetBets, r/Bitcoin) - **Contrarian**
+   - High bullish sentiment = FADE
+   - High fear = BUY THE DIP
+5. **StockTwits** (Real-time trader sentiment)
+6. **News Aggregators** (Benzinga, FXStreet, not CNBC)
+
+### **Architecture:**
+```python
+# live_monitoring/enrichment/alt_sentiment.py
+
+class AlternativeSentimentScraper:
+    """
+    Scrapes alternative news sources for non-MSM sentiment
+    """
+    def __init__(self):
+        self.twitter_api = TwitterAPIClient()
+        self.telegram_api = TelegramClient()
+        self.discord_api = DiscordClient()
+        self.reddit_api = RedditAPI()
+    
+    def analyze_crypto_twitter(self, keywords=['Bitcoin', 'selloff', 'breakdown']) -> SentimentScore:
+        """
+        Scrape Crypto Twitter for sentiment
+        
+        Returns:
+        - sentiment_score: -1.0 (panic) to 1.0 (euphoria)
+        - keywords: ["breakdown", "capitulation", "support lost"]
+        - influencer_mentions: 15
+        - overall_tone: "BEARISH"
+        """
+        tweets = self.twitter_api.search(keywords, count=100)
+        
+        # Use LLM for sentiment analysis
+        sentiment_prompt = f"""
+        Analyze these {len(tweets)} recent tweets about Bitcoin:
+        
+        {tweets[:10]}  # Sample
+        
+        Classify sentiment:
+        - EXTREME_FEAR (-1.0): "Capitulation", "it's over", "going to zero"
+        - FEAR (-0.5): "Breakdown", "support lost", "selling"
+        - NEUTRAL (0.0): Mixed or no strong opinion
+        - GREED (0.5): "Buy the dip", "accumulation", "bullish"
+        - EXTREME_GREED (1.0): "Moon", "parabolic", "new ATH"
+        
+        Return: sentiment_score (-1.0 to 1.0)
+        """
+        
+        return self.llm.query(sentiment_prompt, json_mode=True)
+    
+    def analyze_whale_alerts(self) -> List[WhaleMove]:
+        """
+        Track large crypto movements (whale alerts)
+        
+        Sources:
+        - Whale Alert Twitter
+        - On-chain data (Glassnode, Nansen)
+        
+        Returns:
+        - Large BTC transfers to exchanges (bearish)
+        - Large ETH transfers off exchanges (bullish)
+        """
+        pass
+    
+    def analyze_institutional_flows(self) -> InstitutionalSentiment:
+        """
+        Track institutional money flows
+        
+        Sources:
+        - Farside Investors (ETF flows)
+        - Grayscale GBTC flows
+        - MicroStrategy purchases
+        - BlackRock IBIT flows
+        
+        Returns:
+        - net_inflow: $XXX million (bullish/bearish)
+        - trend: "INFLOW" or "OUTFLOW"
+        """
+        pass
+```
+
+### **Integration:**
+```python
+# When selloff signal fires:
+sentiment = alt_sentiment.analyze_crypto_twitter(['Bitcoin', 'selloff'])
+
+if sentiment.sentiment_score < -0.7:  # Extreme fear
+    signal.confidence += 0.10  # Boost confidence (capitulation = reversal soon)
+    signal.rationale += f" | Crypto Twitter: EXTREME FEAR (contrarian buy)"
+elif sentiment.sentiment_score < -0.3:  # Fear
+    signal.confidence += 0.05  # Moderate boost
+    signal.rationale += f" | Crypto Twitter: FEAR"
+```
+
+---
+
+## ₿ MODULE 3: CRYPTO CORRELATION DETECTOR
+
+### **Purpose:** Use Bitcoin as risk-on/risk-off indicator
+
+### **Thesis:**
+- **Bitcoin UP + SPY DOWN** = Rotation (neutral)
+- **Bitcoin DOWN + SPY DOWN** = Risk-off (bearish) ✅
+- **Bitcoin UP + SPY UP** = Risk-on (bullish)
+- **Bitcoin DOWN + SPY UP** = Divergence (investigate)
+
+### **Architecture:**
+```python
+# live_monitoring/enrichment/crypto_correlation.py
+
+class CryptoCorrelationDetector:
+    """
+    Tracks crypto correlation to identify risk-on/risk-off
+    """
+    def __init__(self):
+        self.btc_ticker = yf.Ticker('BTC-USD')
+        self.eth_ticker = yf.Ticker('ETH-USD')
+    
+    def get_crypto_sentiment(self, lookback_minutes=30) -> CryptoSentiment:
+        """
+        Get real-time crypto sentiment
+        
+        Returns:
+        - btc_change: -4.2%
+        - eth_change: -5.1%
+        - correlation: 0.85 (highly correlated selloff)
+        - environment: "RISK_OFF"
+        """
+        # Fetch BTC/ETH prices
+        btc_df = self.btc_ticker.history(period='1d', interval='1m')
+        eth_df = self.eth_ticker.history(period='1d', interval='1m')
+        
+        # Calculate returns
+        btc_change = (btc_df['Close'].iloc[-1] - btc_df['Close'].iloc[-lookback_minutes]) / btc_df['Close'].iloc[-lookback_minutes]
+        eth_change = (eth_df['Close'].iloc[-1] - eth_df['Close'].iloc[-lookback_minutes]) / eth_df['Close'].iloc[-lookback_minutes]
+        
+        # Correlation
+        correlation = btc_df['Close'].pct_change().corr(eth_df['Close'].pct_change())
+        
+        # Classify environment
+        if btc_change < -0.02 and eth_change < -0.02:
+            environment = "RISK_OFF"  # Both selling
+        elif btc_change > 0.02 and eth_change > 0.02:
+            environment = "RISK_ON"  # Both buying
+        else:
+            environment = "NEUTRAL"
+        
+        return CryptoSentiment(
+            btc_change=btc_change,
+            eth_change=eth_change,
+            correlation=correlation,
+            environment=environment
+        )
+    
+    def check_correlation_confirmation(self, signal: LiveSignal, crypto_sentiment: CryptoSentiment) -> CorrelationAnalysis:
+        """
+        Check if crypto confirms the stock signal
+        
+        Logic:
+        - SELLOFF signal + RISK_OFF environment = CONFIRMED (+15% confidence)
+        - SELLOFF signal + RISK_ON environment = CONFLICT (veto)
+        """
+        if signal.signal_type == SignalType.SELLOFF:
+            if crypto_sentiment.environment == "RISK_OFF":
+                return CorrelationAnalysis(
+                    confirmed=True,
+                    confidence_boost=15,
+                    rationale=f"Bitcoin {crypto_sentiment.btc_change*100:.1f}%, ETH {crypto_sentiment.eth_change*100:.1f}% - broad risk-off"
+                )
+            elif crypto_sentiment.environment == "RISK_ON":
+                return CorrelationAnalysis(
+                    confirmed=False,
+                    confidence_boost=-20,
+                    rationale="Crypto rallying while stocks selling - divergence (VETO)"
+                )
+        
+        return CorrelationAnalysis(confirmed=True, confidence_boost=0, rationale="Neutral correlation")
+```
+
+### **Example Integration:**
+```python
+# Today's selloff (2025-11-20):
+btc_sentiment = crypto_detector.get_crypto_sentiment(lookback_minutes=30)
+
+# BTC dropped -4.2%, ETH dropped -5.1%
+# Result: RISK_OFF environment
+
+signal.confidence += 0.15  # +15% boost
+signal.rationale += f" | Bitcoin {btc_sentiment.btc_change*100:.1f}%, risk-off confirmed"
+signal.position_size_pct = 1.0  # Increase from 0.5% to 1.0% (higher conviction)
+```
+
+---
+
+## 🎰 MODULE 4: OPTIONS FLOW DETECTOR (Unusual Activity)
+
+### **Purpose:** Detect institutional hedging / smart money positioning
+
+### **ChartExchange API Endpoints (UNEXPLOITED):**
+```python
+# AVAILABLE BUT NOT USED:
+1. /data/options/sweeps/          # Options sweeps (large orders)
+2. /data/options/unusual-activity/ # Unusual OI/volume
+3. /data/options/flow/             # Real-time options flow
+4. /data/options/max-pain/         # Max pain levels (intraday)
+5. /data/insider-trades/           # Insider buying/selling
+6. /data/institutional-holdings/    # 13F filings, recent changes
+```
+
+### **Architecture:**
+```python
+# live_monitoring/enrichment/options_flow.py
+
+class OptionsFlowDetector:
+    """
+    Detects unusual options activity = smart money positioning
+    """
+    def __init__(self, api_key):
+        self.client = UltimateChartExchangeClient(api_key, tier=3)
+    
+    def detect_unusual_activity(self, symbol: str) -> UnusualOptionsActivity:
+        """
+        Detect unusual options activity in last 30 minutes
+        
+        Signals:
+        - Large put sweeps (institutions hedging)
+        - Put/call ratio spike (fear)
+        - Max pain shift (dealer positioning change)
+        """
+        # Fetch options flow
+        flow = self.client.get_options_flow(symbol, minutes_back=30)
+        
+        unusual_puts = []
+        unusual_calls = []
+        
+        for order in flow:
+            if order.size > 1000 and order.option_type == 'PUT':
+                unusual_puts.append(order)
+            elif order.size > 1000 and order.option_type == 'CALL':
+                unusual_calls.append(order)
+        
+        # Calculate put/call ratio
+        put_volume = sum(p.volume for p in unusual_puts)
+        call_volume = sum(c.volume for c in unusual_calls)
+        pc_ratio = put_volume / call_volume if call_volume > 0 else 999
+        
+        # Classify
+        if pc_ratio > 2.0:  # Heavy put buying
+            sentiment = "BEARISH_HEDGE"
+            confidence_boost = 10
+        elif pc_ratio < 0.5:  # Heavy call buying
+            sentiment = "BULLISH_SPECULATION"
+            confidence_boost = -10  # Conflicts with selloff
+        else:
+            sentiment = "NEUTRAL"
+            confidence_boost = 0
+        
+        return UnusualOptionsActivity(
+            unusual_puts=len(unusual_puts),
+            unusual_calls=len(unusual_calls),
+            pc_ratio=pc_ratio,
+            sentiment=sentiment,
+            confidence_boost=confidence_boost
+        )
+```
+
+---
+
+## 📅 MODULE 5: CATALYST TRACKER (Economic Events)
+
+### **Purpose:** Identify known volatility catalysts
+
+### **Data Sources:**
+```python
+# Economic calendar APIs:
+1. TradingView Economic Calendar
+2. Forex Factory
+3. Investing.com Calendar
+4. FMP (Financial Modeling Prep) API
+
+# Track:
+- FOMC meetings (2pm ET Fed speak = volatility)
+- CPI/PPI releases (8:30am ET = massive moves)
+- NFP (Non-Farm Payrolls - first Friday)
+- Earnings (NVDA, AAPL, TSLA = SPY movers)
+- Geopolitical events (Fed chair speeches, wars, elections)
+```
+
+### **Architecture:**
+```python
+# live_monitoring/enrichment/catalyst_tracker.py
+
+class CatalystTracker:
+    """
+    Tracks economic calendar for known volatility events
+    """
+    def __init__(self):
+        self.calendar_api = EconomicCalendarAPI()
+    
+    def check_active_catalysts(self, current_time: datetime) -> List[Catalyst]:
+        """
+        Check if any major catalysts are active
+        
+        Returns:
+        - FOMC_MINUTES (2pm ET today)
+        - NVDA_EARNINGS (after close yesterday)
+        - FED_POWELL_SPEECH (ongoing)
+        """
+        catalysts = []
+        
+        # Fetch today's events
+        events = self.calendar_api.get_events(date=current_time.date())
+        
+        for event in events:
+            # Check if event is within +/- 2 hours
+            time_diff = abs((event.time - current_time).total_seconds() / 3600)
+            
+            if time_diff < 2:
+                catalysts.append(Catalyst(
+                    name=event.name,
+                    type=event.type,
+                    time=event.time,
+                    impact="HIGH" if event.importance >= 3 else "MEDIUM"
+                ))
+        
+        return catalysts
+    
+    def enrich_with_catalyst(self, signal: LiveSignal, catalysts: List[Catalyst]) -> CatalystEnrichment:
+        """
+        Add catalyst context to signal
+        
+        Example:
+        - "FOMC minutes released at 2pm - hawkish tone triggered selloff"
+        - "NVDA earnings miss yesterday - tech sector weakness"
+        """
+        if not catalysts:
+            return CatalystEnrichment(has_catalyst=False, boost=0, rationale="")
+        
+        # Build rationale
+        catalyst_names = [c.name for c in catalysts]
+        rationale = f"Catalysts: {', '.join(catalyst_names)}"
+        
+        # Boost confidence if catalyst aligns with signal
+        boost = 10 if len(catalysts) > 0 else 0
+        
+        return CatalystEnrichment(
+            has_catalyst=True,
+            boost=boost,
+            rationale=rationale,
+            catalysts=catalysts
+        )
+```
+
+---
+
+## 🔗 MASTER ENRICHMENT PIPELINE
+
+### **Unified Integration:**
+```python
+# live_monitoring/enrichment/enrichment_pipeline.py
+
+class SignalEnrichmentPipeline:
+    """
+    Master pipeline: runs all enrichment modules in sequence
+    """
+    def __init__(self, config: EnrichmentConfig):
+        self.narrative_agent = NarrativeAgent() if config.use_narrative else None
+        self.alt_sentiment = AlternativeSentimentScraper() if config.use_sentiment else None
+        self.crypto_detector = CryptoCorrelationDetector() if config.use_crypto else None
+        self.options_flow = OptionsFlowDetector(config.api_key) if config.use_options else None
+        self.catalyst_tracker = CatalystTracker() if config.use_catalysts else None
+    
+    def enrich_signal(self, signal: LiveSignal, market_data: Dict) -> EnrichedSignal:
+        """
+        Run ALL enrichment modules and boost confidence
+        
+        Input: BaseSignal (66% confidence, momentum-only)
+        Output: EnrichedSignal (85% confidence, multi-factor confirmed)
+        """
+        enriched = EnrichedSignal.from_base(signal)
+        rationale_parts = [signal.rationale]
+        
+        # MODULE 1: LLM Narrative
+        if self.narrative_agent:
+            narrative = self.narrative_agent.analyze_selloff(signal, market_data)
+            enriched.confidence += narrative.confidence_boost / 100
+            rationale_parts.append(f"Narrative: {narrative.narrative}")
+            enriched.catalysts = narrative.catalysts
+        
+        # MODULE 2: Alternative Sentiment
+        if self.alt_sentiment:
+            sentiment = self.alt_sentiment.analyze_crypto_twitter(['Bitcoin', 'selloff'])
+            if sentiment.sentiment_score < -0.7:
+                enriched.confidence += 0.10
+                rationale_parts.append("Crypto Twitter: EXTREME FEAR")
+        
+        # MODULE 3: Crypto Correlation
+        if self.crypto_detector:
+            crypto = self.crypto_detector.get_crypto_sentiment(lookback_minutes=30)
+            correlation = self.crypto_detector.check_correlation_confirmation(signal, crypto)
+            if correlation.confirmed:
+                enriched.confidence += correlation.confidence_boost / 100
+                rationale_parts.append(correlation.rationale)
+            else:
+                # VETO if conflict
+                enriched.is_actionable = False
+                enriched.warnings.append("VETO: Crypto divergence")
+        
+        # MODULE 4: Options Flow
+        if self.options_flow:
+            flow = self.options_flow.detect_unusual_activity(signal.symbol)
+            enriched.confidence += flow.confidence_boost / 100
+            if flow.sentiment == "BEARISH_HEDGE":
+                rationale_parts.append(f"Options: {flow.unusual_puts} put sweeps (hedging)")
+        
+        # MODULE 5: Catalyst Tracker
+        if self.catalyst_tracker:
+            catalysts = self.catalyst_tracker.check_active_catalysts(datetime.now())
+            if catalysts:
+                catalyst_enrich = self.catalyst_tracker.enrich_with_catalyst(signal, catalysts)
+                enriched.confidence += catalyst_enrich.boost / 100
+                rationale_parts.append(catalyst_enrich.rationale)
+        
+        # Combine rationale
+        enriched.rationale = " | ".join(rationale_parts)
+        
+        # Cap confidence at 95%
+        enriched.confidence = min(enriched.confidence, 0.95)
+        
+        # Adjust position size based on confidence
+        if enriched.confidence >= 0.85:
+            enriched.position_size_pct = 1.0  # Max size (1% for lottery)
+        elif enriched.confidence >= 0.75:
+            enriched.position_size_pct = 0.75
+        else:
+            enriched.position_size_pct = 0.5
+        
+        return enriched
+```
+
+---
+
+## 🎯 TODAY'S SELLOFF WITH ENRICHMENT (Hypothetical)
+
+### **Base Signal (Without Enrichment):**
+```
+Time: 11:16 AM
+Entry: $669.10
+Confidence: 66%
+Rationale: "REAL-TIME SELLOFF: -0.65% in last 20 min, volume spike 2.4x"
+Position Size: 0.5%
+```
+
+### **Enriched Signal (With All Modules):**
+```
+Time: 11:16 AM
+Entry: $669.10
+Confidence: 87% (+21% from enrichment!)
+
+Rationale:
+"REAL-TIME SELLOFF: -0.65% in last 20 min, volume spike 2.4x | 
+Narrative: Bitcoin's 4% breakdown below $90k triggered risk-off cascade across all assets | 
+Crypto Twitter: EXTREME FEAR (-0.85 sentiment) | 
+Bitcoin -4.2%, ETH -5.1%, risk-off confirmed | 
+Options: 1,200 put sweeps (institutional hedging) | 
+Catalysts: NVIDIA earnings miss (after close)"
+
+Position Size: 1.0% (HIGH CONVICTION)
+Strategy: 0DTE SPY $665 puts @ $2.00
+Expected Return: 5-10x (if BTC breakdown continues)
+
+Catalysts:
+- Bitcoin breakdown (-4.2%)
+- NVIDIA earnings miss
+- Tech sector rotation
+- Institutional hedging (put sweeps)
+```
+
+---
+
+## 📊 CHARTEXCHANGE API - UNEXPLOITED ENDPOINTS
+
+### **Currently Used:**
+1. ✅ `/data/dark-pool-levels/` - DP battlegrounds
+2. ✅ `/data/dark-pool-prints/` - DP transactions
+3. ✅ `/data/short-volume/` - Daily short volume
+4. ✅ `/data/short-interest/` - Short interest data
+5. ✅ `/data/exchange-volume/` - Exchange breakdowns
+6. ✅ `/data/ftd/` - Failures to deliver
+
+### **NOT USED (OPPORTUNITIES):**
+7. ⏳ `/data/options/sweeps/` - **Large options orders (CRITICAL)**
+8. ⏳ `/data/options/unusual-activity/` - **Unusual OI/volume**
+9. ⏳ `/data/options/flow/` - **Real-time options flow**
+10. ⏳ `/data/options/max-pain/` - **Intraday max pain shifts**
+11. ⏳ `/data/insider-trades/` - **Insider buying/selling**
+12. ⏳ `/data/institutional-holdings/` - **13F changes**
+13. ⏳ `/screener/stocks/` - **Currently used, but can expand filters**
+14. ⏳ `/data/social/reddit/mentions/` - **Reddit buzz (contrarian)**
+15. ⏳ `/data/social/stocktwits/` - **StockTwits sentiment**
+
+### **How to Exploit:**
+```python
+# Example: Options Sweeps
+def detect_put_sweeps(symbol: str) -> bool:
+    """
+    Check for large put sweeps in last 15 minutes
+    Signal: Institutions hedging = bearish confirmation
+    """
+    sweeps = client.get_options_sweeps(symbol, minutes_back=15)
+    
+    put_sweeps = [s for s in sweeps if s.option_type == 'PUT' and s.size > 1000]
+    
+    if len(put_sweeps) >= 3:
+        return True  # Multiple large put sweeps = hedging activity
+    
+    return False
+
+# Example: Insider Trades
+def check_insider_selling(symbol: str) -> bool:
+    """
+    Check for recent insider selling
+    Signal: Insiders selling = weak hands, bearish
+    """
+    insider_trades = client.get_insider_trades(symbol, days_back=7)
+    
+    sell_trades = [t for t in insider_trades if t.transaction_type == 'SELL']
+    buy_trades = [t for t in insider_trades if t.transaction_type == 'BUY']
+    
+    if len(sell_trades) > len(buy_trades) * 2:
+        return True  # Heavy insider selling
+    
+    return False
+```
+
+---
+
+## 🚀 IMPLEMENTATION ROADMAP
+
+### **Week 1: Core Infrastructure**
+1. ⏳ Create `live_monitoring/enrichment/` directory
+2. ⏳ Build base classes: `EnrichmentModule`, `EnrichedSignal`
+3. ⏳ Build `enrichment_pipeline.py` (master orchestrator)
+4. ⏳ Add configuration flags: `use_narrative`, `use_sentiment`, etc.
+
+### **Week 2: Module 1 - LLM Narrative Agent**
+1. ⏳ Build `narrative_agent.py`
+2. ⏳ Integrate Claude Sonnet 3.5 API
+3. ⏳ Create prompt templates for selloffs, breakouts, squeezes
+4. ⏳ Test narrative generation on historical selloffs
+5. ⏳ Add to enrichment pipeline
+
+### **Week 3: Module 2 - Alternative Sentiment**
+1. ⏳ Build `alt_sentiment.py`
+2. ⏳ Integrate Twitter API (FinTwit, Crypto Twitter)
+3. ⏳ Add Telegram scraper (if accessible)
+4. ⏳ Add Reddit API (contrarian signals)
+5. ⏳ Test sentiment scoring on known events
+
+### **Week 4: Module 3 - Crypto Correlation**
+1. ⏳ Build `crypto_correlation.py`
+2. ⏳ Fetch BTC/ETH real-time prices via yfinance
+3. ⏳ Calculate correlation and risk environment
+4. ⏳ Add veto logic for divergences
+5. ⏳ Backtest on Nov 20, 2025 selloff (should confirm)
+
+### **Week 5: Module 4 - Options Flow**
+1. ⏳ Integrate ChartExchange options endpoints
+2. ⏳ Build `options_flow.py`
+3. ⏳ Detect put sweeps, unusual activity
+4. ⏳ Calculate real-time put/call ratios
+5. ⏳ Add hedging detection logic
+
+### **Week 6: Module 5 - Catalyst Tracker**
+1. ⏳ Integrate economic calendar API
+2. ⏳ Build `catalyst_tracker.py`
+3. ⏳ Track FOMC, CPI, earnings, geopolitical
+4. ⏳ Add time-based event detection
+5. ⏳ Test on historical volatile days
+
+### **Week 7: Integration & Testing**
+1. ⏳ Wire all modules into `run_lotto_machine.py`
+2. ⏳ Replay today's selloff with enrichment
+3. ⏳ Compare: 66% confidence → 85%+ confidence
+4. ⏳ Validate position sizing adjustments
+5. ⏳ Paper trade with enrichment enabled
+
+### **Week 8: Production Deployment**
+1. ⏳ Enable enrichment in live system
+2. ⏳ Monitor during RTH for 5 days
+3. ⏳ Track enrichment effectiveness (confidence boost distribution)
+4. ⏳ Tune module weights (which modules add most value?)
+5. ⏳ Go live with real capital
+
+---
+
+## 💡 ALPHA'S VISION
+
+**"We're not just catching the move - we're understanding WHY it's moving. That's the edge. Momentum says WHAT. LLM + sentiment + crypto + options says WHY. WHY = conviction. Conviction = size. Size = lottery wins."**
+
+**"Bitcoin is the canary in the coal mine. When BTC breaks, everything breaks. We need to be watching it 24/7. When BTC -4% and SPY -3%, that's not coincidence - that's risk-off. That's our signal to go ALL IN on puts."**
+
+**"Mainstream media is useless. By the time CNBC reports it, the move is over. We need alternative sources - Crypto Twitter, Telegram groups, whale alerts. That's where the smart money talks. That's our alpha."**
+
+---
+
+## 🎯 SUCCESS METRICS (After Implementation)
+
+### **Baseline (Current System):**
+- Signals: 15 selloff signals
+- Avg confidence: 67%
+- Position size: 0.5%
+- Win rate: TBD (need backtest)
+
+### **Target (With Enrichment):**
+- Signals: 5-8 HIGH CONVICTION signals (filter noise)
+- Avg confidence: 85%+
+- Position size: 1.0% (higher conviction)
+- Win rate: 70%+ (multi-factor confirmation)
+- Avg return: 5-10x on 0DTE (vs 2-3x without enrichment)
+
+---
+
+## 📁 NEW FILES TO CREATE
+
+```
+live_monitoring/enrichment/
+├── __init__.py
+├── enrichment_pipeline.py       # Master orchestrator
+├── narrative_agent.py            # LLM narrative generation
+├── alt_sentiment.py              # Alternative news/social sentiment
+├── crypto_correlation.py         # BTC/ETH correlation detector
+├── options_flow.py               # Unusual options activity
+└── catalyst_tracker.py           # Economic calendar events
+
+live_monitoring/enrichment/models/
+├── __init__.py
+├── enriched_signal.py            # EnrichedSignal dataclass
+└── enrichment_config.py          # Configuration
+
+live_monitoring/enrichment/apis/
+├── __init__.py
+├── twitter_client.py             # Twitter API
+├── telegram_client.py            # Telegram API
+├── economic_calendar.py          # Economic calendar API
+└── crypto_data.py                # Crypto price APIs
+```
+
+---
+
+## 🔥 NEXT IMMEDIATE ACTION
+
+**Tonight:** Build the enrichment infrastructure
+**Tomorrow:** Wire crypto correlation (easiest, highest impact)
+**This Week:** Add LLM narrative agent
+**Next Week:** Add options flow detection
+**Month:** Full multi-factor system operational
+
+**STATUS: BLUEPRINT COMPLETE - READY TO BUILD THE ENRICHMENT LAYER** 🚀🧠💰

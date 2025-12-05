@@ -84,27 +84,72 @@ class UltraInstitutionalEngine:
             # Fetch dark pool levels
             dp_levels = self.client.get_dark_pool_levels(symbol, date)
             battlegrounds = []
-            total_dp_volume = 0
             
-            for level in dp_levels[:50]:  # Top 50 levels
-                price = float(level.get('price', 0))
+            # Calculate total DP volume from ALL levels
+            total_dp_volume = sum(int(level.get('volume', 0)) for level in dp_levels)
+            
+            # Identify battlegrounds (top 50 levels, vol >= 1M)
+            for level in dp_levels[:50]:  # Top 50 levels for battleground identification
+                # API returns 'level' not 'price'
+                price = float(level.get('level') or level.get('price', 0))
                 volume = int(level.get('volume', 0))
                 if volume >= 1_000_000:  # Battleground threshold
                     battlegrounds.append(price)
-                total_dp_volume += volume
             
             battlegrounds = sorted(set(battlegrounds))
             
-            # Fetch dark pool summary
+            # Fetch dark pool summary (primary source)
             dp_summary = self.client.get_dark_pool_summary(symbol, date)
             dp_buy_sell_ratio = 1.0
             dp_avg_print_size = 0.0
+            
             if dp_summary:
                 buy_vol = dp_summary.buy_volume
                 sell_vol = dp_summary.sell_volume
                 if sell_vol > 0:
                     dp_buy_sell_ratio = buy_vol / sell_vol
                 dp_avg_print_size = dp_summary.avg_trade_size
+            else:
+                # Fallback: Calculate from prints if summary unavailable
+                try:
+                    dp_prints = self.client.get_dark_pool_prints(symbol, date)
+                    if dp_prints and len(dp_prints) > 0:
+                        total_size = 0
+                        buy_vol = 0
+                        sell_vol = 0
+                        count = 0
+                        
+                        for p in dp_prints[:1000]:  # Use up to 1000 prints
+                            if isinstance(p, dict):
+                                size = int(p.get('size', 0))
+                                side = p.get('side', '').upper()
+                                
+                                total_size += size
+                                count += 1
+                                
+                                # Handle different side codes
+                                if side == 'B' or side == 'BUY':
+                                    buy_vol += size
+                                elif side == 'S' or side == 'SELL':
+                                    sell_vol += size
+                                elif side == 'M' or side == 'MARKET':
+                                    # Market orders - try to infer from price vs mid
+                                    # For now, split 50/50 or skip
+                                    # Most prints are 'M' so we need a better heuristic
+                                    # Skip 'M' for now to avoid inflating ratios
+                                    pass
+                        
+                        if count > 0:
+                            dp_avg_print_size = total_size / count
+                        
+                        if sell_vol > 0:
+                            dp_buy_sell_ratio = buy_vol / sell_vol
+                        elif buy_vol > 0:
+                            dp_buy_sell_ratio = 1.5  # All buys, bullish
+                        
+                        logger.debug(f"Calculated from prints: ratio={dp_buy_sell_ratio:.2f}, avg_size={dp_avg_print_size:.0f}")
+                except Exception as e:
+                    logger.warning(f"Could not calculate from prints: {e}")
             
             # Fetch short data
             short_volume_data = self.client.get_short_volume(symbol, date)
@@ -133,14 +178,43 @@ class UltraInstitutionalEngine:
             put_call_ratio = options_summary.put_call_ratio if options_summary else 1.0
             total_option_oi = (options_summary.total_call_oi + options_summary.total_put_oi) if options_summary else 0
             
-            # Fetch exchange volume for dark pool %
-            exchange_vol = self.client.get_exchange_volume(symbol, date)
+            # Calculate dark pool % using DP levels + yfinance total volume
+            # NOTE: ChartExchange exchange volume endpoint is BROKEN (returns 2019 data)
+            # So we calculate DP % ourselves: DP volume (from levels) / Total volume (yfinance)
             dark_pool_pct = 0.0
-            if exchange_vol:
-                total_vol = sum(ev.volume for ev in exchange_vol)
-                dp_vol = sum(ev.volume for ev in exchange_vol if 'XADF' in ev.exchange or 'dark' in ev.exchange.lower())
-                if total_vol > 0:
-                    dark_pool_pct = (dp_vol / total_vol) * 100
+            
+            # Calculate total DP volume from ALL levels (not just top 50)
+            dp_total_all_levels = sum(int(level.get('volume', 0)) for level in dp_levels)
+            
+            try:
+                import yfinance as yf
+                from datetime import datetime, timedelta
+                
+                # Get total market volume from yfinance
+                ticker = yf.Ticker(symbol)
+                
+                # Try to get volume for the specific date
+                end_date = (datetime.strptime(date, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+                hist = ticker.history(start=date, end=end_date)
+                
+                if len(hist) > 0 and hist['Volume'].iloc[0] > 0:
+                    total_market_vol = hist['Volume'].iloc[0]
+                    dark_pool_pct = (dp_total_all_levels / total_market_vol) * 100
+                    logger.debug(f"DP %: {dp_total_all_levels:,} / {int(total_market_vol):,} = {dark_pool_pct:.2f}%")
+                else:
+                    # Fallback: use recent 5-day average
+                    hist = ticker.history(period='5d')
+                    if len(hist) > 0:
+                        total_market_vol = hist['Volume'].mean()
+                        dark_pool_pct = (dp_total_all_levels / total_market_vol) * 100
+                        logger.warning(f"Using 5-day avg volume for DP %: {dark_pool_pct:.2f}%")
+                        
+            except Exception as e:
+                logger.warning(f"Could not calculate dark pool % from yfinance: {e}")
+                # Absolute fallback: estimate based on typical SPY/QQQ DP % (~35-45%)
+                if dp_total_all_levels > 0:
+                    dark_pool_pct = 35.0  # Conservative estimate
+                    logger.warning(f"Using default DP % estimate: {dark_pool_pct}%")
             
             # Calculate composite scores
             institutional_buying_pressure = self._calculate_buying_pressure(

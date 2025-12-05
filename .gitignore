@@ -27,6 +27,8 @@ ENV/
 
 # Environment Variables
 .env
+.env.local
+configs/chartexchange_config.py  # Contains API keys - use .example instead
 
 # IDE
 .idea/

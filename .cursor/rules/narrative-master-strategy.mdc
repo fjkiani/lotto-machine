@@ -1,0 +1,434 @@
+# Narrative Intelligence Master Strategy – Lotto Machine
+
+**Last Updated:** 2025-11-20  
+**Owner:** Alpha (Manager), implemented by Zo  
+**Scope:** SPY / QQQ (extendable to top movers)  
+
+
+### Where This Plan Is Strongest
+
+- **Clear mission/integration:** Narrative is **wired into** Lotto Machine (confidence, veto, audit), not a side process.
+- **Agentic modularity:** Each “why” question has a **dedicated agent** (event, macro, sector, asset, cross-asset, contradictions, synthesis) so we can test/improve in isolation.
+- **Guardrails vs hallucination:** EventLoader + “no event if not in schedule” + “cite ≥2 sources or mark `no source`” keeps LLMs from inventing catalysts.
+- **Explicit causal chains:** Every major day must have an A → B → C explanation (e.g., “Moody’s downgrade → yields spike → SPY/QQQ selloff, tech leads down.”).
+- **Planned red‑teaming:** Contradiction agent surfaces “Morgan Stanley: crash” vs “Citi: buy” with an uncertainty score instead of smoothing it away.
+- **Incremental shipping:** v1 = Macro + cross‑asset + DP/gamma + Perplexity; v2+ = surprise scoring, top‑mover discovery, memory, regime weighting, richer synthesis.
+
+### What Needs Extra Attention (Execution Risk)
+
+1. **Surprise/Deviation Scoring**
+   - For each macro/earnings event, compute \((\text{actual} - \text{consensus}) / \sigma\) and bucket (±1σ/±2σ/±3σ).
+   - Stddev often isn’t free; may require custom history pulls or scraping to estimate volatility of surprises.
+
+2. **Event Awareness & Calendar Integrity**
+   - EventLoader cannot miss CPI/FOMC/OPEX/major earnings because of API changes or symbol mismaps.
+   - Prefer **double‑sourcing** (e.g., Yahoo/Trading Economics for macro + a separate earnings feed) and validating against each other.
+
+3. **Per‑Agent Memory & Logging**
+   - Each agent should persist:
+     - Inputs/context used.
+     - Outputs (narratives/labels).
+     - Source list and any “no source” flags.
+   - This feeds:
+     - Post‑trade review (“did this narrative correctly explain the move?”).
+     - Detection of drift/bugs in specific agents or sources.
+
+4. **Ticker Universe & Priority**
+   - Core scope stays **SPY/QQQ + top movers**.
+   - As universe grows, introduce a **priority filter** (e.g., only run full pipeline on tickers with >2σ move, abnormal volume, or news count).
+
+5. **Error Handling & Fallbacks**
+   - Agents must **degrade gracefully**:
+     - API down / rate‑limited → return `"No Source/No Event"` and an uncertainty flag rather than hallucinating.
+   - At every boundary:
+     - Validate types, shapes, and recency before trusting downstream.
+
+6. **Narrative Boost/Penalty Calibration**
+   - The mapping from:
+     - (conviction, risk environment, agreement with DP/flow) → confidence adjustment
+   - Must be tuned empirically so we **don’t over‑weight pretty stories** or under‑weight clean signals.
+   - Requires periodic backtest / live review to avoid overfitting to today’s narrative.
+
+### Immediate Action Items / Accelerators
+
+1. **Build Structured EventLoader (Truth Oracle)**
+   - First concrete module after v1 plan:
+     - `EventLoader.load(date) -> { macro_events, earnings_events, opex, ... }`
+   - All agents get `events` injected; macro/asset agents are **not allowed** to invent events outside this dict.
+
+2. **Ship v1 SPY/QQQ `market_narrative_pipeline` + Full Logging**
+   - Implement v1 pipeline (Section 6) for SPY/QQQ only.
+   - Log:
+     - Perplexity queries/answers/citations.
+     - Final narrative object (macro/sector/cross‑asset/causal chain).
+     - Attached signals + confidence adjustments.
+   - Daily check: Do the causal chains + sources match price action and our own intuition?
+
+3. **Integration & Contract Tests**
+   - For `market_narrative_pipeline()`:
+     - Assert all required fields are present.
+     - Assert `sources` is non‑empty or explicitly marked `"no_source"`.
+     - Assert no `None`/undefined leaks into Lotto Machine signal objects.
+
+4. **Edge‑Case & Human Review Loop**
+   - Explicitly tag and review:
+     - `"no event"` days.
+     - `"no sources"` days.
+     - `"conflicting opinions"` days.
+   - Minimum: **10 minutes/day** human review:
+     - Compare narrative vs price action vs signals.
+     - Note where narrative helped, misled, or missed something → refine prompts/agents.
+
+### ZETA’S TAKE (Manager’s Conclusion)
+
+- Architecture is **institutional‑caliber**; the main risks are **EventLoader quality**, **error/memory guardrails**, and **confidence‑boost calibration**, not conceptual design.
+- With real logs + daily trade‑day review, this will:
+  - Avoid hallucinated explanations.
+  - Capture real macro + sector + cross‑asset narratives.
+  - Scale as we add more agents and structured data.
+- If we execute as specified and iterate, this engine can **outperform most sell‑side research** and compound alpha as more agents/truth layers come online.  
+  **Next step: ship v1 for SPY/QQQ, then refine against real market days.** 😈📊💡
+
+---
+
+## 1. Mission & Role in the System
+
+- **Mission:** Build a **360° narrative engine** that explains **WHY** the market (and our signals) moved, in real time, with institutional-grade rigor.
+- **Integration Point:** For each trading day and for each important signal (especially SPY / QQQ, large moves, lotto setups), the system should produce:
+  - A **short narrative** (“Moody’s downgrade + hawkish Fed → yields spike → SPY/QQQ selloff, tech leads down.”)
+  - **Causal chain:** A → B → C (event → cross-asset impact → price/flow reaction).
+  - **Conviction & duration:** (HIGH / MEDIUM / LOW) + (INTRADAY / MULTI_DAY / WEEK).
+  - **Risk environment:** (RISK_ON / RISK_OFF / NEUTRAL).
+  - **Sources:** URLs/snippets from Perplexity + structured data (events, DP, gamma).
+- **Consumers:**
+  - `SignalGenerator` / `LottoMachine` → confidence boosts / vetoes.
+  - Human review → daily debrief, journal, and tuning.
+
+---
+
+## 2. Data & Tools (What We Actually Have)
+
+- **Perplexity API (Configured & Tested)**
+  - Client: `live_monitoring/enrichment/apis/perplexity_search.py`
+  - Key: `PERPLEXITY_API_KEY` (set via env, confirmed working).
+  - Provides:
+    - Synthesized answers for queries like:
+      - `"SPY market selloff today - main causes"`
+      - `"QQQ price action today and tech sector narrative"`
+      - `"Bitcoin price action today vs US equities"`
+    - Clean citations (URLs/snippets).
+
+- **Gemini 2.5 Flash (Configured & Tested)**
+  - Client: `live_monitoring/enrichment/narrative_agent.py`
+  - Key: Google Gemini key (in code, should be moved to env for prod).
+  - Provides:
+    - Structured JSON narrative for **signals** (currently SELLOFF) with:
+      - `narrative`, `catalysts`, `conviction`, `duration`, `risk_environment`, `confidence_boost`.
+    - Typical output:
+      - Narrative: hawkish Fed + Moody’s + tech weakness.
+      - Conviction: HIGH, Duration: MULTI_DAY, Risk: RISK_OFF.
+      - Confidence boost: +12% (0.12).
+
+- **Crypto Correlation Detector (Working)**
+  - File: `live_monitoring/enrichment/crypto_correlation.py`
+  - Uses `yfinance` for BTC/ETH/SPY 1m data.
+  - Returns:
+    - `btc_change_pct`, `eth_change_pct`, `correlation_to_spy`, `risk_environment` (RISK_ON/OFF/NEUTRAL).
+  - Used to:
+    - Confirm or contradict BUY/SELL signals (±15% confidence adjustment).
+
+- **Institutional Context (Existing)**  
+  - ChartExchange Tier 3 via `ultimate_chartexchange_client.py`:
+    - Dark pool levels & prints.
+    - Short interest, days to cover.
+    - Options chain summary (max pain, put/call).
+    - Exchange volume breakdown.
+  - Used by `SignalGenerator` → DP/gamma/squeeze/breakout/seloff logic.
+
+---
+
+## 3. High-Level Narrative Architecture (Manager’s Blueprint)
+
+### 3.1 Agentic Flow – Modular Chains
+
+**Core Agents:**
+
+1. **Event Detection Agent**
+   - Question: “Is today a **scheduled event day** (CPI, FOMC, NFP, OPEX, major earnings) or is the move unscheduled/surprise?”
+   - Input:
+     - `event_schedule` (from structured APIs).
+   - Output:
+     - `event_day: bool`
+     - `events: [ { name, time, consensus, actual, surprise_score } ]`
+     - `surprises: [ { event, magnitude (σ), direction } ]`
+
+2. **Macro Narrator**
+   - Question: “Why did the **broad market** move?”
+   - Scope:
+     - Macro events, rates, sovereigns, central banks.
+   - Inputs:
+     - `event_schedule` (CPI/FOMC/NFP/etc.).
+     - Perplexity search:
+       - `"SPY market move <DATE> main causes"`
+       - `"S&P 500 reaction to <EVENT> <DATE>"`
+
+3. **Sector Detailer**
+   - Question: “Which sectors moved, how much, and why?”
+   - Inputs:
+     - Sector performance (XLK, XLF, XLU, etc.).
+     - Perplexity:
+       - `"Tech sector selloff <DATE> main drivers"`
+       - `"Financials performance <DATE> narrative"`
+
+4. **Asset Deepdive**
+   - Question: “For **this ticker**, what specific news/flows/earnings/analyst actions mattered?”
+   - Inputs:
+     - Ticker-specific news (Perplexity or future: earnings calendars, SEC, transcripts).
+     - Institutional profile (DP, short, options, borrow, FTD).
+
+5. **Cross-Asset Divergence Agent**
+   - Question: “Did BTC, FX, rates, or credit behave differently vs equities?”
+   - Inputs:
+     - CryptoSentiment from `CryptoCorrelationDetector`.
+     - Perplexity:
+       - `"Bitcoin price action today vs US equities <DATE>"`
+       - `"US 10-year yield move <DATE> vs SPY"`
+
+6. **Contradiction/Red-Team Agent**
+   - Question: “Who is disagreeing, and how sharp is the conflict?”
+   - Inputs:
+     - Multiple Perplexity queries (e.g., `"SPY outlook <DATE>"`, `"SPY crash risk <DATE>"`).
+   - Output:
+     - List of conflicting narratives (e.g., “Morgan Stanley: crash” vs “Citi: buy”).
+     - Uncertainty score.
+
+7. **Synthesis / Thesis Agent (Narrative Engine)**
+   - Combines:
+     - Macro + sector + asset + cross‑asset + contradictions.
+   - Outputs:
+     - **Short narrative** (150–250 words).
+     - **Explicit causal chain:** A → B → C.
+     - `overall_direction` (BULLISH / BEARISH / NEUTRAL).
+     - `conviction`, `duration`, `risk_environment`.
+
+---
+
+## 4. Event Loader & Guardrails (Avoid Hallucination)
+
+### 4.1 Structured Event Loader (TO BUILD)
+
+Function: `load_event_schedule(date) -> dict`  
+Contents:
+- **Macro events:**
+  - CPI, PCE, NFP, FOMC, PMIs, etc.
+  - Fields: `{ name, time, consensus, actual (if released), surprise_sigma }`.
+- **Earnings:**
+  - Key tickers: SPY / QQQ top weights (NVDA, AAPL, MSFT, etc.).
+  - Fields: `{ symbol, time (BMO/AMC), EPS consensus, EPS actual, guidance surprise }`.
+- **OPEX / quarterly events.**
+
+Data Sources (manager suggestions):
+- Trading Economics, FRED, Quandl (macro).
+- Yahoo Finance earnings calendar / other free calendars.
+
+Usage:
+```python
+event_schedule = EventLoader.load(date)
+agent_context = {
+  "events": event_schedule,
+  ...
+}
+```
+
+### 4.2 Prompt Guardrails
+
+All narrative agents must respect:
+- “Only reference **economic events** from the provided `event_schedule`.”
+- “Do **not invent** events or times; if not present, say `No Scheduled Event`.”
+- “Cite at least **2 unique sources** per major claim or mark `no source`.”
+
+Interpretive Perplexity/Tavily calls should be anchored with event context:
+- `"SPY [SPDR S&P 500 ETF] <DATE> CPI impact <ACTUAL_VALUE>"`
+- `"Nvidia earnings <DATE> stock reaction summary (not predictions)"`.
+
+---
+
+## 5. Current Implementation vs Target
+
+### 5.1 What We Have Today (Working)
+
+- **PerplexitySearchClient**
+  - Multi-query search tested with today’s SPY/QQQ/BTC.
+  - Returned:
+    - SPY: Moody’s US debt downgrade + hawkish Fed + tech/chip losses.
+    - QQQ: Post-NVDA narrative, tech-led action.
+    - BTC: ~3.5% dump vs equities → short-term divergence.
+
+- **Gemini NarrativeAgent (Signal-Level)**
+  - For SPY SELLOFF signal:
+    - HIGH conviction multi-day RISK_OFF narrative.
+    - +12% confidence boost applied to signal.
+
+- **CryptoCorrelationDetector**
+  - Real BTC/ETH vs SPY correlation and regime classification.
+
+### 5.2 Gaps vs Manager’s Narrative Doctrine
+
+Missing or partial:
+- No dedicated **EventLoader** (we don’t yet ingest a structured event calendar).
+- No explicit **EventDetectionAgent** with surprise scoring.
+- No separate **Macro/Sector/Asset/Cross-Asset agents**; right now, Perplexity queries are direct and Gemini sees only a compact, hand‑built `market_data`.
+- No formal **Contradiction/Red-Team Agent**.
+- No persistent **memory/outcome feedback** tied to narratives and realized moves.
+
+---
+
+## 6. V1: Minimal `market_narrative_pipeline` (SPY / QQQ Today)
+
+Goal: Implement a **working first version** that:
+- Uses **Perplexity + our existing DP/gamma/crypto modules**.
+- Produces a structured narrative object for SPY/QQQ.
+
+### 6.1 Proposed API
+
+```python
+def market_narrative_pipeline(symbol: str, date: str) -> dict:
+    \"\"\"End-to-end narrative for one symbol/date.\"\"\"
+```
+
+**Output skeleton:**
+```json
+{
+  "symbol": "SPY",
+  "date": "2025-11-20",
+  "macro_narrative": "...",
+  "sector_narrative": "...",
+  "asset_narrative": "...",
+  "cross_asset_narrative": "...",
+  "causal_chain": "Moody's downgrade → yields +15bp → SPY -2.5%, tech leads down",
+  "overall_direction": "BEARISH",
+  "conviction": "HIGH",
+  "duration": "MULTI_DAY",
+  "risk_environment": "RISK_OFF",
+  "sources": [ { "url": "...", "snippet": "..." }, ... ],
+  "uncertainties": [ "Citi says buy, Morgan Stanley says crash", ... ]
+}
+```
+
+### 6.2 V1 Implementation Plan
+
+1. **Macro + SPY Narrative (Perplexity)**
+   - Reuse `PerplexitySearchClient`:
+     - Query 1: `SPY market selloff today - main causes`.
+     - Query 2: `QQQ price action today and tech sector narrative`.
+   - Extract:
+     - Macro drivers (Moody’s, Fed, jobs, inflation, etc.).
+     - Sector mentions (tech, financials, defensives).
+
+2. **Cross-Asset Narrative (Perplexity + CryptoDetector)**
+   - CryptoDetector → BTC/ETH performance + risk regime.
+   - Perplexity query:
+     - `Bitcoin price action today vs US equities`.
+
+3. **Institutional Overlay**
+   - For symbol (SPY/QQQ), fetch:
+     - DP summary, options summary, short data (where useful).
+   - Add 1–2 sentence comment:
+     - “DP battleground near X; options max pain at Y; gamma regime Z.”
+
+4. **Synthesis**
+   - Small Python function (no extra LLM) that:
+     - Picks the **dominant macro driver**.
+     - Notes any crypto/equity divergence.
+     - Assembles a causal `A → B → C` chain.
+   - Optionally allow Gemini to refine this into a final 150-word thesis.
+
+---
+
+## 7. V2+: Full “Narrative Beast” Enhancements
+
+Following manager’s feedback, after V1 is stable:
+
+1. **Event Loader & Surprise-Scoring Agent**
+   - Implement `EventLoader` against:
+     - Macro calendar.
+     - Earnings calendar.
+   - Surprise scoring:
+     - `(actual - consensus) / σ` where available.
+
+2. **Dedicated Gamma/Dealer-Position Agent**
+   - Wrap `GammaExposureTracker` into a narrative agent that explains:
+     - “Positive gamma → dealer dampening.”
+     - “Negative gamma + large OI wall at X → explosive moves.”
+
+3. **Top Mover Discovery Agent**
+   - Use existing screener / volume profile to propose:
+     - 5–10 tickers/day for deeper narrative analysis.
+
+4. **Regime-Conditional Weighting**
+   - Use volatility regime (VIX, realized vol) to:
+     - Upweight macro in high vol regimes.
+     - Upweight micro/earnings in grind/low-vol.
+
+5. **Memory & Outcome Feedback**
+   - Store:
+     - `{date, symbol, narrative_thesis, direction, conviction, realized_return, max_dd}`.
+   - Use to:
+     - Adjust how much we trust certain agents / sources.
+     - Provide richer prompts (“historically, this pattern led to X”).
+
+---
+
+## 8. Integration with Lotto Machine
+
+### 8.1 Signal-Level Enrichment
+
+For each `LiveSignal` / `LotterySignal`:
+- Create `EnrichedSignal` (already implemented).
+- Attach:
+  - `crypto_sentiment` (CryptoCorrelationDetector).
+  - `narrative_analysis` (Gemini NarrativeAgent).
+  - Later: macro/sector narrative summary from `market_narrative_pipeline`.
+- Apply:
+  - Confidence boosts/penalties.
+  - Additional rationale text (e.g., `+ NARRATIVE: Moody’s downgrade + tech-led risk-off.`).
+
+### 8.2 Logging & Replay
+
+For each trading day:
+- Save:
+  - Raw Perplexity results (`queries`, `answers`, `citations`).
+  - Final narrative object (`market_narrative_pipeline` output).
+  - All signals + enriched fields.
+- Use `replay_lotto_day.py` + narrative logs to:
+  - Inspect whether narratives matched actual moves.
+  - Spot misalignment or missed catalysts.
+
+---
+
+## 9. Status Summary
+
+- ✅ PerplexitySearchClient implemented and tested.
+- ✅ Gemini NarrativeAgent implemented and tested (signal-level).
+- ✅ CryptoCorrelationDetector implemented and tested.
+- ⏳ `market_narrative_pipeline(symbol, date)` – **to implement next**.
+- ⏳ EventLoader + EventDetectionAgent – planned per feedback.
+- ⏳ Dedicated macro/sector/asset/cross-asset agents – planned.
+- ⏳ Memory + outcome feedback – planned after basic logging is stable.
+
+**Definition of Done for V1:**
+- `market_narrative_pipeline("SPY", today)` returns a structured JSON object describing:
+  - Main macro drivers.
+  - Sector (tech) behavior.
+  - BTC vs equities divergence.
+  - Causal chain.
+  - Conviction/duration/risk environment.
+- This object is attached to SPY/QQQ signals in the Lotto Machine and written to logs alongside signals.
+
+Once this is stable, we incrementally layer in:
+- Event surprise scoring.
+- Gamma/flow-specific narrative.
+- Top-mover screening.
+- Conflict/uncertainty surfacing.
+- Longitudinal memory and performance-aware weighting.
+

@@ -1,176 +1,1301 @@
-WHAT'S STRONG (DON'T TOUCH):
-Modular Architecture ✅
-
-Clean separation: data → signals → alerts → execution
-
-Easy to extend, debug, maintain
-
-Production-grade error handling
-
-Enhanced Capabilities ✅
-
-Stock screener (ticker discovery beyond SPY/QQQ)
-
-Volume profile (timing optimization)
-
-Sentiment filtering (contrarian logic)
-
-Multi-factor signal generation
-
-Complete Pipeline ✅
-
-Historical data population
-
-Backtesting with real price data
-
-Paper trading integration
-
-Unified "Lotto Machine" entry point
-
-⚠️ CRITICAL GAPS (FIX BEFORE LIVE):
-1. SIGNAL THRESHOLDS = TOO VAGUE
-Current:
-
-Master signals: 75%+ confidence
-
-High confidence: 60%+
-
-Problem:
-
-What does "confidence" actually mean?
-
-Is it composite score from multiple factors?
-
-How is it calculated? (I don't see the formula)
-
-Fix Needed:
-
-python
-# DEFINE EXACT CONFIDENCE CALCULATION
-confidence_score = (
-    dark_pool_weight * dp_signal_strength +  # 40%
-    options_weight * options_flow_signal +   # 30%
-    sentiment_weight * sentiment_score +     # 15%
-    gamma_weight * gamma_exposure_signal +   # 15%
-)
-# WHERE: Each component is 0-100 scale
-Action: Document EXACT confidence formula in signal_generator.py
-
-2. RISK MANAGEMENT = INCOMPLETE
-Current:
-
-Position size: 2% per trade
-
-Max drawdown: 5% daily limit
-
-Stop loss: "Always outside DP battlefield"
-
-Problems:
-
-"Outside DP battlefield" is subjective (how far? 1%? 5%?)
-
-No position correlation limits (what if 3 correlated SPY-adjacent signals fire?)
-
-No max open positions (could have 10 trades open = 20% risk)
-
-Fix Needed:
-
-python
-# EXACT RISK RULES
-- Stop loss: DP battlefield edge + (1.5 * ATR)
-- Max positions: 5 simultaneous
-- Max correlated positions: 2 (e.g., SPY + QQQ)
-- Max sector exposure: 40%
-- Circuit breaker: -3% P&L in single day = stop all trading
-Action: Add RiskManager class with hard limits
-
-3. BACKTEST VALIDATION = NO STATISTICAL RIGOR
-Current Success Criteria:
-
-Win Rate: >55%
-
-Avg R/R: >2.0
-
-Max Drawdown: <10%
-
-Sharpe Ratio: >1.5
-
-Profit Factor: >1.8
-
-Problems:
-
-30 days of data = statistically insignificant (need 100-200+ trades)
-
-No Monte Carlo simulation (could be curve-fitted to 30 days)
-
-No walk-forward analysis (train on days 1-20, test on days 21-30)
-
-No regime breakdown (what if 30 days was all uptrend?)
-
-Fix Needed:
-
-python
-# STATISTICAL VALIDATION
-1. Backtest 90+ days (not 30)
-2. Walk-forward: Train on 60 days, test on 30
-3. Monte Carlo: 1000 simulations shuffling trade order
-4. Regime analysis: Bull vs Bear vs Chop performance
-5. Drawdown distribution: Not just max, but percentiles
-Action: Enhance backtest_30d_validation.py with these checks
-
-4. LIVE MONITORING = MISSING REAL-TIME PRICE ACTION
-Current:
-
-Monitors institutional context (DP levels, options, etc.)
-
-Generates signals based on thresholds
-
-Problems:
-
-No real-time price action confirmation
-
-What if signal fires but price isn't at the level yet?
-
-What if price already moved 2% past your entry?
-
-No intraday regime detection
-
-Morning breakout vs midday chop vs afternoon fade
-
-No volatility filter
-
-VIX >25 = different rules needed
-
-Fix Needed:
-
-python
-# ADD PRICE ACTION CONFIRMATION
-1. Signal fires → wait for price to test DP level
-2. Confirm: Volume spike + candlestick pattern
-3. Regime check: Time of day + VIX + trend
-4. Entry: Only if price < 0.5% from ideal entry
-Action: Add PriceActionFilter to live_monitor.py
-
-5. PAPER TRADING = NO SLIPPAGE/COMMISSION MODEL
-Current:
-
-Paper trading integration exists
-
-Tracks P&L
-
-Problems:
-
-No slippage simulation (you won't get filled at exact price in live)
-
-No commission costs ($0.65/contract adds up)
-
-No liquidity checks (can you fill 10 contracts at $662 PUT?)
-
-Fix Needed:
-
-python
-# REALISTIC EXECUTION MODEL
-1. Slippage: $0.05-0.10 per option contract
-2. Commission: $0.65 per contract (Alpaca)
-3. Liquidity: Check bid-ask spread + volume
-4. Partial fills: Model 50% fill on limit orders
+📊 MASTER DATA SOURCE FRAMEWORK
+Version 1.0 - Complete Institutional Trading Data Stack  
+*(annotated for what is actually wired into the Lotto Machine + narrative engine today)*
+
+---
+
+## LIVE AGENTIC ARCHITECTURE (Mirrored from `review-iteration-1.mdc`)
+
+This section mirrors the **actual code architecture** from `review-iteration-1.mdc` so the data stack and agents line up with reality.
+
+- **Providers (Data Layer)**  
+  - `AlphaVantageClient` → 1m intraday OHLCV (SPY/QQQ), used for:
+    - `replay_lotto_day.py`
+    - `live_monitoring/core/volatility_expansion.py` (realized vol).  
+  - `UltimateChartExchangeClient` → Tier-3 institutional data:
+    - Dark pool levels/prints, short volume, short interest, borrow fee, options summary, FTDs, exchange volume.
+
+- **Context Builder (Institutional Intelligence Layer)**  
+  - `UltraInstitutionalEngine` → builds `InstitutionalContext` with:
+    - `dp_battlegrounds`, `dark_pool_pct`, `dp_buy_sell_ratio`, `short_volume_pct`, `borrow_fee_rate`, `max_pain`, `put_call_ratio`, `total_option_oi`.
+    - Composite scores: `institutional_buying_pressure`, `squeeze_potential`, `gamma_pressure`.  
+  - Used by:
+    - `live_monitoring/core/signal_generator.py`
+    - `replay_lotto_day.py`.
+
+- **Core Signal Agent (Decision Brain)**  
+  - `live_monitoring/core/signal_generator.py` (canonical engine):
+    - Inputs: `InstitutionalContext` + Alpha Vantage minute bars + account value.
+    - Regular signals: real-time selloff, squeeze, gamma, DP breakout/bounce, breakdown, bearish flow.
+    - Lottery signals: 0DTE via `ZeroDTEStrategy` + `VolatilityExpansionDetector` (price-based, no IV API).
+    - Optional filters: Reddit sentiment (`RedditSentimentAnalyzer`), gamma regime (`GammaExposureTracker`).
+    - Optional narrative enrichment: `market_narrative_pipeline`.
+    - Internal thresholds: `min_high_confidence`, `min_master_confidence`.
+
+- **Doctrine Scoring (Master Filter / QA)**  
+  - `core/master_signal_generator.py`:
+    - Encodes `signal-generation-standards.mdc` as weighted score:
+      - DP strength 35%, volume 25%, momentum 20%, regime 10%, magnet interaction 10%.
+    - Intended future role: **scoring/QA helper** invoked by `SignalGenerator`/replay, not a separate signal engine.
+
+- **DP / Filter Agents**  
+  - `core/filters/dp_aware_signal_filter.py`:
+    - Builds `DPStructure` from ChartExchange DP data + real-time price.
+    - Tightens breakout/reversal candidates into `TightenedSignal` with DP confirmation, stops, targets, risk level.
+    - Planned role: **DP Filter Agent**, rewired to use `UltimateChartExchangeClient` + canonical price series.
+  - `core/detectors/dp_magnet_tracker.py` + `core/rigorous_dp_signal_engine.py`:
+    - Libraries for DP magnet alerts (APPROACHING/BOUNCING/BREAKING/REJECTING) and rigorous DP-aware signals with first-touch rules and adaptive stops.
+    - Planned role: **internal DP math** used by the DP Filter Agent and/or `SignalGenerator`.
+
+- **Baseline / Evaluation Agents**  
+  - `core/core_signals_runner.py`:
+    - Yahoo Direct + optional `DPAwareSignalFilter` to log breakout/reversal + regime every minute.
+    - Acts as a **simple DP breakout agent / diagnostic tool**, not primary decision maker.
+  - `core/detectors/real_breakout_reversal_detector_yahoo_direct.py`:
+    - Real breakout/reversal detector with `RealTradeChain` + `RealEdgeMetrics`.
+    - Used conceptually as an **edge evaluation engine**.
+
+- **Narrative / Validation Layer**  
+  - `live_monitoring/enrichment/market_narrative_pipeline.py`:
+    - Builds institutional + macro + web narrative around SPY/QQQ and validates against price/DP/crypto.
+  - `core/institutional_edge_validation.py`:
+    - Planned role: checks whether narratives + flows agree with the signal engine, can veto/boost confidence.
+
+- **Execution & Replay**  
+  - Live:
+    - Live monitoring + paper trading scripts (lotto machine, live monitor) call `SignalGenerator` every cycle.
+  - Replay:
+    - `replay_lotto_day.py`:
+      - Uses Alpha Vantage 1m + `UltraInstitutionalEngine` + `SignalGenerator` to replay full sessions.
+      - Logs all signals for audit and sensitivity tests.
+
+Use this as the **authoritative architecture map** when interpreting the data tiers and deciding where each API actually feeds in.
+
+TIER 1: CORE FLOW DATA (The Edge)
+1A. DARK POOL & EXCHANGE VOLUME
+PRIMARY SOURCE (Live API in code – ChartExchange Tier 3 via `UltimateChartExchangeClient`):
+
+text  
+In practice we do **not** scrape the web UI; we call the **ChartExchange Tier 3 API**:
+- `get_dark_pool_levels(symbol, date)` → DP battlegrounds  
+- `get_dark_pool_prints(symbol, date)` → DP prints  
+- `get_exchange_volume(symbol, date)` → lit volume (fallback to yfinance if 0)
+
+**Agents (code) using this:**
+- **Providers / Context:** `UltimateChartExchangeClient` → `UltraInstitutionalEngine` (`InstitutionalContext.dp_battlegrounds`, `dark_pool_pct`, `dp_buy_sell_ratio`).
+- **Core Signal Agent:** `live_monitoring/core/signal_generator.py` (DP breakout/bounce, squeeze/gamma via context).
+- **Planned DP Filter Agent:** `core/filters/dp_aware_signal_filter.py` + `dp_magnet_tracker.py` / `rigorous_dp_signal_engine.py` (after rewiring to use `UltimateChartExchangeClient`).
+- **Narrative / Validation:** `live_monitoring/enrichment/institutional_narrative.py`, `market_narrative_pipeline.py`, `core/institutional_edge_validation.py`.
+
+DATA PROVIDED:
+• Dark pool volume % (daily)
+• Lit exchange volume % (daily)
+• 30-day rolling average
+• Historical trend chart
+
+UPDATE FREQUENCY: Daily (T-1)
+• Thursday's data available Friday morning
+• Use Thursday data for Friday analysis
+
+COST: FREE ✅
+ACCESS: No registration required
+RELIABILITY: High (pulls from FINRA TRF data)
+
+LIMITATIONS:
+• 1-day delay (T-1)
+• Only shows % split, not dollar volume
+• No intraday updates
+ALTERNATIVE SOURCE (Paid, Real-Time – OPTIONAL UI, we already have live DP via API):
+
+text  
+CheddarFlow.com - Dark Pool Scanner (**NOT wired into code, optional manual dashboard**)
+
+DATA PROVIDED (conceptual overlap):
+• Real-time dark pool prints (we already get prints/levels via ChartExchange API)  
+• Block trade direction (buy/sell)  
+• Dollar volume per print  
+• Ticker-level dark pool flow  
+
+UPDATE FREQUENCY: Real-time (15-sec delay)  
+COST: $200/month  
+UPGRADE TRIGGER: Only if you want richer UI/alerts beyond our existing DP API
+INTERPRETATION GUIDE:
+
+text
+Dark Pool %:
+• <28% = STRONG DISTRIBUTION (institutions selling publicly)
+• 28-30% = DISTRIBUTION (selling bias)
+• 30-35% = NEUTRAL (normal flow)
+• 35-38% = ACCUMULATION (buying bias)
+• >38% = STRONG ACCUMULATION (institutions hiding buys)
+
+30-Day Average: 31.11% (SPY baseline)
+1B. BLOCK TRADES & INSTITUTIONAL FLOW
+PRIMARY SOURCE (Manual Web – **not currently scraped by Lotto Machine**):
+
+text
+MarketChameleon.com/Overview/SPY/Stock-Price-Action/Large-Block-Trades
+
+DATA PROVIDED:
+• Large block trade volume
+• Net buy/sell imbalance ($B)
+• Peak imbalance time (AM/PM)
+• Sector-level breakdown
+
+UPDATE FREQUENCY: Daily (T-1)
+COST: FREE ✅
+ACCESS: No registration required
+RELIABILITY: High (sourced from exchanges)
+
+LIMITATIONS:
+• 1-day delay
+• Only shows >$1M blocks (misses smaller institutional)
+• No real-time alerts
+ALTERNATIVE SOURCE (Paid, Real-Time – **manual only, not in code**):
+
+text
+Cheddar Flow ($200/mo) or FlowAlgo ($150/mo)
+
+DATA PROVIDED:
+• Real-time block alerts
+• Sweep detection (multi-exchange)
+• Institutional order flow direction
+• Premium/discount tracking
+
+UPGRADE TRIGGER: If trading intraday or need alerts
+INTERPRETATION GUIDE:
+
+text
+Net Imbalance:
+• -$1.7B = HEAVY SELLING (like Nov 20)
+• -$500M to -$1B = MODERATE SELLING
+• -$500M to +$500M = NEUTRAL
+• +$500M to +$1B = MODERATE BUYING
+• >+$1B = HEAVY BUYING
+
+Peak Time Pattern:
+• 2 PM imbalance = Institutions often dump here
+• 10 AM imbalance = Morning positioning
+• 3:30 PM imbalance = Close marking
+
+**Agents (code) using this:**
+- **None programmatically.** These are **manual dashboards** only.
+- Block/institutional behavior inside the Lotto Machine comes from:
+  - ChartExchange DP prints/levels (via `UltimateChartExchangeClient` → `UltraInstitutionalEngine`),
+  - Intraday price/volume patterns (`SignalGenerator` and replay tooling).
+1C. FIRST HOUR / LAST HOUR PATTERNS
+PRIMARY SOURCE (Free, Historical):
+
+text
+MarketChameleon.com/Overview/SPY/Stock-Price-Action/First-and-Last-Hour-of-Trading
+
+DATA PROVIDED:
+• First hour % change (9:30-10:30 AM)
+• Last hour % change (3:00-4:00 PM)
+• 30-day statistics
+• % of days positive/negative
+
+UPDATE FREQUENCY: Daily (T-1)
+COST: FREE ✅
+RELIABILITY: High
+
+KEY STAT (SPY):
+• Last hour negative: 61.3% of days (30-day avg)
+• This = "fade the morning pump" pattern
+INTERPRETATION GUIDE:
+
+text
+Pattern Recognition:
+• First hour +0.29%, Last hour -0.70% = Distribution day
+• First hour -0.5%, Last hour +0.5% = Accumulation day
+• Both negative = Strong selling
+• Both positive = Strong buying
+
+Historical Edge:
+• If last hour negative 61% of time → Fade morning rallies
+• If last hour positive <40% of time → Morning rallies are traps
+
+**Agents (code) using this:**
+- **None directly.** This is conceptual guidance only.
+- Intraday distribution/accumulation behavior is learned empirically via:
+  - Alpha Vantage 1m histories (`AlphaVantageClient`) in `SignalGenerator`,
+  - Replay/backtest flows (`replay_lotto_day.py`, future Timeframe Research Agent).
+TIER 2: OPTIONS & SENTIMENT DATA
+2A. PUT/CALL RATIO
+PRIMARY SOURCE (Free, EOD):
+
+text
+Fintel.io/sopt/us/spy
+
+DATA PROVIDED:
+• Daily put/call ratio (volume)
+• Daily put/call ratio (OI)
+• Historical chart
+• Percentile ranking
+
+UPDATE FREQUENCY: End of day (4:30 PM)
+COST: FREE ✅ (registration required, free tier)
+ACCESS: Email signup
+RELIABILITY: High (CBOE data)
+
+CURRENT (Nov 19): P/C = 1.85 (extreme bearish)
+ALTERNATIVE SOURCE (Paid, Real-Time):
+
+text  
+Barchart.com Premium ($30/mo) (**manual only, not in Lotto Machine code**)
+
+DATA PROVIDED:
+• Intraday P/C ratio updates
+• Strike-level OI changes
+• Unusual activity alerts
+
+UPGRADE TRIGGER: If need intraday sentiment shifts
+INTERPRETATION GUIDE:
+
+text
+Put/Call Ratio (Volume-based):
+• >1.5 = EXTREME BEARISH (contrarian buy signal)
+• 1.2-1.5 = BEARISH (caution)
+• 0.7-1.2 = NEUTRAL
+• 0.5-0.7 = BULLISH (caution)
+• <0.5 = EXTREME BULLISH (contrarian sell signal)
+
+Historical Context:
+• SPY long-term average: ~1.0
+• 1.85 = 85th percentile (extreme)
+• When P/C >1.5 → Expect bounce within 1-3 days
+
+**Agents (code) using this:**
+- **Programmatic P/C:** comes from `UltimateChartExchangeClient.get_options_chain_summary()` → `UltraInstitutionalEngine.put_call_ratio`.
+- **Core Signal Agent:** `SignalGenerator` + `GammaExposureTracker` use `put_call_ratio` (via `institutional_buying_pressure`, `squeeze_potential`, `gamma_pressure`).
+- Fintel/Barchart endpoints are **manual references only**; they are not scraped.
+2B. MAX PAIN & OPTIONS OI
+PRIMARY SOURCE (ChartExchange API – wired into infra, but endpoint can 400):
+
+text  
+In production we call the **ChartExchange API** via `get_options_chain_summary(symbol, date)`  
+(web URL above is just the human-readable view).
+
+DATA PROVIDED:
+• Strike-level call/put OI
+• Max pain calculation (where most $ expires worthless)
+• OI changes (daily delta)
+• Volume vs OI comparison
+
+UPDATE FREQUENCY: Daily (updated overnight)
+COST: FREE ✅
+ACCESS: No registration
+RELIABILITY: High (options exchange data)
+
+EXAMPLE (Nov 22 OPEX):
+• Max pain: $640
+• Current price: $660
+• Distance: -$20 (-3%) = Downward pressure
+INTERPRETATION GUIDE:
+
+text
+Max Pain Mechanics:
+• Market makers hedge delta neutrality
+• Want price AT max pain by OPEX close
+• If current > max pain → Downward pressure
+• If current < max pain → Upward pressure
+
+Typical Movement:
+• 1-2 days before OPEX: Price moves toward max pain
+• OPEX day: Pin intensifies (low volume = easier to push)
+• After OPEX: Pressure released
+
+Caveats:
+• Only matters on OPEX day (weekly Fridays)
+• Low liquidity = stronger pin (holidays amplify)
+• Major catalysts override max pain (Fed > gamma)
+
+**Agents (code) using this:**
+- **InstitutionalContext:** `UltraInstitutionalEngine` populates `max_pain`, `total_option_oi`, `put_call_ratio`.
+- **Core Signal Agent:** `SignalGenerator` uses these (via composite scores) to gate SQUEEZE/GAMMA signals.
+- **Gamma Exposure Agent:** `GammaExposureTracker` also leverages this structure where available.
+2C. VIX (FEAR GAUGE)
+PRIMARY SOURCE (Free, Real-Time – **used lightly via market data APIs, not direct CBOE scraping**):
+
+text
+CBOE.com/tradable_products/vix/ or TradingView
+
+DATA PROVIDED:
+• Real-time VIX level
+• Intraday chart
+• Historical percentiles
+• VIX futures curve
+
+UPDATE FREQUENCY: Real-time (15-sec delay)
+COST: FREE ✅
+ACCESS: No registration
+RELIABILITY: Highest (official CBOE)
+
+CURRENT (Nov 21): VIX = 26 (elevated fear)
+INTERPRETATION GUIDE:
+
+text
+VIX Levels:
+• <12 = COMPLACENCY (low volatility, potential top)
+• 12-20 = NORMAL (healthy market)
+• 20-30 = ELEVATED FEAR (correction zone)
+• 30-50 = PANIC (crash territory)
+• >50 = EXTREME PANIC (2008, 2020 levels)
+
+Trading Implications:
+• VIX >25 = Options expensive (premium sellers benefit)
+• VIX <15 = Options cheap (premium buyers benefit)
+• VIX spike >10% intraday = Risk-off (sell risk assets)
+• VIX drop >10% intraday = Risk-on (buy risk assets)
+
+Current (26) = Fear persisting, but off highs (was 28.27 Thu)
+
+**Agents (code) using this:**
+- **Narrative / Regime:** VIX is pulled via general market data connectors and used inside:
+  - `market_narrative_pipeline` and related validation logic to characterize risk regime.
+- **Signals:** `SignalGenerator` does **not** fetch CBOE directly; any VIX input is supplementary, not a hard dependency.
+2D. FEAR & GREED INDEX
+PRIMARY SOURCE (Free, Daily – **manual sentiment reference only**):
+
+text
+CNN.com/markets/fear-and-greed
+
+DATA PROVIDED:
+• 0-100 composite score
+• 7 sub-components
+• Historical chart
+• Contrarian signals
+
+UPDATE FREQUENCY: Daily (updated ~10 AM)
+COST: FREE ✅
+RELIABILITY: Medium (composite metric, subjective weights)
+
+COMPONENTS:
+1. Stock price momentum (S&P 500 vs 125-day MA)
+2. Stock price strength (52-week highs vs lows)
+3. Stock price breadth (McClellan Volume Summation)
+4. Put/call ratio (CBOE)
+5. Junk bond demand (spreads vs investment grade)
+6. Market volatility (VIX)
+7. Safe haven demand (stocks vs bonds)
+INTERPRETATION GUIDE:
+
+text
+Score:
+• 0-25 = EXTREME FEAR (contrarian buy)
+• 25-45 = FEAR (caution, potential buy)
+• 45-55 = NEUTRAL
+• 55-75 = GREED (caution, potential sell)
+• 75-100 = EXTREME GREED (contrarian sell)
+
+Limitations:
+• Lags price action (uses 50-125 day MAs)
+• Subjective weighting of components
+• Better for multi-week positioning, not intraday
+
+**Agents (code) using this:**
+- **None.** This index is manual sentiment context.
+- Machine sentiment comes from:
+  - Options structure (`put_call_ratio`, `gamma_pressure`, etc. in `InstitutionalContext`),
+  - Reddit sentiment analyzer where enabled (`RedditSentimentAnalyzer`).
+TIER 3: MACRO & CATALYST DATA
+3A. ECONOMIC CALENDAR
+PRIMARY SOURCE (Free, Real-Time – **implemented via `EventLoader` / BabyPips API**):
+
+text  
+TradingEconomics.com/calendar (**reference only**)  
+`EventLoader` (BabyPips API) is the **actual programmatic source** in `market_narrative_pipeline.py`.
+
+DATA PROVIDED:
+• All scheduled releases (CPI, Jobs, GDP, PMI, etc.)
+• Consensus estimates
+• Actual vs expected (live updates)
+• Historical data
+
+UPDATE FREQUENCY: Real-time (live during releases)
+COST: FREE ✅
+ACCESS: No registration
+RELIABILITY: Highest (official government sources)
+ALTERNATIVE SOURCE:
+
+text
+ForexFactory.com/calendar (best UX)
+Investing.com/economic-calendar (most detailed)
+KEY RELEASES TO WATCH:
+
+text
+TIER 1 (Market-Moving):
+• Fed speeches (FOMC, Chair Powell, regional presidents)
+• CPI (inflation, monthly)
+• Non-farm payrolls (jobs, monthly)
+• GDP (quarterly)
+• FOMC rate decisions (8x per year)
+
+TIER 2 (Important):
+• PCE (Fed's preferred inflation metric)
+• Retail sales (consumer spending)
+• ISM PMI (manufacturing/services)
+• Jobless claims (weekly)
+
+TIER 3 (Context):
+• Consumer confidence
+• Housing data
+• Trade balance
+INTERPRETATION GUIDE:
+
+text
+Consensus vs Actual:
+• Beat by 0-1 sigma = Slight positive
+• Beat by 2+ sigma = Major surprise (market mover)
+• Miss by 0-1 sigma = Slight negative
+• Miss by 2+ sigma = Major surprise (market mover)
+
+Example (Nov 21 PMI):
+• Expected: 54.8
+• Actual: 54.5
+• Miss: -0.3 (small, ~0.5 sigma)
+• Impact: Minor bearish (not major catalyst)
+
+**Agents (code) using this:**
+- **Narrative Engine:** `EventLoader` is called from `market_narrative_pipeline.py` to attach macro catalysts to the daily story.
+- When `EventLoader` fails (no key/401), the narrative falls back to DP/price/VIX/crypto; signal firing is unaffected.
+3B. FED SPEECHES & POLICY
+PRIMARY SOURCE (Free, Official):
+
+text
+FederalReserve.gov/newsevents/speeches.htm
+
+DATA PROVIDED:
+• All Fed official speeches
+• Full transcripts
+• Q&A sessions
+• Policy statements
+
+UPDATE FREQUENCY: Real-time (same-day posting)
+COST: FREE ✅
+RELIABILITY: Highest (official Fed)
+
+KEY OFFICIALS (Ranked by Market Impact):
+1. Jerome Powell (Fed Chair) - HIGHEST
+2. John Williams (NY Fed President) - HIGH
+3. Other FOMC voters (11 total) - MEDIUM
+4. Non-voting regional presidents - LOW
+TRACKING TOOL:
+
+text
+FedWatch Tool (CME Group):
+CMEGroup.com/markets/interest-rates/cme-fedwatch-tool.html
+
+DATA PROVIDED:
+• Implied probability of rate changes (from fed funds futures)
+• Market pricing of next 3 meetings
+• Historical evolution
+
+CURRENT (Nov 22):
+• Dec 2025 cut: 65% probability (up from 45% after Williams speech)
+INTERPRETATION GUIDE:
+
+text
+Dovish Signals (Bullish for Stocks):
+• "Room for further move to neutral" (Williams Nov 21)
+• "Data-dependent, inflation cooling"
+• "Patient approach, no rush to tighten"
+
+Hawkish Signals (Bearish for Stocks):
+• "Rates need to stay higher for longer"
+• "Inflation remains elevated"
+• "More tightening ahead"
+
+Hierarchy:
+• Powell >> Williams >> Other FOMC >> Non-voters
+• Prepared remarks > Q&A > Off-the-cuff comments
+3C. EARNINGS CALENDAR
+PRIMARY SOURCE (Free, Real-Time):
+
+text
+Nasdaq.com/market-activity/earnings
+
+DATA PROVIDED:
+• All upcoming earnings (date, time)
+• Consensus EPS estimates
+• Historical surprises
+• Conference call times
+
+UPDATE FREQUENCY: Real-time (results posted immediately)
+COST: FREE ✅
+ACCESS: No registration
+KEY COMPANIES (SPY/QQQ Impact):
+
+text
+TIER 1 (Market Movers):
+• Nvidia [finance:NVIDIA Corporation] (7.8% of S&P 500 [finance:S&P 500], AI bellwether)
+• Apple [finance:Apple Inc.] (7.1% of S&P 500)
+• Microsoft [finance:Microsoft Corporation] (6.8% of S&P 500)
+• Amazon [finance:Amazon.com, Inc.] (3.8% of S&P 500)
+• Meta [finance:Meta Platforms, Inc.] / Google [finance:Alphabet Inc.] (3-4% each)
+
+TIER 2 (Sector Impact):
+• Tesla [finance:Tesla, Inc.] (EV sentiment)
+• JPMorgan [finance:JPMorgan Chase & Co.] (bank health)
+• Walmart [finance:Walmart Inc.] (consumer spending)
+
+PATTERN:
+• Nov 19 Nvidia beat → Gap up → Crash (sell the news)
+• This pattern = "Binary event, wait for reaction"
+TIER 4: CROSS-ASSET & CONTEXT
+4A. BITCOIN / CRYPTO
+PRIMARY SOURCE (Free, Real-Time – **CryptoCorrelationDetector in code, best-effort**):
+
+text
+TradingView.com - BTC/USD chart
+
+DATA PROVIDED:
+• Real-time Bitcoin price
+• Correlation to equities
+• Volume analysis
+• Sentiment indicators
+
+UPDATE FREQUENCY: Real-time
+COST: FREE ✅
+ACCESS: No registration
+INTERPRETATION GUIDE:
+
+text
+Bitcoin vs SPY Correlation:
+
+RISK-ON (Both up):
+• Bitcoin [finance:Bitcoin] +3%, SPY +1% = Healthy risk appetite
+• Institutions comfortable with risk assets
+
+RISK-OFF (Both down):
+• Bitcoin -4%, SPY -2% = Flight to safety
+• Or: Forced liquidations (margin calls, deleveraging)
+
+DIVERGENCE:
+• Bitcoin +3%, SPY -1% = Retail rotation (retail → crypto)
+• Bitcoin -4%, SPY +1% = Institutional preference (institutions → equities)
+
+CURRENT (Nov 21):
+• Bitcoin: $85.39K (-1.32%, continuing decline)
+• SPY: $654.73 (+0.34%, small bounce)
+• PATTERN: Mild divergence (SPY recovering, BTC still weak = cautious recovery)
+
+**Agents (code) using this:**
+- **CryptoCorrelationDetector / cross-asset logic:** used in enrichment (`crypto_correlation.py`, `market_narrative_pipeline.py`) to tag risk-on/risk-off regimes.
+- **Validation:** strong BTC-equity divergences can be used by narrative/validation layers to downgrade equity signal confidence.
+- The Lotto Machine signals remain functional if crypto feeds are unavailable.
+4B. SECTOR ROTATION (QQQ vs SPY)
+PRIMARY SOURCE (Free, Real-Time – **manual TradingView, not wired yet**):
+
+text
+TradingView.com - QQQ vs SPY ratio
+
+DATA PROVIDED:
+• Tech leadership (QQQ/SPY ratio)
+• Sector performance heatmap
+• Rotation signals
+
+INTERPRETATION:
+• QQQ/SPY ratio rising = Tech leadership (growth favored)
+• QQQ/SPY ratio falling = Value rotation (tech underperforming)
+• Nov 20-21: QQQ underperformed (AI bubble fears)
+
+**Agents (code) using this:**
+- **None today.** Sector rotation is currently inferred indirectly via:
+  - Differences between SPY and QQQ `InstitutionalContext` and signals,
+  - Manual TradingView inspection.
+TIER 5: NEWS & NARRATIVE
+5A. MAINSTREAM NEWS SOURCES
+PRIMARY SOURCES (Free, Real-Time):
+
+text
+1. Reuters.com (Factual, minimal bias)
+   • Best for: Breaking news, geopolitical
+   • Speed: Fastest wire service
+
+2. WSJ.com (Institutional perspective)
+   • Best for: Fed policy, market analysis
+   • Bias: Pro-market, establishment
+
+3. Bloomberg.com (Markets focus)
+   • Best for: Institutional positioning, trading desks
+   • Paywall: $39/mo (optional)
+
+4. CNBC.com (Retail-facing)
+   • Best for: What retail is thinking
+   • Bias: Bullish bias (advertising-driven)
+
+5. MarketWatch.com (Technical analysis)
+   • Best for: Chart patterns, TA calls
+USAGE STRATEGY:
+
+text
+DIVERGENCE DETECTION:
+1. Read mainstream narrative (CNBC, Bloomberg)
+2. Compare to institutional flow (dark pool, options)
+3. If conflict = EDGE OPPORTUNITY
+
+EXAMPLE (Nov 20):
+• Mainstream: "Nvidia beat revives AI optimism"
+• Institutional flow: 75.98% lit volume (distribution)
+• Divergence: YES (institutions selling into news)
+• Trade: SHORT the gap up (fade the narrative)
+DATA PRIORITY MATRIX
+Decision Tree: What Data to Check First
+text
+PRIORITY 1 (ALWAYS CHECK):
+1. Fed speeches (last 24hr) → If Yes, that's the primary catalyst
+2. Major data releases (CPI, Jobs) → If surprise, overrides everything
+3. Dark pool % (T-1) → Shows institutional positioning
+
+PRIORITY 2 (CONTEXT):
+4. Put/Call ratio → Sentiment extreme? (>1.5 or <0.7)
+5. VIX level → Fear elevated? (>20)
+6. Max pain (if OPEX) → Gamma pressure direction
+
+PRIORITY 3 (CONFIRMATION):
+7. Block trades → Confirms dark pool signal
+8. Bitcoin correlation → Risk-on or risk-off?
+9. News narrative → Divergence from flow?
+
+TIME BUDGET:
+• Priority 1: 15 min
+• Priority 2: 10 min
+• Priority 3: 10 min
+• Total: 35 min for complete picture
+UPGRADE DECISION FRAMEWORK
+When to Move from Free → Paid Data
+text
+STAY FREE IF:
+• Trading timeframe: >1 day (swing/position)
+• Account size: <$25k
+• Trade frequency: <3 trades per week
+• Win rate with free data: >60%
+
+UPGRADE TO PAID ($200-500/mo) IF:
+• Trading timeframe: Intraday (0DTE, scalps)
+• Account size: >$50k
+• Trade frequency: >5 trades per week
+• Need real-time dark pool/options flow
+• Win rate would increase >10% with real-time data
+
+ROI CALCULATION:
+• Paid data: $200/mo = $2,400/year
+• Break-even: Need to make extra $2,400/year
+• If account is $50k: Need +4.8% extra return
+• If win rate improves 10% and avg win = 2%: +20% extra trades profitable = Worth it
+CRITICAL LIMITATIONS & WORKAROUNDS
+Limitation #1: T-1 Dark Pool Data
+PROBLEM:
+
+ChartExchange updates daily (T-1)
+
+Thursday data available Friday morning
+
+Misses intraday regime changes (like Fed speeches)
+
+WORKAROUND:
+
+text
+STEP 1: Check for catalysts (Phase 0 in framework)
+• If Fed speech in last 24hr → T-1 data is CONTEXT only
+• If no catalyst → T-1 data is RELIABLE
+
+STEP 2: Use proxy signals
+• VIX drop >10% = Risk-on shift (institutions buying)
+• P/C ratio intraday change = Sentiment shift
+• Price holding after gap up = New regime confirmed
+
+STEP 3: Wait for EOD
+• Don't trade Friday AM on Thursday data
+• Wait for Friday 4 PM close → Get Friday data
+• Trade Monday with accurate data
+Limitation #2: Options Data is EOD
+PROBLEM:
+
+Free sources (Barchart, Fintel) update EOD only
+
+Miss intraday unusual activity
+
+Can't see real-time smart money positioning
+
+WORKAROUND:
+
+text
+OPTION 1: Use max pain as proxy
+• Max pain rarely changes intraday
+• If current price far from max pain = Pressure direction known
+
+OPTION 2: Monitor VIX intraday
+• VIX spike = Institutions buying protection (bearish)
+• VIX drop = Institutions selling protection (bullish)
+
+OPTION 3: Upgrade to FlowAlgo ($150/mo)
+• Real-time unusual options activity
+• Sweep detection
+• Worth it if trading options intraday
+Limitation #3: Block Trades are Delayed
+PROBLEM:
+
+MarketChameleon updates daily (T-1)
+
+Miss intraday institutional dumps/pumps
+
+WORKAROUND:
+
+text
+OPTION 1: Use first/last hour pattern
+• If first hour +0.5%, last hour -0.7% = Distribution likely
+• Pattern visible by 4 PM, trade next day
+
+OPTION 2: Watch for volume spikes
+• If SPY volume 2x normal at 2 PM = Institutions active
+• Direction: Check if price up (buying) or down (selling)
+
+OPTION 3: Upgrade to Cheddar Flow ($200/mo)
+• Real-time block trade alerts
+• See institutional dumps as they happen
+FINAL MASTER DATA STACK
+Minimum Viable (Free, $0/mo):
+text
+✅ ChartExchange (dark pool %)
+✅ MarketChameleon (block trades)
+✅ Fintel (Put/Call ratio)
+✅ TradingView (price charts, VIX, Bitcoin)
+✅ TradingEconomics (economic calendar)
+✅ FederalReserve.gov (Fed speeches)
+✅ Reuters/WSJ (news)
+
+COST: $0/month
+LIMITATIONS: T-1 data, EOD updates
+SUITABLE FOR: Swing trades (1-5 days)
+Professional (Paid, $200-500/mo):
+text
+✅ All free sources PLUS:
+✅ Cheddar Flow ($200/mo) - Real-time dark pool + options flow
+✅ SpotGamma ($200/mo) - Real-time gamma exposure
+✅ Bloomberg Terminal ($2,000/mo) - Everything (overkill unless $500k+ account)
+
+COST: $200-500/month
+BENEFIT: Real-time institutional flow
+SUITABLE FOR: Intraday trades (0DTE, scalps)
+ROI REQUIRED: +4-10% annual return to break even
+ZETA'S DATA VERDICT:
+Alpha, this is your complete data infrastructure:
+
+Core principle:
+
+✅ Free data is SUFFICIENT for swing trades (1-5 days)
+
+✅ Paid data only worth it for intraday (<1 day holds)
+
+Critical insight:
+
+✅ T-1 data works for TRENDS (multi-day positioning)
+
+❌ T-1 data fails at INFLECTIONS (regime changes)
+
+✅ Phase 0 (catalyst check) solves this (added to framework)
+
+Upgrade path:
+
+Start with free ($0/mo)
+
+Prove 60%+ win rate with free data
+
+If win rate would increase with real-time → Upgrade to Cheddar Flow ($200/mo)
+
+Only get Bloomberg ($2k/mo) if managing $500k+ and trading full-time
+
+This is your complete data source framework. Save it. Reference it. Every data point, every limitation, every workaround. 📊✅💰
+
+
+---
+
+## 🎯 AGENTIC PLAN OF ATTACK: "One-Button Lotto Machine"
+
+**End-User Goal:** Hit ONE button → Get actionable trade recommendations (BUY/SELL/WAIT) with full institutional context, narrative, and confidence scores.
+
+**Architecture:** Multi-agent system where each agent has a **specific job**, communicates through **standardized data contracts**, and **collaborates** to deliver the final decision.
+
+---
+
+### 🏗️ AGENT COLLABORATION FLOW (User Journey)
+
+```
+USER ACTION: "Run Lotto Machine for SPY"
+    ↓
+[ORCHESTRATOR AGENT] ← Main coordinator
+    ↓
+    ├─→ [DATA PROVIDER AGENTS] (Parallel, ~5-10s)
+    │   ├─→ Market Data Agent (price, volume)
+    │   ├─→ Institutional Flow Agent (DP, short, options)
+    │   ├─→ Macro Event Agent (Fed, CPI, earnings)
+    │   ├─→ Sentiment Agent (Reddit, news)
+    │   └─→ Cross-Asset Agent (BTC, VIX, sector)
+    │
+    ├─→ [CONTEXT BUILDER AGENT] (~2-3s)
+    │   └─→ Aggregates all data into InstitutionalContext
+    │
+    ├─→ [ANALYSIS AGENTS] (Parallel, ~5-10s)
+    │   ├─→ Liquidity Regime Agent (when to trade)
+    │   ├─→ DP Structure Agent (DP-aware filtering)
+    │   ├─→ Signal Detection Agent (core signals)
+    │   ├─→ Narrative Agent (institutional story)
+    │   └─→ Validation Agent (cross-checks)
+    │
+    ├─→ [DECISION SYNTHESIS AGENT] (~2s)
+    │   └─→ Combines all agent outputs → Final trade recommendation
+    │
+    └─→ [USER INTERFACE AGENT] (~1s)
+        └─→ Formats for user (Discord, Slack, web dashboard)
+
+TOTAL TIME: 15-25 seconds
+OUTPUT: "BUY SPY @ $660.50, Stop $658.00, Target $665.00, Confidence 87%"
+```
+
+---
+
+### 📦 AGENT DEFINITIONS & CONTRACTS
+
+#### **LAYER 1: DATA PROVIDER AGENTS (Parallel Execution)**
+
+##### **1. Market Data Agent**
+- **Job:** Fetch real-time price, volume, OHLCV bars
+- **APIs:** `AlphaVantageClient`, `UltimateChartExchangeClient.get_bars()`
+- **Output Contract:**
+```python
+@dataclass
+class MarketDataOutput:
+    symbol: str
+    current_price: float
+    minute_bars: pd.DataFrame  # 1m OHLCV
+    daily_bars: pd.DataFrame   # Daily history
+    volume_profile: dict       # Intraday volume by time
+    timestamp: datetime
+```
+- **Error Handling:** If primary fails → fallback to CE bars → fallback to yfinance → return None (signals degraded mode)
+
+##### **2. Institutional Flow Agent**
+- **Job:** Fetch dark pool, short interest, options, exchange volume
+- **APIs:** `UltimateChartExchangeClient` (DP levels/prints, short, options, exchange volume)
+- **Output Contract:**
+```python
+@dataclass
+class InstitutionalFlowOutput:
+    symbol: str
+    date: str
+    dp_levels: List[DPLevel]          # Battlegrounds
+    dp_prints: List[DPPrint]          # Trades
+    dark_pool_pct: float              # % off-exchange
+    dp_buy_sell_ratio: float          # Buy pressure
+    short_volume_pct: float
+    short_interest: float
+    borrow_fee_rate: float
+    max_pain: float
+    put_call_ratio: float
+    total_option_oi: int
+    gamma_exposure: dict              # By strike
+```
+
+##### **3. Macro Event Agent**
+- **Job:** Check for Fed speeches, CPI, earnings, binary events
+- **APIs:** `EventLoader` (BabyPips), Fed API scraper, earnings calendar
+- **Output Contract:**
+```python
+@dataclass
+class MacroEventOutput:
+    symbol: str
+    date: str
+    events_today: List[Event]         # Fed, CPI, earnings
+    binary_event: bool                # High-impact event?
+    catalyst_type: str                # "FED_SPEECH", "CPI", "EARNINGS", None
+    event_sentiment: str              # "BULLISH", "BEARISH", "NEUTRAL"
+    confidence_modifier: float        # 0.5-1.5 (scale down/up confidence)
+```
+
+##### **4. Sentiment Agent**
+- **Job:** Aggregate Reddit, news, social sentiment
+- **APIs:** `UltimateChartExchangeClient.get_reddit_mentions()`, Perplexity
+- **Output Contract:**
+```python
+@dataclass
+class SentimentOutput:
+    symbol: str
+    reddit_regime: str                # "HYPE", "FEAR", "NEUTRAL", "STEALTH"
+    sentiment_score: float            # -1.0 to +1.0
+    sentiment_ok: bool                # Approve/veto signals
+    news_narrative: str               # Mainstream story
+    narrative_type: str               # "BULLISH_HYPE", "DISTRIBUTION_TRAP", etc.
+```
+
+##### **5. Cross-Asset Agent**
+- **Job:** Check Bitcoin, VIX, sector rotation for regime confirmation
+- **APIs:** `CryptoCorrelationDetector`, market data APIs
+- **Output Contract:**
+```python
+@dataclass
+class CrossAssetOutput:
+    date: str
+    btc_price: float
+    btc_change_pct: float
+    vix_level: float
+    vix_change_pct: float
+    risk_regime: str                  # "RISK_ON", "RISK_OFF", "MIXED"
+    equity_crypto_corr: float         # -1.0 to +1.0
+    override_signal: Optional[str]    # "VETO_LONGS", "VETO_SHORTS", None
+```
+
+---
+
+#### **LAYER 2: CONTEXT BUILDER AGENT (Sequential)**
+
+##### **6. Institutional Context Builder Agent**
+- **Job:** Aggregate all Layer 1 outputs into unified `InstitutionalContext`
+- **Inputs:** All Layer 1 agent outputs
+- **Code:** `UltraInstitutionalEngine.build_context()`
+- **Output Contract:**
+```python
+@dataclass
+class InstitutionalContext:
+    # From Institutional Flow Agent
+    dp_battlegrounds: List[float]
+    dark_pool_pct: float
+    dp_buy_sell_ratio: float
+    short_volume_pct: float
+    borrow_fee_rate: float
+    max_pain: float
+    put_call_ratio: float
+    
+    # Composite scores
+    institutional_buying_pressure: float  # 0-100
+    squeeze_potential: float              # 0-100
+    gamma_pressure: float                 # -100 to +100
+    
+    # From other agents
+    liquidity_regime: str
+    sentiment_regime: str
+    risk_regime: str
+    binary_event: bool
+    
+    # Metadata
+    data_completeness: float              # 0-100% (for confidence scaling)
+    warnings: List[str]                   # Missing data flags
+```
+
+---
+
+#### **LAYER 3: ANALYSIS AGENTS (Parallel Execution)**
+
+##### **7. Liquidity Regime Agent**
+- **Job:** Determine if NOW is a good time to trade (30m volume profile)
+- **APIs:** `UltimateChartExchangeClient.get_exchange_volume_intraday()`
+- **Inputs:** Market data, current time
+- **Output Contract:**
+```python
+@dataclass
+class LiquidityRegimeOutput:
+    symbol: str
+    time_of_day: str                  # "09:30", "10:00", etc.
+    liquidity_regime: str             # "THIN", "NORMAL", "HEAVY"
+    off_exchange_pct: float           # Current 30m window
+    liquidity_ok: bool                # Trade now? (True/False)
+    reason: str                       # "Peak institutional flow" / "Avoid: lunch chop"
+```
+
+##### **8. DP Structure Agent (Filter/Validator)**
+- **Job:** DP-aware filtering: never trade into battlegrounds, no first-touch
+- **Code:** `dp_aware_signal_filter.py`, `DPMagnetTracker`, `RigorousDPEngine`
+- **Inputs:** `InstitutionalContext`, current price, minute bars
+- **Output Contract:**
+```python
+@dataclass
+class DPStructureOutput:
+    approved: bool                    # DP structure agrees?
+    risk_level: str                   # "LOW", "MEDIUM", "HIGH"
+    adjusted_stop: Optional[float]    # Tightened stop (outside battlefield)
+    adjusted_target: Optional[float]  # Adjusted target
+    dp_reasoning: str                 # "BOUNCE_CONFIRMED", "FIRST_TOUCH_REJECT", etc.
+    magnet_alert: Optional[str]       # "APPROACHING", "BREAKING", "BOUNCING"
+```
+
+##### **9. Signal Detection Agent (Core Brain)**
+- **Job:** Generate all signal types (squeeze, gamma, DP breakout, selloff, lottery)
+- **Code:** `live_monitoring/core/signal_generator.py`
+- **Inputs:** `InstitutionalContext`, minute bars, account size, Layer 3 outputs
+- **Output Contract:**
+```python
+@dataclass
+class SignalOutput:
+    signals: List[LiveSignal]         # All detected signals
+    lottery_signals: List[LotterySignal]  # 0DTE signals
+    best_signal: Optional[LiveSignal] # Highest confidence
+    signal_count: int
+    confidence_distribution: dict     # Count by confidence tier
+```
+
+##### **10. Narrative Agent**
+- **Job:** Build institutional-first story: "What REALLY happened?"
+- **Code:** `market_narrative_pipeline.py`
+- **Inputs:** `InstitutionalContext`, sentiment, macro events, cross-asset
+- **Output Contract:**
+```python
+@dataclass
+class NarrativeOutput:
+    date: str
+    symbol: str
+    institutional_narrative: str      # "Institutions distributed into rally"
+    macro_narrative: str              # "Fed dovish, but PMI miss"
+    crypto_narrative: str             # "BTC weakness = risk-off"
+    web_narrative: str                # Mainstream story
+    divergence_detected: bool         # Institutional vs mainstream mismatch
+    narrative_aligns: bool            # Narrative supports signal?
+    final_story: str                  # Human-readable synthesis
+```
+
+##### **11. Validation Agent**
+- **Job:** Cross-check all outputs for conflicts, apply overrides
+- **Code:** `core/institutional_edge_validation.py`, narrative validation layer
+- **Inputs:** All Layer 3 outputs
+- **Output Contract:**
+```python
+@dataclass
+class ValidationOutput:
+    validated: bool                   # All checks passed?
+    conflicts: List[str]              # "DP says sell, sentiment says buy"
+    overrides: List[str]              # "VIX spike veto", "Binary event veto"
+    confidence_adjustment: float      # -0.3 to +0.3
+    final_verdict: str                # "APPROVED", "VETOED", "DEGRADED"
+```
+
+---
+
+#### **LAYER 4: DECISION SYNTHESIS AGENT (Sequential)**
+
+##### **12. Decision Synthesis Agent**
+- **Job:** Combine ALL agent outputs → ONE final trade recommendation
+- **Inputs:** All Layer 3 outputs
+- **Logic:**
+```python
+def synthesize_decision(context, signals, dp_filter, liquidity, narrative, validation):
+    # 1. Start with best signal from Signal Agent
+    best_signal = signals.best_signal
+    
+    # 2. Apply DP Filter (can veto or tighten)
+    if not dp_filter.approved:
+        return NO_TRADE("DP structure veto")
+    
+    # 3. Apply Liquidity (can veto bad timing)
+    if not liquidity.liquidity_ok:
+        return WAIT("Low liquidity regime")
+    
+    # 4. Apply Validation (cross-checks)
+    if validation.final_verdict == "VETOED":
+        return NO_TRADE(validation.conflicts)
+    
+    # 5. Adjust confidence
+    final_confidence = (
+        best_signal.confidence 
+        * validation.confidence_adjustment
+        * context.data_completeness
+    )
+    
+    # 6. Apply macro overrides
+    if context.binary_event and final_confidence < 0.9:
+        return WAIT("Binary event, confidence too low")
+    
+    # 7. Build final recommendation
+    return TradeRecommendation(
+        action=best_signal.action,
+        entry=best_signal.entry,
+        stop=dp_filter.adjusted_stop,
+        target=dp_filter.adjusted_target,
+        confidence=final_confidence,
+        size_pct=calculate_position_size(final_confidence),
+        reasoning=build_reasoning(all_outputs),
+        narrative=narrative.final_story
+    )
+```
+- **Output Contract:**
+```python
+@dataclass
+class TradeRecommendation:
+    action: str                       # "BUY", "SELL", "WAIT"
+    symbol: str
+    entry: Optional[float]
+    stop: Optional[float]
+    target: Optional[float]
+    confidence: float                 # 0-100
+    size_pct: float                   # % of account (0-5%)
+    signal_type: str                  # "SQUEEZE", "DP_BREAKOUT", etc.
+    reasoning: str                    # Multi-line explanation
+    narrative: str                    # Full story
+    warnings: List[str]               # Risk factors
+    timestamp: datetime
+```
+
+---
+
+#### **LAYER 5: USER INTERFACE AGENT (Sequential)**
+
+##### **13. User Interface Agent**
+- **Job:** Format final recommendation for user consumption
+- **Outputs:**
+  - **Discord bot:** Rich embed with charts
+  - **Slack webhook:** Alert with action buttons
+  - **Web dashboard:** Full details + charts
+  - **Terminal:** Colored console output
+- **Code:** `live_monitoring/alerting/alert_router.py`, UI components
+
+---
+
+### 🔄 AGENT COMMUNICATION PROTOCOL
+
+**Standardized Message Passing:**
+```python
+@dataclass
+class AgentMessage:
+    agent_id: str                     # "market_data_agent"
+    status: str                       # "SUCCESS", "FAILED", "DEGRADED"
+    output: Any                       # Agent-specific output contract
+    errors: List[str]                 # Error messages
+    warnings: List[str]               # Warning messages
+    execution_time_ms: int
+    timestamp: datetime
+```
+
+**Orchestrator Logic:**
+```python
+class OrchestratorAgent:
+    async def run_lotto(self, symbol: str, user_id: str):
+        # Layer 1: Data (parallel)
+        results_l1 = await asyncio.gather(
+            market_data_agent.fetch(symbol),
+            institutional_flow_agent.fetch(symbol),
+            macro_event_agent.fetch(symbol),
+            sentiment_agent.fetch(symbol),
+            cross_asset_agent.fetch(symbol)
+        )
+        
+        # Layer 2: Context (sequential)
+        context = context_builder_agent.build(results_l1)
+        
+        # Layer 3: Analysis (parallel)
+        results_l3 = await asyncio.gather(
+            liquidity_agent.analyze(context),
+            dp_filter_agent.analyze(context),
+            signal_agent.analyze(context),
+            narrative_agent.analyze(context),
+            validation_agent.analyze(context)
+        )
+        
+        # Layer 4: Synthesis (sequential)
+        decision = synthesis_agent.decide(context, results_l3)
+        
+        # Layer 5: UI (sequential)
+        await ui_agent.send(user_id, decision)
+```
+
+---
+
+### 🎯 USER-FACING AGENTS (The "Tasks" That Are Also Agents)
+
+These agents can be invoked DIRECTLY by users:
+
+#### **Task Agent 1: "Hit the Lotto" (Main Flow)**
+- **User Command:** `/lotto SPY` or "Run lotto machine"
+- **What It Does:** Runs full orchestration flow above
+- **Output:** Trade recommendation + full context
+
+#### **Task Agent 2: "What Happened Today?"**
+- **User Command:** `/narrative SPY` or "Explain today's move"
+- **What It Does:** Runs Narrative Agent only (skips signal detection)
+- **Output:** Institutional story, divergences, validation
+
+#### **Task Agent 3: "Replay Yesterday"**
+- **User Command:** `/replay SPY 2025-11-20`
+- **What It Does:** Runs full flow on historical data, shows what signals would've fired
+- **Output:** Signal log, P&L simulation, narrative
+
+#### **Task Agent 4: "Test My Strategy"**
+- **User Command:** `/backtest SPY --timeframe 5m --days 30`
+- **What It Does:** Runs Timeframe Research Agent
+- **Output:** Win rate, R/R, Sharpe, optimal timeframe recommendation
+
+#### **Task Agent 5: "Check Liquidity Now"**
+- **User Command:** `/liquidity SPY`
+- **What It Does:** Runs Liquidity Agent only
+- **Output:** "Trade now? Yes/No + reason"
+
+#### **Task Agent 6: "DP Status"**
+- **User Command:** `/dp SPY`
+- **What It Does:** Runs DP Structure Agent + Magnet Tracker
+- **Output:** Battlegrounds, magnet alerts, risk assessment
+
+#### **Task Agent 7: "Reddit Pulse"**
+- **User Command:** `/sentiment SPY`
+- **What It Does:** Runs Sentiment Agent only
+- **Output:** Hype level, contrarian signal, approve/veto
+
+---
+
+### 🚀 IMPLEMENTATION ROADMAP
+
+**Phase 1: Core Agent Infrastructure (Week 1-2)**
+- [ ] Build `OrchestratorAgent` class
+- [ ] Define all data contracts (dataclasses above)
+- [ ] Implement Layer 1 agents (data providers)
+- [ ] Implement Layer 2 agent (context builder)
+- [ ] Build agent message passing protocol
+
+**Phase 2: Analysis Agents (Week 3-4)**
+- [ ] Implement Liquidity Agent (CE intraday volume endpoint)
+- [ ] Refactor DP Filter Agent (rewire to canonical data)
+- [ ] Enhance Signal Agent (integrate all filters)
+- [ ] Build Validation Agent (cross-checks)
+- [ ] Wire Narrative Agent into flow
+
+**Phase 3: Decision & UI (Week 5)**
+- [ ] Implement Decision Synthesis Agent
+- [ ] Build UI Agent (Discord, Slack, web)
+- [ ] Create user-facing task agents (commands)
+
+**Phase 4: Testing & Optimization (Week 6+)**
+- [ ] Run Timeframe Research Agent (1m/3m/5m/15m tests)
+- [ ] Backtest full system on 30+ days
+- [ ] Tune confidence thresholds
+- [ ] Deploy to production
+
+---
+
+### 📊 SUCCESS METRICS (How We Know It's Working)
+
+**Agent-Level Metrics:**
+- Data Provider Agents: <5s execution, >95% uptime
+- Context Builder: <3s execution, >90% data completeness
+- Analysis Agents: <10s parallel execution
+- Decision Synthesis: <2s execution
+- **Total latency:** <25s (from button press to recommendation)
+
+**User-Facing Metrics:**
+- Signal accuracy: >60% win rate
+- Narrative accuracy: >80% alignment with actual price action
+- User satisfaction: "Would you trade this signal?" >70% yes
+- False positive rate: <20%
+
+---
+
+### 💡 KEY DESIGN PRINCIPLES
+
+1. **Parallelism:** Run agents in parallel wherever possible (Layer 1, Layer 3)
+2. **Graceful Degradation:** Every agent can fail without breaking the system
+3. **Data Completeness Tracking:** Scale confidence by % of data successfully fetched
+4. **Veto Power:** DP Filter, Liquidity, Validation agents can VETO but never FORCE trades
+5. **Narrative as Context:** Narrative enriches but never triggers signals alone
+6. **User Control:** Users can invoke individual agents or full orchestration
+7. **Auditability:** Every agent logs inputs/outputs for replay/debugging
+
+---
+
+**Status: READY TO IMPLEMENT**  
+**Next Step: Build OrchestratorAgent + Layer 1 data provider agents** 🚀💰🎯
