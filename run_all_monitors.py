@@ -75,6 +75,7 @@ class UnifiedAlphaMonitor:
         # Alerted events (avoid duplicate alerts)
         self.alerted_events = set()
         self.seen_fed_comments = set()  # Track sent Fed comments
+        self.unified_mode = False  # Will be enabled if Signal Brain is active
         
         # Import monitors
         self._init_monitors()
@@ -200,8 +201,9 @@ class UnifiedAlphaMonitor:
             )
             self.brain_enabled = True
             self.last_synthesis_check = None
-            self.synthesis_interval = 120  # 2 minutes - synthesize after individual alerts
+            self.synthesis_interval = 60  # 1 minute - faster synthesis for unified alerts
             self.recent_dp_alerts = []  # Buffer for Signal Brain synthesis
+            self.unified_mode = True  # Suppress individual alerts, only send synthesis
             logger.info("   ✅ Signal Synthesis Brain initialized (THINKING LAYER)")
             if self.dp_learning_enabled:
                 logger.info("   🧠 Brain integrated with DP Learning Engine!")
@@ -214,6 +216,7 @@ class UnifiedAlphaMonitor:
             self.signal_brain = None
             self.brain_enabled = False
             self.macro_provider = None
+            self.unified_mode = False  # Disable unified mode if brain fails
         
         # Economic Learning Engine (NEW MODULAR VERSION)
         try:
@@ -322,12 +325,16 @@ class UnifiedAlphaMonitor:
                 cut_change = abs(status.prob_cut - self.prev_fed_status.prob_cut)
                 hold_change = abs(status.prob_hold - self.prev_fed_status.prob_hold)
                 
-                if cut_change >= 5.0 or hold_change >= 5.0:
-                    logger.info(f"   🚨 SIGNIFICANT CHANGE! Cut: {status.prob_cut:.1f}% ({cut_change:+.1f}%)")
+                # Only alert on SIGNIFICANT changes (10% threshold, not 5%)
+                # In unified mode, suppress unless it's a MAJOR shift (15%+)
+                threshold = 15.0 if self.unified_mode else 10.0
+                
+                if cut_change >= threshold or hold_change >= threshold:
+                    logger.info(f"   🚨 MAJOR CHANGE! Cut: {status.prob_cut:.1f}% ({cut_change:+.1f}%)")
                     
-                    # Send alert
+                    # Send alert (always send major Fed Watch changes - they're critical)
                     embed = {
-                        "title": "🏦 FED WATCH ALERT - Probability Change!",
+                        "title": "🏦 FED WATCH ALERT - Major Probability Change!",
                         "color": 15548997,
                         "fields": [
                             {"name": "📉 Cut Probability", "value": f"{status.prob_cut:.1f}%", "inline": True},
@@ -338,6 +345,8 @@ class UnifiedAlphaMonitor:
                         "timestamp": datetime.utcnow().isoformat()
                     }
                     self.send_discord(embed, content="@everyone 🏦 Fed rate probability change!")
+                elif cut_change >= 5.0 or hold_change >= 5.0:
+                    logger.info(f"   📊 Moderate change: Cut: {status.prob_cut:.1f}% ({cut_change:+.1f}%) - buffered for synthesis")
             
             self.prev_fed_status = status
             logger.info(f"   Cut: {status.prob_cut:.1f}% | Hold: {status.prob_hold:.1f}% | Most Likely: {status.most_likely_outcome}")
@@ -364,8 +373,12 @@ class UnifiedAlphaMonitor:
                             # Remove oldest (convert to list, remove first, convert back)
                             self.seen_fed_comments = set(list(self.seen_fed_comments)[-100:])
                         
-                        # Only alert on significant comments
-                        if comment.official.name == "Jerome Powell" or comment.confidence >= 0.5:
+                        # In unified mode, suppress individual alerts (Signal Brain will synthesize)
+                        # Only send CRITICAL alerts (Powell with high confidence)
+                        is_critical = comment.official.name == "Jerome Powell" and comment.confidence >= 0.8
+                        should_alert = comment.official.name == "Jerome Powell" or comment.confidence >= 0.5
+                        
+                        if should_alert and (not self.unified_mode or is_critical):
                             # Alert on significant Fed comments
                             sent_emoji = {"HAWKISH": "🦅", "DOVISH": "🕊️", "NEUTRAL": "➡️"}.get(comment.sentiment, "❓")
                             embed = {
@@ -380,6 +393,8 @@ class UnifiedAlphaMonitor:
                                 "timestamp": datetime.utcnow().isoformat()
                             }
                             self.send_discord(embed)
+                        elif should_alert:
+                            logger.debug(f"   📊 Fed comment buffered for synthesis: {comment.official.name} - {comment.sentiment}")
             
         except Exception as e:
             logger.error(f"   ❌ Fed check error: {e}")
@@ -403,20 +418,27 @@ class UnifiedAlphaMonitor:
                 if news_id not in self.seen_trump_news and exp.exploit_score >= 60:
                     self.seen_trump_news.add(news_id)
                     
-                    # Send alert
-                    embed = {
-                        "title": f"🎯 TRUMP EXPLOIT: {exp.suggested_action} (Score: {exp.exploit_score:.0f})",
-                        "color": 16776960,
-                        "description": exp.news.headline[:200],
-                        "fields": [
-                            {"name": "📊 Action", "value": exp.suggested_action, "inline": True},
-                            {"name": "📈 Symbols", "value": ", ".join(exp.suggested_symbols[:3]), "inline": True},
-                            {"name": "💯 Confidence", "value": f"{exp.confidence:.0f}%", "inline": True},
-                        ],
-                        "footer": {"text": "Trump Intelligence | Trade the pattern!"},
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
-                    self.send_discord(embed)
+                    # In unified mode, suppress individual alerts (Signal Brain will synthesize)
+                    # Only send CRITICAL alerts (score >= 90)
+                    is_critical = exp.exploit_score >= 90
+                    
+                    if not self.unified_mode or is_critical:
+                        # Send alert
+                        embed = {
+                            "title": f"🎯 TRUMP EXPLOIT: {exp.suggested_action} (Score: {exp.exploit_score:.0f})",
+                            "color": 16776960,
+                            "description": exp.news.headline[:200],
+                            "fields": [
+                                {"name": "📊 Action", "value": exp.suggested_action, "inline": True},
+                                {"name": "📈 Symbols", "value": ", ".join(exp.suggested_symbols[:3]), "inline": True},
+                                {"name": "💯 Confidence", "value": f"{exp.confidence:.0f}%", "inline": True},
+                            ],
+                            "footer": {"text": "Trump Intelligence | Trade the pattern!"},
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+                        self.send_discord(embed)
+                    else:
+                        logger.debug(f"   📊 Trump exploit buffered for synthesis: {exp.suggested_action} (Score: {exp.exploit_score:.0f})")
             
             activity = getattr(situation, 'activity_level', 'N/A')
             sentiment = getattr(situation, 'overall_sentiment', 'UNKNOWN')
@@ -668,31 +690,35 @@ class UnifiedAlphaMonitor:
                 else:
                     content = f"📊 {alert.symbol} near DP level ${bg.price:.2f}"
                 
-                # Send alert
-                logger.info(f"   📤 Sending DP alert: {alert.symbol} {alert.alert_type.value} ${bg.price:.2f}")
-                success = self.send_discord(embed, content=content)
+                # Store alert for Signal Brain synthesis (ALWAYS)
+                self.recent_dp_alerts.append(alert)
+                # Keep only last 20 alerts (prevent memory bloat)
+                if len(self.recent_dp_alerts) > 20:
+                    self.recent_dp_alerts = self.recent_dp_alerts[-20:]
                 
-                if success:
-                    logger.info(f"   ✅ DP ALERT SENT: {alert.symbol} @ ${bg.price:.2f} ({alert.priority.value})")
-                    
-                    # Store alert for Signal Brain synthesis
-                    self.recent_dp_alerts.append(alert)
-                    # Keep only last 20 alerts (prevent memory bloat)
-                    if len(self.recent_dp_alerts) > 20:
-                        self.recent_dp_alerts = self.recent_dp_alerts[-20:]
-                    
-                    # Trigger synthesis if we have 3+ alerts (cluster threshold)
-                    if len(self.recent_dp_alerts) >= 3 and self.brain_enabled:
-                        logger.info(f"   🧠 {len(self.recent_dp_alerts)} alerts → Triggering synthesis...")
-                        self.check_synthesis()
-                    
-                    # Log to learning engine for outcome tracking
-                    if self.dp_learning_enabled:
-                        interaction_id = self.dp_monitor_engine.log_to_learning_engine(alert)
-                        if interaction_id:
-                            logger.info(f"   📝 Tracking interaction #{interaction_id}")
+                # In unified mode, suppress individual alerts (Signal Brain will synthesize)
+                if self.unified_mode and self.brain_enabled:
+                    logger.debug(f"   📊 DP alert buffered for synthesis: {alert.symbol} @ ${bg.price:.2f}")
+                    # Don't send individual alert - Signal Brain will synthesize
                 else:
-                    logger.error(f"   ❌ Failed to send DP alert")
+                    # Send individual alert (fallback if brain disabled)
+                    logger.info(f"   📤 Sending DP alert: {alert.symbol} {alert.alert_type.value} ${bg.price:.2f}")
+                    success = self.send_discord(embed, content=content)
+                    if success:
+                        logger.info(f"   ✅ DP ALERT SENT: {alert.symbol} @ ${bg.price:.2f} ({alert.priority.value})")
+                    else:
+                        logger.error(f"   ❌ Failed to send DP alert")
+                
+                # Log to learning engine for outcome tracking
+                if self.dp_learning_enabled:
+                    interaction_id = self.dp_monitor_engine.log_to_learning_engine(alert)
+                    if interaction_id:
+                        logger.debug(f"   📝 Tracking interaction #{interaction_id}")
+                
+                # Trigger synthesis if we have 2+ alerts (lower threshold for faster synthesis)
+                if len(self.recent_dp_alerts) >= 2 and self.brain_enabled:
+                    logger.info(f"   🧠 {len(self.recent_dp_alerts)} alerts → Triggering synthesis...")
+                    self.check_synthesis()
                 
         except Exception as e:
             logger.error(f"   ❌ Modular DP check error: {e}")
@@ -780,8 +806,13 @@ class UnifiedAlphaMonitor:
                 "timestamp": datetime.utcnow().isoformat()
             }
             
-            content = f"🎯 **{outcome_emoji}** after {outcome.time_to_outcome_min} min | Max move: {outcome.max_move_pct:+.2f}%"
-            self.send_discord(embed, content=content)
+            # In unified mode, suppress outcome alerts (they're just learning feedback)
+            # Only log to console for debugging
+            if not self.unified_mode:
+                content = f"🎯 **{outcome_emoji}** after {outcome.time_to_outcome_min} min | Max move: {outcome.max_move_pct:+.2f}%"
+                self.send_discord(embed, content=content)
+            else:
+                logger.debug(f"   📊 DP Outcome: {outcome_emoji} after {outcome.time_to_outcome_min} min (buffered for synthesis)")
             
             logger.info(f"📣 Outcome alert sent: #{interaction_id} {outcome.outcome.value}")
         except Exception as e:
@@ -920,25 +951,34 @@ class UnifiedAlphaMonitor:
                 trump_risk=trump_risk,
             )
             
-            # Check if we should alert
-            if self.signal_brain.should_alert(result):
+            # In unified mode, ALWAYS alert if we have recent alerts (they were suppressed)
+            # Otherwise, use the brain's should_alert logic
+            should_send = False
+            if self.unified_mode and len(self.recent_dp_alerts) > 0:
+                # We suppressed individual alerts, so we MUST send synthesis
+                should_send = True
+                logger.info(f"   🧠 Unified mode: {len(self.recent_dp_alerts)} alerts buffered → Sending synthesis")
+            elif self.signal_brain.should_alert(result):
+                should_send = True
+            
+            if should_send:
                 embed = self.signal_brain.to_discord(result)
-                content = f"🧠 **MARKET SYNTHESIS** | {result.confluence.score:.0f}% {result.confluence.bias.value}"
+                content = f"🧠 **UNIFIED MARKET SYNTHESIS** | {result.confluence.score:.0f}% {result.confluence.bias.value}"
                 
                 if result.recommendation and result.recommendation.wait_for:
                     content += f" | ⏳ {result.recommendation.wait_for}"
                 elif result.recommendation and result.recommendation.action != "WAIT":
                     content += f" | 🎯 {result.recommendation.action} SPY"
                 
-                logger.info(f"   📤 Sending synthesis alert: {result.confluence.score:.0f}% {result.confluence.bias.value}")
+                logger.info(f"   📤 Sending UNIFIED synthesis alert: {result.confluence.score:.0f}% {result.confluence.bias.value}")
                 success = self.send_discord(embed, content=content)
                 
                 if success:
-                    logger.info(f"   ✅ SYNTHESIS ALERT SENT!")
+                    logger.info(f"   ✅ UNIFIED SYNTHESIS ALERT SENT!")
                     # Clear buffer after successful synthesis
                     self.recent_dp_alerts = []
             else:
-                logger.info(f"   📊 Synthesis: {result.confluence.score:.0f}% {result.confluence.bias.value} (no alert needed)")
+                logger.debug(f"   📊 Synthesis: {result.confluence.score:.0f}% {result.confluence.bias.value} (no alert needed)")
                 # Clear buffer even if no alert (prevent stale data)
                 self.recent_dp_alerts = []
                 
@@ -1022,11 +1062,17 @@ class UnifiedAlphaMonitor:
         # Startup alert
         self.send_startup_alert()
         
-        # Initial checks
-        self.check_fed()
-        self.check_trump()
-        self.check_economics()
-        self.check_dark_pools()
+        # SKIP initial checks on startup (prevents spam from processing old data)
+        # Let the loop handle checks with proper intervals
+        logger.info("   ⏭️  Skipping initial checks (will start with first interval)")
+        
+        # Initialize timestamps so first checks happen after intervals
+        now = datetime.now()
+        self.last_fed_check = now  # Will check after fed_interval
+        self.last_trump_check = now  # Will check after trump_interval
+        self.last_econ_check = now  # Will check after econ_interval
+        self.last_dp_check = now  # Will check after dp_interval
+        self.last_synthesis_check = now  # Will check after synthesis_interval
         
         while self.running:
             try:
