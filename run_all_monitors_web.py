@@ -27,7 +27,7 @@ import time
 import logging
 import threading
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
@@ -194,7 +194,7 @@ def main():
             {"name": "Status", "value": "✅ Starting", "inline": True},
         ],
         "footer": {"text": "This is a test message to verify Discord integration"},
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     try:
