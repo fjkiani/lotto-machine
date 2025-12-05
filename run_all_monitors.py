@@ -135,6 +135,21 @@ class UnifiedAlphaMonitor:
             logger.warning(f"   ⚠️ Dark Pool monitors failed: {e}")
             self.dp_enabled = False
         
+        # Dark Pool LEARNING Engine (NEW!)
+        try:
+            from live_monitoring.agents.dp_learning import DPLearningEngine
+            self.dp_learning = DPLearningEngine(
+                on_outcome=self._on_dp_outcome,
+                on_prediction=None  # We'll handle predictions inline
+            )
+            self.dp_learning.start()
+            self.dp_learning_enabled = True
+            logger.info("   ✅ Dark Pool Learning Engine initialized")
+        except Exception as e:
+            logger.warning(f"   ⚠️ DP Learning Engine failed: {e}")
+            self.dp_learning_enabled = False
+            self.dp_learning = None
+        
         # Economic Learning Engine (NEW MODULAR VERSION)
         try:
             from live_monitoring.agents.economic import EconomicIntelligenceEngine
@@ -636,19 +651,50 @@ class UnifiedAlphaMonitor:
                         # Determine if this is support or resistance
                         level_type = "SUPPORT" if current_price > bg_price else "RESISTANCE"
                         
+                        # 🧠 Get prediction from learning engine
+                        prediction_text = ""
+                        prediction_action = ""
+                        if self.dp_learning_enabled and self.dp_learning:
+                            try:
+                                prediction = self.dp_learning.log_interaction(
+                                    symbol=symbol,
+                                    level_price=bg_price,
+                                    level_volume=int(bg_volume),
+                                    level_type=level_type,
+                                    level_date=bg['date'],
+                                    approach_price=current_price,
+                                    distance_pct=distance_pct
+                                )
+                                if prediction:
+                                    prediction_text = f"🧠 **{prediction.bounce_probability:.0%} bounce** | {prediction.confidence} confidence"
+                                    prediction_action = f"💡 Suggested: **{prediction.suggested_action}**"
+                                    if prediction.supporting_patterns:
+                                        prediction_text += f"\n📊 Patterns: {', '.join(prediction.supporting_patterns[:3])}"
+                            except Exception as e:
+                                logger.warning(f"   ⚠️ Prediction failed: {e}")
+                        
+                        # Build embed with prediction
+                        fields = [
+                            {"name": "💰 Current Price", "value": f"${current_price:.2f}", "inline": True},
+                            {"name": "🎯 Battleground", "value": f"${bg_price:.2f}", "inline": True},
+                            {"name": "📏 Distance", "value": f"{distance_pct:.2f}%", "inline": True},
+                            {"name": "📊 Volume", "value": f"{bg_volume:,.0f} shares", "inline": True},
+                            {"name": "🏷️ Type", "value": level_type, "inline": True},
+                            {"name": "📅 Data From", "value": bg['date'], "inline": True},
+                        ]
+                        
+                        # Add prediction if available
+                        if prediction_text:
+                            fields.append({"name": "🧠 AI Prediction", "value": prediction_text, "inline": False})
+                        if prediction_action:
+                            fields.append({"name": "💡 Action", "value": prediction_action, "inline": False})
+                        
                         embed = {
                             "title": f"🔒 DARK POOL {alert_type}: {symbol}",
                             "color": alert_color,
                             "description": f"{direction_emoji} Price is {distance_pct:.2f}% {direction} battleground!",
-                            "fields": [
-                                {"name": "💰 Current Price", "value": f"${current_price:.2f}", "inline": True},
-                                {"name": "🎯 Battleground", "value": f"${bg_price:.2f}", "inline": True},
-                                {"name": "📏 Distance", "value": f"{distance_pct:.2f}%", "inline": True},
-                                {"name": "📊 Volume", "value": f"{bg_volume:,.0f} shares", "inline": True},
-                                {"name": "🏷️ Type", "value": level_type, "inline": True},
-                                {"name": "📅 Data From", "value": bg['date'], "inline": True},
-                            ],
-                            "footer": {"text": f"Dark Pool Intelligence | Institutions positioned here"},
+                            "fields": fields,
+                            "footer": {"text": f"Dark Pool Intelligence + Learning Engine | Tracking outcomes..."},
                             "timestamp": datetime.utcnow().isoformat()
                         }
                         
@@ -675,6 +721,38 @@ class UnifiedAlphaMonitor:
             import traceback
             logger.debug(traceback.format_exc())
     
+    def _on_dp_outcome(self, interaction_id: int, outcome):
+        """
+        Callback when a dark pool interaction outcome is determined.
+        Sends a follow-up alert to Discord.
+        """
+        try:
+            outcome_emoji = {
+                'BOUNCE': '✅ BOUNCED',
+                'BREAK': '❌ BROKE',
+                'FADE': '⚪ FADED'
+            }.get(outcome.outcome.value, '❓ UNKNOWN')
+            
+            # Send outcome alert
+            embed = {
+                "title": f"🎯 DP OUTCOME: {outcome_emoji}",
+                "color": 3066993 if outcome.outcome.value == 'BOUNCE' else 15158332,
+                "description": f"Interaction #{interaction_id} resolved!",
+                "fields": [
+                    {"name": "📊 Max Move", "value": f"{outcome.max_move_pct:.2f}%", "inline": True},
+                    {"name": "⏱️ Time", "value": f"{outcome.time_to_outcome_min} min", "inline": True},
+                ],
+                "footer": {"text": "Learning from this outcome..."},
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            content = f"🎯 DP Level **{outcome_emoji}** after {outcome.time_to_outcome_min} min | Max move: {outcome.max_move_pct:.2f}%"
+            self.send_discord(embed, content=content)
+            
+            logger.info(f"📣 Outcome alert sent: #{interaction_id} {outcome.outcome.value}")
+        except Exception as e:
+            logger.error(f"❌ Outcome alert error: {e}")
+    
     def send_startup_alert(self):
         """Send startup notification."""
         if not self.discord_webhook:
@@ -693,6 +771,20 @@ class UnifiedAlphaMonitor:
                 logger.debug(f"Error getting econ status: {e}")
                 econ_status = "Initializing..."
         
+        # Get DP learning status
+        dp_learning_status = ""
+        if self.dp_learning_enabled and self.dp_learning:
+            try:
+                status = self.dp_learning.get_status()
+                db_stats = status.get('database', {})
+                patterns = status.get('patterns', {})
+                dp_learning_status = f"📊 {db_stats.get('total', 0)} interactions | {len(patterns)} patterns learned"
+                if db_stats.get('bounce_rate', 0) > 0:
+                    dp_learning_status += f" | {db_stats['bounce_rate']:.0%} bounce rate"
+            except Exception as e:
+                logger.debug(f"Error getting DP learning status: {e}")
+                dp_learning_status = "Initializing..."
+        
         embed = {
             "title": "🎯 ALPHA INTELLIGENCE - ONLINE",
             "color": 3066993,
@@ -702,7 +794,8 @@ class UnifiedAlphaMonitor:
                 {"name": "🎯 Trump Intel", "value": "✅ Active" if self.trump_enabled else "❌ Disabled", "inline": True},
                 {"name": "📊 Economic AI", "value": "✅ Active" if self.econ_enabled else "❌ Disabled", "inline": True},
                 {"name": "🔒 Dark Pools", "value": f"✅ {', '.join(self.symbols)}" if self.dp_enabled else "❌ Disabled", "inline": True},
-                {"name": "🧠 Learned Patterns", "value": econ_status or "Disabled", "inline": False},
+                {"name": "🧠 DP Learning", "value": f"✅ {dp_learning_status}" if self.dp_learning_enabled else "❌ Disabled", "inline": False},
+                {"name": "📈 Econ Patterns", "value": econ_status or "Disabled", "inline": False},
                 {"name": "⏱️ Intervals", "value": f"Fed: {self.fed_interval/60:.0f}m | Trump: {self.trump_interval/60:.0f}m | DP: {self.dp_interval}s | Econ: {self.econ_interval/60:.0f}m", "inline": False},
             ],
             "footer": {"text": "Monitoring markets 24/7 with machine learning + institutional flow"},
