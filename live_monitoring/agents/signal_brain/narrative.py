@@ -1,19 +1,22 @@
 """
 🧠 Signal Brain - Narrative Integration
 =======================================
-Connects existing narrative components to Signal Brain.
+Connects existing V1 narrative components to Signal Brain.
 
 Uses:
+- market_narrative_pipeline.py (V1 PRODUCTION!) for full narrative context
 - institutional_narrative.py for DP vs mainstream divergence
-- market_narrative_pipeline.py for full narrative context
+- EventLoader for economic calendar
 - Perplexity for real-time "WHY" analysis
+
+THIS IS THE REAL NARRATIVE - NOT HARDCODED GARBAGE!
 """
 
 import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
@@ -29,19 +32,33 @@ class NarrativeContext:
     confidence: float = 0.5  # 0-1 confidence in narrative
     sources: list = None  # Where did we get this info?
     
+    # V1 narrative fields (from MarketNarrative)
+    macro_narrative: str = ""
+    sector_narrative: str = ""
+    cross_asset_narrative: str = ""
+    causal_chain: str = ""
+    overall_direction: str = "NEUTRAL"
+    conviction: str = "MEDIUM"
+    uncertainties: list = None
+    
     def __post_init__(self):
         if self.sources is None:
             self.sources = []
+        if self.uncertainties is None:
+            self.uncertainties = []
 
 
 class NarrativeEnricher:
     """
-    Enriches Signal Brain with narrative context.
+    Enriches Signal Brain with REAL narrative context from V1 pipeline.
     
-    Integrates:
-    1. institutional_narrative.py - DP vs mainstream
-    2. Perplexity search - Real-time "WHY"
-    3. Trump/Fed monitors - Macro context
+    USES THE REAL V1 SYSTEM:
+    1. market_narrative_pipeline.py - Full narrative with validation
+    2. EventLoader - Economic calendar + surprise scoring  
+    3. Perplexity - Real-time mainstream narrative
+    4. CryptoCorrelationDetector - Risk environment
+    5. Institutional context - DP, gamma, max pain
+    6. Divergence detection - Institutions vs mainstream
     """
     
     def __init__(self, perplexity_key: Optional[str] = None):
@@ -52,39 +69,32 @@ class NarrativeEnricher:
             perplexity_key: Optional Perplexity API key for real-time search
         """
         self.perplexity_key = perplexity_key or os.getenv('PERPLEXITY_API_KEY')
-        self._perplexity_client = None
-        self._institutional_loader = None
+        self._narrative_pipeline = None
+        self._cache = {}  # Cache narratives by symbol+date
         
-        # Initialize Perplexity client if available
-        if self.perplexity_key:
-            try:
-                from live_monitoring.enrichment.apis.perplexity_search import PerplexitySearchClient
-                self._perplexity_client = PerplexitySearchClient(self.perplexity_key)
-                logger.info("📰 Narrative: Perplexity connected")
-            except Exception as e:
-                logger.warning(f"⚠️ Perplexity init failed: {e}")
-        
-        # Try to load institutional narrative loader
+        # Try to load V1 narrative pipeline
         try:
-            from live_monitoring.enrichment.institutional_narrative import load_institutional_context
-            self._load_institutional = load_institutional_context
-            logger.info("🏛️ Narrative: Institutional loader connected")
+            from live_monitoring.enrichment.market_narrative_pipeline import market_narrative_pipeline
+            self._narrative_pipeline = market_narrative_pipeline
+            logger.info("✅ Narrative: V1 pipeline connected!")
         except Exception as e:
-            logger.warning(f"⚠️ Institutional narrative init failed: {e}")
-            self._load_institutional = None
+            logger.warning(f"⚠️ V1 narrative pipeline init failed: {e}")
+            self._narrative_pipeline = None
     
     def get_narrative(
         self,
         symbol: str = "SPY",
         fed_sentiment: str = "NEUTRAL",
         trump_risk: str = "LOW",
-        dp_levels: list = None,  # NEW: Actual DP battlegrounds
-        current_price: float = None,  # NEW: Current price
-        fed_cut_prob: float = None,  # NEW: Actual Fed Watch probability
-        trump_news: str = None,  # NEW: Actual Trump news
+        dp_levels: list = None,
+        current_price: float = None,
+        fed_cut_prob: float = None,
+        trump_news: str = None,
     ) -> NarrativeContext:
         """
-        Get SPECIFIC narrative context using ALL our intelligence.
+        Get narrative context from V1 PRODUCTION PIPELINE.
+        
+        THIS CALLS THE REAL V1 SYSTEM - NOT HARDCODED GARBAGE!
         
         Args:
             symbol: Primary symbol to analyze
@@ -96,11 +106,61 @@ class NarrativeEnricher:
             trump_news: Latest Trump news headline
             
         Returns:
-            NarrativeContext with SPECIFIC summary, catalyst, risk, divergence
+            NarrativeContext with REAL narrative from V1 pipeline
         """
         context = NarrativeContext()
+        date = datetime.utcnow().strftime("%Y-%m-%d")
+        cache_key = f"{symbol}_{date}"
         
-        # 1. Build SPECIFIC summary using our actual data
+        # 1. TRY V1 PIPELINE FIRST (THE REAL SHIT!)
+        if self._narrative_pipeline:
+            try:
+                # Check cache first
+                if cache_key in self._cache:
+                    logger.info(f"📰 Using cached V1 narrative for {symbol}")
+                    v1_result = self._cache[cache_key]
+                else:
+                    logger.info(f"🧠 Running V1 narrative pipeline for {symbol}...")
+                    v1_result = self._narrative_pipeline(symbol, enable_logging=False)
+                    self._cache[cache_key] = v1_result
+                
+                # Extract from V1 MarketNarrative object
+                context.macro_narrative = v1_result.macro_narrative or ""
+                context.sector_narrative = v1_result.sector_narrative or ""
+                context.cross_asset_narrative = v1_result.cross_asset_narrative or ""
+                context.causal_chain = v1_result.causal_chain or ""
+                context.overall_direction = v1_result.overall_direction or "NEUTRAL"
+                context.conviction = v1_result.conviction or "MEDIUM"
+                context.risk_environment = v1_result.risk_environment or "NEUTRAL"
+                context.uncertainties = v1_result.uncertainties or []
+                
+                # Build summary from V1 data
+                context.summary = self._build_v1_summary(v1_result, current_price, fed_cut_prob)
+                
+                # Extract catalyst from causal chain
+                if v1_result.causal_chain:
+                    context.catalyst = v1_result.causal_chain.split("→")[0].strip() if "→" in v1_result.causal_chain else v1_result.causal_chain
+                
+                # Check divergences from V1
+                if v1_result.divergences:
+                    context.divergence_detected = True
+                    context.divergence_detail = str(v1_result.divergences[0]) if v1_result.divergences else ""
+                
+                # Confidence based on V1 conviction
+                conviction_map = {"HIGH": 0.9, "MEDIUM": 0.7, "LOW": 0.5}
+                context.confidence = conviction_map.get(v1_result.conviction, 0.6)
+                
+                # Sources from V1
+                context.sources = [s.url for s in v1_result.sources[:5]] if v1_result.sources else ["V1 Narrative Pipeline"]
+                
+                logger.info(f"✅ V1 narrative: {context.overall_direction} / {context.risk_environment} / {context.conviction}")
+                return context
+                
+            except Exception as e:
+                logger.warning(f"⚠️ V1 pipeline failed, using fallback: {e}")
+        
+        # 2. FALLBACK: Build from our data if V1 fails
+        logger.info("📰 Using fallback narrative builder")
         context.summary = self._build_specific_summary(
             symbol=symbol,
             current_price=current_price,
@@ -111,7 +171,6 @@ class NarrativeEnricher:
             trump_news=trump_news
         )
         
-        # 2. Detect specific catalyst from our data
         context.catalyst = self._detect_specific_catalyst(
             dp_levels=dp_levels,
             current_price=current_price,
@@ -120,7 +179,6 @@ class NarrativeEnricher:
             trump_risk=trump_risk
         )
         
-        # 3. Determine risk environment from actual data
         context.risk_environment = self._determine_specific_risk(
             fed_sentiment=fed_sentiment,
             trump_risk=trump_risk,
@@ -128,7 +186,6 @@ class NarrativeEnricher:
             current_price=current_price
         )
         
-        # 4. Check for specific divergences
         divergence = self._check_specific_divergence(
             dp_levels=dp_levels,
             current_price=current_price,
@@ -137,7 +194,6 @@ class NarrativeEnricher:
         context.divergence_detected = divergence.get('detected', False)
         context.divergence_detail = divergence.get('detail', '')
         
-        # 5. Calculate confidence based on data completeness
         context.confidence = self._calculate_specific_confidence(
             dp_levels=dp_levels,
             current_price=current_price,
@@ -147,6 +203,27 @@ class NarrativeEnricher:
         context.sources = ["DP Intelligence", "Fed Watch", "Trump Intel", "Institutional Flow"]
         
         return context
+    
+    def _build_v1_summary(self, v1_result, current_price: float, fed_cut_prob: float) -> str:
+        """Build summary from V1 MarketNarrative with additional context."""
+        parts = []
+        
+        # Direction + conviction
+        direction_emoji = {"BULLISH": "📈", "BEARISH": "📉", "NEUTRAL": "➡️"}.get(v1_result.overall_direction, "➡️")
+        parts.append(f"{direction_emoji} {v1_result.overall_direction} ({v1_result.conviction})")
+        
+        # Add Fed probability if available
+        if fed_cut_prob is not None:
+            parts.append(f"Fed {fed_cut_prob:.0f}% cut")
+        
+        # Causal chain (the WHY)
+        if v1_result.causal_chain and v1_result.causal_chain != "No clear causal chain (V1 heuristic).":
+            parts.append(v1_result.causal_chain)
+        
+        # Risk environment
+        parts.append(f"Risk: {v1_result.risk_environment}")
+        
+        return " | ".join(parts)
     
     def _build_specific_summary(
         self,

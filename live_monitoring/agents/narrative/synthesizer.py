@@ -301,31 +301,52 @@ class NarrativeSynthesizer:
         return f"{symbol}{price_str} | {bias} ({conf_str})"
     
     def _build_full_story(self, results: List, symbol: str, overall_bias: str) -> str:
-        """Build full narrative story."""
+        """Build full narrative story - USE THE RAW CONTEXT, NOT SUMMARIES."""
         parts = []
         
         # Index by domain
         by_domain = {r.domain: r for r in results}
         
-        # Open with Fed (if available)
+        # Open with Fed FULL CONTEXT (not just summary)
         if 'FED' in by_domain:
             fed = by_domain['FED']
-            parts.append(fed.summary)
+            # Use full_context if available, not just summary
+            if fed.full_context and len(fed.full_context) > 50:
+                # Extract first meaningful paragraph
+                context_clean = fed.full_context.replace('\n', ' ').strip()
+                parts.append(f"FED: {context_clean[:300]}...")
+            else:
+                parts.append(f"FED: {fed.summary}")
         
-        # Add institutional context
+        # Add macro context with ACTUAL regime info
+        if 'MACRO' in by_domain:
+            macro = by_domain['MACRO']
+            if macro.full_context and len(macro.full_context) > 50:
+                context_clean = macro.full_context.replace('\n', ' ').strip()
+                parts.append(f"TODAY: {context_clean[:200]}...")
+            elif macro.summary:
+                parts.append(f"MARKET: {macro.summary}")
+        
+        # Add Trump SPECIFICS
+        if 'TRUMP' in by_domain:
+            trump = by_domain['TRUMP']
+            if trump.full_context and len(trump.full_context) > 50:
+                context_clean = trump.full_context.replace('\n', ' ').strip()
+                parts.append(f"TRUMP: {context_clean[:200]}...")
+            elif trump.impact == "HIGH":
+                parts.append(f"TRUMP: {trump.summary}")
+        
+        # Add institutional REAL positioning
         if 'INSTITUTIONAL' in by_domain:
             inst = by_domain['INSTITUTIONAL']
-            parts.append(inst.summary)
+            if inst.full_context and len(inst.full_context) > 50:
+                context_clean = inst.full_context.replace('\n', ' ').strip()
+                parts.append(f"INSTITUTIONS: {context_clean[:200]}...")
         
-        # Add Trump if high risk
-        if 'TRUMP' in by_domain and by_domain['TRUMP'].impact == "HIGH":
-            parts.append(by_domain['TRUMP'].summary)
+        if not parts:
+            return f"{symbol} narrative unclear - limited data available."
         
-        # Close with trade implication
-        if parts:
-            parts.append(f"Overall bias: {overall_bias}.")
-        
-        return " ".join(parts) if parts else f"{symbol} narrative unclear - multiple conflicting signals."
+        return "\n\n".join(parts)
     
     def _build_trade_thesis(self, results: List, bias: str, confidence: float) -> str:
         """Build actionable trade thesis."""

@@ -46,7 +46,7 @@ class FedNarrativeAgent(BaseNarrativeAgent):
     
     def research(self, context: Dict[str, Any]) -> AgentResult:
         """
-        Research Fed policy and sentiment.
+        Research Fed policy and sentiment - GET THE REAL WHY.
         
         Args:
             context: {
@@ -60,39 +60,46 @@ class FedNarrativeAgent(BaseNarrativeAgent):
         fed_cut_prob = context.get('fed_cut_prob', 50)
         fed_sentiment = context.get('fed_sentiment', 'NEUTRAL')
         
-        # Build focused queries
+        # SPECIFIC queries - we want the WHY, not generic news
         queries = [
-            "Federal Reserve FOMC December 2025 rate decision latest official statements",
-            "Fed officials comments rate cuts inflation today",
-            "CME FedWatch probability analysis why rate expectations shifting",
+            "Why is the Federal Reserve cutting rates December 2025 what economic data is driving this decision specific reasons",
+            "Fed December 2025 unemployment jobs data inflation numbers driving rate decision",
         ]
         
         all_content = []
         all_sources = []
+        raw_answers = []  # Store raw Tavily answers
         
         for query in queries:
             try:
                 result = self.tavily.search_fed(query, max_results=3)
                 if result.answer:
-                    all_content.append(result.answer)
+                    raw_answers.append(result.answer)
+                # Also get the source content (the REAL shit)
+                for r in result.results[:2]:
+                    if r.content:
+                        all_content.append(r.content)
                 all_sources.extend(result.top_sources)
             except Exception as e:
                 self.logger.warning(f"Fed query failed: {e}")
         
-        # Combine and analyze
+        # Use RAW Tavily answer as the summary - not our filtered garbage
+        if raw_answers:
+            summary = raw_answers[0][:200]  # First 200 chars of raw answer
+        else:
+            summary = f"Fed {fed_cut_prob:.0f}% cut probability"
+        
+        # Full context is ALL the content
         full_context = "\n\n".join(all_content) if all_content else ""
         
-        # Extract key points
-        key_points = self._extract_fed_points(full_context, fed_cut_prob)
+        # Extract SPECIFIC key points from raw content
+        key_points = self._extract_specific_fed_points(full_context)
         
         # Determine bias
         bias = self._determine_fed_bias(full_context, fed_cut_prob)
         
         # Calculate confidence
-        confidence = 0.7 if all_content else 0.3
-        
-        # Build summary
-        summary = self._build_fed_summary(fed_cut_prob, fed_sentiment, key_points)
+        confidence = 0.8 if raw_answers else 0.4
         
         # Trade implication
         trade_implication = self._get_fed_trade_implication(bias, fed_cut_prob)
@@ -103,11 +110,56 @@ class FedNarrativeAgent(BaseNarrativeAgent):
             key_points=key_points,
             bias=bias,
             confidence=confidence,
-            impact="HIGH",  # Fed always high impact
+            impact="HIGH",
             trade_implication=trade_implication,
-            risk_factors=["FOMC meeting risk", "Economic data surprise risk"],
+            risk_factors=["FOMC meeting Dec 9-10", "Jobs data surprise risk"],
             sources=all_sources[:5]
         )
+    
+    def _extract_specific_fed_points(self, text: str) -> List[str]:
+        """Extract SPECIFIC data points from Tavily content - not generic bullshit."""
+        points = []
+        text_lower = text.lower()
+        
+        # Look for SPECIFIC numbers and facts
+        import re
+        
+        # Unemployment numbers
+        unemployment_match = re.search(r'unemployment.*?(\d+\.?\d*)%', text_lower)
+        if unemployment_match:
+            points.append(f"Unemployment at {unemployment_match.group(1)}%")
+        
+        # Job numbers
+        job_match = re.search(r'(\d+[,\d]*)\s*(job|jobs|private.sector)', text_lower)
+        if job_match:
+            points.append(f"Jobs: {job_match.group(1)} {job_match.group(2)}")
+        
+        # Rate numbers
+        rate_match = re.search(r'(\d+\.?\d*)\s*(?:bps|basis points|%)', text_lower)
+        if rate_match and 'rate' in text_lower:
+            points.append(f"Rate move: {rate_match.group(1)}%")
+        
+        # Inflation
+        if 'inflation' in text_lower:
+            if 'elevated' in text_lower:
+                points.append("Inflation still elevated")
+            elif 'easing' in text_lower or 'cooling' in text_lower:
+                points.append("Inflation easing")
+        
+        # Job market
+        if 'job gains' in text_lower and 'slowing' in text_lower:
+            points.append("Job gains slowing")
+        if 'labor market' in text_lower and ('weak' in text_lower or 'soft' in text_lower):
+            points.append("Labor market weakening")
+        
+        # If we found nothing specific, fall back to keywords
+        if not points:
+            if 'cut' in text_lower:
+                points.append("Rate cut expected")
+            if 'hold' in text_lower:
+                points.append("Rate hold possible")
+        
+        return points[:5]
     
     def _extract_fed_points(self, text: str, fed_cut_prob: float) -> List[str]:
         """Extract key Fed-related points."""
