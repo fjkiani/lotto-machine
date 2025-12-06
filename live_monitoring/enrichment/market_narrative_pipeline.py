@@ -35,6 +35,7 @@ from live_monitoring.enrichment.pipeline.perplexity_adapter import (
     run_perplexity_queries,
     NarrativeSource,
 )
+from live_monitoring.enrichment.pipeline.tavily_enhancer import enhance_with_tavily
 from live_monitoring.enrichment.pipeline.date_resolver import (
     resolve_trading_date,
     build_realized_move_header,
@@ -413,12 +414,37 @@ def market_narrative_pipeline(symbol: str, date: Optional[str] = None,
     if queries and price_summary:
         queries[0] = price_summary + queries[0]
     
+    # 4a) Run Perplexity for surface-level summary (WHAT happened)
     pplx_narratives = run_perplexity_queries(queries)
+    
+    # 4b) ENHANCE with Tavily deep research (WHY it happened, WHO moved it)
+    logger.info("🔬 Enhancing narratives with Tavily deep research layer...")
+    try:
+        # Get Fed/Trump context if available (from monitors)
+        fed_cut_prob = None
+        trump_risk = None
+        # TODO: These could be passed as parameters or fetched from monitors
+        
+        enhanced_narratives = enhance_with_tavily(
+            symbol=symbol,
+            trading_date_str=trading_date_str,
+            perplexity_narratives=pplx_narratives,
+            inst_ctx=inst_ctx,
+            event_schedule=event_schedule,
+            fed_cut_prob=fed_cut_prob,
+            trump_risk=trump_risk,
+        )
+        # Use enhanced narratives
+        pplx_narratives = enhanced_narratives
+        logger.info("✅ Tavily enhancement complete - narratives enriched")
+    except Exception as e:
+        logger.warning(f"⚠️ Tavily enhancement failed, using Perplexity only: {e}")
+        # Continue with Perplexity narratives if Tavily fails
     
     macro_narr = pplx_narratives.get("macro", "")
     sector_narr = pplx_narratives.get("sector", "")
     asset_narr = pplx_narratives.get("asset", "")
-    cross_asset_narr = pplx_narratives.get("cross", "")
+    cross_asset_narr = pplx_narratives.get("cross_asset", "") or pplx_narratives.get("cross", "")
     uniq_sources = pplx_narratives.get("sources", [])
 
     # 5) Build causal chain & meta labels (very simple V1 logic)

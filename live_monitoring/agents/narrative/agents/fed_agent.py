@@ -57,7 +57,10 @@ class FedNarrativeAgent(BaseNarrativeAgent):
         """
         self.logger.info("🏦 FedAgent researching...")
         
-        fed_cut_prob = context.get('fed_cut_prob', 50)
+        # Handle None values properly
+        fed_cut_prob = context.get('fed_cut_prob')
+        if fed_cut_prob is None:
+            fed_cut_prob = 50  # Default to neutral
         fed_sentiment = context.get('fed_sentiment', 'NEUTRAL')
         
         # SPECIFIC queries - we want the WHY, not generic news
