@@ -288,7 +288,10 @@ def main():
         discord_thread.start()
         logger.info("   ✅ Discord bot thread started")
     else:
-        logger.warning("   ⚠️ Discord bot not available (missing dependencies?)")
+        logger.error("   ❌ CRITICAL: Discord bot DISABLED - discord.py not available")
+        logger.error("   ❌ This means the savage LLM Discord bot is not running!")
+        logger.error("   ❌ Check Render logs for discord.py installation errors")
+        logger.error("   ❌ Manual fix: Run 'pip install discord.py>=2.3.0' in Render shell")
 
     # Start HTTP server
     port = int(os.getenv('PORT', 8000))
