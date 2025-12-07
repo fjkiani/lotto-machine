@@ -1,15 +1,15 @@
 {
-  "timestamp": "2025-12-05T19:14:32.523112",
+  "timestamp": "2025-12-05T20:46:03.805766",
   "symbol": "SPY",
   "source": "chartexchange",
   "date": "2025-12-05",
   "dark_pool": {
-    "pct": 49.43945961456268,
-    "volume": 38646524
+    "pct": 49.44388078249043,
+    "volume": 38649980
   },
   "lit_exchange": {
-    "pct": 50.560540385437314,
-    "volume": 39522866
+    "pct": 50.55611921750957,
+    "volume": 39519410
   },
   "max_pain": null,
   "current_price": 685.6900024414062,

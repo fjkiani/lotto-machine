@@ -172,3 +172,4 @@ class ZoneClusterer:
             'primary_resistance': primary_resistance,
         }
 
+

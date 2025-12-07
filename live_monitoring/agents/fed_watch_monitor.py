@@ -276,7 +276,6 @@ class FedWatchFetcher:
                         for cell in cells:
                             text = cell.get_text(strip=True)
                             # Look for percentage like "87.2%" or "87%"
-                            import re
                             pct = re.search(r'(\d{1,3}(?:\.\d+)?)%', text)
                             if pct:
                                 prob_cut = float(pct.group(1))
@@ -288,7 +287,6 @@ class FedWatchFetcher:
                         # Find percentage in this row
                         for cell in cells:
                             text = cell.get_text(strip=True)
-                            import re
                             pct = re.search(r'(\d{1,3}(?:\.\d+)?)%', text)
                             if pct:
                                 prob_hold = float(pct.group(1))
@@ -300,7 +298,6 @@ class FedWatchFetcher:
                 scripts = soup.find_all('script')
                 for script in scripts:
                     if script.string and 'fedwatch' in script.string.lower():
-                        import re
                         # Look for JSON data
                         json_match = re.search(r'\{[^}]*"probabilities?":[^}]*\}', script.string, re.IGNORECASE)
                         if json_match:
@@ -321,8 +318,7 @@ class FedWatchFetcher:
             # Method 3: Look for specific text patterns
             if prob_cut == 0 or prob_hold == 0:
                 page_text = soup.get_text()
-                import re
-                
+
                 # Look for "350-375" followed by percentage
                 cut_match = re.search(r'350-375[^\d]*(\d{1,3}(?:\.\d+)?)%', page_text, re.IGNORECASE)
                 if cut_match:
@@ -427,9 +423,7 @@ class FedWatchFetcher:
                 # Parse the answer for probabilities
                 answer = perplexity_data['answer']
                 answer_lower = answer.lower()
-                
-                import re
-            
+
             # BEST PATTERN: "CUT: 87.2%, HOLD: 12.8%" format
             # This is what Perplexity returns - handles decimals!
             cut_direct = re.search(r'cut[:\s]+(\d{1,3}(?:\.\d+)?)\s*%', answer_lower)

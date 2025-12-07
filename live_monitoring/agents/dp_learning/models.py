@@ -132,3 +132,4 @@ class DPPrediction:
     expected_move_pct: float = 0.0
     suggested_action: str = ""  # "SHORT", "LONG", "WAIT"
 
+

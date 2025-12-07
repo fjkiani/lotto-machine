@@ -180,3 +180,4 @@ class AlertGenerator:
             'debounce_minutes': self.debounce_minutes,
         }
 
+

@@ -16,3 +16,4 @@ from .models import DPInteraction, DPOutcome, DPPattern
 
 __all__ = ['DPLearningEngine', 'DPInteraction', 'DPOutcome', 'DPPattern']
 
+

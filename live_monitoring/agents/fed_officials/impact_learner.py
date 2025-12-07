@@ -185,3 +185,4 @@ class ImpactLearner:
         conn.commit()
         conn.close()
 
+

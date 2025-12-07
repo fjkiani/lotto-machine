@@ -100,8 +100,8 @@ def detect_divergences(
         divergences = detector.detect_manipulation(
             symbol=symbol,
             date=trading_date,
-            macro_narrative=macro_text,
-            inst_context=inst_ctx
+            news_narrative=macro_text,
+            institutional_data=inst_ctx
         )
         
         logger.info("🔍 Divergences detected: %d", len(divergences))

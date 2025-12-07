@@ -59,3 +59,4 @@ class QueryGenerator:
         """Record query performance for learning."""
         self.db.track_query_performance(query_template, success, comments_found)
 
+

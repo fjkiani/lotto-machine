@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-11-21T00:59:35.676453",
+  "timestamp": "2025-12-05T20:48:36.863522",
   "symbol": "SPY",
   "source": "chartexchange",
   "date": "2025-11-20",
@@ -10,7 +10,9 @@
     "pct": null
   },
   "max_pain": null,
-  "current_price": 652.530029296875,
-  "pct_change": -1.5242255122032546,
-  "crypto_correlation": "NEUTRAL"
+  "current_price": 685.6900024414062,
+  "pct_change": 0.18994838690575244,
+  "crypto_correlation": "NEUTRAL",
+  "crypto_regime": "NEUTRAL",
+  "has_dp_data": false
 }

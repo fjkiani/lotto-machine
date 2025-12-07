@@ -115,3 +115,4 @@ class FedCommentReport:
     # Pattern insights
     detected_patterns: List[str] = field(default_factory=list)
 
+

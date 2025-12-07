@@ -592,3 +592,4 @@ if __name__ == "__main__":
     stats = db.get_stats()
     print(f"📊 Database stats: {stats}")
 
+

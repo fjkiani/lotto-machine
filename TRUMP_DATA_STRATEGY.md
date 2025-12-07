@@ -197,3 +197,4 @@ PredictionRecord:
 Every Trump statement goes into the DB with its actual market reaction.
 The system learns what actually matters, not what we think matters.
 
+

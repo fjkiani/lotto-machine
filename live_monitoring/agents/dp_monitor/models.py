@@ -138,3 +138,4 @@ class DPAlert:
             'timestamp': self.timestamp.isoformat(),
         }
 
+

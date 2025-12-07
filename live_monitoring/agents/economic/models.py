@@ -321,3 +321,4 @@ class TrainingData:
             dates = sorted([r.date for r in self.releases])
             self.date_range = f"{dates[0]} to {dates[-1]}"
 
+

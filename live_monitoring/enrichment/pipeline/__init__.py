@@ -10,12 +10,10 @@ from .perplexity_adapter import (
     run_perplexity_queries,
     NarrativeSource,
 )
-from .tavily_enhancer import enhance_with_tavily
 
 __all__ = [
     "build_perplexity_queries",
     "run_perplexity_queries",
     "NarrativeSource",
-    "enhance_with_tavily",
 ]
 

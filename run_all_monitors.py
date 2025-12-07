@@ -206,6 +206,22 @@ class UnifiedAlphaMonitor:
             self.unified_mode = True  # Suppress individual alerts, only send synthesis
             logger.info("   ✅ Signal Synthesis Brain initialized (THINKING LAYER)")
             logger.info(f"   🔇 UNIFIED MODE: ENABLED - Individual alerts suppressed, only synthesis will be sent")
+
+            # 🧠 NARRATIVE BRAIN (NEW!) - CONTEXTUAL STORYTELLING
+            try:
+                from live_monitoring.agents.narrative_brain import NarrativeBrain
+                from live_monitoring.agents.narrative_brain.schedule_manager import NarrativeScheduler
+
+                self.narrative_brain = NarrativeBrain()
+                self.narrative_scheduler = NarrativeScheduler(self.narrative_brain)
+                self.narrative_enabled = True
+                logger.info("   🧠 Narrative Brain initialized (CONTEXTUAL STORYTELLING)")
+                logger.info("   📚 Memory system active - AI learns from previous analyses")
+            except Exception as ne:
+                logger.warning(f"   ⚠️ Narrative Brain failed: {ne}")
+                self.narrative_brain = None
+                self.narrative_scheduler = None
+                self.narrative_enabled = False
             if self.dp_learning_enabled:
                 logger.info("   🧠 Brain integrated with DP Learning Engine!")
             if narrative_enricher:
@@ -872,6 +888,7 @@ class UnifiedAlphaMonitor:
                 # Fallback: Get DP levels from cache or fetch
                 logger.info("   📊 No recent alerts - fetching DP levels from cache")
                 for symbol in ['SPY', 'QQQ']:
+                    levels = []  # Initialize levels for each symbol
                     if symbol in self.dp_battlegrounds:
                         levels = [
                             {'price': bg['price'], 'volume': int(bg['volume'])}
@@ -890,7 +907,7 @@ class UnifiedAlphaMonitor:
                                         levels.append({'price': price, 'volume': vol})
                         except:
                             levels = []
-                    
+
                     if symbol == 'SPY':
                         spy_levels = levels
                     else:
@@ -988,7 +1005,64 @@ class UnifiedAlphaMonitor:
             logger.error(f"   ❌ Synthesis error: {e}")
             import traceback
             logger.debug(traceback.format_exc())
-    
+
+    def _get_current_intelligence_snapshot(self) -> dict:
+        """Get current snapshot of all intelligence sources for narrative brain"""
+        snapshot = {
+            'fed_watch': {},
+            'fed_officials': {},
+            'trump_monitor': {},
+            'economic_calendar': {},
+            'dp_monitor': {}
+        }
+
+        # Fed Watch
+        if self.fed_enabled and self.fed_watch:
+            try:
+                status = self.fed_watch.get_status() if hasattr(self.fed_watch, 'get_status') else self.fed_watch.get_current_status()
+                snapshot['fed_watch'] = status or {}
+            except Exception as e:
+                logger.debug(f"Error getting fed watch status: {e}")
+
+        # Fed Officials
+        if self.fed_enabled and self.fed_officials:
+            try:
+                status = self.fed_officials.get_status() if hasattr(self.fed_officials, 'get_status') else self.fed_officials.get_latest_comment()
+                snapshot['fed_officials'] = status or {}
+            except Exception as e:
+                logger.debug(f"Error getting fed officials status: {e}")
+
+        # Trump Monitor
+        if self.trump_enabled and self.trump_monitor:
+            try:
+                status = self.trump_monitor.get_current_situation()
+                snapshot['trump_monitor'] = status or {}
+            except Exception as e:
+                logger.debug(f"Error getting trump monitor status: {e}")
+
+        # Economic Calendar
+        if self.econ_enabled and self.econ_engine:
+            try:
+                status = self.econ_engine.get_status()
+                snapshot['economic_calendar'] = status or {}
+            except Exception as e:
+                logger.debug(f"Error getting economic status: {e}")
+
+        # DP Monitor
+        if self.dp_enabled and self.dp_monitor_engine:
+            try:
+                # Get current active levels and bias
+                levels = self.dp_monitor_engine.get_active_levels() if hasattr(self.dp_monitor_engine, 'get_active_levels') else []
+                bias = self.dp_monitor_engine.get_current_bias() if hasattr(self.dp_monitor_engine, 'get_current_bias') else 'neutral'
+                snapshot['dp_monitor'] = {
+                    'active_levels': levels,
+                    'institutional_bias': bias
+                }
+            except Exception as e:
+                logger.debug(f"Error getting DP monitor status: {e}")
+
+        return snapshot
+
     def send_startup_alert(self):
         """Send startup notification."""
         if not self.discord_webhook:
@@ -1046,6 +1120,7 @@ class UnifiedAlphaMonitor:
                 {"name": "🧠 DP Learning", "value": f"✅ {dp_learning_status}" if self.dp_learning_enabled else "❌ Disabled", "inline": False},
                 {"name": "🧠 Signal Brain", "value": brain_status, "inline": False},
                 {"name": "📊 Macro Context", "value": macro_status, "inline": False},
+                {"name": "🧠 Narrative Brain", "value": "✅ CONTEXTUAL STORYTELLING (smart updates)" if self.narrative_enabled else "❌ Disabled", "inline": False},
                 {"name": "📈 Econ Patterns", "value": econ_status or "Disabled", "inline": False},
                 {"name": "⏱️ Intervals", "value": f"Fed: {self.fed_interval/60:.0f}m | Trump: {self.trump_interval/60:.0f}m | DP: {self.dp_interval}s | Brain: {self.synthesis_interval}s", "inline": False},
             ],
@@ -1107,6 +1182,19 @@ class UnifiedAlphaMonitor:
                 if self.brain_enabled and (self.last_synthesis_check is None or (now - self.last_synthesis_check).seconds >= self.synthesis_interval):
                     self.check_synthesis()
                     self.last_synthesis_check = now
+
+                # Narrative Brain - Scheduled updates (pre-market, intra-day, end-of-day)
+                if self.narrative_enabled and self.narrative_scheduler:
+                    self.narrative_scheduler.check_and_run_scheduled_updates()
+
+                    # Also check for intra-day updates triggered by intelligence changes
+                    if self.narrative_scheduler.can_run_intra_day_update():
+                        # Feed current intelligence state to narrative brain
+                        intelligence_data = self._get_current_intelligence_snapshot()
+                        update = self.narrative_brain.process_intelligence_update("intelligence_snapshot", intelligence_data)
+                        if update:
+                            self.narrative_scheduler.mark_intra_day_update_sent()
+                            logger.info(f"🧠 Narrative update sent: {update.alert_type.value}")
                 
                 # Sleep for 30 seconds between checks (faster for DP)
                 time.sleep(30)

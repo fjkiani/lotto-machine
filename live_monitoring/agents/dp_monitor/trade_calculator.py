@@ -180,3 +180,4 @@ class TradeCalculator:
             hold_time_max=120,
         )
 
+

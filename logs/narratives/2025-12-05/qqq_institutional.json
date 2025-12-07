@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-12-05T20:46:25.098709",
+  "symbol": "QQQ",
+  "source": "chartexchange",
+  "date": "2025-12-05",
+  "dark_pool": {
+    "pct": 32.6037704623473,
+    "volume": 17352366
+  },
+  "lit_exchange": {
+    "pct": 67.3962295376527,
+    "volume": 35869595
+  },
+  "max_pain": null,
+  "current_price": 625.47998046875,
+  "pct_change": 0.40774039512459476,
+  "crypto_correlation": "NEUTRAL",
+  "crypto_regime": "NEUTRAL",
+  "has_dp_data": true
+}

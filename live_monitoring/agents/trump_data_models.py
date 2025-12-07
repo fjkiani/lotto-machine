@@ -331,3 +331,4 @@ class TrumpSignal:
             'data_points_used': self.data_points_used
         }
 
+

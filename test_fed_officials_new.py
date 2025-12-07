@@ -173,3 +173,4 @@ print(f"   • Query learning: {'✅ Active' if engine.db.get_best_queries() els
 print(f"   • Sentiment patterns: {len(engine.db.get_sentiment_patterns())} learned")
 print()
 
+

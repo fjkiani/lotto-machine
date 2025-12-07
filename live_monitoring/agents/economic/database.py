@@ -504,3 +504,4 @@ class EconomicDatabase:
                 "prediction_accuracy": accuracy
             }
 
+

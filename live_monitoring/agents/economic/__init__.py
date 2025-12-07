@@ -28,3 +28,4 @@ from .engine import EconomicIntelligenceEngine
 
 __all__ = ['EconomicIntelligenceEngine']
 
+

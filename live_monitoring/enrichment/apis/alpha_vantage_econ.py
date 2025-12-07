@@ -235,3 +235,4 @@ if __name__ == "__main__":
         print(f"   Change: {release.change:.2f}% {direction}" if release.change else "   Change: N/A")
         print()
 
+
