@@ -697,15 +697,30 @@ class UnifiedAlphaMonitor:
                 bg = alert.battleground
                 ts = alert.trade_setup
                 
+                # Calculate expected move size (for warning)
+                expected_move_pct = 0.0
+                if ts:
+                    if ts.direction.value == "LONG":
+                        expected_move_pct = ((ts.target - ts.entry) / ts.entry) * 100
+                    else:
+                        expected_move_pct = ((ts.entry - ts.target) / ts.entry) * 100
+                
+                # Add warning for small moves (scalping signals)
+                warning = ""
+                if expected_move_pct > 0 and expected_move_pct < 0.5:
+                    warning = " ⚠️ **SCALPING SIGNAL** - Small move expected (~{:.2f}%)".format(expected_move_pct)
+                elif expected_move_pct >= 0.5:
+                    warning = " ✅ **STRONGER MOVE** - Expected ~{:.2f}%".format(expected_move_pct)
+                
                 if alert.alert_type.value == "AT_LEVEL":
                     if ts:
-                        content = f"🚨 **{alert.symbol} AT {bg.level_type.value} ${bg.price:.2f}** | {ts.direction.value} opportunity | {bg.volume:,} shares"
+                        content = f"🚨 **{alert.symbol} AT {bg.level_type.value} ${bg.price:.2f}** | {ts.direction.value} opportunity | {bg.volume:,} shares{warning}"
                     else:
-                        content = f"🚨 **{alert.symbol} AT BATTLEGROUND ${bg.price:.2f}** - {bg.volume:,} shares!"
+                        content = f"🚨 **{alert.symbol} AT BATTLEGROUND ${bg.price:.2f}** - {bg.volume:,} shares!{warning}"
                 elif alert.alert_type.value == "APPROACHING":
-                    content = f"⚠️ **{alert.symbol} APPROACHING** ${bg.price:.2f} ({bg.level_type.value}) | {bg.volume:,} shares"
+                    content = f"⚠️ **{alert.symbol} APPROACHING** ${bg.price:.2f} ({bg.level_type.value}) | {bg.volume:,} shares{warning}"
                 else:
-                    content = f"📊 {alert.symbol} near DP level ${bg.price:.2f}"
+                    content = f"📊 {alert.symbol} near DP level ${bg.price:.2f}{warning}"
                 
                 # Store alert for Signal Brain synthesis (ALWAYS)
                 self.recent_dp_alerts.append(alert)
@@ -713,14 +728,9 @@ class UnifiedAlphaMonitor:
                 if len(self.recent_dp_alerts) > 20:
                     self.recent_dp_alerts = self.recent_dp_alerts[-20:]
                 
-                # In unified mode, suppress individual alerts (Signal Brain will synthesize)
-                if self.unified_mode and self.brain_enabled:
-                    logger.debug(f"   📊 DP alert buffered for synthesis: {alert.symbol} @ ${bg.price:.2f} (UNIFIED MODE: suppressing individual alert)")
-                    # Don't send individual alert - Signal Brain will synthesize
-                    continue  # Skip to next alert
-                
-                # Send individual alert (only if unified mode is OFF or brain is disabled)
-                logger.info(f"   📤 Sending DP alert: {alert.symbol} {alert.alert_type.value} ${bg.price:.2f} (unified_mode={self.unified_mode}, brain_enabled={self.brain_enabled})")
+                # ALWAYS send scalping signals (don't suppress in unified mode)
+                # These are valuable for quick scalps even if moves are small
+                logger.info(f"   📤 Sending SCALPING signal: {alert.symbol} {alert.alert_type.value} ${bg.price:.2f}")
                 success = self.send_discord(embed, content=content)
                 if success:
                     logger.info(f"   ✅ DP ALERT SENT: {alert.symbol} @ ${bg.price:.2f} ({alert.priority.value})")
@@ -980,6 +990,12 @@ class UnifiedAlphaMonitor:
             elif self.signal_brain.should_alert(result):
                 should_send = True
             
+            # 🧠 NARRATIVE BRAIN - SEPARATE HIGH-QUALITY SIGNALS
+            # Check Narrative Brain decision BEFORE clearing buffer
+            narrative_sent = False
+            if self.narrative_enabled and self.narrative_brain and len(self.recent_dp_alerts) > 0:
+                narrative_sent = self._check_narrative_brain_signals(result, spy_price, qqq_price)
+            
             if should_send:
                 embed = self.signal_brain.to_discord(result)
                 content = f"🧠 **UNIFIED MARKET SYNTHESIS** | {result.confluence.score:.0f}% {result.confluence.bias.value}"
@@ -994,18 +1010,174 @@ class UnifiedAlphaMonitor:
                 
                 if success:
                     logger.info(f"   ✅ UNIFIED SYNTHESIS ALERT SENT!")
-                    # Clear buffer after successful synthesis
-                    self.recent_dp_alerts = []
+                    # Clear buffer after successful synthesis (unless Narrative Brain sent)
+                    if not narrative_sent:
+                        self.recent_dp_alerts = []
             else:
                 logger.debug(f"   📊 Synthesis: {result.confluence.score:.0f}% {result.confluence.bias.value} (no alert needed)")
                 # Clear buffer even if no alert (prevent stale data)
-                self.recent_dp_alerts = []
+                if not narrative_sent:
+                    self.recent_dp_alerts = []
                 
         except Exception as e:
             logger.error(f"   ❌ Synthesis error: {e}")
             import traceback
             logger.debug(traceback.format_exc())
 
+    def _check_narrative_brain_signals(self, synthesis_result, spy_price: float, qqq_price: float) -> bool:
+        """
+        🧠 NARRATIVE BRAIN - SEPARATE HIGH-QUALITY SIGNALS
+        Checks Narrative Brain decision logic and sends separately if criteria met.
+        These are HIGHER QUALITY signals with better move predictability.
+        
+        Returns:
+            bool: True if signal was sent, False otherwise
+        """
+        if not self.narrative_enabled or not self.narrative_brain:
+            return False
+        
+        try:
+            # Calculate average confluence from recent alerts
+            if not self.recent_dp_alerts:
+                return False
+            
+            # Calculate confluence from alert attributes
+            def get_alert_confluence(alert):
+                """Calculate confluence score for an alert"""
+                score = 50  # Base score
+                
+                # Volume-based confidence
+                bg = alert.battleground
+                if bg.volume >= 2_000_000:
+                    score += 30
+                elif bg.volume >= 1_000_000:
+                    score += 20
+                elif bg.volume >= 500_000:
+                    score += 10
+                
+                # Priority boost
+                if alert.priority.value == "CRITICAL":
+                    score += 20
+                elif alert.priority.value == "HIGH":
+                    score += 10
+                
+                # Alert type boost
+                if alert.alert_type.value == "AT_LEVEL":
+                    score += 10
+                
+                # AI prediction boost
+                if alert.ai_prediction and alert.ai_prediction > 0.7:
+                    score += 10
+                
+                return min(score, 100)
+            
+            avg_confluence = sum(
+                get_alert_confluence(alert) 
+                for alert in self.recent_dp_alerts
+            ) / len(self.recent_dp_alerts)
+            
+            # Narrative Brain decision logic (from backtesting framework)
+            min_confluence = 70.0  # Minimum confluence threshold
+            min_alerts = 3  # Minimum alerts for confirmation
+            critical_mass = 5  # Critical mass threshold
+            exceptional_confluence = 80.0  # Exceptional threshold
+            
+            # Check if Narrative Brain should send
+            should_send = False
+            reason = ""
+            
+            # Exceptional confluence
+            if avg_confluence >= exceptional_confluence:
+                should_send = True
+                reason = f"Exceptional confluence ({avg_confluence:.0f}%)"
+            # Strong confluence with confirmation
+            elif avg_confluence >= min_confluence and len(self.recent_dp_alerts) >= min_alerts:
+                should_send = True
+                reason = f"Strong confluence ({avg_confluence:.0f}%) + {len(self.recent_dp_alerts)} alerts"
+            # Critical mass
+            elif len(self.recent_dp_alerts) >= critical_mass:
+                should_send = True
+                reason = f"Critical mass ({len(self.recent_dp_alerts)} alerts)"
+            
+            if should_send:
+                # Get best alert for trade setup (using same confluence calculation)
+                def get_alert_confluence(alert):
+                    score = 50
+                    bg = alert.battleground
+                    if bg.volume >= 2_000_000:
+                        score += 30
+                    elif bg.volume >= 1_000_000:
+                        score += 20
+                    elif bg.volume >= 500_000:
+                        score += 10
+                    if alert.priority.value == "CRITICAL":
+                        score += 20
+                    elif alert.priority.value == "HIGH":
+                        score += 10
+                    if alert.alert_type.value == "AT_LEVEL":
+                        score += 10
+                    if alert.ai_prediction and alert.ai_prediction > 0.7:
+                        score += 10
+                    return min(score, 100)
+                
+                best_alert = max(
+                    self.recent_dp_alerts,
+                    key=get_alert_confluence
+                )
+                
+                bg = best_alert.battleground
+                ts = best_alert.trade_setup
+                
+                # Create Narrative Brain alert
+                embed = {
+                    "title": f"🧠 **NARRATIVE BRAIN SIGNAL** - {best_alert.symbol}",
+                    "description": f"**Higher Quality Signal** - Better move predictability\n\n"
+                                   f"**Reason:** {reason}\n"
+                                   f"**Confluence:** {avg_confluence:.0f}%\n"
+                                   f"**Alerts Confirmed:** {len(self.recent_dp_alerts)}",
+                    "color": 0x00ff00,  # Green for high quality
+                    "fields": []
+                }
+                
+                if ts:
+                    embed["fields"].extend([
+                        {
+                            "name": "🎯 Trade Setup",
+                            "value": f"**Direction:** {ts.direction.value}\n"
+                                    f"**Entry:** ${ts.entry:.2f}\n"
+                                    f"**Stop:** ${ts.stop:.2f}\n"
+                                    f"**Target:** ${ts.target:.2f}\n"
+                                    f"**R/R:** {ts.risk_reward:.1f}:1",
+                            "inline": False
+                        }
+                    ])
+                
+                embed["fields"].append({
+                    "name": "📊 Battleground",
+                    "value": f"**Level:** ${bg.price:.2f} ({bg.level_type.value})\n"
+                            f"**Volume:** {bg.volume:,} shares",
+                    "inline": False
+                })
+                
+                content = f"🧠 **NARRATIVE BRAIN SIGNAL** | {best_alert.symbol} | {reason} | ✅ **HIGHER QUALITY**"
+                
+                logger.info(f"   🧠 Narrative Brain: Sending HIGH-QUALITY signal ({reason})")
+                success = self.send_discord(embed, content=content)
+                
+                if success:
+                    logger.info(f"   ✅ NARRATIVE BRAIN SIGNAL SENT!")
+                    return True  # Signal sent
+            else:
+                logger.debug(f"   🧠 Narrative Brain: Not sending (confluence: {avg_confluence:.0f}%, alerts: {len(self.recent_dp_alerts)})")
+            
+            return False  # No signal sent
+                
+        except Exception as e:
+            logger.error(f"   ❌ Narrative Brain check error: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return False
+    
     def _get_current_intelligence_snapshot(self) -> dict:
         """Get current snapshot of all intelligence sources for narrative brain"""
         snapshot = {
