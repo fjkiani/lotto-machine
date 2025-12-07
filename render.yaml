@@ -20,6 +20,8 @@ services:
         sync: false  # Set this in Render dashboard
       - key: GEMINI_API_KEY
         sync: false  # Set this in Render dashboard
+      - key: DISCORD_PY_NO_VOICE
+        value: 1  # Disable voice features to avoid audioop dependency
       - key: PYTHON_VERSION
         value: 3.9
     plan: free  # FREE tier - Web Service is free!
