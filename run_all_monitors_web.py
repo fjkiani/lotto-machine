@@ -49,7 +49,8 @@ logger.info("🔍 Discord bot status...")
 logger.info("   ❌ DISABLED: discord.py incompatible with Render free tier (audioop dependency)")
 logger.info("   ✅ AUTONOMOUS TRADYTICS: Analysis runs in monitoring system")
 logger.info("   ✅ DISCORD ALERTS: Delivered via webhooks (fully functional)")
-logger.info("   ✅ INTELLIGENCE: Savage LLM analysis every 5 minutes")
+logger.info("   ✅ TRADYTICS WEBHOOK: Ready for external alert forwarding")
+logger.info("   ✅ INTELLIGENCE: Savage LLM analysis every 5 minutes + on-demand")
 discord_available = False
 
 
@@ -163,7 +164,58 @@ class HealthHandler(BaseHTTPRequestHandler):
                     pass
             
             self.wfile.write(json.dumps(status, indent=2).encode())
-            
+
+    def do_POST(self):
+        """Handle POST requests (webhooks)"""
+        global monitor
+
+        if self.path == '/tradytics-webhook':
+            try:
+                # Read the request body
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length)
+                webhook_data = json.loads(post_data.decode('utf-8'))
+
+                logger.info(f"📥 Received Tradytics webhook: {webhook_data}")
+
+                # Process the webhook data
+                if monitor and hasattr(monitor, 'process_tradytics_webhook'):
+                    result = monitor.process_tradytics_webhook(webhook_data)
+
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "processed", "result": result}).encode())
+                else:
+                    logger.error("❌ Monitor not available for webhook processing")
+                    self.send_response(503)  # Service Unavailable
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Monitor not available"}).encode())
+
+            except Exception as e:
+                logger.error(f"❌ Webhook processing error: {e}")
+                self.send_response(500)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
+
+        else:
+            self.send_response(404)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Endpoint not found"}).encode())
+
+    def do_GET(self):
+        global monitor
+
+        if self.path == '/health' or self.path == '/':
+            # Tradytics webhook endpoint - handle POST requests
+            self.send_response(405)  # Method Not Allowed for GET
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Use POST method for webhook"}).encode())
+
         elif self.path == '/status':
             # Detailed status
             self.send_response(200)

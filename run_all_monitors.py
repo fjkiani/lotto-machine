@@ -703,6 +703,83 @@ class UnifiedAlphaMonitor:
             logger.error(f"   ❌ Tradytics alert analysis error: {e}")
             return f"Analysis failed: {str(e)}"
 
+    def process_tradytics_webhook(self, webhook_data):
+        """Process incoming Tradytics webhook data"""
+        try:
+            logger.info(f"🔗 Processing Tradytics webhook: {webhook_data}")
+
+            # Extract alert information from webhook
+            # Expected format: Discord webhook payload with message content
+            if 'content' in webhook_data:
+                message_content = webhook_data['content']
+                author = webhook_data.get('author', {}).get('username', 'Unknown')
+
+                # Check if this looks like a Tradytics alert
+                tradytics_keywords = ['SWEEP', 'BLOCK', 'CALL', 'PUT', 'PREMIUM', 'VOLUME', 'FLOW']
+                if any(keyword in message_content.upper() for keyword in tradytics_keywords):
+                    logger.info(f"🎯 Detected Tradytics alert from {author}: {message_content[:100]}...")
+
+                    # Create alert structure
+                    alert = {
+                        'bot_name': author,
+                        'alert_type': self._classify_alert_type(message_content),
+                        'content': message_content,
+                        'symbols': self._extract_symbols(message_content),
+                        'timestamp': webhook_data.get('timestamp', datetime.now().isoformat()),
+                        'confidence': 0.8,  # Webhook alerts are typically high confidence
+                        'source': 'webhook'
+                    }
+
+                    # Analyze the alert
+                    analysis = self._analyze_tradytics_alert(alert)
+                    if analysis:
+                        # Send analysis to Discord
+                        self._send_tradytics_analysis_alert(alert, analysis)
+                        logger.info(f"✅ Processed webhook alert from {author}")
+                        return {"status": "analyzed", "alert_processed": True}
+                    else:
+                        logger.warning(f"⚠️ Analysis failed for webhook alert from {author}")
+                        return {"status": "analysis_failed", "alert_processed": False}
+                else:
+                    logger.info(f"ℹ️ Webhook message from {author} doesn't appear to be Tradytics alert")
+                    return {"status": "not_tradytics_alert", "alert_processed": False}
+            else:
+                logger.warning("⚠️ Webhook data missing 'content' field")
+                return {"status": "invalid_format", "alert_processed": False}
+
+        except Exception as e:
+            logger.error(f"❌ Webhook processing error: {e}")
+            return {"status": "error", "error": str(e)}
+
+    def _classify_alert_type(self, content):
+        """Classify the type of Tradytics alert"""
+        content_upper = content.upper()
+
+        if 'SWEEP' in content_upper:
+            return 'options_signal'
+        elif 'BLOCK' in content_upper:
+            return 'block_trade'
+        elif 'FLOW' in content_upper:
+            return 'volume_flow'
+        elif any(word in content_upper for word in ['CALL', 'PUT']):
+            return 'options_signal'
+        else:
+            return 'market_signal'
+
+    def _extract_symbols(self, content):
+        """Extract stock symbols from alert content"""
+        import re
+
+        # Common stock symbol patterns (1-5 uppercase letters)
+        symbols = re.findall(r'\b[A-Z]{1,5}\b', content)
+
+        # Filter out common words that might match
+        exclude_words = ['A', 'I', 'ON', 'AT', 'IN', 'IS', 'IT', 'TO', 'OF', 'BY', 'OR', 'AS', 'AN', 'BE', 'DO', 'FOR', 'IF', 'IN', 'IS', 'IT', 'NO', 'SO', 'UP', 'US', 'WE', 'YES']
+
+        filtered_symbols = [s for s in symbols if s not in exclude_words and len(s) >= 2]
+
+        return list(set(filtered_symbols))  # Remove duplicates
+
     def _send_tradytics_analysis_alert(self, alert, analysis):
         """Send autonomous Tradytics analysis to Discord"""
         try:
@@ -1492,6 +1569,11 @@ class UnifiedAlphaMonitor:
                 if self.brain_enabled and (self.last_synthesis_check is None or (now - self.last_synthesis_check).seconds >= self.synthesis_interval):
                     self.check_synthesis()
                     self.last_synthesis_check = now
+
+                # Autonomous Tradytics Analysis (every 5 minutes)
+                if self.tradytics_llm_available and (self.last_tradytics_analysis is None or (now - self.last_tradytics_analysis).seconds >= self.tradytics_analysis_interval):
+                    self.autonomous_tradytics_analysis()
+                    self.last_tradytics_analysis = now
 
                 # Autonomous Tradytics Analysis (every 5 minutes)
                 if self.tradytics_llm_available and (self.last_tradytics_analysis is None or (now - self.last_tradytics_analysis).seconds >= self.tradytics_analysis_interval):
