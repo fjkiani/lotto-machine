@@ -606,3 +606,4 @@ class NarrativeBrain:
         context['narrative_memory'] = self.memory.get_recent_narratives(hours=24)
         return context
 
+

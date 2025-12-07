@@ -104,3 +104,4 @@ class SavageLLMService:
             "api_key_configured": bool(self.api_key),
             "available_levels": list(self.get_available_levels().keys())
         }
+

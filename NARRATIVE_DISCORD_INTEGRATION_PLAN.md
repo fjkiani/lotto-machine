@@ -339,3 +339,4 @@ Next alert: "Trump tweet - expect +0.8% move based on history"
 
 **Alpha, what's your vision for the ideal user experience? How often should we update, what level of detail, and what should trigger alerts vs. just background updates?**
 
+

@@ -177,3 +177,4 @@ class NarrativeScheduler:
         """Mark that an intra-day update was sent"""
         self.schedule_manager.mark_intra_day_sent()
 
+

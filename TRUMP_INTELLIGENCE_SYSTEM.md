@@ -245,3 +245,4 @@ We delivered:
 *"Trade the pattern, not the panic. He wrote the playbook. We encoded it."* 🎯💰🔥
 
 
+

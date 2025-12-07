@@ -322,3 +322,4 @@ class TrainingData:
             self.date_range = f"{dates[0]} to {dates[-1]}"
 
 
+

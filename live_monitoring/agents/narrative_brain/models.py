@@ -69,3 +69,4 @@ class NarrativeMemoryEntry:
     market_impact: str
     context_hash: str  # For deduplication
 
+
