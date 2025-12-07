@@ -36,6 +36,14 @@ import json
 base_path = Path(__file__).parent
 sys.path.insert(0, str(base_path))
 
+# Setup logging early for import debugging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
+
 # Import Discord bot
 logger.info("🔍 Attempting Discord bot import...")
 try:
@@ -47,14 +55,6 @@ except ImportError as e:
     logger.error("   This means discord_bot.py has import errors")
     logger.error("   Check if discord.py is installed: pip install discord.py>=2.3.0")
     discord_available = False
-
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s | %(levelname)s | %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
 
 
 # Global instances
