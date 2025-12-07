@@ -44,12 +44,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Discord bot temporarily disabled due to Render audioop compatibility issues
+# Discord bot DISABLED - Render free tier audioop incompatibility
 logger.info("🔍 Discord bot status...")
-logger.info("   ⚠️ Discord bot DISABLED - audioop dependency issue on Render free tier")
-logger.info("   💡 Autonomous Tradytics analysis will run via monitoring system")
-logger.info("   💡 Discord alerts sent via webhooks (working perfectly)")
-logger.info("   💡 Manual commands available via web interface")
+logger.info("   ❌ DISABLED: discord.py incompatible with Render free tier (audioop dependency)")
+logger.info("   ✅ AUTONOMOUS TRADYTICS: Analysis runs in monitoring system")
+logger.info("   ✅ DISCORD ALERTS: Delivered via webhooks (fully functional)")
+logger.info("   ✅ INTELLIGENCE: Savage LLM analysis every 5 minutes")
 discord_available = False
 
 
