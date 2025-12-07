@@ -247,15 +247,25 @@ class HealthHandler(BaseHTTPRequestHandler):
                 discord_webhook_url = os.getenv('DISCORD_WEBHOOK_URL')
                 if discord_webhook_url:
                     try:
+                        # Identify the bot type for better formatting
+                        bot_name = analysis_payload['author']['username']
+                        emoji_map = {
+                            'Bullseye': '🎯',
+                            'Darkpool': '🔒',
+                            'Spidey': '🕷️',
+                            'default': '📡'
+                        }
+                        emoji = emoji_map.get(bot_name.split()[0], emoji_map['default'])
+
                         # Forward original message to Discord
                         forward_payload = {
-                            "content": f"📡 **TRADYTICS ALERT** | {analysis_payload['author']['username']}\n{analysis_payload['content']}",
+                            "content": f"{emoji} **TRADYTICS ALERT** | {bot_name}\n{analysis_payload['content']}",
                             "username": "Tradytics Forwarder"
                         }
 
                         forward_response = requests.post(discord_webhook_url, json=forward_payload, timeout=5)
                         if forward_response.status_code == 204:
-                            logger.info("✅ Forwarded original message to Discord")
+                            logger.info(f"✅ Forwarded {bot_name} alert to Discord")
                         else:
                             logger.warning(f"⚠️ Discord forward failed: {forward_response.status_code}")
                     except Exception as e:
