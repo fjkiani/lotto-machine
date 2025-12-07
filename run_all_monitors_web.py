@@ -47,13 +47,24 @@ logger = logging.getLogger(__name__)
 # Import Discord bot
 logger.info("🔍 Attempting Discord bot import...")
 try:
+    # First check if discord.py is available
+    import discord
+    logger.info(f"✅ discord.py available: {discord.__version__}")
+
+    # Then try to import our bot
     from discord_bot import AlphaIntelligenceBot
     discord_available = True
     logger.info("✅ Discord bot import successful!")
 except ImportError as e:
-    logger.error(f"❌ Discord bot import FAILED: {e}")
-    logger.error("   This means discord_bot.py has import errors")
-    logger.error("   Check if discord.py is installed: pip install discord.py>=2.3.0")
+    logger.error(f"❌ Discord import FAILED: {e}")
+    logger.error("   CRITICAL: discord.py not installed on Render!")
+    logger.error("   Run: pip install discord.py>=2.3.0")
+    logger.error("   Check requirements.txt includes: discord.py>=2.3.0")
+    discord_available = False
+except Exception as e:
+    logger.error(f"❌ Unexpected Discord error: {e}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
     discord_available = False
 
 
