@@ -295,7 +295,7 @@ class UnifiedAlphaMonitor:
         
         # Autonomous Tradytics Analysis
         try:
-            from src.data.llm_api import query_llm_savage
+            from src.data.llm_api import query_llm
             self.tradytics_llm_available = True
             logger.info("   ✅ Tradytics LLM analysis available")
         except Exception as e:
@@ -659,38 +659,49 @@ class UnifiedAlphaMonitor:
     def _analyze_tradytics_alert(self, alert):
         """Analyze a Tradytics alert using savage LLM"""
         try:
-            prompt = f"""
-            🔥 **SAVAGE TRADYTICS ANALYSIS** 🔥
+            savage_prompt = f"""
+            🔥 **SAVAGE TRADYTICS ANALYSIS - GODLIKE MODE** 🔥
 
             Tradytics Bot: {alert['bot_name']}
             Alert Type: {alert['alert_type']}
             Symbols: {', '.join(alert.get('symbols', []))}
             Raw Alert: {alert['content']}
 
-            **YOUR MISSION:**
-            Analyze this Tradytics alert like a ruthless alpha predator. What does this REALLY mean for the market? Is this a signal to BUY, SELL, or RUN? Connect the dots with broader market context. Be brutal, be insightful, be profitable.
+            **YOUR MISSION AS A RUTHLESS ALPHA PREDATOR:**
+            Analyze this Tradytics alert like the market's most brutal hunter. What does this REALLY fucking mean? Is this a BUY signal, SELL signal, or RUN-FOR-YOUR-LIFE signal? Connect the institutional dots. Be savage, be precise, be profitable.
 
-            **RULES:**
-            - No bullshit market mumbo-jumbo
-            - Tell me what this means for REAL traders
-            - If it's weak, say it's weak
-            - If it's strong, tell me WHY it's strong
-            - Give actionable insight, not vague predictions
+            **ALPHA WARRIOR RULES:**
+            - NO MARKET BULLSHIT - Cut the crap
+            - Tell REAL traders what this means RIGHT NOW
+            - If the signal is weak, FUCKING SAY IT'S WEAK
+            - If it's strong, EXPLAIN WHY YOU'D BET YOUR HOUSE ON IT
+            - Give ACTIONABLE insight, not pussy predictions
+            - Think like a hedge fund killer, not a retail chump
 
-            **SAVAGE ANALYSIS:**
+            **SAVAGE INSTITUTIONAL ANALYSIS:**
             """
 
-            response = query_llm_savage(
-                prompt,
-                level="chained_pro",
-                context="tradytics_integration"
-            )
+            # Use the available query_llm function with savage prompt
+            response = query_llm(savage_prompt, provider="gemini")
 
-            return response.get('response', 'Analysis failed')
+            # Extract the analysis from the response
+            if isinstance(response, dict):
+                # Try different possible response keys
+                analysis = (response.get('detailed_analysis') or
+                           response.get('market_sentiment') or
+                           str(response))
+
+                # Clean up the response
+                if isinstance(analysis, str) and len(analysis) > 50:
+                    return analysis
+                else:
+                    return f"Savage Analysis: {analysis}"
+            else:
+                return str(response)
 
         except Exception as e:
             logger.error(f"   ❌ Tradytics alert analysis error: {e}")
-            return None
+            return f"Analysis failed: {str(e)}"
 
     def _send_tradytics_analysis_alert(self, alert, analysis):
         """Send autonomous Tradytics analysis to Discord"""
