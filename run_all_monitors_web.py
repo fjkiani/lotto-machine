@@ -209,14 +209,7 @@ class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         global monitor
 
-        if self.path == '/health' or self.path == '/':
-            # Tradytics webhook endpoint - handle POST requests
-            self.send_response(405)  # Method Not Allowed for GET
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": "Use POST method for webhook"}).encode())
-
-        elif self.path == '/tradytics-forward':
+        if self.path == '/tradytics-forward':
             # Discord webhook forwarding endpoint - receives from Discord, forwards to analysis
             try:
                 # Read the Discord webhook payload
