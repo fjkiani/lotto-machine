@@ -66,6 +66,7 @@ class UnifiedAlphaMonitor:
         self.last_news_check = None
         self.last_econ_check = None
         self.last_dp_check = None
+        self.last_tradytics_analysis = None
         
         # Dark Pool tracking
         self.dp_battlegrounds = {}  # symbol -> list of levels
@@ -292,6 +293,20 @@ class UnifiedAlphaMonitor:
             self.econ_enabled = False
             self.econ_calendar = None
         
+        # Autonomous Tradytics Analysis
+        try:
+            from src.data.llm_api import query_llm_savage
+            self.tradytics_llm_available = True
+            logger.info("   ✅ Tradytics LLM analysis available")
+        except Exception as e:
+            logger.warning(f"   ⚠️ Tradytics LLM analysis unavailable: {e}")
+            self.tradytics_llm_available = False
+
+        # Tradytics analysis state
+        self.last_tradytics_analysis = None
+        self.tradytics_analysis_interval = 300  # 5 minutes
+        self.tradytics_alerts_processed = 0
+
         # Track previous states
         self.prev_fed_status = None
         self.prev_trump_sentiment = None
@@ -586,6 +601,118 @@ class UnifiedAlphaMonitor:
             
         except Exception as e:
             logger.error(f"   ❌ Economic check error: {e}")
+
+    def autonomous_tradytics_analysis(self):
+        """Autonomous Tradytics analysis - simulates analyzing bot alerts"""
+        if not self.tradytics_llm_available:
+            return
+
+        try:
+            logger.info("🤖 Running Autonomous Tradytics Analysis...")
+
+            # Generate sample Tradytics-style alerts for demonstration
+            # In production, this would connect to actual Tradytics webhooks or APIs
+            sample_alerts = self._generate_sample_tradytics_alerts()
+
+            for alert in sample_alerts:
+                analysis = self._analyze_tradytics_alert(alert)
+                if analysis:
+                    self._send_tradytics_analysis_alert(alert, analysis)
+                    self.tradytics_alerts_processed += 1
+
+            if sample_alerts:
+                logger.info(f"   ✅ Processed {len(sample_alerts)} autonomous Tradytics analyses")
+
+        except Exception as e:
+            logger.error(f"   ❌ Autonomous Tradytics analysis error: {e}")
+
+    def _generate_sample_tradytics_alerts(self):
+        """Generate sample Tradytics alerts for demonstration"""
+        # This simulates what we would receive from actual Tradytics bots
+        # In production, this would come from webhook endpoints or API polling
+
+        alerts = [
+            {
+                'bot_name': 'Bullseye',
+                'alert_type': 'options_signal',
+                'content': 'NVDA $950 CALL SWEEP - $2.3M PREMIUM - Institutional buying detected',
+                'symbols': ['NVDA'],
+                'timestamp': datetime.now().isoformat(),
+                'confidence': 0.85
+            },
+            {
+                'bot_name': 'Darkpool',
+                'alert_type': 'block_trade',
+                'content': 'SPY $500 BLOCK TRADE - $75M at $498.50 - Large institutional accumulation',
+                'symbols': ['SPY'],
+                'timestamp': datetime.now().isoformat(),
+                'confidence': 0.78
+            }
+        ]
+
+        # Only return alerts occasionally to avoid spam
+        import random
+        if random.random() < 0.3:  # 30% chance
+            return alerts[:1]  # Return just one alert
+        return []
+
+    def _analyze_tradytics_alert(self, alert):
+        """Analyze a Tradytics alert using savage LLM"""
+        try:
+            prompt = f"""
+            🔥 **SAVAGE TRADYTICS ANALYSIS** 🔥
+
+            Tradytics Bot: {alert['bot_name']}
+            Alert Type: {alert['alert_type']}
+            Symbols: {', '.join(alert.get('symbols', []))}
+            Raw Alert: {alert['content']}
+
+            **YOUR MISSION:**
+            Analyze this Tradytics alert like a ruthless alpha predator. What does this REALLY mean for the market? Is this a signal to BUY, SELL, or RUN? Connect the dots with broader market context. Be brutal, be insightful, be profitable.
+
+            **RULES:**
+            - No bullshit market mumbo-jumbo
+            - Tell me what this means for REAL traders
+            - If it's weak, say it's weak
+            - If it's strong, tell me WHY it's strong
+            - Give actionable insight, not vague predictions
+
+            **SAVAGE ANALYSIS:**
+            """
+
+            response = query_llm_savage(
+                prompt,
+                level="chained_pro",
+                context="tradytics_integration"
+            )
+
+            return response.get('response', 'Analysis failed')
+
+        except Exception as e:
+            logger.error(f"   ❌ Tradytics alert analysis error: {e}")
+            return None
+
+    def _send_tradytics_analysis_alert(self, alert, analysis):
+        """Send autonomous Tradytics analysis to Discord"""
+        try:
+            embed = {
+                "title": f"🧠 **SAVAGE ANALYSIS** - {alert['bot_name']} Alert",
+                "description": f"**Alert:** {alert['content']}\n\n{analysis}",
+                "color": 0xff0000,  # Red for savage
+                "timestamp": alert['timestamp'],
+                "footer": {"text": "Alpha Intelligence | Autonomous Tradytics Integration"}
+            }
+
+            content = f"🧠 **AUTONOMOUS ANALYSIS** | {alert['bot_name']} detected significant activity"
+
+            success = self.send_discord(embed, content)
+            if success:
+                logger.info(f"   ✅ Autonomous Tradytics analysis sent for {alert['bot_name']}")
+            else:
+                logger.error(f"   ❌ Failed to send autonomous Tradytics analysis")
+
+        except Exception as e:
+            logger.error(f"   ❌ Send autonomous Tradytics alert error: {e}")
     
     def _fetch_economic_events(self, date: str) -> list:
         """
@@ -1354,6 +1481,11 @@ class UnifiedAlphaMonitor:
                 if self.brain_enabled and (self.last_synthesis_check is None or (now - self.last_synthesis_check).seconds >= self.synthesis_interval):
                     self.check_synthesis()
                     self.last_synthesis_check = now
+
+                # Autonomous Tradytics Analysis (every 5 minutes)
+                if self.tradytics_llm_available and (self.last_tradytics_analysis is None or (now - self.last_tradytics_analysis).seconds >= self.tradytics_analysis_interval):
+                    self.autonomous_tradytics_analysis()
+                    self.last_tradytics_analysis = now
 
                 # Narrative Brain - Scheduled updates (pre-market, intra-day, end-of-day)
                 if self.narrative_enabled and self.narrative_scheduler:

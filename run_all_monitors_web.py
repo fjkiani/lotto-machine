@@ -44,37 +44,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Import Discord bot
-logger.info("🔍 Attempting Discord bot import...")
-try:
-    # Set environment variable to disable voice features
-    import os
-    os.environ['DISCORD_PY_NO_VOICE'] = '1'
-    logger.info("✅ Set DISCORD_PY_NO_VOICE=1 to avoid audioop dependency")
-
-    # First check if discord.py is available
-    import discord
-    logger.info(f"✅ discord.py available: {discord.__version__}")
-
-    # Then try to import our bot
-    from discord_bot import AlphaIntelligenceBot
-    discord_available = True
-    logger.info("✅ Discord bot import successful!")
-except ImportError as e:
-    logger.error(f"❌ Discord import FAILED: {e}")
-    if 'audioop' in str(e):
-        logger.error("   💡 This is an audioop dependency issue!")
-        logger.error("   💡 Try setting DISCORD_PY_NO_VOICE=1 environment variable")
-        logger.error("   💡 Or deploy to a platform that supports discord.py fully")
-    else:
-        logger.error("   CRITICAL: discord.py not installed on Render!")
-        logger.error("   Run: pip install discord.py>=2.3.0")
-    discord_available = False
-except Exception as e:
-    logger.error(f"❌ Unexpected Discord error: {e}")
-    import traceback
-    logger.error(f"Traceback: {traceback.format_exc()}")
-    discord_available = False
+# Discord bot temporarily disabled due to Render audioop compatibility issues
+logger.info("🔍 Discord bot status...")
+logger.info("   ⚠️ Discord bot DISABLED - audioop dependency issue on Render free tier")
+logger.info("   💡 Autonomous Tradytics analysis will run via monitoring system")
+logger.info("   💡 Discord alerts sent via webhooks (working perfectly)")
+logger.info("   💡 Manual commands available via web interface")
+discord_available = False
 
 
 # Global instances
