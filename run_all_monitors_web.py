@@ -37,11 +37,15 @@ base_path = Path(__file__).parent
 sys.path.insert(0, str(base_path))
 
 # Import Discord bot
+logger.info("🔍 Attempting Discord bot import...")
 try:
     from discord_bot import AlphaIntelligenceBot
     discord_available = True
+    logger.info("✅ Discord bot import successful!")
 except ImportError as e:
-    logger.warning(f"Discord bot not available: {e}")
+    logger.error(f"❌ Discord bot import FAILED: {e}")
+    logger.error("   This means discord_bot.py has import errors")
+    logger.error("   Check if discord.py is installed: pip install discord.py>=2.3.0")
     discord_available = False
 
 # Setup logging
@@ -100,17 +104,36 @@ def run_discord_bot():
     """Run Discord bot in background thread"""
     global discord_bot
 
+    logger.info("🔍 Checking Discord bot availability...")
+    logger.info(f"   discord_available: {discord_available}")
+
     if not discord_available:
-        logger.warning("   ⚠️ Discord bot not available - skipping")
+        logger.error("❌ CRITICAL: Discord bot import failed!")
+        logger.error("   Check if discord.py is installed and import path is correct")
+        logger.error("   Run: pip install discord.py>=2.3.0")
         return
 
     try:
-        logger.info("🤖 Starting Discord bot...")
+        logger.info("🤖 Initializing Alpha Intelligence Bot...")
         discord_bot = AlphaIntelligenceBot()
-        discord_bot.run()
+
+        # Check token before running
+        token = os.getenv("DISCORD_BOT_TOKEN")
+        if not token:
+            logger.error("❌ CRITICAL: DISCORD_BOT_TOKEN not found in environment!")
+            logger.error("   Set DISCORD_BOT_TOKEN in Render environment variables")
+            return
+
+        logger.info(f"🤖 Bot token found (length: {len(token)})")
+        logger.info("🤖 Starting Discord bot connection...")
+
+        # This will block the thread until bot stops
+        discord_bot.run(token)
+
     except Exception as e:
-        logger.error(f"❌ Discord bot error: {e}")
+        logger.error(f"❌ FATAL: Discord bot crashed: {e}")
         import traceback
+        logger.error("Full traceback:")
         logger.error(traceback.format_exc())
 
 
