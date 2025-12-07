@@ -1,5 +1,5 @@
 services:
-  # Web service for monitoring system (health checks, web interface)
+  # Web service for monitoring system + Discord bot (health checks, web interface, bot)
   - type: web
     name: alpha-intelligence-monitor
     env: python
@@ -16,21 +16,10 @@ services:
         sync: false  # Set this in Render dashboard
       - key: ALPHA_VANTAGE_API_KEY
         sync: false  # Set this in Render dashboard - get key from alphavantage.co
-      - key: PYTHON_VERSION
-        value: 3.9
-    plan: free  # FREE tier - Web Service is free!
-
-  # Worker service for Discord bot
-  - type: worker
-    name: alpha-intelligence-bot
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python3 discord_bot.py
-    envVars:
       - key: DISCORD_BOT_TOKEN
         sync: false  # Set this in Render dashboard
       - key: GEMINI_API_KEY
         sync: false  # Set this in Render dashboard
       - key: PYTHON_VERSION
         value: 3.9
-    plan: free  # FREE tier - Worker is free!
+    plan: free  # FREE tier - Web Service is free!

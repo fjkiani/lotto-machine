@@ -36,6 +36,14 @@ import json
 base_path = Path(__file__).parent
 sys.path.insert(0, str(base_path))
 
+# Import Discord bot
+try:
+    from discord_bot import AlphaIntelligenceBot
+    discord_available = True
+except ImportError as e:
+    logger.warning(f"Discord bot not available: {e}")
+    discord_available = False
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -45,8 +53,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# Global monitor instance
+# Global instances
 monitor = None
+discord_bot = None
 
 
 def run_monitors():
@@ -69,12 +78,12 @@ def run_monitors():
 def self_ping():
     """
     Self-ping to keep Render free tier awake.
-    
+
     Pings the health endpoint every 10 minutes to prevent sleep.
     """
     port = int(os.getenv('PORT', 8000))
     url = f"http://localhost:{port}/health"
-    
+
     while True:
         try:
             time.sleep(600)  # Every 10 minutes
@@ -85,6 +94,24 @@ def self_ping():
                 logger.warning(f"⚠️ Self-ping returned {response.status_code}")
         except Exception as e:
             logger.debug(f"Self-ping error: {e}")
+
+
+def run_discord_bot():
+    """Run Discord bot in background thread"""
+    global discord_bot
+
+    if not discord_available:
+        logger.warning("   ⚠️ Discord bot not available - skipping")
+        return
+
+    try:
+        logger.info("🤖 Starting Discord bot...")
+        discord_bot = AlphaIntelligenceBot()
+        discord_bot.run()
+    except Exception as e:
+        logger.error(f"❌ Discord bot error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -220,7 +247,15 @@ def main():
     ping_thread = threading.Thread(target=self_ping, daemon=True)
     ping_thread.start()
     logger.info("   ✅ Self-ping thread started (pings every 10 min)")
-    
+
+    # Start Discord bot thread
+    if discord_available:
+        discord_thread = threading.Thread(target=run_discord_bot, daemon=True)
+        discord_thread.start()
+        logger.info("   ✅ Discord bot thread started")
+    else:
+        logger.warning("   ⚠️ Discord bot not available (missing dependencies?)")
+
     # Start HTTP server
     port = int(os.getenv('PORT', 8000))
     server = HTTPServer(('0.0.0.0', port), HealthHandler)
