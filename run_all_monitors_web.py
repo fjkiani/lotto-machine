@@ -216,6 +216,125 @@ class HealthHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"error": "Use POST method for webhook"}).encode())
 
+        elif self.path == '/tradytics-forward':
+            # Discord webhook forwarding endpoint - receives from Discord, forwards to analysis
+            try:
+                # Read the Discord webhook payload
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length)
+                discord_payload = json.loads(post_data.decode('utf-8'))
+
+                logger.info(f"🔄 Received Discord webhook forward: {discord_payload}")
+
+                # Convert Discord webhook format to our analysis format
+                if 'embeds' in discord_payload and discord_payload['embeds']:
+                    # Handle Discord embed format
+                    embed = discord_payload['embeds'][0]
+                    analysis_payload = {
+                        'content': embed.get('description', '') or embed.get('title', ''),
+                        'author': {'username': discord_payload.get('username', 'DiscordWebhook')},
+                        'timestamp': discord_payload.get('timestamp', datetime.now().isoformat())
+                    }
+                else:
+                    # Handle simple message format
+                    analysis_payload = {
+                        'content': discord_payload.get('content', ''),
+                        'author': {'username': discord_payload.get('username', 'DiscordWebhook')},
+                        'timestamp': discord_payload.get('timestamp', datetime.now().isoformat())
+                    }
+
+                # First, forward the original message to Discord
+                discord_webhook_url = os.getenv('DISCORD_WEBHOOK_URL')
+                if discord_webhook_url:
+                    try:
+                        # Forward original message to Discord
+                        forward_payload = {
+                            "content": f"📡 **TRADYTICS ALERT** | {analysis_payload['author']['username']}\n{analysis_payload['content']}",
+                            "username": "Tradytics Forwarder"
+                        }
+
+                        forward_response = requests.post(discord_webhook_url, json=forward_payload, timeout=5)
+                        if forward_response.status_code == 204:
+                            logger.info("✅ Forwarded original message to Discord")
+                        else:
+                            logger.warning(f"⚠️ Discord forward failed: {forward_response.status_code}")
+                    except Exception as e:
+                        logger.error(f"❌ Discord forwarding error: {e}")
+
+                # Then trigger analysis
+                if monitor and hasattr(monitor, 'process_tradytics_webhook'):
+                    result = monitor.process_tradytics_webhook(analysis_payload)
+
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "forwarded_and_analyzed", "result": result}).encode())
+                else:
+                    self.send_response(503)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Analysis system not available"}).encode())
+
+            except Exception as e:
+                logger.error(f"❌ Forwarding error: {e}")
+                self.send_response(500)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
+
+        elif self.path == '/tradytics-webhook':
+            # Tradytics webhook endpoint info - GET request
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+
+            info = {
+                "endpoint": "POST /tradytics-webhook",
+                "description": "Receive Tradytics alerts for autonomous savage analysis",
+                "webhook_url": f"https://{self.headers.get('Host', 'lotto-machine.onrender.com')}/tradytics-webhook",
+                "expected_format": {
+                    "content": "Alert message text (e.g., 'Bullseye: NVDA $950 CALL SWEEP - $2.3M PREMIUM')",
+                    "author": {"username": "BotName (e.g., 'Bullseye', 'Darkpool')"},
+                    "timestamp": "ISO timestamp (optional)"
+                },
+                "example_payload": {
+                    "content": "Bullseye: NVDA $950 CALL SWEEP - $2.3M PREMIUM - Institutional buying detected",
+                    "author": {"username": "Bullseye"},
+                    "timestamp": "2025-12-07T06:00:00.000Z"
+                },
+                "how_to_use": [
+                    "Configure your Tradytics webhook to POST to this URL",
+                    "Or use Zapier/Make.com to forward Tradytics Discord messages",
+                    "Every alert will get instant savage LLM analysis",
+                    "Results posted back to your Discord channel"
+                ],
+                "status": "active",
+                "last_processed": getattr(monitor, 'last_tradytics_analysis', None) if monitor else None
+            }
+            self.wfile.write(json.dumps(info, indent=2).encode())
+
+        elif self.path == '/tradytics-forward':
+            # Tradytics forwarding endpoint info - GET request
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+
+            info = {
+                "endpoint": "POST /tradytics-forward",
+                "description": "Forward Discord webhooks to autonomous analysis",
+                "webhook_url": f"https://{self.headers.get('Host', 'lotto-machine.onrender.com')}/tradytics-forward",
+                "purpose": "Use this URL in place of Discord webhook URLs to get autonomous analysis",
+                "how_it_works": [
+                    "Discord webhook sends message to THIS URL instead of Discord",
+                    "We analyze the message with savage LLM",
+                    "We forward the analyzed message to your Discord channel",
+                    "Result: Every alert gets instant institutional analysis"
+                ],
+                "discord_webhook_format": "Compatible with standard Discord webhook payloads",
+                "status": "active"
+            }
+            self.wfile.write(json.dumps(info, indent=2).encode())
+
         elif self.path == '/status':
             # Detailed status
             self.send_response(200)
