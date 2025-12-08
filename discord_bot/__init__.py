@@ -7,3 +7,4 @@ Modular Discord bot for savage market intelligence and autonomous Tradytics inte
 from .bot import AlphaIntelligenceBot
 
 __all__ = ['AlphaIntelligenceBot']
+

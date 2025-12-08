@@ -106,3 +106,4 @@ class PerformanceAnalyzer:
             'avg_pnl_diff': narrative_metrics.avg_pnl_per_trade - current_metrics.avg_pnl_per_trade
         }
 
+

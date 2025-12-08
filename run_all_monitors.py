@@ -736,7 +736,7 @@ class UnifiedAlphaMonitor:
                         # Send analysis to Discord
                         self._send_tradytics_analysis_alert(alert, analysis)
                         logger.info(f"✅ Processed webhook alert from {author}")
-                        return {"status": "analyzed", "alert_processed": True}
+                        return {"status": "analyzed", "alert_processed": True, "analysis": analysis[:200]}
                     else:
                         logger.warning(f"⚠️ Analysis failed for webhook alert from {author}")
                         return {"status": "analysis_failed", "alert_processed": False}

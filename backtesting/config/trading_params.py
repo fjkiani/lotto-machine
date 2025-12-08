@@ -39,3 +39,4 @@ class TradingParams:
 # Default configuration
 DEFAULT_PARAMS = TradingParams()
 
+

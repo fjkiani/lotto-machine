@@ -17,10 +17,11 @@ sys.path.insert(0, str(base_path))
 from discord_bot.bot import AlphaIntelligenceBot
 
 # Import and setup all command modules
-from discord_bot.commands import economic, market, savage, status, tradytics
+from discord_bot.commands import alpha, economic, market, savage, status, tradytics
 
 def setup_commands(bot):
     """Setup all command modules"""
+    alpha.setup(bot)       # 🧠 Alpha Intelligence Agent (NEW!)
     economic.setup(bot)
     market.setup(bot)
     savage.setup(bot)

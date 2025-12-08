@@ -224,3 +224,4 @@ my_trades = my_sim.simulate(alerts)
 
 **Ready to backtest any session with one command!** 🚀
 
+

@@ -105,3 +105,4 @@ class SavageLLMService:
             "available_levels": list(self.get_available_levels().keys())
         }
 
+

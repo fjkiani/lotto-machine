@@ -45,3 +45,4 @@ def setup(bot):
 
         except Exception as e:
             await interaction.followup.send("❌ Market analysis failed. The algorithms are fighting back!")
+

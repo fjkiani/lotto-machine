@@ -101,3 +101,4 @@ class NarrativeBrainSimulator:
             return datetime.now() - self.last_alert_time
         return timedelta(hours=6)  # Default: been quiet
 
+

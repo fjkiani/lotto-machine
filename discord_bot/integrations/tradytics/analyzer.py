@@ -57,3 +57,4 @@ class TradyticsAnalyzer:
         except Exception as e:
             logger.error(f"❌ Error analyzing Tradytics alert: {e}")
             return None
+

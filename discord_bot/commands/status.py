@@ -51,3 +51,4 @@ def setup(bot):
 
         except Exception as e:
             await interaction.response.send_message("❌ Status check failed. The matrix is glitching.")
+

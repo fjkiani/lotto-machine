@@ -62,3 +62,4 @@ class TradyticsParser:
         except Exception as e:
             logger.error(f"❌ Error parsing Tradytics alert: {e}")
             return None
+

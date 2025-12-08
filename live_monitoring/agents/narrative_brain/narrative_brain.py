@@ -607,3 +607,4 @@ class NarrativeBrain:
         return context
 
 
+

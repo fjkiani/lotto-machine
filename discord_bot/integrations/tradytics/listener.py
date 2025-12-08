@@ -80,3 +80,4 @@ class TradyticsListener:
 
         except Exception as e:
             logger.error(f"❌ Error processing Tradytics alert: {e}")
+

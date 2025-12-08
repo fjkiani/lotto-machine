@@ -87,3 +87,4 @@ def setup(bot):
         embed.set_footer(text="Alpha Intelligence | Autonomous Tradytics Integration")
 
         await interaction.followup.send(embed=embed)
+

@@ -105,3 +105,4 @@ class AlphaIntelligenceBot(discord.Client):
             logger.info('🔥 Alpha Intelligence Bot ready to savage the markets!')
         else:
             logger.warning('⚠️ Bot connected but savage LLM not ready')
+
