@@ -187,27 +187,108 @@ class HealthHandler(BaseHTTPRequestHandler):
         """Handle POST requests (webhooks)"""
         global monitor
 
-        if self.path == '/tradytics-webhook':
+        if self.path == '/tradytics-webhook' or self.path == '/tradytics-forward':
             try:
                 # Read the request body
-                content_length = int(self.headers['Content-Length'])
+                content_length = int(self.headers.get('Content-Length', 0))
+                if content_length == 0:
+                    logger.warning("⚠️ Empty request body received")
+                    self.send_response(400)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Empty request body"}).encode())
+                    return
+
                 post_data = self.rfile.read(content_length)
                 webhook_data = json.loads(post_data.decode('utf-8'))
 
-                logger.info(f"📥 Received Tradytics webhook: {webhook_data}")
+                logger.info(f"📥 Received Tradytics webhook at {self.path}: {json.dumps(webhook_data)[:200]}...")
+
+                # Convert Discord webhook format to our analysis format
+                # Tradytics might send different formats - handle all cases
+                analysis_payload = {
+                    'content': '',
+                    'author': {'username': 'TradyticsBot'},
+                    'timestamp': datetime.now().isoformat()
+                }
+
+                # Try to extract content from various possible formats
+                if 'embeds' in webhook_data and webhook_data['embeds']:
+                    # Handle Discord embed format
+                    embed = webhook_data['embeds'][0]
+                    analysis_payload['content'] = (
+                        embed.get('description', '') or 
+                        embed.get('title', '') or 
+                        embed.get('fields', [{}])[0].get('value', '') if embed.get('fields') else ''
+                    )
+                    analysis_payload['author']['username'] = webhook_data.get('username', embed.get('author', {}).get('name', 'TradyticsBot'))
+                elif 'content' in webhook_data:
+                    # Handle simple message format
+                    analysis_payload['content'] = webhook_data.get('content', '')
+                    analysis_payload['author']['username'] = webhook_data.get('username', 'TradyticsBot')
+                elif 'message' in webhook_data:
+                    # Handle nested message format
+                    message = webhook_data['message']
+                    analysis_payload['content'] = message.get('content', str(message))
+                    analysis_payload['author']['username'] = message.get('author', {}).get('username', 'TradyticsBot')
+                elif 'text' in webhook_data or 'alert' in webhook_data:
+                    # Handle custom Tradytics format
+                    analysis_payload['content'] = webhook_data.get('text', webhook_data.get('alert', str(webhook_data)))
+                    analysis_payload['author']['username'] = webhook_data.get('bot_name', webhook_data.get('source', 'TradyticsBot'))
+                else:
+                    # Fallback: try to extract any text content
+                    analysis_payload['content'] = str(webhook_data)
+                    analysis_payload['author']['username'] = webhook_data.get('username', webhook_data.get('bot', 'TradyticsBot'))
+
+                # If still no content, use the whole payload as string
+                if not analysis_payload['content'] or analysis_payload['content'] == '{}':
+                    analysis_payload['content'] = json.dumps(webhook_data, indent=2)
+
+                logger.info(f"📊 Parsed alert content: {analysis_payload['content'][:100]}...")
+
+                # First, forward the original message to Discord (for /tradytics-forward)
+                if self.path == '/tradytics-forward':
+                    discord_webhook_url = os.getenv('DISCORD_WEBHOOK_URL')
+                    if discord_webhook_url:
+                        try:
+                            bot_name = analysis_payload['author']['username']
+                            emoji_map = {
+                                'Bullseye': '🎯',
+                                'Darkpool': '🔒',
+                                'Spidey': '🕷️',
+                                'Captain': '⚓',
+                                'default': '📡'
+                            }
+                            emoji = emoji_map.get(bot_name.split()[0], emoji_map['default'])
+
+                            forward_payload = {
+                                "content": f"{emoji} **TRADYTICS ALERT** | {bot_name}\n{analysis_payload['content']}",
+                                "username": "Tradytics Forwarder"
+                            }
+
+                            forward_response = requests.post(discord_webhook_url, json=forward_payload, timeout=5)
+                            if forward_response.status_code == 204:
+                                logger.info(f"✅ Forwarded {bot_name} alert to Discord")
+                            else:
+                                logger.warning(f"⚠️ Discord forward failed: {forward_response.status_code} - {forward_response.text}")
+                        except Exception as e:
+                            logger.error(f"❌ Discord forwarding error: {e}")
 
                 # Process with Tradytics Ecosystem
                 if tradytics_available and synthesis_engine:
-                    # Determine agent based on webhook URL or content
+                    # Determine agent based on content
                     agent = self._select_tradytics_agent(analysis_payload)
+                    logger.info(f"🤖 Selected agent: {agent.agent_name if agent else 'None'}")
 
                     if agent:
                         # Process with specialized agent
                         result = agent.process_alert(analysis_payload['content'])
+                        logger.info(f"📊 Agent processing result: success={result.get('success')}, confidence={result.get('analysis', {}).get('confidence', 0):.1%}")
 
                         if result['success']:
                             # Add to synthesis engine
                             synthesis_result = synthesis_engine.add_signal(result)
+                            logger.info(f"🧠 Synthesis generated: direction={synthesis_result.get('market_synthesis', {}).get('overall_direction', 'unknown')}")
 
                             # Send comprehensive analysis to Discord
                             self._send_synthesized_analysis(synthesis_result)
@@ -222,11 +303,13 @@ class HealthHandler(BaseHTTPRequestHandler):
                                 "result": result
                             }).encode())
                         else:
+                            logger.error(f"❌ Agent processing failed: {result.get('error', 'Unknown error')}")
                             self.send_response(400)
                             self.send_header('Content-type', 'application/json')
                             self.end_headers()
                             self.wfile.write(json.dumps({"error": "Analysis failed", "details": result}).encode())
                     else:
+                        logger.warning("⚠️ No suitable agent found for alert")
                         self.send_response(400)
                         self.send_header('Content-type', 'application/json')
                         self.end_headers()
@@ -238,8 +321,16 @@ class HealthHandler(BaseHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(json.dumps({"error": "Tradytics system not available"}).encode())
 
+            except json.JSONDecodeError as e:
+                logger.error(f"❌ JSON decode error: {e}")
+                self.send_response(400)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"Invalid JSON: {str(e)}"}).encode())
             except Exception as e:
                 logger.error(f"❌ Webhook processing error: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
                 self.send_response(500)
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
@@ -254,15 +345,47 @@ class HealthHandler(BaseHTTPRequestHandler):
     def _select_tradytics_agent(self, analysis_payload):
         """Select appropriate Tradytics agent based on content"""
         content = analysis_payload.get('content', '').upper()
+        bot_name = analysis_payload.get('author', {}).get('username', '').upper()
 
-        # Route to appropriate agent
-        if 'CALL' in content or 'PUT' in content or 'SWEEP' in content:
+        logger.info(f"🔍 Selecting agent for content: {content[:100]}... (bot: {bot_name})")
+
+        # Route based on bot name first (more reliable)
+        if 'BULLSEYE' in bot_name or 'BULLS' in bot_name:
+            # Bullseye sends trade ideas - use options agent
+            logger.info("   → Routing to OptionsSweepsAgent (Bullseye bot)")
             return tradytics_agents.get('options_sweeps')
-        elif 'BLOCK' in content or 'DARKPOOL' in content or 'DARK POOL' in content:
+        elif 'DARKPOOL' in bot_name:
+            logger.info("   → Routing to DarkpoolAgent (Darkpool bot)")
+            return tradytics_agents.get('darkpool')
+        elif 'SPIDEY' in bot_name:
+            # Spidey sends options sweeps and analyst grades
+            if 'SWEEP' in content or 'CALL' in content or 'PUT' in content:
+                logger.info("   → Routing to OptionsSweepsAgent (Spidey - options)")
+                return tradytics_agents.get('options_sweeps')
+            elif 'ANALYST' in content or 'GRADE' in content:
+                # Would use AnalystGradesAgent when implemented
+                logger.info("   → Routing to OptionsSweepsAgent (Spidey - analyst, fallback)")
+                return tradytics_agents.get('options_sweeps')
+            else:
+                logger.info("   → Routing to OptionsSweepsAgent (Spidey - default)")
+                return tradytics_agents.get('options_sweeps')
+        elif 'CAPTAIN' in bot_name or 'HOOK' in bot_name:
+            # Captain Hook sends Trady Flow
+            logger.info("   → Routing to OptionsSweepsAgent (Captain Hook - trady flow)")
+            return tradytics_agents.get('options_sweeps')
+
+        # Route based on content keywords
+        if 'CALL' in content or 'PUT' in content or 'SWEEP' in content or 'OPTIONS' in content or 'GOLDEN' in content:
+            logger.info("   → Routing to OptionsSweepsAgent (content keywords)")
+            return tradytics_agents.get('options_sweeps')
+        elif 'BLOCK' in content or 'DARKPOOL' in content or 'DARK POOL' in content or 'DARKPOOL SIGNAL' in content:
+            logger.info("   → Routing to DarkpoolAgent (content keywords)")
             return tradytics_agents.get('darkpool')
         else:
             # Default to first available agent
-            return next(iter(tradytics_agents.values()), None)
+            default_agent = next(iter(tradytics_agents.values()), None)
+            logger.info(f"   → Routing to default agent: {default_agent.agent_name if default_agent else 'None'}")
+            return default_agent
 
     def _send_synthesized_analysis(self, synthesis_result):
         """Send comprehensive analysis to Discord"""
@@ -314,81 +437,28 @@ class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         global monitor
 
-        if self.path == '/tradytics-forward':
-            # Discord webhook forwarding endpoint - receives from Discord, forwards to analysis
-            try:
-                # Read the Discord webhook payload
-                content_length = int(self.headers['Content-Length'])
-                post_data = self.rfile.read(content_length)
-                discord_payload = json.loads(post_data.decode('utf-8'))
+        elif self.path == '/tradytics-forward':
+            # Tradytics forwarding endpoint info - GET request
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
 
-                logger.info(f"🔄 Received Discord webhook forward: {discord_payload}")
-
-                # Convert Discord webhook format to our analysis format
-                if 'embeds' in discord_payload and discord_payload['embeds']:
-                    # Handle Discord embed format
-                    embed = discord_payload['embeds'][0]
-                    analysis_payload = {
-                        'content': embed.get('description', '') or embed.get('title', ''),
-                        'author': {'username': discord_payload.get('username', 'DiscordWebhook')},
-                        'timestamp': discord_payload.get('timestamp', datetime.now().isoformat())
-                    }
-                else:
-                    # Handle simple message format
-                    analysis_payload = {
-                        'content': discord_payload.get('content', ''),
-                        'author': {'username': discord_payload.get('username', 'DiscordWebhook')},
-                        'timestamp': discord_payload.get('timestamp', datetime.now().isoformat())
-                    }
-
-                # First, forward the original message to Discord
-                discord_webhook_url = os.getenv('DISCORD_WEBHOOK_URL')
-                if discord_webhook_url:
-                    try:
-                        # Identify the bot type for better formatting
-                        bot_name = analysis_payload['author']['username']
-                        emoji_map = {
-                            'Bullseye': '🎯',
-                            'Darkpool': '🔒',
-                            'Spidey': '🕷️',
-                            'default': '📡'
-                        }
-                        emoji = emoji_map.get(bot_name.split()[0], emoji_map['default'])
-
-                        # Forward original message to Discord
-                        forward_payload = {
-                            "content": f"{emoji} **TRADYTICS ALERT** | {bot_name}\n{analysis_payload['content']}",
-                            "username": "Tradytics Forwarder"
-                        }
-
-                        forward_response = requests.post(discord_webhook_url, json=forward_payload, timeout=5)
-                        if forward_response.status_code == 204:
-                            logger.info(f"✅ Forwarded {bot_name} alert to Discord")
-                        else:
-                            logger.warning(f"⚠️ Discord forward failed: {forward_response.status_code}")
-                    except Exception as e:
-                        logger.error(f"❌ Discord forwarding error: {e}")
-
-                # Then trigger analysis
-                if monitor and hasattr(monitor, 'process_tradytics_webhook'):
-                    result = monitor.process_tradytics_webhook(analysis_payload)
-
-                    self.send_response(200)
-                    self.send_header('Content-type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"status": "forwarded_and_analyzed", "result": result}).encode())
-                else:
-                    self.send_response(503)
-                    self.send_header('Content-type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"error": "Analysis system not available"}).encode())
-
-            except Exception as e:
-                logger.error(f"❌ Forwarding error: {e}")
-                self.send_response(500)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode())
+            info = {
+                "endpoint": "POST /tradytics-forward",
+                "description": "Forward Discord webhooks to autonomous analysis",
+                "webhook_url": f"https://{self.headers.get('Host', 'lotto-machine.onrender.com')}/tradytics-forward",
+                "purpose": "Use this URL in place of Discord webhook URLs to get autonomous analysis",
+                "how_it_works": [
+                    "Discord webhook sends message to THIS URL instead of Discord",
+                    "We analyze the message with savage LLM",
+                    "We forward the analyzed message to your Discord channel",
+                    "Result: Every alert gets instant institutional analysis"
+                ],
+                "discord_webhook_format": "Compatible with standard Discord webhook payloads",
+                "status": "active",
+                "note": "This endpoint accepts POST requests. Use POST method for webhook forwarding."
+            }
+            self.wfile.write(json.dumps(info, indent=2).encode())
 
         elif self.path == '/tradytics-webhook':
             # Tradytics webhook endpoint info - GET request
@@ -442,6 +512,39 @@ class HealthHandler(BaseHTTPRequestHandler):
                 "status": "active"
             }
             self.wfile.write(json.dumps(info, indent=2).encode())
+
+        elif self.path == '/webhook-debug':
+            # Debug endpoint to check webhook configuration
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+
+            debug_info = {
+                "webhook_endpoints": {
+                    "/tradytics-forward": "POST - Main forwarding endpoint (use this)",
+                    "/tradytics-webhook": "POST - Direct webhook endpoint",
+                    "/webhook-debug": "GET - This debug endpoint"
+                },
+                "configuration": {
+                    "discord_webhook_url_set": bool(os.getenv('DISCORD_WEBHOOK_URL')),
+                    "tradytics_ecosystem_available": tradytics_available,
+                    "agents_loaded": len(tradytics_agents) if tradytics_available else 0,
+                    "synthesis_engine_ready": synthesis_engine is not None if tradytics_available else False
+                },
+                "instructions": {
+                    "step_1": "Replace all Tradytics webhook URLs with: https://lotto-machine.onrender.com/tradytics-forward",
+                    "step_2": "Check Render logs for '📥 Received Tradytics webhook' messages",
+                    "step_3": "Verify DISCORD_WEBHOOK_URL environment variable is set",
+                    "step_4": "Test with: curl -X POST https://lotto-machine.onrender.com/tradytics-forward -H 'Content-Type: application/json' -d '{\"content\":\"Test alert\",\"username\":\"TestBot\"}'"
+                },
+                "troubleshooting": {
+                    "no_alerts_received": "Check if Tradytics webhook URLs were actually changed",
+                    "alerts_received_but_no_discord": "Check DISCORD_WEBHOOK_URL environment variable",
+                    "analysis_failed": "Check Render logs for agent processing errors",
+                    "check_logs": "Go to Render Dashboard → Logs tab → Look for '📥 Received Tradytics webhook'"
+                }
+            }
+            self.wfile.write(json.dumps(debug_info, indent=2).encode())
 
         elif self.path == '/test-tradytics':
             # Test endpoint to verify Tradytics ecosystem works
