@@ -40,36 +40,81 @@ class DarkpoolAgent(BaseTradyticsAgent):
             'trade_size': None,
             'price': None,
             'direction': None,
-            'block_type': 'single'  # single, sweep, iceberg
+            'block_type': 'single',  # single, sweep, iceberg
+            'shares': None,
+            'amount': None
         }
 
-        # Extract trade size
-        size_match = re.search(r'[\$](\d+(?:\.\d+)?)\s*(?:M|MM|B)', alert_text, re.IGNORECASE)
-        if size_match:
-            value = float(size_match.group(1))
-            unit = re.search(r'(M|MM|B)', alert_text[size_match.end():size_match.end()+3], re.IGNORECASE)
-            if unit:
-                if unit.group(1).upper() in ['M', 'MM']:
-                    parsed['trade_size'] = value * 1_000_000
-                elif unit.group(1).upper() == 'B':
-                    parsed['trade_size'] = value * 1_000_000_000
-
-        # Extract price
-        price_match = re.search(r'[\$](\d+\.?\d*)', alert_text)
-        if price_match and not parsed.get('trade_size'):  # Avoid confusing with size
+        # Handle structured format: "Price: 685.831 - Shares: 1.4M - Amount: 960.16M"
+        price_match = re.search(r'Price:\s*([\d.]+)', alert_text, re.IGNORECASE)
+        if price_match:
             parsed['price'] = float(price_match.group(1))
+
+        # Extract shares
+        shares_match = re.search(r'Shares:\s*([\d.]+)\s*([KM]?)', alert_text, re.IGNORECASE)
+        if shares_match:
+            value = float(shares_match.group(1))
+            unit = shares_match.group(2).upper() if shares_match.group(2) else ''
+            if unit == 'K':
+                parsed['shares'] = value * 1_000
+            elif unit == 'M':
+                parsed['shares'] = value * 1_000_000
+            else:
+                parsed['shares'] = value
+
+        # Extract amount
+        amount_match = re.search(r'Amount:\s*([\d.]+)\s*([KM]?)', alert_text, re.IGNORECASE)
+        if amount_match:
+            value = float(amount_match.group(1))
+            unit = amount_match.group(2).upper() if amount_match.group(2) else 'M'  # Default to M
+            if unit == 'K':
+                parsed['amount'] = value * 1_000
+            elif unit == 'M':
+                parsed['amount'] = value * 1_000_000
+            elif unit == 'B':
+                parsed['amount'] = value * 1_000_000_000
+            else:
+                parsed['amount'] = value * 1_000_000  # Assume millions if no unit
+
+        # Use amount as trade_size if available
+        if parsed.get('amount'):
+            parsed['trade_size'] = parsed['amount']
+
+        # Fallback: Extract trade size from generic patterns
+        if not parsed.get('trade_size'):
+            size_match = re.search(r'[\$](\d+(?:\.\d+)?)\s*(?:M|MM|B)', alert_text, re.IGNORECASE)
+            if size_match:
+                value = float(size_match.group(1))
+                unit_text = alert_text[size_match.end():size_match.end()+3].upper()
+                if 'B' in unit_text:
+                    parsed['trade_size'] = value * 1_000_000_000
+                elif 'M' in unit_text or 'MM' in unit_text:
+                    parsed['trade_size'] = value * 1_000_000
+                else:
+                    parsed['trade_size'] = value
+
+        # Extract price (fallback)
+        if not parsed.get('price'):
+            price_match = re.search(r'[\$](\d+\.?\d*)', alert_text)
+            if price_match:
+                parsed['price'] = float(price_match.group(1))
 
         # Determine direction from context
         if any(word in alert_text.upper() for word in ['BUY', 'ACCUMULATION', 'LONG']):
             parsed['direction'] = 'bullish'
         elif any(word in alert_text.upper() for word in ['SELL', 'DISTRIBUTION', 'SHORT']):
             parsed['direction'] = 'bearish'
+        else:
+            # Default: Large darkpool activity usually indicates institutional interest
+            parsed['direction'] = 'bullish' if parsed.get('amount', 0) > 500_000_000 else 'neutral'
 
         # Detect block trade patterns
         if 'SWEEP' in alert_text.upper():
             parsed['block_type'] = 'sweep'
         elif 'ICEBERG' in alert_text.upper():
             parsed['block_type'] = 'iceberg'
+        elif 'LARGE' in alert_text.upper() and 'DARKPOOL' in alert_text.upper():
+            parsed['block_type'] = 'large_block'
 
         return parsed
 

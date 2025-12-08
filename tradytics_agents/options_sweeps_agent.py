@@ -43,8 +43,15 @@ class OptionsSweepsAgent(BaseTradyticsAgent):
             'expiration': None,
             'volume': None,
             'premium': None,
-            'direction': None
+            'premiums': None,  # Alternative field name
+            'direction': None,
+            'sweep_type': 'regular'  # regular, golden
         }
+
+        # Detect golden sweep
+        if 'GOLDEN SWEEP' in alert_text.upper():
+            parsed['sweep_type'] = 'golden'
+            parsed['alert_type'] = 'golden_sweep'
 
         # Extract option type (CALL/PUT)
         if 'CALL' in alert_text.upper():
@@ -54,22 +61,47 @@ class OptionsSweepsAgent(BaseTradyticsAgent):
             parsed['option_type'] = 'put'
             parsed['direction'] = 'bearish'
 
-        # Extract strike price
-        strike_match = re.search(r'[\$]?(\d+\.?\d*)\s*(?:CALL|PUT)', alert_text, re.IGNORECASE)
+        # Extract strike price - handle "Strike: 315.0" format
+        strike_match = re.search(r'Strike:\s*([\d.]+)', alert_text, re.IGNORECASE)
         if strike_match:
             parsed['strike_price'] = float(strike_match.group(1))
+        else:
+            # Fallback: look for number before CALL/PUT
+            strike_match = re.search(r'[\$]?(\d+\.?\d*)\s*(?:CALL|PUT)', alert_text, re.IGNORECASE)
+            if strike_match:
+                parsed['strike_price'] = float(strike_match.group(1))
 
-        # Extract expiration (MM/DD format)
-        exp_match = re.search(r'(\d{1,2}/\d{1,2})', alert_text)
+        # Extract expiration - handle "Expiration: 1/16/2026" format
+        exp_match = re.search(r'Expiration:\s*(\d{1,2}/\d{1,2}/\d{4})', alert_text, re.IGNORECASE)
         if exp_match:
             parsed['expiration'] = exp_match.group(1)
+        else:
+            # Fallback: MM/DD format
+            exp_match = re.search(r'(\d{1,2}/\d{1,2}(?:/\d{4})?)', alert_text)
+            if exp_match:
+                parsed['expiration'] = exp_match.group(1)
 
-        # Extract premium amount
-        premium_match = re.search(r'[\$](\d+(?:\.\d+)?)\s*(?:M|MM)', alert_text, re.IGNORECASE)
+        # Extract premium amount - handle "Premiums: 1.13M" format
+        premium_match = re.search(r'Premiums?:\s*([\d.]+)\s*([KM]?)', alert_text, re.IGNORECASE)
         if premium_match:
             value = float(premium_match.group(1))
-            unit = 'M' if 'M' in alert_text[premium_match.end():premium_match.end()+2].upper() else 'MM'
-            parsed['premium'] = value * (1_000_000 if unit == 'M' else 1_000_000)
+            unit = premium_match.group(2).upper() if premium_match.group(2) else 'M'
+            if unit == 'K':
+                parsed['premium'] = value * 1_000
+                parsed['premiums'] = parsed['premium']
+            elif unit == 'M':
+                parsed['premium'] = value * 1_000_000
+                parsed['premiums'] = parsed['premium']
+            else:
+                parsed['premium'] = value * 1_000_000  # Default to millions
+                parsed['premiums'] = parsed['premium']
+        else:
+            # Fallback: generic premium pattern
+            premium_match = re.search(r'[\$](\d+(?:\.\d+)?)\s*(?:M|MM)', alert_text, re.IGNORECASE)
+            if premium_match:
+                value = float(premium_match.group(1))
+                parsed['premium'] = value * 1_000_000
+                parsed['premiums'] = parsed['premium']
 
         return parsed
 
