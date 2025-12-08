@@ -443,6 +443,56 @@ class HealthHandler(BaseHTTPRequestHandler):
             }
             self.wfile.write(json.dumps(info, indent=2).encode())
 
+        elif self.path == '/test-tradytics':
+            # Test endpoint to verify Tradytics ecosystem works
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+
+            test_results = {
+                "test_status": "running",
+                "timestamp": datetime.now().isoformat(),
+                "tradytics_ecosystem": {
+                    "available": tradytics_available,
+                    "agents_loaded": len(tradytics_agents) if tradytics_available else 0,
+                    "synthesis_engine": synthesis_engine is not None if tradytics_available else False
+                },
+                "test_alert": None,
+                "test_result": None
+            }
+
+            # Run a test alert if ecosystem is available
+            if tradytics_available and tradytics_agents:
+                try:
+                    # Test with sample options sweep alert
+                    test_alert = "Bullseye: NVDA $950 CALL SWEEP - $2.3M PREMIUM - Institutional buying detected"
+                    test_results["test_alert"] = test_alert
+
+                    # Process with options agent
+                    options_agent = tradytics_agents.get('options_sweeps')
+                    if options_agent:
+                        result = options_agent.process_alert(test_alert)
+                        test_results["test_result"] = {
+                            "success": result.get('success', False),
+                            "agent": result.get('agent', 'unknown'),
+                            "confidence": result.get('analysis', {}).get('confidence', 0),
+                            "symbols": result.get('parsed_data', {}).get('symbols', []),
+                            "recommendation": result.get('analysis', {}).get('recommendation', {})
+                        }
+
+                        # Test synthesis if available
+                        if synthesis_engine:
+                            synthesis = synthesis_engine.add_signal(result)
+                            test_results["synthesis_test"] = {
+                                "success": True,
+                                "market_direction": synthesis.get('market_synthesis', {}).get('overall_direction', 'unknown'),
+                                "confidence": synthesis.get('market_synthesis', {}).get('overall_confidence', 0)
+                            }
+                except Exception as e:
+                    test_results["test_error"] = str(e)
+
+            self.wfile.write(json.dumps(test_results, indent=2).encode())
+
         elif self.path == '/status':
             # Detailed status
             self.send_response(200)
