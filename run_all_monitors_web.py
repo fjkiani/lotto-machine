@@ -44,13 +44,31 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Discord bot DISABLED - Render free tier audioop incompatibility
+# Initialize Tradytics Ecosystem
+logger.info("🔍 Initializing Tradytics Ecosystem...")
+try:
+    from tradytics_agents import (
+        OptionsSweepsAgent, DarkpoolAgent, TradyticsSynthesisEngine
+    )
+    tradytics_agents = {
+        'options_sweeps': OptionsSweepsAgent(),
+        'darkpool': DarkpoolAgent()
+    }
+    synthesis_engine = TradyticsSynthesisEngine()
+    logger.info("   ✅ Tradytics Ecosystem initialized with specialized agents")
+    tradytics_available = True
+except Exception as e:
+    logger.error(f"   ❌ Tradytics Ecosystem failed: {e}")
+    tradytics_agents = {}
+    synthesis_engine = None
+    tradytics_available = False
+
+# Discord bot DISABLED - Render compatibility issues
 logger.info("🔍 Discord bot status...")
 logger.info("   ❌ DISABLED: discord.py incompatible with Render free tier (audioop dependency)")
-logger.info("   ✅ AUTONOMOUS TRADYTICS: Analysis runs in monitoring system")
-logger.info("   ✅ DISCORD ALERTS: Delivered via webhooks (fully functional)")
-logger.info("   ✅ TRADYTICS WEBHOOK: Ready for external alert forwarding")
-logger.info("   ✅ INTELLIGENCE: Savage LLM analysis every 5 minutes + on-demand")
+logger.info("   ✅ AUTONOMOUS TRADYTICS: Full ecosystem with specialized agents")
+logger.info("   ✅ SYNTHESIS ENGINE: Combines all feed intelligence")
+logger.info("   ✅ DISCORD ALERTS: Webhook delivery of synthesized insights")
 discord_available = False
 
 
@@ -178,20 +196,47 @@ class HealthHandler(BaseHTTPRequestHandler):
 
                 logger.info(f"📥 Received Tradytics webhook: {webhook_data}")
 
-                # Process the webhook data
-                if monitor and hasattr(monitor, 'process_tradytics_webhook'):
-                    result = monitor.process_tradytics_webhook(webhook_data)
+                # Process with Tradytics Ecosystem
+                if tradytics_available and synthesis_engine:
+                    # Determine agent based on webhook URL or content
+                    agent = self._select_tradytics_agent(analysis_payload)
 
-                    self.send_response(200)
-                    self.send_header('Content-type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"status": "processed", "result": result}).encode())
+                    if agent:
+                        # Process with specialized agent
+                        result = agent.process_alert(analysis_payload['content'])
+
+                        if result['success']:
+                            # Add to synthesis engine
+                            synthesis_result = synthesis_engine.add_signal(result)
+
+                            # Send comprehensive analysis to Discord
+                            self._send_synthesized_analysis(synthesis_result)
+
+                            self.send_response(200)
+                            self.send_header('Content-type', 'application/json')
+                            self.end_headers()
+                            self.wfile.write(json.dumps({
+                                "status": "processed",
+                                "agent": result['agent'],
+                                "synthesis_generated": True,
+                                "result": result
+                            }).encode())
+                        else:
+                            self.send_response(400)
+                            self.send_header('Content-type', 'application/json')
+                            self.end_headers()
+                            self.wfile.write(json.dumps({"error": "Analysis failed", "details": result}).encode())
+                    else:
+                        self.send_response(400)
+                        self.send_header('Content-type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"error": "No suitable agent found for alert"}).encode())
                 else:
-                    logger.error("❌ Monitor not available for webhook processing")
-                    self.send_response(503)  # Service Unavailable
+                    logger.error("❌ Tradytics ecosystem not available")
+                    self.send_response(503)
                     self.send_header('Content-type', 'application/json')
                     self.end_headers()
-                    self.wfile.write(json.dumps({"error": "Monitor not available"}).encode())
+                    self.wfile.write(json.dumps({"error": "Tradytics system not available"}).encode())
 
             except Exception as e:
                 logger.error(f"❌ Webhook processing error: {e}")
@@ -205,6 +250,66 @@ class HealthHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps({"error": "Endpoint not found"}).encode())
+
+    def _select_tradytics_agent(self, analysis_payload):
+        """Select appropriate Tradytics agent based on content"""
+        content = analysis_payload.get('content', '').upper()
+
+        # Route to appropriate agent
+        if 'CALL' in content or 'PUT' in content or 'SWEEP' in content:
+            return tradytics_agents.get('options_sweeps')
+        elif 'BLOCK' in content or 'DARKPOOL' in content or 'DARK POOL' in content:
+            return tradytics_agents.get('darkpool')
+        else:
+            # Default to first available agent
+            return next(iter(tradytics_agents.values()), None)
+
+    def _send_synthesized_analysis(self, synthesis_result):
+        """Send comprehensive analysis to Discord"""
+        try:
+            market_synthesis = synthesis_result.get('market_synthesis', {})
+            overall_direction = market_synthesis.get('overall_direction', 'neutral')
+            confidence = market_synthesis.get('overall_confidence', 0.5)
+
+            # Create comprehensive Discord message
+            embed = {
+                "title": f"🧠 **SYNTHESIZED INTELLIGENCE** | {overall_direction.upper()}",
+                "description": f"**Market Direction:** {overall_direction} ({confidence:.1%} confidence)\n**Signal Count:** {market_synthesis.get('signal_count', 0)}\n\n**Key Themes:** {', '.join(market_synthesis.get('market_themes', []))}",
+                "color": 0x00ff00 if overall_direction == 'bullish' else 0xff0000 if overall_direction == 'bearish' else 0xffff00,
+                "fields": [],
+                "footer": {"text": "Tradytics Synthesis Engine | Real-time Intelligence"}
+            }
+
+            # Add key symbols
+            key_symbols = market_synthesis.get('key_symbols', [])
+            if key_symbols:
+                symbol_text = "\n".join([f"**{s['symbol']}**: {s['direction']} ({s['strength']:.1%})" for s in key_symbols[:3]])
+                embed["fields"].append({
+                    "name": "🎯 Key Symbols",
+                    "value": symbol_text,
+                    "inline": True
+                })
+
+            # Add risk assessment
+            risk = market_synthesis.get('risk_assessment', {})
+            embed["fields"].append({
+                "name": "⚠️ Risk Level",
+                "value": f"**{risk.get('level', 'unknown').upper()}**\n{risk.get('rationale', '')}",
+                "inline": True
+            })
+
+            # Send to Discord
+            discord_webhook_url = os.getenv('DISCORD_WEBHOOK_URL')
+            if discord_webhook_url:
+                payload = {"embeds": [embed]}
+                response = requests.post(discord_webhook_url, json=payload, timeout=10)
+                if response.status_code == 204:
+                    logger.info("✅ Synthesized analysis sent to Discord")
+                else:
+                    logger.warning(f"⚠️ Discord synthesis send failed: {response.status_code}")
+
+        except Exception as e:
+            logger.error(f"❌ Synthesis send error: {e}")
 
     def do_GET(self):
         global monitor
