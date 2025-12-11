@@ -76,7 +76,7 @@ class AssemblyAITranscriber:
 
         # Configure transcription settings
         config = aai.TranscriptionConfig(
-            auto_punctuation=True,
+            punctuate=True,
             speaker_labels=kwargs.get("speaker_labels", False),
             language_code=kwargs.get("language", "en"),
             **kwargs
@@ -443,3 +443,5 @@ if __name__ == "__main__":
         print(result.text[:500] + "..." if len(result.text) > 500 else result.text)
     except Exception as e:
         print(f"❌ Error: {e}")
+
+
