@@ -437,7 +437,7 @@ class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         global monitor
 
-        elif self.path == '/tradytics-forward':
+        if self.path == '/tradytics-forward':
             # Tradytics forwarding endpoint info - GET request
             self.send_response(200)
             self.send_header('Content-type', 'application/json')

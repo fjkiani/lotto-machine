@@ -106,7 +106,7 @@ class VideoTranscriptionService:
                 language_code="en"
             )
 
-            # Transcribe directly from URL
+            # Try direct URL transcription first
             transcriber = self.client.Transcriber(config=config)
             transcript = transcriber.transcribe(url)
 
@@ -117,9 +117,16 @@ class VideoTranscriptionService:
 
             while transcript.status != self.client.TranscriptStatus.completed:
                 if transcript.status == self.client.TranscriptStatus.error:
+                    error_msg = str(transcript.error)
+                    
+                    # If direct URL fails (HTML/access issue), try downloading first
+                    if "html" in error_msg.lower() or "file does not appear to contain audio" in error_msg.lower():
+                        logger.warning(f"Direct URL failed ({error_msg}), trying download method...")
+                        return await self._transcribe_with_download(url, config)
+                    
                     return {
                         "success": False,
-                        "error": f"Transcription failed: {transcript.error}"
+                        "error": f"Transcription failed: {error_msg}"
                     }
 
                 if wait_time >= max_wait:
@@ -256,6 +263,146 @@ Format as clear, structured text suitable for Discord.
             ])
 
         return "\n".join(message_parts)
+
+    async def _transcribe_with_download(self, url: str, config) -> Dict[str, Any]:
+        """Fallback: Download audio first, then transcribe"""
+        try:
+            import yt_dlp
+            import tempfile
+            import os
+            
+            video_id = self.extract_video_id(url)
+            logger.info(f"📥 Downloading audio for {video_id}...")
+            
+            # Create temp file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
+                temp_path = tmp_file.name
+            
+            # Download audio (try without conversion first, fallback to conversion if needed)
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'outtmpl': temp_path.replace('.wav', ''),
+                'quiet': True,
+                'no_warnings': True,
+            }
+            
+            # Try to add audio conversion if ffmpeg is available
+            try:
+                import subprocess
+                result = subprocess.run(['ffmpeg', '-version'], capture_output=True, timeout=2)
+                if result.returncode == 0:
+                    # ffmpeg available, use conversion
+                    ydl_opts['postprocessors'] = [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'wav',
+                        'preferredquality': '192',
+                    }]
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                # ffmpeg not available, use native format
+                logger.warning("ffmpeg not found, using native audio format")
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+            
+            # Find the actual file (yt-dlp may change extension)
+            audio_file = None
+            base_path = temp_path.replace('.wav', '')
+            for ext in ['.wav', '.m4a', '.mp3', '.webm', '.opus']:
+                if os.path.exists(base_path + ext):
+                    audio_file = base_path + ext
+                    break
+            
+            if not audio_file:
+                return {
+                    "success": False,
+                    "error": "Failed to download audio file"
+                }
+            
+            logger.info(f"✅ Audio downloaded: {audio_file}")
+            
+            # Transcribe from file
+            transcriber = self.client.Transcriber(config=config)
+            transcript = transcriber.transcribe(audio_file)
+            
+            # Wait for completion
+            import time
+            max_wait = 300
+            wait_time = 0
+            
+            while transcript.status != self.client.TranscriptStatus.completed:
+                if transcript.status == self.client.TranscriptStatus.error:
+                    # Clean up temp file
+                    try:
+                        os.unlink(audio_file)
+                    except:
+                        pass
+                    return {
+                        "success": False,
+                        "error": f"Transcription failed: {transcript.error}"
+                    }
+                
+                if wait_time >= max_wait:
+                    try:
+                        os.unlink(audio_file)
+                    except:
+                        pass
+                    return {
+                        "success": False,
+                        "error": "Transcription timeout"
+                    }
+                
+                time.sleep(2)
+                wait_time += 2
+                transcript = transcriber.get_by_id(transcript.id)
+            
+            # Clean up temp file
+            try:
+                os.unlink(audio_file)
+            except:
+                pass
+            
+            # Extract segments (same as direct URL method)
+            segments = []
+            if transcript.utterances:
+                for utterance in transcript.utterances:
+                    segments.append({
+                        "start": utterance.start / 1000,
+                        "end": utterance.end / 1000,
+                        "text": utterance.text
+                    })
+            elif transcript.words:
+                current_segment = {"start": None, "end": None, "text": ""}
+                for word in transcript.words:
+                    if current_segment["start"] is None:
+                        current_segment["start"] = word.start / 1000
+                    current_segment["end"] = word.end / 1000
+                    current_segment["text"] += word.text + " "
+                segments.append(current_segment)
+            
+            return {
+                "success": True,
+                "video_id": video_id,
+                "url": url,
+                "transcript": transcript.text,
+                "language": transcript.language_code or "en",
+                "segments": segments,
+                "duration": transcript.audio_duration / 1000 if transcript.audio_duration else 0,
+                "word_count": len(transcript.text.split()),
+                "created_at": datetime.now().isoformat(),
+                "method": "download_fallback"
+            }
+            
+        except ImportError:
+            return {
+                "success": False,
+                "error": "yt-dlp not installed. Install with: pip install yt-dlp"
+            }
+        except Exception as e:
+            logger.error(f"Download fallback failed: {e}")
+            return {
+                "success": False,
+                "error": f"Download fallback failed: {str(e)}"
+            }
 
     def is_ready(self) -> bool:
         """Check if service is ready"""
