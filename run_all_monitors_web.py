@@ -63,13 +63,26 @@ except Exception as e:
     synthesis_engine = None
     tradytics_available = False
 
-# Discord bot DISABLED - Render compatibility issues
+# Discord bot - Try to enable if discord.py is available
 logger.info("🔍 Discord bot status...")
-logger.info("   ❌ DISABLED: discord.py incompatible with Render free tier (audioop dependency)")
-logger.info("   ✅ AUTONOMOUS TRADYTICS: Full ecosystem with specialized agents")
-logger.info("   ✅ SYNTHESIS ENGINE: Combines all feed intelligence")
-logger.info("   ✅ DISCORD ALERTS: Webhook delivery of synthesized insights")
 discord_available = False
+try:
+    import discord
+    from discord_bot.bot import AlphaIntelligenceBot
+    discord_available = True
+    logger.info("   ✅ Discord bot ENABLED - discord.py available")
+    logger.info("   ✅ Video transcription: ENABLED")
+    logger.info("   ✅ AUTONOMOUS TRADYTICS: Full ecosystem with specialized agents")
+    logger.info("   ✅ SYNTHESIS ENGINE: Combines all feed intelligence")
+    logger.info("   ✅ DISCORD ALERTS: Webhook delivery of synthesized insights")
+except ImportError as e:
+    logger.warning(f"   ⚠️ Discord bot DISABLED - discord.py not available: {e}")
+    logger.info("   ✅ AUTONOMOUS TRADYTICS: Full ecosystem with specialized agents")
+    logger.info("   ✅ SYNTHESIS ENGINE: Combines all feed intelligence")
+    logger.info("   ✅ DISCORD ALERTS: Webhook delivery of synthesized insights")
+except Exception as e:
+    logger.error(f"   ❌ Discord bot import error: {e}")
+    discord_available = False
 
 
 # Global instances
@@ -126,10 +139,12 @@ def run_discord_bot():
         logger.error("❌ CRITICAL: Discord bot import failed!")
         logger.error("   Check if discord.py is installed and import path is correct")
         logger.error("   Run: pip install discord.py>=2.3.0")
+        logger.error("   Video transcription will NOT work without Discord bot!")
         return
 
     try:
         logger.info("🤖 Initializing Alpha Intelligence Bot...")
+        logger.info("   ✅ Video transcription listener will be active")
         discord_bot = AlphaIntelligenceBot()
 
         # Check token before running

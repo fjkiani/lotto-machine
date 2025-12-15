@@ -50,21 +50,30 @@ class VideoTranscriptionListener:
         if message.author == self.bot.user:
             return
 
+        # Debug logging for all messages (to troubleshoot)
+        logger.debug(f"📨 Message from {message.author.name}: {message.content[:100] if message.content else '(no content)'}")
+        logger.debug(f"   Embeds: {len(message.embeds)} embed(s)")
+        
         # Check message content for YouTube URL
         youtube_url = self._extract_youtube_url(message.content)
+        logger.debug(f"   URL from content: {youtube_url}")
         
         # Also check embeds (YAGPDB often posts embeds with video links)
         if not youtube_url and message.embeds:
-            for embed in message.embeds:
+            logger.debug(f"   Checking {len(message.embeds)} embed(s) for YouTube URLs...")
+            for i, embed in enumerate(message.embeds):
+                logger.debug(f"   Embed {i+1}: url={embed.url}, description={embed.description[:50] if embed.description else None}")
                 # Check embed description
                 if embed.description:
                     youtube_url = self._extract_youtube_url(embed.description)
                     if youtube_url:
+                        logger.debug(f"   ✅ Found URL in embed description: {youtube_url}")
                         break
                 # Check embed URL
                 if embed.url:
                     youtube_url = self._extract_youtube_url(embed.url)
                     if youtube_url:
+                        logger.debug(f"   ✅ Found URL in embed.url: {youtube_url}")
                         break
                 # Check embed fields
                 if embed.fields:
@@ -72,6 +81,7 @@ class VideoTranscriptionListener:
                         if field.value:
                             youtube_url = self._extract_youtube_url(field.value)
                             if youtube_url:
+                                logger.debug(f"   ✅ Found URL in embed field: {youtube_url}")
                                 break
                     if youtube_url:
                         break
@@ -84,12 +94,16 @@ class VideoTranscriptionListener:
                 message.author.name.lower() == "yagpdb.xyz"
             )
             
-            if is_yagpdb:
-                logger.info(f"🎥 Detected YAGPDB video notification from {message.author.name}")
-                logger.info(f"   Channel: {message.channel.name}")
-                logger.info(f"   Video URL: {youtube_url}")
+            logger.info(f"🎥 YouTube URL detected in message from {message.author.name}")
+            logger.info(f"   Channel: {message.channel.name}")
+            logger.info(f"   Video URL: {youtube_url}")
+            logger.info(f"   Is YAGPDB: {is_yagpdb}")
             
             await self._process_video_transcription(message, youtube_url, is_yagpdb=is_yagpdb)
+        else:
+            # Log when we don't find a URL (for debugging)
+            if message.embeds or message.content:
+                logger.debug(f"   ⚠️ No YouTube URL found in message from {message.author.name}")
 
     def _extract_youtube_url(self, text: str) -> Optional[str]:
         """Extract YouTube URL from message text"""
