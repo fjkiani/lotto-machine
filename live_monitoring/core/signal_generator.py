@@ -188,13 +188,22 @@ class SignalGenerator:
         signals = []
         
         try:
-            # FIRST: Check for real-time selloff (NOW USES INSTITUTIONAL CONTEXT!)
+            # FIRST: Check for real-time momentum signals (SELLOFF + RALLY)
             if minute_bars is not None and len(minute_bars) >= 10:
+                # Check for selloff (rapid drop)
                 selloff_signal = self._detect_realtime_selloff(
                     symbol, current_price, minute_bars, context=inst_context
                 )
                 if selloff_signal:
                     signals.append(selloff_signal)
+                
+                # Check for rally (rapid rise) - COUNTERPART to selloff
+                rally_signal = self._detect_realtime_rally(
+                    symbol, current_price, minute_bars, context=inst_context
+                )
+                if rally_signal:
+                    signals.append(rally_signal)
+                    
             # Check squeeze potential (LOWERED THRESHOLD: 0.5 → 0.3 for testing)
             if inst_context.squeeze_potential >= 0.3:
                 signal = self._create_squeeze_signal(symbol, current_price, inst_context)
@@ -445,6 +454,163 @@ class SignalGenerator:
             )
         except Exception as e:
             logger.warning(f"Error detecting realtime selloff for {symbol}: {e}")
+            return None
+    
+    def _detect_realtime_rally(
+        self,
+        symbol: str,
+        current_price: float,
+        minute_bars: pd.DataFrame,
+        context: InstitutionalContext = None,
+    ) -> Optional[LiveSignal]:
+        """
+        Detect real-time rally/meltup using recent 1m bars + INSTITUTIONAL CONTEXT.
+        
+        COUNTERPART to selloff detection - catches rapid upward moves.
+        
+        Logic:
+        - Check price/volume for rally pattern (+0.5% with volume spike)
+        - Check if at DP battleground (resistance breaking vs rejection)
+        - Check institutional flow (accumulation signal)
+        - Adjust confidence based on DP edge
+        """
+        try:
+            if minute_bars is None or len(minute_bars) < 10:
+                return None
+
+            closes = minute_bars["Close"]
+            volumes = minute_bars["Volume"]
+
+            # Use last 20 bars if available
+            lookback = min(20, len(closes))
+            recent_closes = closes.tail(lookback)
+            recent_volumes = volumes.tail(lookback)
+
+            start_price = float(recent_closes.iloc[0])
+            end_price = float(recent_closes.iloc[-1])
+            pct_change = (end_price - start_price) / start_price
+
+            avg_volume = float(recent_volumes.iloc[:-1].mean())
+            last_volume = float(recent_volumes.iloc[-1])
+
+            # Step 1: Check price/volume (basic rally pattern)
+            if pct_change < 0.005:  # +0.5% threshold (opposite of selloff)
+                return None
+
+            volume_spike = avg_volume > 0 and last_volume > avg_volume * 1.5
+            if not volume_spike:
+                return None
+
+            # Step 2: Base confidence from price action
+            move_strength = min(abs(pct_change) / 0.025, 1.0)
+            base_confidence = 0.6 + 0.3 * move_strength
+
+            # Step 3: INSTITUTIONAL EDGE - adjust confidence based on DP context
+            if context:
+                # Check if at DP battleground (resistance)
+                at_battleground = False
+                nearest_battleground = None
+                distance_to_battleground = 999
+                
+                if context.dp_battlegrounds:
+                    # Find nearest resistance level
+                    resistances = [bg for bg in context.dp_battlegrounds if bg >= current_price * 0.98]
+                    if resistances:
+                        nearest_battleground = min(resistances)
+                        distance_pct = abs(current_price - nearest_battleground) / current_price
+                        at_battleground = distance_pct < 0.01  # Within 1%
+                        distance_to_battleground = distance_pct * 100
+                
+                # Adjust confidence based on DP flow
+                if context.institutional_buying_pressure > 0.7:  # Institutions buying
+                    # Buying pressure + price rise = STRONG bullish
+                    base_confidence += 0.10
+                    flow_signal = "ACCUMULATION"
+                elif context.institutional_buying_pressure < 0.3 and at_battleground:
+                    # Institutions selling at resistance but price rising = potential rejection
+                    base_confidence -= 0.15  # Reduce bullish confidence
+                    flow_signal = "SELLING (potential rejection)"
+                else:
+                    flow_signal = "NEUTRAL"
+                
+                # Dark pool % adjustment (accumulation signal)
+                # High dark pool % = institutions accumulating quietly = strong bullish
+                if context.dark_pool_pct and context.dark_pool_pct > 50:
+                    base_confidence += 0.10
+                    accumulation_signal = f"QUIET ACCUMULATION ({context.dark_pool_pct:.0f}% dark)"
+                else:
+                    lit_pct = 100 - (context.dark_pool_pct or 50)
+                    accumulation_signal = f"Lit exchange {lit_pct:.0f}%"
+            else:
+                flow_signal = "N/A"
+                accumulation_signal = "N/A"
+                nearest_battleground = None
+                at_battleground = False
+                distance_to_battleground = 999
+
+            confidence = min(base_confidence, 0.95)  # Cap at 95%
+
+            # Stops/targets (LONG trade)
+            stop_price = current_price * 0.99  # 1% stop loss
+            target_price = current_price * 1.015  # 1.5% target
+
+            # Step 4: Build FULL rationale with institutional edge
+            rationale_parts = [
+                f"REAL-TIME RALLY: +{pct_change * 100:.2f}% in last {lookback} min",
+                f"volume spike {last_volume/avg_volume:.1f}x"
+            ]
+            
+            if context:
+                rationale_parts.append(f"INSTITUTIONAL FLOW: {flow_signal}")
+                rationale_parts.append(accumulation_signal)
+                if nearest_battleground:
+                    rationale_parts.append(
+                        f"DP BATTLEGROUND: ${nearest_battleground:.2f} "
+                        f"({'AT RESISTANCE' if at_battleground else f'{distance_to_battleground:.1f}% away'})"
+                    )
+            
+            rationale = " | ".join(rationale_parts)
+
+            # Build supporting factors
+            supporting_factors = [
+                f"Price action: +{pct_change * 100:.2f}% gain",
+                f"Volume spike: {last_volume/avg_volume:.1f}x avg" if avg_volume > 0 else "Volume spike: N/A",
+            ]
+            
+            if context:
+                supporting_factors.extend([
+                    f"Institutional flow: {flow_signal}",
+                    f"Buying pressure: {context.institutional_buying_pressure:.0%}" if context.institutional_buying_pressure else "Buying pressure: N/A",
+                    accumulation_signal,
+                    f"DP battleground: ${nearest_battleground:.2f} ({distance_to_battleground:.1f}% away)" if nearest_battleground else "No DP levels nearby"
+                ])
+
+            return LiveSignal(
+                symbol=symbol,
+                action=SignalAction.BUY,
+                timestamp=datetime.now(),
+                entry_price=current_price,
+                target_price=target_price,
+                stop_price=stop_price,
+                confidence=confidence,
+                signal_type=SignalType.RALLY,  # Momentum-based rally signal
+                rationale=rationale,
+                dp_level=nearest_battleground if nearest_battleground else 0.0,
+                dp_volume=context.dp_total_volume if context else 0,
+                institutional_score=context.institutional_buying_pressure if context else 0.0,
+                supporting_factors=supporting_factors,
+                warnings=[],
+                is_master_signal=confidence >= self.min_master_confidence,
+                is_actionable=True,
+                position_size_pct=0.01 if confidence >= 0.75 else 0.005,
+                risk_reward_ratio=(
+                    (target_price - current_price) / (current_price - stop_price)
+                    if (current_price - stop_price) > 0
+                    else 0.0
+                ),
+            )
+        except Exception as e:
+            logger.warning(f"Error detecting realtime rally for {symbol}: {e}")
             return None
     
     def _generate_lottery_signals(

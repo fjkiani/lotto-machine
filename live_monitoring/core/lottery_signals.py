@@ -37,6 +37,7 @@ class SignalType(Enum):
     BREAKDOWN = "BREAKDOWN"
     BEARISH_FLOW = "BEARISH_FLOW"
     SELLOFF = "SELLOFF"
+    RALLY = "RALLY"  # Counterpart to selloff - rapid upward move
     
     # Lottery signals
     LOTTERY_0DTE_CALL = "LOTTERY_0DTE_CALL"

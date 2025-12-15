@@ -1163,10 +1163,11 @@ class UnifiedAlphaMonitor:
         
         try:
             # ═══════════════════════════════════════════════════════════════
-            # 🚨 SELLOFF DETECTION (Real-time momentum)
-            # Check for selloffs BEFORE checking DP levels
+            # 🚨 MOMENTUM DETECTION (Selloff + Rally)
+            # Check for rapid moves BEFORE checking DP levels
             # ═══════════════════════════════════════════════════════════════
-            self._check_selloffs()
+            self._check_selloffs()  # Rapid drops
+            self._check_rallies()   # Rapid rises (counterpart)
             
             # Check all symbols using the engine
             alerts = self.dp_monitor_engine.check_all_symbols(self.symbols)
@@ -1350,6 +1351,119 @@ class UnifiedAlphaMonitor:
                     
         except Exception as e:
             logger.debug(f"   ⚠️ Selloff detection error: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+    
+    def _check_rallies(self):
+        """
+        🚀 REAL-TIME RALLY DETECTION (Counterpart to selloff)
+        
+        Detects rapid price rises with volume spikes (momentum-based).
+        This catches rallies that happen BEFORE price reaches battlegrounds.
+        
+        Threshold: +0.5% gain in 20 minutes with 1.5x volume spike
+        """
+        try:
+            from live_monitoring.core.signal_generator import SignalGenerator
+            from live_monitoring.core.ultra_institutional_engine import UltraInstitutionalEngine
+            import yfinance as yf
+            import pandas as pd
+            
+            # Check if we have SignalGenerator available
+            if not hasattr(self, 'signal_generator') or self.signal_generator is None:
+                # Initialize if needed
+                try:
+                    api_key = os.getenv('CHARTEXCHANGE_API_KEY')
+                    dp_client = getattr(self, 'dp_client', None)
+                    self.signal_generator = SignalGenerator(api_key=api_key, dp_client=dp_client)
+                except Exception as e:
+                    logger.debug(f"   ⚠️ SignalGenerator not available for rally detection: {e}")
+                    return
+            
+            for symbol in self.symbols:
+                try:
+                    # Get recent minute bars (last 30 minutes)
+                    ticker = yf.Ticker(symbol)
+                    hist = ticker.history(period='1d', interval='1m')
+                    
+                    if hist.empty or len(hist) < 20:
+                        continue
+                    
+                    # Get last 30 bars for rally detection
+                    minute_bars = hist.tail(30)
+                    current_price = float(minute_bars['Close'].iloc[-1])
+                    
+                    # Get institutional context
+                    inst_context = None
+                    if hasattr(self, 'institutional_engine') and self.institutional_engine:
+                        try:
+                            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+                            inst_context = self.institutional_engine.build_context(symbol, yesterday)
+                        except Exception as e:
+                            logger.debug(f"   ⚠️ Could not build institutional context for rally: {e}")
+                    
+                    # Check for rally
+                    rally_signal = self.signal_generator._detect_realtime_rally(
+                        symbol=symbol,
+                        current_price=current_price,
+                        minute_bars=minute_bars,
+                        context=inst_context
+                    )
+                    
+                    if rally_signal:
+                        logger.warning(f"   🚀 RALLY DETECTED: {symbol} @ ${current_price:.2f}")
+                        logger.warning(f"      → Confidence: {rally_signal.confidence:.0%}")
+                        logger.warning(f"      → Action: {rally_signal.action.value}")
+                        
+                        # Create Discord alert
+                        embed = {
+                            "title": f"🚀 **REAL-TIME RALLY** - {symbol}",
+                            "description": rally_signal.rationale or "Rapid price rise with volume spike detected",
+                            "color": 0x00ff00,  # Green for rally
+                            "fields": [
+                                {
+                                    "name": "🎯 Trade Setup",
+                                    "value": f"**Action:** {rally_signal.action.value}\n"
+                                            f"**Entry:** ${rally_signal.entry_price:.2f}\n"
+                                            f"**Stop:** ${rally_signal.stop_price:.2f}\n"
+                                            f"**Target:** ${rally_signal.target_price:.2f}\n"
+                                            f"**Confidence:** {rally_signal.confidence:.0%}",
+                                    "inline": False
+                                }
+                            ],
+                            "footer": {"text": "Real-time momentum detection"},
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        
+                        content = f"🚀 **REAL-TIME RALLY** | {symbol} | {rally_signal.action.value} @ ${current_price:.2f}"
+                        
+                        # Check regime before sending (apply smart filters)
+                        market_regime = self._detect_market_regime(current_price)
+                        signal_direction = rally_signal.action.value
+                        
+                        # Block SHORT rally signals in UPTREND (contradictory)
+                        if market_regime in ["UPTREND", "STRONG_UPTREND"] and signal_direction == "SELL":
+                            logger.warning(f"   ⛔ REGIME FILTER: Blocking SHORT rally signal in {market_regime}")
+                            continue
+                        
+                        # Block LONG rally signals in STRONG_DOWNTREND (chasing)
+                        if market_regime == "STRONG_DOWNTREND" and signal_direction == "BUY":
+                            logger.warning(f"   ⛔ REGIME FILTER: Blocking BUY rally signal in {market_regime} (don't chase)")
+                            continue
+                        
+                        # Send alert
+                        logger.info(f"   📤 Sending RALLY alert: {symbol}")
+                        success = self.send_discord(embed, content=content, alert_type="rally", source="rally_detector", symbol=symbol)
+                        
+                        if success:
+                            logger.info(f"   ✅ RALLY ALERT SENT: {symbol}")
+                            
+                except Exception as e:
+                    logger.debug(f"   ⚠️ Rally check error for {symbol}: {e}")
+                    continue
+                    
+        except Exception as e:
+            logger.debug(f"   ⚠️ Rally detection error: {e}")
             import traceback
             logger.debug(traceback.format_exc())
     
