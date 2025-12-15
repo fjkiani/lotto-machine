@@ -55,6 +55,14 @@ class NarrativeRecap:
             log_dir: Base directory for narrative logs
         """
         self.log_dir = Path(log_dir)
+        
+        # Initialize NarrativeMemory for context
+        try:
+            from live_monitoring.agents.narrative_brain.narrative_brain import NarrativeMemory
+            self.memory = NarrativeMemory(db_path="data/narrative_memory.db")
+        except Exception as e:
+            logger.warning(f"⚠️  Could not initialize NarrativeMemory: {e}")
+            self.memory = None
     
     def generate_recap(self, week_start: Optional[str] = None,
                       week_end: Optional[str] = None) -> NarrativeRecapResult:
@@ -135,16 +143,32 @@ class NarrativeRecap:
                             data = json.load(f)
                             
                             # Extract the ACTUAL narrative content from the right fields
-                            # Priority: macro_narrative > sector_narrative > asset_narrative
+                            # Priority: macro_narrative > sector_narrative > asset_narrative > cross_asset_narrative
                             narrative_text = ""
+                            
+                            # Try to get full narrative - combine all available narratives
+                            narratives_parts = []
                             if data.get('macro_narrative'):
-                                narrative_text = data.get('macro_narrative', '')
-                            elif data.get('sector_narrative'):
-                                narrative_text = data.get('sector_narrative', '')
-                            elif data.get('asset_narrative'):
-                                narrative_text = data.get('asset_narrative', '')
+                                narratives_parts.append(f"**Macro:** {data['macro_narrative']}")
+                            if data.get('sector_narrative'):
+                                narratives_parts.append(f"**Sector:** {data['sector_narrative']}")
+                            if data.get('asset_narrative'):
+                                narratives_parts.append(f"**Asset:** {data['asset_narrative']}")
+                            if data.get('cross_asset_narrative'):
+                                narratives_parts.append(f"**Cross-Asset:** {data['cross_asset_narrative']}")
+                            
+                            if narratives_parts:
+                                narrative_text = "\n\n".join(narratives_parts)
                             elif data.get('narrative'):
                                 narrative_text = data.get('narrative', '')
+                            
+                            # If still empty, try to fetch from NarrativeMemory
+                            if not narrative_text and self.memory:
+                                chain = self.memory.get_narrative_chain(days=1)
+                                for entry in chain:
+                                    if entry['date'] == date_str:
+                                        narrative_text = entry.get('narrative', '')
+                                        break
                             
                             # Extract symbol from filename
                             symbol = file_path.stem.split('_')[0].upper()
@@ -276,31 +300,32 @@ class NarrativeRecap:
         for narrative in narratives[:3]:  # Show up to 3 days (to avoid Discord length limit)
             summary += f"📅 **{narrative.date}** ({narrative.direction}, {narrative.conviction} conviction):\n"
             
-            # Show narrative text (truncated at natural break points)
+            # Show FULL narrative text (not truncated snippets)
             narrative_text = narrative.narrative
-            if narrative_text:
-                # Replace decimal points temporarily to avoid splitting on them
-                temp_text = narrative_text.replace('. ', '|SPLIT|')
-                sentences = temp_text.split('|SPLIT|')
-                
-                if len(sentences) > 1:
-                    short_text = sentences[0] + '.'
-                    if len(sentences) > 1 and len(short_text) < 200:
-                        short_text += ' ' + sentences[1] + '.'
+            if narrative_text and len(narrative_text.strip()) > 10:  # Has real content
+                # Show first 2-3 sentences for context, but keep it readable
+                sentences = narrative_text.split('. ')
+                if len(sentences) > 3:
+                    # Take first 3 sentences
+                    full_text = '. '.join(sentences[:3]) + '.'
+                    if len(full_text) > 500:
+                        full_text = full_text[:500] + '...'
                 else:
-                    short_text = narrative_text[:300]
+                    # Show all if short
+                    full_text = narrative_text
+                    if len(full_text) > 500:
+                        full_text = full_text[:500] + '...'
                 
-                # Truncate if still too long
-                if len(short_text) > 350:
-                    short_text = short_text[:350] + '...'
-                
-                summary += f"   {short_text}\n"
+                summary += f"   {full_text}\n"
+            else:
+                # If no narrative text, try to extract from other fields
+                summary += f"   *No detailed narrative available*\n"
             
-            # Show key points (max 2 for space)
+            # Show key points (max 3 for space)
             if narrative.key_points:
                 summary += f"   💡 Key Points:\n"
-                for point in narrative.key_points[:2]:  # Top 2 points
-                    if point and len(point) < 150:
+                for point in narrative.key_points[:3]:  # Top 3 points
+                    if point and len(point) < 200:
                         summary += f"      • {point}\n"
             
             summary += "\n"

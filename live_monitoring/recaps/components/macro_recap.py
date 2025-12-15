@@ -176,7 +176,7 @@ class MacroRecap:
         )
     
     def _fetch_events(self, week_start: str, week_end: str) -> List[MacroEvent]:
-        """Fetch economic events from calendar - local DB first, API as fallback"""
+        """Fetch economic events from Alpha Vantage - local DB first, API as fallback"""
         
         # Try local database first (has historical data)
         events = self._load_from_local_db(week_start, week_end)
@@ -184,43 +184,55 @@ class MacroRecap:
             logger.info(f"   Found {len(events)} economic events from local DB")
             return events
         
-        # Fall back to API
+        # Fall back to Alpha Vantage API
         try:
-            from live_monitoring.enrichment.apis.event_loader import EventLoader
+            from live_monitoring.enrichment.apis.alpha_vantage_econ import AlphaVantageEcon
             
-            loader = EventLoader()
+            client = AlphaVantageEcon()
             all_events = []
             
-            # Fetch for each day in week
-            current_date = datetime.strptime(week_start, '%Y-%m-%d')
-            end_date = datetime.strptime(week_end, '%Y-%m-%d')
+            # Get all market-moving indicators
+            indicators = client.get_market_moving()
             
-            while current_date <= end_date:
-                date_str = current_date.strftime('%Y-%m-%d')
-                events_dict = loader.load_events(date_str, min_impact="low")
+            # Convert to MacroEvent format
+            for name, release in indicators.items():
+                # Check if release date is in our week range
+                release_date = datetime.strptime(release.date, '%Y-%m-%d')
+                week_start_date = datetime.strptime(week_start, '%Y-%m-%d')
+                week_end_date = datetime.strptime(week_end, '%Y-%m-%d')
                 
-                if isinstance(events_dict, dict):
-                    macro_events = events_dict.get('macro_events', [])
-                    for event in macro_events:
-                        all_events.append(MacroEvent(
-                            name=event.get('name', 'Unknown'),
-                            date=date_str,
-                            time=event.get('time', ''),
-                            actual=event.get('actual'),
-                            forecast=event.get('forecast'),
-                            previous=event.get('previous'),
-                            impact=event.get('impact', 'low'),
-                            surprise=None,  # Will be calculated
-                            market_reaction=None  # Will be analyzed
-                        ))
-                
-                current_date += timedelta(days=1)
+                if week_start_date <= release_date <= week_end_date:
+                    # Determine surprise
+                    surprise = None
+                    if release.change:
+                        if abs(release.change) > 0.5:  # Significant change
+                            surprise = "BULLISH" if release.change > 0 else "BEARISH"
+                    
+                    # Market reaction (placeholder - would need actual price data)
+                    reaction = None
+                    if release.change:
+                        if abs(release.change) > 1.0:
+                            reaction = "Strong market impact expected"
+                        elif abs(release.change) > 0.5:
+                            reaction = "Moderate market impact"
+                    
+                    all_events.append(MacroEvent(
+                        name=name,
+                        date=release.date,
+                        time="",  # Alpha Vantage doesn't provide time
+                        actual=str(release.value),
+                        forecast=None,  # Alpha Vantage doesn't provide forecast
+                        previous=str(release.previous) if release.previous else None,
+                        impact="high",  # All market-moving indicators are high impact
+                        surprise=surprise,
+                        market_reaction=reaction
+                    ))
             
-            logger.info(f"   Found {len(all_events)} economic events from API")
+            logger.info(f"   Found {len(all_events)} economic events from Alpha Vantage")
             return all_events
             
         except Exception as e:
-            logger.warning(f"⚠️  Failed to fetch events: {e}")
+            logger.warning(f"⚠️  Failed to fetch events from Alpha Vantage: {e}")
             return []
     
     def _identify_surprises(self, events: List[MacroEvent]) -> List[MacroEvent]:

@@ -147,36 +147,46 @@ class WeekPrep:
             return []
     
     def _get_upcoming_events(self, week_start: str, week_end: str) -> List[Dict[str, Any]]:
-        """Get upcoming economic events"""
+        """Get upcoming economic events from Alpha Vantage"""
         try:
-            from live_monitoring.enrichment.apis.event_loader import EventLoader
+            from live_monitoring.enrichment.apis.alpha_vantage_econ import AlphaVantageEcon
             
-            loader = EventLoader()
+            client = AlphaVantageEcon()
             events = []
             
-            current_date = datetime.strptime(week_start, '%Y-%m-%d')
-            end_date = datetime.strptime(week_end, '%Y-%m-%d')
+            # Get all market-moving indicators (these are the key events)
+            indicators = client.get_market_moving()
             
-            while current_date <= end_date:
-                date_str = current_date.strftime('%Y-%m-%d')
-                events_dict = loader.load_events(date_str, min_impact="medium")
-                
-                if isinstance(events_dict, dict):
-                    macro_events = events_dict.get('macro_events', [])
-                    for event in macro_events:
-                        events.append({
-                            'name': event.get('name', 'Unknown'),
-                            'date': date_str,
-                            'time': event.get('time', ''),
-                            'impact': event.get('impact', 'medium')
-                        })
-                
-                current_date += timedelta(days=1)
+            # Note: Alpha Vantage doesn't provide future events, only recent releases
+            # So we'll note that upcoming events should be checked manually
+            # But we can show what indicators to watch for
+            
+            key_indicators = ['CPI', 'NFP', 'UNEMPLOYMENT', 'FED_FUNDS_RATE', 'INFLATION']
+            for name in key_indicators:
+                if name in indicators:
+                    release = indicators[name]
+                    events.append({
+                        'name': name,
+                        'date': release.date,
+                        'time': 'TBD',  # Alpha Vantage doesn't provide time
+                        'impact': 'high',
+                        'note': f'Last release: {release.value} {release.unit}'
+                    })
+            
+            if not events:
+                # Return placeholder
+                events.append({
+                    'name': 'Check economic calendar for upcoming releases',
+                    'date': week_start,
+                    'time': '',
+                    'impact': 'medium',
+                    'note': 'Alpha Vantage provides historical data only. Check https://www.forexfactory.com/calendar for upcoming events.'
+                })
             
             return events
             
         except Exception as e:
-            logger.warning(f"⚠️  Failed to fetch upcoming events: {e}")
+            logger.warning(f"⚠️  Failed to fetch upcoming events from Alpha Vantage: {e}")
             return []
     
     def _get_market_context(self) -> str:

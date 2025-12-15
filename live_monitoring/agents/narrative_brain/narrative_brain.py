@@ -71,8 +71,85 @@ class NarrativeMemory:
         self._init_db()
 
     def _init_db(self):
-        """Initialize SQLite database"""
+        """Initialize SQLite database with full memory structure per plan"""
         with sqlite3.connect(self.db_path) as conn:
+            # Daily contexts - Today's market outlook
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS daily_contexts (
+                    id INTEGER PRIMARY KEY,
+                    date TEXT UNIQUE,
+                    outlook TEXT,
+                    key_themes TEXT,
+                    risk_assessment TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Recent events - Last 24h economic events
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS recent_events (
+                    id INTEGER PRIMARY KEY,
+                    timestamp TEXT,
+                    event_name TEXT,
+                    event_type TEXT,
+                    impact TEXT,
+                    market_reaction TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Market regime - Current trend (bull/bear/neutral)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS market_regime (
+                    id INTEGER PRIMARY KEY,
+                    date TEXT UNIQUE,
+                    regime TEXT,
+                    trend_strength REAL,
+                    vix_level REAL,
+                    treasury_yield REAL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Key levels - Important price levels with context
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS key_levels (
+                    id INTEGER PRIMARY KEY,
+                    symbol TEXT,
+                    level_price REAL,
+                    level_type TEXT,
+                    volume INTEGER,
+                    context TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Sentiment history - Fed/Trump sentiment over time
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS sentiment_history (
+                    id INTEGER PRIMARY KEY,
+                    timestamp TEXT,
+                    source TEXT,
+                    sentiment TEXT,
+                    details TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Narrative chain - Previous narratives for continuity
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS narrative_chain (
+                    id INTEGER PRIMARY KEY,
+                    date TEXT,
+                    narrative_text TEXT,
+                    causal_chain TEXT,
+                    conviction TEXT,
+                    direction TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Legacy tables (keep for compatibility)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS narrative_context (
                     id INTEGER PRIMARY KEY,
@@ -161,6 +238,147 @@ class NarrativeMemory:
                 })
 
             return narratives
+    
+    # New methods per plan structure
+    
+    def store_daily_context(self, date: str, outlook: str, key_themes: List[str], risk_assessment: str):
+        """Store today's market outlook"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO daily_contexts (date, outlook, key_themes, risk_assessment) VALUES (?, ?, ?, ?)",
+                (date, outlook, json.dumps(key_themes), risk_assessment)
+            )
+    
+    def get_daily_context(self, date: str = None) -> Optional[Dict]:
+        """Get daily context for a date"""
+        if date is None:
+            date = datetime.now().strftime('%Y-%m-%d')
+        
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "SELECT outlook, key_themes, risk_assessment FROM daily_contexts WHERE date = ?",
+                (date,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return {
+                    'outlook': row[0],
+                    'key_themes': json.loads(row[1]) if row[1] else [],
+                    'risk_assessment': row[2]
+                }
+        return None
+    
+    def store_recent_event(self, event_name: str, event_type: str, impact: str, market_reaction: str = None):
+        """Store recent economic event"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO recent_events (timestamp, event_name, event_type, impact, market_reaction) VALUES (?, ?, ?, ?, ?)",
+                (datetime.now().isoformat(), event_name, event_type, impact, market_reaction)
+            )
+    
+    def get_recent_events(self, hours: int = 24) -> List[Dict]:
+        """Get recent events from last N hours"""
+        cutoff = datetime.now() - timedelta(hours=hours)
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "SELECT event_name, event_type, impact, market_reaction FROM recent_events WHERE timestamp > ? ORDER BY timestamp DESC",
+                (cutoff.isoformat(),)
+            )
+            return [{'name': r[0], 'type': r[1], 'impact': r[2], 'reaction': r[3]} for r in cursor.fetchall()]
+    
+    def store_market_regime(self, date: str, regime: str, trend_strength: float = None, vix_level: float = None, treasury_yield: float = None):
+        """Store current market regime"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO market_regime (date, regime, trend_strength, vix_level, treasury_yield) VALUES (?, ?, ?, ?, ?)",
+                (date, regime, trend_strength, vix_level, treasury_yield)
+            )
+    
+    def get_market_regime(self, date: str = None) -> Optional[Dict]:
+        """Get market regime for a date"""
+        if date is None:
+            date = datetime.now().strftime('%Y-%m-%d')
+        
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "SELECT regime, trend_strength, vix_level, treasury_yield FROM market_regime WHERE date = ?",
+                (date,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return {
+                    'regime': row[0],
+                    'trend_strength': row[1],
+                    'vix_level': row[2],
+                    'treasury_yield': row[3]
+                }
+        return None
+    
+    def store_key_level(self, symbol: str, level_price: float, level_type: str, volume: int, context: str = None):
+        """Store important price level with context"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO key_levels (symbol, level_price, level_type, volume, context) VALUES (?, ?, ?, ?, ?)",
+                (symbol, level_price, level_type, volume, context)
+            )
+    
+    def get_key_levels(self, symbol: str = None, days: int = 7) -> List[Dict]:
+        """Get key levels (optionally filtered by symbol)"""
+        cutoff = datetime.now() - timedelta(days=days)
+        with sqlite3.connect(self.db_path) as conn:
+            if symbol:
+                cursor = conn.execute(
+                    "SELECT symbol, level_price, level_type, volume, context FROM key_levels WHERE symbol = ? AND created_at > ? ORDER BY volume DESC",
+                    (symbol, cutoff.isoformat())
+                )
+            else:
+                cursor = conn.execute(
+                    "SELECT symbol, level_price, level_type, volume, context FROM key_levels WHERE created_at > ? ORDER BY volume DESC",
+                    (cutoff.isoformat(),)
+                )
+            return [{'symbol': r[0], 'price': r[1], 'type': r[2], 'volume': r[3], 'context': r[4]} for r in cursor.fetchall()]
+    
+    def store_sentiment(self, source: str, sentiment: str, details: str = None):
+        """Store sentiment from Fed/Trump/etc"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO sentiment_history (timestamp, source, sentiment, details) VALUES (?, ?, ?, ?)",
+                (datetime.now().isoformat(), source, sentiment, details)
+            )
+    
+    def get_sentiment_history(self, source: str = None, days: int = 7) -> List[Dict]:
+        """Get sentiment history"""
+        cutoff = datetime.now() - timedelta(days=days)
+        with sqlite3.connect(self.db_path) as conn:
+            if source:
+                cursor = conn.execute(
+                    "SELECT source, sentiment, details FROM sentiment_history WHERE source = ? AND timestamp > ? ORDER BY timestamp DESC",
+                    (source, cutoff.isoformat())
+                )
+            else:
+                cursor = conn.execute(
+                    "SELECT source, sentiment, details FROM sentiment_history WHERE timestamp > ? ORDER BY timestamp DESC",
+                    (cutoff.isoformat(),)
+                )
+            return [{'source': r[0], 'sentiment': r[1], 'details': r[2]} for r in cursor.fetchall()]
+    
+    def store_narrative_chain(self, date: str, narrative_text: str, causal_chain: str = None, conviction: str = None, direction: str = None):
+        """Store narrative in chain for continuity"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO narrative_chain (date, narrative_text, causal_chain, conviction, direction) VALUES (?, ?, ?, ?, ?)",
+                (date, narrative_text, causal_chain, conviction, direction)
+            )
+    
+    def get_narrative_chain(self, days: int = 7) -> List[Dict]:
+        """Get recent narrative chain"""
+        cutoff = datetime.now() - timedelta(days=days)
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "SELECT date, narrative_text, causal_chain, conviction, direction FROM narrative_chain WHERE date > ? ORDER BY date DESC",
+                (cutoff.strftime('%Y-%m-%d'),)
+            )
+            return [{'date': r[0], 'narrative': r[1], 'causal_chain': r[2], 'conviction': r[3], 'direction': r[4]} for r in cursor.fetchall()]
 
 
 class AlertFilter:

@@ -78,6 +78,10 @@ class UnifiedAlphaMonitor:
         self.seen_fed_comments = set()  # Track sent Fed comments
         self.unified_mode = False  # Will be enabled if Signal Brain is active
         
+        # Global alert deduplication (prevents spam)
+        self.sent_alerts = {}  # alert_hash -> timestamp
+        self.alert_cooldown_seconds = 300  # 5 minutes cooldown between identical alerts
+        
         # Import monitors
         self._init_monitors()
         
@@ -243,7 +247,18 @@ class UnifiedAlphaMonitor:
             from live_monitoring.agents.economic.models import EconomicRelease, EventType
             
             self.econ_engine = EconomicIntelligenceEngine()
-            self.econ_calendar = EconomicCalendar()
+            
+            # Try EventLoader first (REAL API), fallback to hard-coded EconomicCalendar
+            try:
+                from live_monitoring.enrichment.apis.event_loader import EventLoader
+                self.econ_calendar = EventLoader()
+                self.econ_calendar_type = "api"  # Track which we're using
+                logger.info("   ✅ Economic Calendar: REAL API (EventLoader - Baby-Pips)")
+            except Exception as e:
+                logger.warning(f"   ⚠️ EventLoader failed, using static calendar: {e}")
+                self.econ_calendar = EconomicCalendar()
+                self.econ_calendar_type = "static"
+                logger.info("   ⚠️ Economic Calendar: STATIC (fallback - hard-coded)")
             
             # Seed with sample historical data
             historical = [
@@ -292,6 +307,7 @@ class UnifiedAlphaMonitor:
             logger.warning(f"   ⚠️ Economic engine failed: {e}")
             self.econ_enabled = False
             self.econ_calendar = None
+            self.econ_calendar_type = None
         
         # Autonomous Tradytics Analysis
         try:
@@ -311,11 +327,116 @@ class UnifiedAlphaMonitor:
         self.prev_fed_status = None
         self.prev_trump_sentiment = None
         self.seen_trump_news = set()
+        
+        # Deduplication tracking
+        self.startup_alert_sent = False  # Only send startup alert once
+        self.last_synthesis_hash = None  # Track last synthesis to avoid duplicates
+        self.sent_synthesis_hashes = set()  # Track all sent synthesis (keep last 10)
+        self.seen_tradytics_alerts = set()  # Track processed Tradytics alerts
+        
+        # Alert logging database
+        self.alert_db_path = "data/alerts_history.db"
+        self._init_alert_database()
     
-    def send_discord(self, embed: dict, content: str = None) -> bool:
-        """Send Discord notification."""
+    def _init_alert_database(self):
+        """Initialize database for storing all alerts."""
+        try:
+            import sqlite3
+            import os
+            
+            # Ensure data directory exists
+            os.makedirs(os.path.dirname(self.alert_db_path), exist_ok=True)
+            
+            conn = sqlite3.connect(self.alert_db_path)
+            cursor = conn.cursor()
+            
+            # Create alerts table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS alerts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    alert_type TEXT NOT NULL,
+                    title TEXT,
+                    description TEXT,
+                    content TEXT,
+                    embed_json TEXT,
+                    source TEXT,
+                    symbol TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Create index for queries
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_timestamp ON alerts(timestamp)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_alert_type ON alerts(alert_type)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_symbol ON alerts(symbol)
+            """)
+            
+            conn.commit()
+            conn.close()
+            logger.info(f"   ✅ Alert database initialized: {self.alert_db_path}")
+        except Exception as e:
+            logger.warning(f"   ⚠️ Failed to initialize alert database: {e}")
+    
+    def _log_alert_to_database(self, alert_type: str, embed: dict, content: str = None, source: str = "monitor", symbol: str = None):
+        """Log alert to database for historical tracking."""
+        try:
+            import sqlite3
+            import json
+            
+            conn = sqlite3.connect(self.alert_db_path)
+            cursor = conn.cursor()
+            
+            timestamp = datetime.utcnow().isoformat()
+            title = embed.get('title', '')
+            description = embed.get('description', '')
+            embed_json = json.dumps(embed)
+            
+            cursor.execute("""
+                INSERT INTO alerts (timestamp, alert_type, title, description, content, embed_json, source, symbol)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (timestamp, alert_type, title, description, content, embed_json, source, symbol))
+            
+            conn.commit()
+            conn.close()
+            logger.debug(f"   📝 Alert logged to database: {alert_type}")
+        except Exception as e:
+            logger.debug(f"   ⚠️ Failed to log alert to database: {e}")
+    
+    def send_discord(self, embed: dict, content: str = None, alert_type: str = "general", source: str = "monitor", symbol: str = None) -> bool:
+        """Send Discord notification and log to database with deduplication."""
+        # Generate unique hash for this alert
+        alert_hash = self._generate_alert_hash(embed, content, alert_type, source, symbol)
+        
+        # Check if we've sent this alert recently
+        if alert_hash in self.sent_alerts:
+            last_sent = self.sent_alerts[alert_hash]
+            elapsed = time.time() - last_sent
+            if elapsed < self.alert_cooldown_seconds:
+                logger.debug(f"   ⏭️ Alert duplicate (sent {elapsed:.0f}s ago) - skipping: {alert_type} {symbol or ''}")
+                # Still log to database for tracking
+                self._log_alert_to_database(alert_type, embed, content, source, symbol)
+                return False
+        
+        # Mark as sent
+        self.sent_alerts[alert_hash] = time.time()
+        
+        # Cleanup old entries (keep last 100, remove entries older than 1 hour)
+        if len(self.sent_alerts) > 100:
+            cutoff = time.time() - 3600
+            self.sent_alerts = {k: v for k, v in self.sent_alerts.items() if v > cutoff}
+        
+        # ALWAYS log to database FIRST (for memory/recall) - regardless of Discord status
+        # This ensures we have complete history even if Discord fails
+        self._log_alert_to_database(alert_type, embed, content, source, symbol)
+        
         if not self.discord_webhook:
-            logger.warning("   ⚠️ DISCORD_WEBHOOK_URL not set!")
+            logger.warning("   ⚠️ DISCORD_WEBHOOK_URL not set! (Alert logged to database)")
             return False
         
         try:
@@ -329,17 +450,50 @@ class UnifiedAlphaMonitor:
                 logger.debug(f"   ✅ Discord sent successfully (status: {response.status_code})")
                 return True
             else:
-                logger.error(f"   ❌ Discord returned status {response.status_code}: {response.text[:200]}")
+                logger.error(f"   ❌ Discord returned status {response.status_code}: {response.text[:200]} (Alert logged to database)")
                 return False
                 
         except requests.exceptions.RequestException as e:
-            logger.error(f"   ❌ Discord request error: {e}")
+            logger.error(f"   ❌ Discord request error: {e} (Alert logged to database)")
             return False
         except Exception as e:
-            logger.error(f"   ❌ Discord error: {e}")
+            logger.error(f"   ❌ Discord error: {e} (Alert logged to database)")
             import traceback
             logger.debug(traceback.format_exc())
             return False
+    
+    def _generate_alert_hash(self, embed: dict, content: str, alert_type: str, source: str, symbol: str) -> str:
+        """Generate unique hash for alert deduplication."""
+        import hashlib
+        import re
+        
+        # Extract key identifying information
+        title = embed.get('title', '')
+        description = embed.get('description', '')
+        
+        # Create hash from key fields
+        key_data = f"{alert_type}:{symbol or ''}:{source}:{title}"
+        
+        # Extract key numbers from title/description (confluence %, prices, etc.)
+        text = f"{title} {description} {content or ''}"
+        numbers = re.findall(r'\d+\.?\d*', text)
+        if numbers:
+            key_data += f":{':'.join(numbers[:3])}"  # First 3 numbers
+        
+        # Add embed fields that uniquely identify the alert
+        if 'fields' in embed:
+            for field in embed.get('fields', [])[:4]:  # First 4 fields
+                field_name = field.get('name', '')
+                field_value = str(field.get('value', ''))
+                # Extract key numbers from field values
+                numbers = re.findall(r'\d+\.?\d*', field_value)
+                if numbers:
+                    key_data += f":{field_name}:{':'.join(numbers[:2])}"
+                else:
+                    key_data += f":{field_name}:{field_value[:30]}"  # Truncate
+        
+        # Hash it
+        return hashlib.md5(key_data.encode()).hexdigest()[:16]
     
     def check_fed(self):
         """Check Fed Watch and officials."""
@@ -376,7 +530,7 @@ class UnifiedAlphaMonitor:
                         "footer": {"text": "CME FedWatch | Rate expectations move markets!"},
                         "timestamp": datetime.utcnow().isoformat()
                     }
-                    self.send_discord(embed, content="@everyone 🏦 Fed rate probability change!")
+                    self.send_discord(embed, content="@everyone 🏦 Fed rate probability change!", alert_type="fed_watch", source="fed_monitor")
                 elif cut_change >= 5.0 or hold_change >= 5.0:
                     logger.info(f"   📊 Moderate change: Cut: {status.prob_cut:.1f}% ({cut_change:+.1f}%) - buffered for synthesis")
             
@@ -424,7 +578,7 @@ class UnifiedAlphaMonitor:
                                 "footer": {"text": "Fed Officials Monitor"},
                                 "timestamp": datetime.utcnow().isoformat()
                             }
-                            self.send_discord(embed)
+                            self.send_discord(embed, alert_type="fed_official", source="fed_monitor", symbol="SPY")
                         elif should_alert:
                             logger.debug(f"   📊 Fed comment buffered for synthesis: {comment.official.name} - {comment.sentiment}")
             
@@ -445,32 +599,74 @@ class UnifiedAlphaMonitor:
             # Check for exploitable news
             exploitable = self.trump_news.get_exploitable_news()
             
+            # Initialize topic tracker if not exists
+            if not hasattr(self, 'trump_topic_tracker'):
+                self.trump_topic_tracker = {}  # topic -> last_alert_time
+                self.trump_cooldown_minutes = 60  # Only alert on same topic once per hour
+            
             for exp in exploitable[:3]:
-                news_id = exp.news.headline[:50]
-                if news_id not in self.seen_trump_news and exp.exploit_score >= 60:
-                    self.seen_trump_news.add(news_id)
-                    
-                    # In unified mode, suppress individual alerts (Signal Brain will synthesize)
-                    # Only send CRITICAL alerts (score >= 90)
-                    is_critical = exp.exploit_score >= 90
-                    
-                    if not self.unified_mode or is_critical:
-                        # Send alert
-                        embed = {
-                            "title": f"🎯 TRUMP EXPLOIT: {exp.suggested_action} (Score: {exp.exploit_score:.0f})",
-                            "color": 16776960,
-                            "description": exp.news.headline[:200],
-                            "fields": [
-                                {"name": "📊 Action", "value": exp.suggested_action, "inline": True},
-                                {"name": "📈 Symbols", "value": ", ".join(exp.suggested_symbols[:3]), "inline": True},
-                                {"name": "💯 Confidence", "value": f"{exp.confidence:.0f}%", "inline": True},
-                            ],
-                            "footer": {"text": "Trump Intelligence | Trade the pattern!"},
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
-                        self.send_discord(embed)
-                    else:
-                        logger.debug(f"   📊 Trump exploit buffered for synthesis: {exp.suggested_action} (Score: {exp.exploit_score:.0f})")
+                # Extract key topics from headline for better deduplication
+                headline_lower = exp.news.headline.lower()
+                
+                # Identify major topics
+                topics = []
+                if 'farm' in headline_lower or 'farmer' in headline_lower or 'agriculture' in headline_lower:
+                    topics.append('farm_aid')
+                if 'tariff' in headline_lower or 'trade war' in headline_lower or 'china' in headline_lower:
+                    topics.append('trade_war')
+                if 'ai' in headline_lower or 'artificial intelligence' in headline_lower:
+                    topics.append('ai_regulation')
+                if 'ukraine' in headline_lower or 'zelensk' in headline_lower:
+                    topics.append('ukraine')
+                if 'trade deal' in headline_lower or 'britain' in headline_lower or 'uk' in headline_lower:
+                    topics.append('uk_trade')
+                
+                # If no specific topic detected, use first 3 significant words
+                if not topics:
+                    import re
+                    words = re.findall(r'\b[a-z]{4,}\b', headline_lower)
+                    topics = ['_'.join(words[:3])] if words else ['unknown']
+                
+                # Check if we've alerted on this topic recently
+                now = datetime.now()
+                topic_key = topics[0] if topics else 'unknown'
+                
+                last_alert_time = self.trump_topic_tracker.get(topic_key)
+                if last_alert_time:
+                    minutes_since = (now - last_alert_time).total_seconds() / 60
+                    if minutes_since < self.trump_cooldown_minutes:
+                        logger.debug(f"   📊 Trump topic '{topic_key}' on cooldown ({minutes_since:.0f}m < {self.trump_cooldown_minutes}m) - skipping")
+                        continue
+                
+                # Update tracker
+                self.trump_topic_tracker[topic_key] = now
+                
+                # Only alert if score >= 60
+                if exp.exploit_score < 60:
+                    continue
+                
+                # In unified mode, suppress individual alerts (Signal Brain will synthesize)
+                # Only send CRITICAL alerts (score >= 90)
+                is_critical = exp.exploit_score >= 90
+                
+                if not self.unified_mode or is_critical:
+                    # Send alert
+                    embed = {
+                        "title": f"🎯 TRUMP EXPLOIT: {exp.suggested_action} (Score: {exp.exploit_score:.0f})",
+                        "color": 16776960,
+                        "description": exp.news.headline[:200],
+                        "fields": [
+                            {"name": "📊 Action", "value": exp.suggested_action, "inline": True},
+                            {"name": "📈 Symbols", "value": ", ".join(exp.suggested_symbols[:3]), "inline": True},
+                            {"name": "💯 Confidence", "value": f"{exp.confidence:.0f}%", "inline": True},
+                        ],
+                        "footer": {"text": f"Trump Intelligence | Topic: {topic_key}"},
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                    self.send_discord(embed, alert_type="trump_exploit", source="trump_monitor", symbol=",".join(exp.suggested_symbols[:3]) if exp.suggested_symbols else None)
+                    logger.info(f"   ✅ Trump alert sent: {topic_key} (Score: {exp.exploit_score:.0f})")
+                else:
+                    logger.debug(f"   📊 Trump exploit buffered for synthesis: {exp.suggested_action} (Score: {exp.exploit_score:.0f})")
             
             activity = getattr(situation, 'activity_level', 'N/A')
             sentiment = getattr(situation, 'overall_sentiment', 'UNKNOWN')
@@ -497,20 +693,79 @@ class UnifiedAlphaMonitor:
         
         try:
             from live_monitoring.agents.economic.calendar import Importance
+            from datetime import datetime, timedelta
             
             # Get current Fed Watch for context
             current_cut_prob = 89.0
             if self.prev_fed_status:
                 current_cut_prob = self.prev_fed_status.prob_cut
             
-            # Get upcoming HIGH importance events (next 2 days)
-            upcoming = self.econ_calendar.get_upcoming_events(days=2, min_importance=Importance.HIGH)
-            
-            logger.info(f"   📅 Found {len(upcoming)} HIGH importance events in next 48h")
-            
-            # Also check MEDIUM for events happening soon
-            medium_upcoming = self.econ_calendar.get_upcoming_events(days=2, min_importance=Importance.MEDIUM)
-            logger.info(f"   📅 Found {len(medium_upcoming)} MEDIUM importance events in next 48h")
+            # Use EventLoader API if available, else fallback to static calendar
+            if self.econ_calendar_type == "api":
+                # EventLoader returns dict with "macro_events"
+                today = datetime.now().strftime('%Y-%m-%d')
+                tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+                
+                # Get today's events
+                today_data = self.econ_calendar.load_events(date=today, min_impact="medium")
+                today_events = today_data.get('macro_events', [])
+                
+                # Get tomorrow's events
+                tomorrow_data = self.econ_calendar.load_events(date=tomorrow, min_impact="medium")
+                tomorrow_events = tomorrow_data.get('macro_events', [])
+                
+                all_events = today_events + tomorrow_events
+                
+                logger.info(f"   📅 Found {len(today_events)} events today (API)")
+                logger.info(f"   📅 Found {len(tomorrow_events)} events tomorrow (API)")
+                
+                # Convert EventLoader format to CalendarEvent-like format for processing
+                upcoming = []
+                for event_dict in all_events:
+                    # Create a simple object that mimics CalendarEvent interface
+                    class EventWrapper:
+                        def __init__(self, data):
+                            from live_monitoring.agents.economic.calendar import EventCategory
+                            self.name = data.get('name', 'Unknown')
+                            self.date = data.get('date', today)
+                            self.time = data.get('time', '08:30')
+                            self.importance = Importance.HIGH if data.get('impact', '').lower() == 'high' else Importance.MEDIUM
+                            # Infer category from event name
+                            name_lower = self.name.lower()
+                            if any(x in name_lower for x in ['payroll', 'employment', 'unemployment', 'jobless', 'adp']):
+                                self.category = EventCategory.EMPLOYMENT
+                            elif any(x in name_lower for x in ['cpi', 'ppi', 'pce', 'inflation']):
+                                self.category = EventCategory.INFLATION
+                            elif any(x in name_lower for x in ['gdp', 'growth']):
+                                self.category = EventCategory.GROWTH
+                            elif any(x in name_lower for x in ['retail', 'sales', 'consumer']):
+                                self.category = EventCategory.CONSUMER
+                            elif any(x in name_lower for x in ['fed', 'fomc', 'federal']):
+                                self.category = EventCategory.FED
+                            else:
+                                self.category = EventCategory.OTHER
+                            self.typical_surprise_impact = 3.0  # Default
+                            self.release_frequency = "monthly"  # Default
+                            
+                        def hours_until(self):
+                            try:
+                                event_dt = datetime.strptime(f"{self.date} {self.time}", "%Y-%m-%d %H:%M")
+                                return (event_dt - datetime.now()).total_seconds() / 3600
+                            except:
+                                return -1
+                    
+                    upcoming.append(EventWrapper(event_dict))
+            else:
+                # Fallback to static EconomicCalendar
+                # Get upcoming HIGH importance events (next 2 days)
+                upcoming = self.econ_calendar.get_upcoming_events(days=2, min_importance=Importance.HIGH)
+                
+                logger.info(f"   📅 Found {len(upcoming)} HIGH importance events in next 48h (static calendar)")
+                
+                # Also check MEDIUM for events happening soon
+                medium_upcoming = self.econ_calendar.get_upcoming_events(days=2, min_importance=Importance.MEDIUM)
+                logger.info(f"   📅 Found {len(medium_upcoming)} MEDIUM importance events in next 48h (static calendar)")
+                upcoming.extend(medium_upcoming)
             
             for event in upcoming:
                 event_id = f"{event.date}:{event.name}"
@@ -585,7 +840,7 @@ class UnifiedAlphaMonitor:
                 content = f"⚠️ **{event.name}** in {hours:.0f}h! Potential {swing:.1f}% Fed Watch swing!"
                 
                 logger.info(f"   📤 Sending Discord alert for {event.name}...")
-                success = self.send_discord(embed, content=content)
+                success = self.send_discord(embed, content=content, alert_type="economic_event", source="economic_monitor")
                 
                 if success:
                     logger.info(f"   ✅ ALERT SENT: {event.name} in {hours:.0f}h | ±{swing:.1f}% swing")
@@ -593,11 +848,20 @@ class UnifiedAlphaMonitor:
                     logger.error(f"   ❌ FAILED to send Discord alert for {event.name}")
             
             # Log today's summary
-            today_events = self.econ_calendar.get_today_events()
-            if today_events:
-                logger.info(f"   📅 Today: {', '.join([e.name for e in today_events])}")
+            if self.econ_calendar_type == "api":
+                today_data = self.econ_calendar.load_events(date=datetime.now().strftime('%Y-%m-%d'), min_impact="medium")
+                today_events = today_data.get('macro_events', [])
+                if today_events:
+                    event_names = [e.get('name', 'Unknown') for e in today_events]
+                    logger.info(f"   📅 Today: {', '.join(event_names)}")
+                else:
+                    logger.info(f"   📅 No events today (API)")
             else:
-                logger.info(f"   📅 No events today")
+                today_events = self.econ_calendar.get_today_events()
+                if today_events:
+                    logger.info(f"   📅 Today: {', '.join([e.name for e in today_events])}")
+                else:
+                    logger.info(f"   📅 No events today (static calendar)")
             
         except Exception as e:
             logger.error(f"   ❌ Economic check error: {e}")
@@ -615,8 +879,20 @@ class UnifiedAlphaMonitor:
             sample_alerts = self._generate_sample_tradytics_alerts()
 
             for alert in sample_alerts:
+                # Deduplicate alerts using hash of content
+                import hashlib
+                alert_hash = hashlib.md5(f"{alert['content']}:{alert['bot_name']}".encode()).hexdigest()[:12]
+                if alert_hash in self.seen_tradytics_alerts:
+                    logger.debug(f"   📊 Tradytics alert duplicate (hash: {alert_hash[:8]}) - skipping")
+                    continue
+                
+                self.seen_tradytics_alerts.add(alert_hash)
+                # Keep set size manageable (last 50)
+                if len(self.seen_tradytics_alerts) > 50:
+                    self.seen_tradytics_alerts = set(list(self.seen_tradytics_alerts)[-50:])
+                
                 analysis = self._analyze_tradytics_alert(alert)
-                if analysis:
+                if analysis and "Analysis failed" not in analysis:
                     self._send_tradytics_analysis_alert(alert, analysis)
                     self.tradytics_alerts_processed += 1
 
@@ -628,32 +904,9 @@ class UnifiedAlphaMonitor:
 
     def _generate_sample_tradytics_alerts(self):
         """Generate sample Tradytics alerts for demonstration"""
-        # This simulates what we would receive from actual Tradytics bots
-        # In production, this would come from webhook endpoints or API polling
-
-        alerts = [
-            {
-                'bot_name': 'Bullseye',
-                'alert_type': 'options_signal',
-                'content': 'NVDA $950 CALL SWEEP - $2.3M PREMIUM - Institutional buying detected',
-                'symbols': ['NVDA'],
-                'timestamp': datetime.now().isoformat(),
-                'confidence': 0.85
-            },
-            {
-                'bot_name': 'Darkpool',
-                'alert_type': 'block_trade',
-                'content': 'SPY $500 BLOCK TRADE - $75M at $498.50 - Large institutional accumulation',
-                'symbols': ['SPY'],
-                'timestamp': datetime.now().isoformat(),
-                'confidence': 0.78
-            }
-        ]
-
-        # Only return alerts occasionally to avoid spam
-        import random
-        if random.random() < 0.3:  # 30% chance
-            return alerts[:1]  # Return just one alert
+        # DISABLED: Sample alerts were causing spam with "Analysis failed" messages
+        # In production, this would connect to actual Tradytics webhooks or APIs
+        # For now, return empty list - only process REAL alerts from webhooks
         return []
 
     def _analyze_tradytics_alert(self, alert):
@@ -682,7 +935,15 @@ class UnifiedAlphaMonitor:
             """
 
             # Use the available query_llm function with savage prompt
-            response = query_llm(savage_prompt, provider="gemini")
+            try:
+                from src.data.llm_api import query_llm
+                response = query_llm(savage_prompt, provider="gemini")
+            except ImportError:
+                logger.warning("   ⚠️ query_llm not available - skipping analysis")
+                return f"Analysis unavailable: query_llm not found"
+            except NameError:
+                logger.warning("   ⚠️ query_llm not available - skipping analysis")
+                return f"Analysis unavailable: query_llm not found"
 
             # Extract the analysis from the response
             if isinstance(response, dict):
@@ -783,6 +1044,11 @@ class UnifiedAlphaMonitor:
     def _send_tradytics_analysis_alert(self, alert, analysis):
         """Send autonomous Tradytics analysis to Discord"""
         try:
+            # Don't send if analysis failed
+            if not analysis or "Analysis failed" in analysis or "unavailable" in analysis.lower():
+                logger.debug(f"   ⏭️  Skipping Tradytics alert - analysis failed or unavailable")
+                return
+            
             embed = {
                 "title": f"🧠 **SAVAGE ANALYSIS** - {alert['bot_name']} Alert",
                 "description": f"**Alert:** {alert['content']}\n\n{analysis}",
@@ -793,7 +1059,7 @@ class UnifiedAlphaMonitor:
 
             content = f"🧠 **AUTONOMOUS ANALYSIS** | {alert['bot_name']} detected significant activity"
 
-            success = self.send_discord(embed, content)
+            success = self.send_discord(embed, content, alert_type="tradytics", source="tradytics_analysis", symbol=",".join(alert.get('symbols', [])) if alert.get('symbols') else None)
             if success:
                 logger.info(f"   ✅ Autonomous Tradytics analysis sent for {alert['bot_name']}")
             else:
@@ -892,10 +1158,16 @@ class UnifiedAlphaMonitor:
             self._check_dark_pools_legacy()
     
     def _check_dark_pools_modular(self):
-        """Use the new modular DP Monitor Engine."""
+        """Use the new modular DP Monitor Engine + Selloff Detection."""
         logger.info("🔒 Checking Dark Pool levels (modular)...")
         
         try:
+            # ═══════════════════════════════════════════════════════════════
+            # 🚨 SELLOFF DETECTION (Real-time momentum)
+            # Check for selloffs BEFORE checking DP levels
+            # ═══════════════════════════════════════════════════════════════
+            self._check_selloffs()
+            
             # Check all symbols using the engine
             alerts = self.dp_monitor_engine.check_all_symbols(self.symbols)
             
@@ -943,14 +1215,19 @@ class UnifiedAlphaMonitor:
                 if len(self.recent_dp_alerts) > 20:
                     self.recent_dp_alerts = self.recent_dp_alerts[-20:]
                 
-                # ALWAYS send scalping signals (don't suppress in unified mode)
-                # These are valuable for quick scalps even if moves are small
-                logger.info(f"   📤 Sending SCALPING signal: {alert.symbol} {alert.alert_type.value} ${bg.price:.2f}")
-                success = self.send_discord(embed, content=content)
-                if success:
-                    logger.info(f"   ✅ DP ALERT SENT: {alert.symbol} @ ${bg.price:.2f} ({alert.priority.value})")
+                # 🧠 UNIFIED MODE: Suppress individual DP alerts, only synthesis matters
+                if not self.unified_mode:
+                    # Non-unified: Send each DP alert individually
+                    logger.info(f"   📤 Sending DP alert: {alert.symbol} {alert.alert_type.value} ${bg.price:.2f}")
+                    success = self.send_discord(embed, content=content, alert_type="dp_alert", source="dp_monitor", symbol=alert.symbol)
+                    if success:
+                        logger.info(f"   ✅ DP ALERT SENT: {alert.symbol} @ ${bg.price:.2f} ({alert.priority.value})")
+                    else:
+                        logger.error(f"   ❌ Failed to send DP alert")
                 else:
-                    logger.error(f"   ❌ Failed to send DP alert")
+                    # Unified mode: Suppress individual, log to DB for tracking
+                    logger.debug(f"   🔇 DP alert buffered (unified mode): {alert.symbol} @ ${bg.price:.2f}")
+                    self._log_alert_to_database("dp_alert", embed, content, "dp_monitor", alert.symbol)
                 
                 # Log to learning engine for outcome tracking
                 if self.dp_learning_enabled:
@@ -965,6 +1242,114 @@ class UnifiedAlphaMonitor:
                 
         except Exception as e:
             logger.error(f"   ❌ Modular DP check error: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+    
+    def _check_selloffs(self):
+        """
+        🚨 REAL-TIME SELLOFF DETECTION
+        
+        Detects rapid price drops with volume spikes (momentum-based).
+        This catches selloffs that happen BEFORE price reaches battlegrounds.
+        
+        Threshold: -0.5% drop in 20 minutes with 1.5x volume spike
+        """
+        try:
+            from live_monitoring.core.signal_generator import SignalGenerator
+            from live_monitoring.core.ultra_institutional_engine import UltraInstitutionalEngine
+            import yfinance as yf
+            import pandas as pd
+            
+            # Check if we have SignalGenerator available
+            if not hasattr(self, 'signal_generator') or self.signal_generator is None:
+                # Initialize if needed
+                try:
+                    api_key = os.getenv('CHARTEXCHANGE_API_KEY')
+                    dp_client = getattr(self, 'dp_client', None)
+                    self.signal_generator = SignalGenerator(api_key=api_key, dp_client=dp_client)
+                except Exception as e:
+                    logger.debug(f"   ⚠️ SignalGenerator not available for selloff detection: {e}")
+                    return
+            
+            for symbol in self.symbols:
+                try:
+                    # Get recent minute bars (last 30 minutes)
+                    ticker = yf.Ticker(symbol)
+                    hist = ticker.history(period='1d', interval='1m')
+                    
+                    if hist.empty or len(hist) < 20:
+                        continue
+                    
+                    # Get last 30 bars for selloff detection
+                    minute_bars = hist.tail(30)
+                    current_price = float(minute_bars['Close'].iloc[-1])
+                    
+                    # Get institutional context (for selloff detector)
+                    inst_context = None
+                    if hasattr(self, 'institutional_engine') and self.institutional_engine:
+                        try:
+                            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+                            inst_context = self.institutional_engine.build_context(symbol, yesterday)
+                        except Exception as e:
+                            logger.debug(f"   ⚠️ Could not build institutional context for selloff: {e}")
+                    
+                    # Check for selloff
+                    selloff_signal = self.signal_generator._detect_realtime_selloff(
+                        symbol=symbol,
+                        current_price=current_price,
+                        minute_bars=minute_bars,
+                        context=inst_context
+                    )
+                    
+                    if selloff_signal:
+                        logger.warning(f"   🚨 SELLOFF DETECTED: {symbol} @ ${current_price:.2f}")
+                        logger.warning(f"      → Confidence: {selloff_signal.confidence:.0%}")
+                        logger.warning(f"      → Action: {selloff_signal.action.value}")
+                        
+                        # Create Discord alert
+                        embed = {
+                            "title": f"🚨 **REAL-TIME SELLOFF** - {symbol}",
+                            "description": selloff_signal.rationale or "Rapid price drop with volume spike detected",
+                            "color": 0xff0000,  # Red for selloff
+                            "fields": [
+                                {
+                                    "name": "🎯 Trade Setup",
+                                    "value": f"**Action:** {selloff_signal.action.value}\n"
+                                            f"**Entry:** ${selloff_signal.entry_price:.2f}\n"
+                                            f"**Stop:** ${selloff_signal.stop_price:.2f}\n"
+                                            f"**Target:** ${selloff_signal.target_price:.2f}\n"
+                                            f"**Confidence:** {selloff_signal.confidence:.0%}",
+                                    "inline": False
+                                }
+                            ],
+                            "footer": {"text": "Real-time momentum detection"},
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        
+                        content = f"🚨 **REAL-TIME SELLOFF** | {symbol} | {selloff_signal.action.value} @ ${current_price:.2f}"
+                        
+                        # Check regime before sending (apply our smart filters)
+                        market_regime = self._detect_market_regime(current_price)
+                        signal_direction = selloff_signal.action.value
+                        
+                        # Block LONG selloff signals in DOWNTREND (contradictory)
+                        if market_regime in ["DOWNTREND", "STRONG_DOWNTREND"] and signal_direction == "LONG":
+                            logger.warning(f"   ⛔ REGIME FILTER: Blocking LONG selloff signal in {market_regime}")
+                            continue
+                        
+                        # Send alert
+                        logger.info(f"   📤 Sending SELLOFF alert: {symbol}")
+                        success = self.send_discord(embed, content=content, alert_type="selloff", source="selloff_detector", symbol=symbol)
+                        
+                        if success:
+                            logger.info(f"   ✅ SELLOFF ALERT SENT: {symbol}")
+                            
+                except Exception as e:
+                    logger.debug(f"   ⚠️ Selloff check error for {symbol}: {e}")
+                    continue
+                    
+        except Exception as e:
+            logger.debug(f"   ⚠️ Selloff detection error: {e}")
             import traceback
             logger.debug(traceback.format_exc())
     
@@ -1053,7 +1438,7 @@ class UnifiedAlphaMonitor:
             # Only log to console for debugging
             if not self.unified_mode:
                 content = f"🎯 **{outcome_emoji}** after {outcome.time_to_outcome_min} min | Max move: {outcome.max_move_pct:+.2f}%"
-                self.send_discord(embed, content=content)
+                self.send_discord(embed, content=content, alert_type="dp_outcome", source="dp_learning", symbol=None)
             else:
                 logger.debug(f"   📊 DP Outcome: {outcome_emoji} after {outcome.time_to_outcome_min} min (buffered for synthesis)")
             
@@ -1120,17 +1505,19 @@ class UnifiedAlphaMonitor:
                             for bg in self.dp_battlegrounds[symbol]
                         ]
                     else:
-                        # Fetch fresh
+                        # Fetch fresh (no date = gets today's levels)
                         try:
-                            dp_levels = self.dp_client.get_dark_pool_levels(symbol, yesterday)
+                            dp_levels = self.dp_client.get_dark_pool_levels(symbol)
                             if dp_levels:
                                 levels = []
                                 for level in dp_levels:
                                     price = float(level.get('level', 0))
                                     vol = int(level.get('volume', 0))  # Fixed: was total_vol
-                                    if vol >= 500000:
+                                    if vol >= 100000:  # Lowered from 500k (too high for intraday)
                                         levels.append({'price': price, 'volume': vol})
-                        except:
+                                logger.info(f"   📊 Fetched {len(levels)} DP levels for {symbol} (vol >= 100k)")
+                        except Exception as e:
+                            logger.warning(f"   ⚠️ Failed to fetch DP levels for {symbol}: {e}")
                             levels = []
 
                     if symbol == 'SPY':
@@ -1212,6 +1599,24 @@ class UnifiedAlphaMonitor:
                 narrative_sent = self._check_narrative_brain_signals(result, spy_price, qqq_price)
             
             if should_send:
+                # 🕐 TIME-BASED DEDUPLICATION (not content-based)
+                # Send synthesis max once per 5 minutes, regardless of small confluence changes
+                import hashlib
+                current_time = time.time()
+                
+                # Check last synthesis time
+                if hasattr(self, 'last_synthesis_sent'):
+                    elapsed = current_time - self.last_synthesis_sent
+                    if elapsed < 300:  # 5 minutes cooldown
+                        logger.debug(f"   ⏭️ Synthesis on cooldown ({elapsed:.0f}s < 300s) - skipping")
+                        # Clear buffer even if skipped (prevent stale data)
+                        if not narrative_sent:
+                            self.recent_dp_alerts = []
+                        return
+                
+                # Mark as sent
+                self.last_synthesis_sent = current_time
+                
                 embed = self.signal_brain.to_discord(result)
                 content = f"🧠 **UNIFIED MARKET SYNTHESIS** | {result.confluence.score:.0f}% {result.confluence.bias.value}"
                 
@@ -1221,10 +1626,16 @@ class UnifiedAlphaMonitor:
                     content += f" | 🎯 {result.recommendation.action} SPY"
                 
                 logger.info(f"   📤 Sending UNIFIED synthesis alert: {result.confluence.score:.0f}% {result.confluence.bias.value}")
-                success = self.send_discord(embed, content=content)
+                success = self.send_discord(embed, content=content, alert_type="synthesis", source="signal_brain", symbol="SPY,QQQ")
                 
                 if success:
                     logger.info(f"   ✅ UNIFIED SYNTHESIS ALERT SENT!")
+                    # Track this synthesis
+                    self.sent_synthesis_hashes.add(synthesis_hash)
+                    self.last_synthesis_hash = synthesis_hash
+                    # Keep only last 10 hashes
+                    if len(self.sent_synthesis_hashes) > 10:
+                        self.sent_synthesis_hashes = set(list(self.sent_synthesis_hashes)[-10:])
                     # Clear buffer after successful synthesis (unless Narrative Brain sent)
                     if not narrative_sent:
                         self.recent_dp_alerts = []
@@ -1244,6 +1655,12 @@ class UnifiedAlphaMonitor:
         🧠 NARRATIVE BRAIN - SEPARATE HIGH-QUALITY SIGNALS
         Checks Narrative Brain decision logic and sends separately if criteria met.
         These are HIGHER QUALITY signals with better move predictability.
+        
+        🔧 FIX (Dec 12): Added regime-aware filtering and synthesis alignment
+        - Skip LONG signals in DOWNTREND
+        - Skip SHORT signals in UPTREND
+        - Require synthesis-signal direction alignment
+        - Added level-direction cooldown to prevent flipping
         
         Returns:
             bool: True if signal was sent, False otherwise
@@ -1315,6 +1732,15 @@ class UnifiedAlphaMonitor:
                 reason = f"Critical mass ({len(self.recent_dp_alerts)} alerts)"
             
             if should_send:
+                # 🕐 TIME-BASED COOLDOWN (prevent spam)
+                # Only send narrative brain max once per 5 minutes
+                current_time = time.time()
+                if hasattr(self, 'last_narrative_sent'):
+                    elapsed = current_time - self.last_narrative_sent
+                    if elapsed < 300:  # 5 minutes cooldown
+                        logger.debug(f"   ⏭️ Narrative Brain on cooldown ({elapsed:.0f}s < 300s) - skipping")
+                        return False
+                
                 # Get best alert for trade setup (using same confluence calculation)
                 def get_alert_confluence(alert):
                     score = 50
@@ -1343,13 +1769,121 @@ class UnifiedAlphaMonitor:
                 bg = best_alert.battleground
                 ts = best_alert.trade_setup
                 
+                # ═══════════════════════════════════════════════════════════════
+                # 🧠 SMART REGIME-AWARE FILTERING
+                # Multi-factor regime detection + signal alignment
+                # ═══════════════════════════════════════════════════════════════
+                market_regime = self._detect_market_regime(spy_price)
+                signal_direction = ts.direction.value if ts else "UNKNOWN"
+                
+                # Get regime strength from cached details
+                regime_details = getattr(self, '_last_regime_details', {})
+                bullish_signals = regime_details.get('bullish_signals', 0)
+                bearish_signals = regime_details.get('bearish_signals', 0)
+                
+                # STRONG regimes = HARD BLOCK (never trade against)
+                if market_regime == "STRONG_DOWNTREND" and signal_direction == "LONG":
+                    logger.warning(f"   ⛔ REGIME FILTER: Blocking LONG signal in STRONG DOWNTREND")
+                    logger.warning(f"      → Market: {market_regime} (bearish signals: {bearish_signals})")
+                    logger.warning(f"      → STRONG trends = NEVER trade against")
+                    return False
+                
+                if market_regime == "STRONG_UPTREND" and signal_direction == "SHORT":
+                    logger.warning(f"   ⛔ REGIME FILTER: Blocking SHORT signal in STRONG UPTREND")
+                    logger.warning(f"      → Market: {market_regime} (bullish signals: {bullish_signals})")
+                    logger.warning(f"      → STRONG trends = NEVER trade against")
+                    return False
+                
+                # Normal downtrend = block LONG unless exceptional confluence
+                if market_regime == "DOWNTREND" and signal_direction == "LONG":
+                    if avg_confluence < 90:  # Only allow exceptional 90%+ confluence
+                        logger.warning(f"   ⛔ REGIME FILTER: Blocking LONG in DOWNTREND (confluence {avg_confluence:.0f}% < 90%)")
+                        logger.warning(f"      → Market: {market_regime} | Need 90%+ confluence to override")
+                        return False
+                    else:
+                        logger.info(f"   ⚠️ REGIME OVERRIDE: Allowing LONG in DOWNTREND (exceptional {avg_confluence:.0f}% confluence)")
+                
+                # Normal uptrend = block SHORT unless exceptional confluence
+                if market_regime == "UPTREND" and signal_direction == "SHORT":
+                    if avg_confluence < 90:  # Only allow exceptional 90%+ confluence
+                        logger.warning(f"   ⛔ REGIME FILTER: Blocking SHORT in UPTREND (confluence {avg_confluence:.0f}% < 90%)")
+                        logger.warning(f"      → Market: {market_regime} | Need 90%+ confluence to override")
+                        return False
+                    else:
+                        logger.info(f"   ⚠️ REGIME OVERRIDE: Allowing SHORT in UPTREND (exceptional {avg_confluence:.0f}% confluence)")
+                
+                # CHOPPY regime = require synthesis alignment (can't rely on trend)
+                # This makes CHOPPY more restrictive, not more permissive
+                
+                # ═══════════════════════════════════════════════════════════════
+                # 🧠 SMART SYNTHESIS-SIGNAL ALIGNMENT CHECK
+                # Require alignment in ALL regimes (not just strong trends)
+                # ═══════════════════════════════════════════════════════════════
+                synthesis_bias = synthesis_result.confluence.bias.value if synthesis_result and hasattr(synthesis_result, 'confluence') else "NEUTRAL"
+                synthesis_score = synthesis_result.confluence.score if synthesis_result and hasattr(synthesis_result, 'confluence') else 50
+                
+                # Skip LONG when synthesis is BEARISH
+                if synthesis_bias == "BEARISH" and signal_direction == "LONG":
+                    # Only exception: if synthesis score is weak (<60%)
+                    if synthesis_score >= 60:
+                        logger.warning(f"   ⛔ SYNTHESIS CONFLICT: Blocking LONG (synthesis {synthesis_score:.0f}% BEARISH)")
+                        logger.warning(f"      → Strong BEARISH synthesis = don't fight it")
+                        return False
+                    else:
+                        logger.info(f"   ⚠️ WEAK SYNTHESIS: Allowing LONG despite BEARISH (only {synthesis_score:.0f}%)")
+                
+                # Skip SHORT when synthesis is BULLISH
+                if synthesis_bias == "BULLISH" and signal_direction == "SHORT":
+                    # Only exception: if synthesis score is weak (<60%)
+                    if synthesis_score >= 60:
+                        logger.warning(f"   ⛔ SYNTHESIS CONFLICT: Blocking SHORT (synthesis {synthesis_score:.0f}% BULLISH)")
+                        logger.warning(f"      → Strong BULLISH synthesis = don't fight it")
+                        return False
+                    else:
+                        logger.info(f"   ⚠️ WEAK SYNTHESIS: Allowing SHORT despite BULLISH (only {synthesis_score:.0f}%)")
+                
+                # ═══════════════════════════════════════════════════════════════
+                # 🔧 FIX #3: LEVEL-DIRECTION COOLDOWN
+                # Don't flip direction on same level within 10 minutes
+                # ═══════════════════════════════════════════════════════════════
+                level_key = f"{bg.symbol}_{bg.price:.2f}"
+                if not hasattr(self, '_last_level_directions'):
+                    self._last_level_directions = {}
+                
+                if level_key in self._last_level_directions:
+                    last_direction, last_time = self._last_level_directions[level_key]
+                    elapsed = current_time - last_time
+                    
+                    # If same level but DIFFERENT direction within 10 minutes, skip
+                    if last_direction != signal_direction and elapsed < 600:  # 10 min
+                        logger.warning(f"   ⛔ FLIP PREVENTION: Same level ${bg.price:.2f} flipped from {last_direction} to {signal_direction}")
+                        logger.warning(f"      → Last signal: {last_direction} ({elapsed:.0f}s ago)")
+                        logger.warning(f"      → Waiting 10 minutes before allowing direction change")
+                        return False
+                
+                # Record this signal's direction
+                self._last_level_directions[level_key] = (signal_direction, current_time)
+                # Clean old entries (>30 min)
+                self._last_level_directions = {
+                    k: v for k, v in self._last_level_directions.items() 
+                    if current_time - v[1] < 1800
+                }
+                
+                # ═══════════════════════════════════════════════════════════════
+                # ✅ SIGNAL PASSED ALL FILTERS - SEND IT
+                # ═══════════════════════════════════════════════════════════════
+                logger.info(f"   ✅ SIGNAL PASSED FILTERS:")
+                logger.info(f"      → Regime: {market_regime} | Signal: {signal_direction} ✓")
+                logger.info(f"      → Synthesis: {synthesis_bias} | Signal: {signal_direction} ✓")
+                
                 # Create Narrative Brain alert
                 embed = {
                     "title": f"🧠 **NARRATIVE BRAIN SIGNAL** - {best_alert.symbol}",
                     "description": f"**Higher Quality Signal** - Better move predictability\n\n"
                                    f"**Reason:** {reason}\n"
                                    f"**Confluence:** {avg_confluence:.0f}%\n"
-                                   f"**Alerts Confirmed:** {len(self.recent_dp_alerts)}",
+                                   f"**Alerts Confirmed:** {len(self.recent_dp_alerts)}\n"
+                                   f"**Regime:** {market_regime} | **Synthesis:** {synthesis_bias}",
                     "color": 0x00ff00,  # Green for high quality
                     "fields": []
                 }
@@ -1377,10 +1911,12 @@ class UnifiedAlphaMonitor:
                 content = f"🧠 **NARRATIVE BRAIN SIGNAL** | {best_alert.symbol} | {reason} | ✅ **HIGHER QUALITY**"
                 
                 logger.info(f"   🧠 Narrative Brain: Sending HIGH-QUALITY signal ({reason})")
-                success = self.send_discord(embed, content=content)
+                success = self.send_discord(embed, content=content, alert_type="narrative_brain", source="narrative_brain", symbol=best_alert.symbol)
                 
                 if success:
                     logger.info(f"   ✅ NARRATIVE BRAIN SIGNAL SENT!")
+                    # Mark as sent with timestamp
+                    self.last_narrative_sent = current_time
                     return True  # Signal sent
             else:
                 logger.debug(f"   🧠 Narrative Brain: Not sending (confluence: {avg_confluence:.0f}%, alerts: {len(self.recent_dp_alerts)})")
@@ -1392,6 +1928,199 @@ class UnifiedAlphaMonitor:
             import traceback
             logger.debug(traceback.format_exc())
             return False
+    
+    def _detect_market_regime(self, current_price: float) -> str:
+        """
+        🧠 SMART REGIME DETECTION
+        
+        Multi-factor regime detection that adapts to:
+        - Intraday price movement (from open)
+        - Recent momentum (last 30 min)
+        - Volatility (ATR-based thresholds)
+        - Time of day (morning chop vs afternoon trend)
+        - Higher lows / Lower highs pattern
+        
+        Returns:
+            str: "STRONG_UPTREND", "UPTREND", "STRONG_DOWNTREND", "DOWNTREND", or "CHOPPY"
+        """
+        try:
+            import yfinance as yf
+            
+            # Get today's intraday data (5-min bars)
+            ticker = yf.Ticker('SPY')
+            hist = ticker.history(period='1d', interval='5m')
+            
+            if hist.empty or len(hist) < 6:
+                return "CHOPPY"  # Default to choppy if no data
+            
+            # ═══════════════════════════════════════════════════════════════
+            # 1. PRICE CHANGE FROM OPEN
+            # ═══════════════════════════════════════════════════════════════
+            open_price = hist['Open'].iloc[0]
+            change_from_open = ((current_price - open_price) / open_price) * 100
+            
+            # ═══════════════════════════════════════════════════════════════
+            # 2. RECENT MOMENTUM (Last 30 minutes = 6 bars)
+            # ═══════════════════════════════════════════════════════════════
+            recent_bars = min(6, len(hist))
+            recent_prices = hist['Close'].tail(recent_bars)
+            recent_high = recent_prices.max()
+            recent_low = recent_prices.min()
+            recent_start = recent_prices.iloc[0]
+            recent_end = recent_prices.iloc[-1]
+            
+            recent_momentum = ((recent_end - recent_start) / recent_start) * 100
+            
+            # ═══════════════════════════════════════════════════════════════
+            # 3. VOLATILITY-ADJUSTED THRESHOLDS (ATR-like)
+            # ═══════════════════════════════════════════════════════════════
+            # Calculate average range of recent bars
+            ranges = (hist['High'] - hist['Low']).tail(12)  # Last 1 hour
+            avg_range = ranges.mean()
+            avg_range_pct = (avg_range / current_price) * 100
+            
+            # Thresholds scale with volatility
+            # High volatility = higher threshold, Low volatility = lower threshold
+            base_threshold = 0.15  # Base 0.15%
+            volatility_multiplier = max(1.0, avg_range_pct / 0.10)  # Scale with volatility
+            trend_threshold = base_threshold * volatility_multiplier
+            strong_trend_threshold = trend_threshold * 2.5
+            
+            # ═══════════════════════════════════════════════════════════════
+            # 4. HIGHER HIGHS / LOWER LOWS PATTERN
+            # ═══════════════════════════════════════════════════════════════
+            # Split into 3 segments and check pattern
+            segment_size = len(hist) // 3
+            if segment_size >= 2:
+                seg1_high = hist['High'].iloc[:segment_size].max()
+                seg2_high = hist['High'].iloc[segment_size:segment_size*2].max()
+                seg3_high = hist['High'].iloc[segment_size*2:].max()
+                
+                seg1_low = hist['Low'].iloc[:segment_size].min()
+                seg2_low = hist['Low'].iloc[segment_size:segment_size*2].min()
+                seg3_low = hist['Low'].iloc[segment_size*2:].min()
+                
+                higher_highs = seg3_high > seg2_high > seg1_high
+                higher_lows = seg3_low > seg2_low > seg1_low
+                lower_highs = seg3_high < seg2_high < seg1_high
+                lower_lows = seg3_low < seg2_low < seg1_low
+                
+                pattern_bullish = higher_highs or higher_lows
+                pattern_bearish = lower_highs or lower_lows
+            else:
+                pattern_bullish = False
+                pattern_bearish = False
+            
+            # ═══════════════════════════════════════════════════════════════
+            # 5. TIME OF DAY ADJUSTMENT
+            # ═══════════════════════════════════════════════════════════════
+            from datetime import time as dt_time
+            now = datetime.now()
+            current_time = now.time()
+            
+            # First 30 min (9:30-10:00) - Higher threshold (morning chop)
+            is_morning_chop = dt_time(9, 30) <= current_time < dt_time(10, 0)
+            # Power hour (3:00-4:00) - Lower threshold (trends more reliable)
+            is_power_hour = dt_time(15, 0) <= current_time < dt_time(16, 0)
+            
+            if is_morning_chop:
+                trend_threshold *= 1.5  # Require stronger move in morning
+                strong_trend_threshold *= 1.5
+            elif is_power_hour:
+                trend_threshold *= 0.8  # Trends more reliable in power hour
+                strong_trend_threshold *= 0.8
+            
+            # ═══════════════════════════════════════════════════════════════
+            # 6. COMPOSITE REGIME DETERMINATION
+            # ═══════════════════════════════════════════════════════════════
+            bullish_signals = 0
+            bearish_signals = 0
+            
+            # Change from open
+            if change_from_open > strong_trend_threshold:
+                bullish_signals += 2
+            elif change_from_open > trend_threshold:
+                bullish_signals += 1
+            elif change_from_open < -strong_trend_threshold:
+                bearish_signals += 2
+            elif change_from_open < -trend_threshold:
+                bearish_signals += 1
+            
+            # Recent momentum
+            if recent_momentum > trend_threshold * 0.5:
+                bullish_signals += 1
+            elif recent_momentum < -trend_threshold * 0.5:
+                bearish_signals += 1
+            
+            # Pattern confirmation
+            if pattern_bullish:
+                bullish_signals += 1
+            if pattern_bearish:
+                bearish_signals += 1
+            
+            # Price position (above/below session VWAP approximation)
+            session_avg = hist['Close'].mean()
+            if current_price > session_avg * 1.002:
+                bullish_signals += 1
+            elif current_price < session_avg * 0.998:
+                bearish_signals += 1
+            
+            # ═══════════════════════════════════════════════════════════════
+            # 7. FINAL REGIME CLASSIFICATION
+            # ═══════════════════════════════════════════════════════════════
+            if bullish_signals >= 4:
+                regime = "STRONG_UPTREND"
+            elif bullish_signals >= 2 and bearish_signals < 2:
+                regime = "UPTREND"
+            elif bearish_signals >= 4:
+                regime = "STRONG_DOWNTREND"
+            elif bearish_signals >= 2 and bullish_signals < 2:
+                regime = "DOWNTREND"
+            else:
+                regime = "CHOPPY"
+            
+            # Log details for debugging
+            logger.info(f"   📊 REGIME: {regime}")
+            logger.debug(f"      → Open: ${open_price:.2f} | Current: ${current_price:.2f} | Change: {change_from_open:+.2f}%")
+            logger.debug(f"      → Momentum (30m): {recent_momentum:+.2f}% | Vol threshold: {trend_threshold:.2f}%")
+            logger.debug(f"      → Bullish signals: {bullish_signals} | Bearish signals: {bearish_signals}")
+            logger.debug(f"      → Pattern: {'HH/HL' if pattern_bullish else 'LH/LL' if pattern_bearish else 'None'}")
+            
+            # Cache the regime details for synthesis alignment
+            self._last_regime_details = {
+                'regime': regime,
+                'change_from_open': change_from_open,
+                'recent_momentum': recent_momentum,
+                'bullish_signals': bullish_signals,
+                'bearish_signals': bearish_signals,
+                'pattern': 'bullish' if pattern_bullish else 'bearish' if pattern_bearish else 'none'
+            }
+            
+            return regime
+            
+        except Exception as e:
+            logger.warning(f"   ⚠️ Regime detection error: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return "CHOPPY"  # Default to choppy on error
+    
+    def _is_market_hours(self) -> bool:
+        """Check if currently in RTH (9:30 AM - 4:00 PM ET, Mon-Fri)."""
+        from datetime import time as dt_time
+        now = datetime.now()
+        current_time = now.time()
+        
+        # Market hours: 9:30 AM - 4:00 PM ET
+        market_open = dt_time(9, 30)  # 9:30 AM
+        market_close = dt_time(16, 0)  # 4:00 PM
+        
+        # Check if it's a weekday (Mon=0, Sun=6)
+        is_weekday = now.weekday() < 5
+        
+        # Check if in market hours
+        in_hours = market_open <= current_time < market_close
+        
+        return is_weekday and in_hours
     
     def _get_current_intelligence_snapshot(self) -> dict:
         """Get current snapshot of all intelligence sources for narrative brain"""
@@ -1420,9 +2149,9 @@ class UnifiedAlphaMonitor:
                 logger.debug(f"Error getting fed officials status: {e}")
 
         # Trump Monitor
-        if self.trump_enabled and self.trump_monitor:
+        if self.trump_enabled and self.trump_pulse:
             try:
-                status = self.trump_monitor.get_current_situation()
+                status = self.trump_pulse.get_current_situation()
                 snapshot['trump_monitor'] = status or {}
             except Exception as e:
                 logger.debug(f"Error getting trump monitor status: {e}")
@@ -1451,7 +2180,11 @@ class UnifiedAlphaMonitor:
         return snapshot
 
     def send_startup_alert(self):
-        """Send startup notification."""
+        """Send startup notification (only once per session)."""
+        if self.startup_alert_sent:
+            logger.debug("   ⏭️  Startup alert already sent - skipping")
+            return
+            
         if not self.discord_webhook:
             logger.warning("⚠️ DISCORD_WEBHOOK_URL not set - no alerts will be sent!")
             return
@@ -1516,9 +2249,10 @@ class UnifiedAlphaMonitor:
         }
         
         logger.info("📤 Sending startup alert to Discord...")
-        success = self.send_discord(embed)
+        success = self.send_discord(embed, alert_type="startup", source="monitor")
         if success:
             logger.info("   ✅ Startup alert sent successfully!")
+            self.startup_alert_sent = True  # Mark as sent
         else:
             logger.error("   ❌ FAILED to send startup alert - check DISCORD_WEBHOOK_URL!")
     
@@ -1560,22 +2294,31 @@ class UnifiedAlphaMonitor:
                     self.check_economics()
                     self.last_econ_check = now
                 
-                # Check Dark Pools (every 60 seconds - real-time!)
-                if self.last_dp_check is None or (now - self.last_dp_check).seconds >= self.dp_interval:
+                # Check if market is open (RTH: 9:30 AM - 4:00 PM ET, Mon-Fri)
+                # Skip DP and Synthesis checks after market close (noise prevention)
+                is_market_hours = self._is_market_hours()
+                
+                # Check Dark Pools (every 60 seconds - real-time!) - ONLY DURING RTH
+                if is_market_hours and (self.last_dp_check is None or (now - self.last_dp_check).seconds >= self.dp_interval):
                     self.check_dark_pools()
                     self.last_dp_check = now
+                elif not is_market_hours:
+                    # Market closed - skip DP checks (no noise)
+                    if self.last_dp_check is None or (now - self.last_dp_check).seconds >= 300:  # Log once every 5 min
+                        logger.debug("   ⏸️  Market closed - skipping DP checks")
+                        self.last_dp_check = now
                 
-                # Signal Synthesis Brain (every 2 minutes)
-                if self.brain_enabled and (self.last_synthesis_check is None or (now - self.last_synthesis_check).seconds >= self.synthesis_interval):
+                # Signal Synthesis Brain (every 2 minutes) - ONLY DURING RTH
+                if is_market_hours and self.brain_enabled and (self.last_synthesis_check is None or (now - self.last_synthesis_check).seconds >= self.synthesis_interval):
                     self.check_synthesis()
                     self.last_synthesis_check = now
+                elif not is_market_hours and self.brain_enabled:
+                    # Market closed - skip synthesis (no noise)
+                    if self.last_synthesis_check is None or (now - self.last_synthesis_check).seconds >= 300:  # Log once every 5 min
+                        logger.debug("   ⏸️  Market closed - skipping synthesis")
+                        self.last_synthesis_check = now
 
-                # Autonomous Tradytics Analysis (every 5 minutes)
-                if self.tradytics_llm_available and (self.last_tradytics_analysis is None or (now - self.last_tradytics_analysis).seconds >= self.tradytics_analysis_interval):
-                    self.autonomous_tradytics_analysis()
-                    self.last_tradytics_analysis = now
-
-                # Autonomous Tradytics Analysis (every 5 minutes)
+                # Autonomous Tradytics Analysis (every 5 minutes) - REMOVED DUPLICATE
                 if self.tradytics_llm_available and (self.last_tradytics_analysis is None or (now - self.last_tradytics_analysis).seconds >= self.tradytics_analysis_interval):
                     self.autonomous_tradytics_analysis()
                     self.last_tradytics_analysis = now

@@ -35,6 +35,15 @@ except ImportError:
     NARRATIVE_AVAILABLE = False
     logger.warning("⚠️  Narrative pipeline not available - signals will not be enriched")
 
+# Import economic exploitation engine
+try:
+    sys.path.append(str(Path(__file__).parent.parent.parent))
+    from src.trading_economics_exploitation import EconomicCalendarExploiter
+    ECONOMIC_EXPLOITER_AVAILABLE = True
+except ImportError:
+    ECONOMIC_EXPLOITER_AVAILABLE = False
+    logger.warning("⚠️  Economic exploitation engine not available - risk management disabled")
+
 logger = logging.getLogger(__name__)
 
 # Note: LiveSignal is now imported from lottery_signals.py (new structure)
@@ -151,9 +160,14 @@ class SignalGenerator:
             else:
                 enriched_signals = all_signals
             
-            # STEP 4: Apply master filters
-            filtered_signals = self._apply_master_filters(enriched_signals)
-            
+            # STEP 4: Apply economic risk management
+            risk_adjusted_signals = self._apply_economic_risk_management(
+                symbol, enriched_signals
+            )
+
+            # STEP 5: Apply master filters
+            filtered_signals = self._apply_master_filters(risk_adjusted_signals)
+
             return filtered_signals
             
         except Exception as e:
@@ -566,7 +580,67 @@ class SignalGenerator:
         except Exception as e:
             logger.error(f"Error converting to lottery signal: {e}")
             return None
-    
+
+    def _apply_economic_risk_management(self, symbol: str,
+                                       signals: List[Union[LiveSignal, LotterySignal]]) -> List[Union[LiveSignal, LotterySignal]]:
+        """
+        Apply economic event risk management to signals.
+
+        Checks for upcoming high-impact economic events and adjusts signal confidence
+        or filters out signals during risky periods.
+        """
+        if not ECONOMIC_EXPLOITER_AVAILABLE:
+            logger.debug("Economic risk management disabled - exploiter not available")
+            return signals
+
+        try:
+            # Initialize exploiter (cache it for performance)
+            if not hasattr(self, '_economic_exploiter'):
+                self._economic_exploiter = EconomicCalendarExploiter()
+
+            # Check if trading is allowed based on economic events
+            risk_check = asyncio.run(
+                self._economic_exploiter.check_trading_allowed(symbol, buffer_hours=2.0)
+            )
+
+            if not risk_check['trading_allowed']:
+                logger.warning(f"🛑 ECONOMIC RISK: {risk_check['reason']}")
+
+                # During extreme risk, block all signals
+                if risk_check.get('risk_level') == 'EXTREME':
+                    logger.warning("🚫 EXTREME RISK: Blocking all signals during economic event")
+                    return []
+
+                # During high risk, reduce signal confidence
+                elif risk_check.get('risk_level') == 'HIGH':
+                    logger.warning("⚠️ HIGH RISK: Reducing signal confidence by 30%")
+                    for signal in signals:
+                        if hasattr(signal, 'confidence'):
+                            signal.confidence = max(0.1, signal.confidence * 0.7)
+                        if hasattr(signal, 'master_confidence'):
+                            signal.master_confidence = max(0.1, signal.master_confidence * 0.7)
+
+            # Get risk zones for additional context
+            risk_zones = asyncio.run(
+                self._economic_exploiter.get_risk_zones(hours_ahead=24)
+            )
+
+            # Log upcoming risk zones
+            for zone in risk_zones[:2]:  # Log top 2
+                event = zone['event']
+                high_risk_start = zone['high_risk_zone']['start']
+                high_risk_end = zone['high_risk_zone']['end']
+                logger.info(f"📅 Risk Zone: {event.event} ({event.country}) "
+                           f"{high_risk_start.strftime('%m/%d %H:%M')} - "
+                           f"{high_risk_end.strftime('%m/%d %H:%M')}")
+
+            return signals
+
+        except Exception as e:
+            logger.error(f"Error in economic risk management: {e}")
+            # Return signals unchanged if risk management fails
+            return signals
+
     def _apply_master_filters(self, signals: List[Union[LiveSignal, LotterySignal]]) -> List[Union[LiveSignal, LotterySignal]]:
         """
         Apply master filters to all signals (regular + lottery)
