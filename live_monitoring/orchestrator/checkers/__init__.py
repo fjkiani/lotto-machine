@@ -24,6 +24,10 @@ from .narrative_checker import NarrativeChecker
 from .economic_checker import EconomicChecker
 from .synthesis_checker import SynthesisChecker
 from .tradytics_checker import TradyticsChecker
+from .squeeze_checker import SqueezeChecker
+from .gamma_checker import GammaChecker
+from .scanner_checker import ScannerChecker
+from .ftd_checker import FTDChecker
 
 __all__ = [
     'BaseChecker',
@@ -35,5 +39,9 @@ __all__ = [
     'EconomicChecker',
     'SynthesisChecker',
     'TradyticsChecker',
+    'SqueezeChecker',
+    'GammaChecker',
+    'ScannerChecker',
+    'FTDChecker',
 ]
 
