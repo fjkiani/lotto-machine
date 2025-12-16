@@ -1260,4 +1260,682 @@ class UnifiedAlphaMonitor:
 
 ---
 
-**STATUS: 📋 PLAN READY FOR PLUMBER!** 🔧
+**STATUS: ✅ PHASE 6 COMPLETE!** 🎉
+
+---
+
+## 🔥 PHASE 5: REDDIT EXPLOITER - COMPLETE! 📱
+
+**Status:** ✅ **CORE MODULE COMPLETE**
+
+**Goal:** Exploit Reddit sentiment for contrarian trading signals beyond SPY/QQQ.
+
+**Problem Solved:** 
+> "my signals are too focused on just SPY/QQQ - for the last few weeks, tesla has been rallying - we missed everything"
+
+**Solution:** Discover HOT tickers + contrarian sentiment signals!
+
+---
+
+### 📊 DATA DISCOVERY RESULTS
+
+**API Tested:** ChartExchange Reddit Mentions Endpoint
+
+**Key Findings:**
+- ✅ **774,757+ TSLA mentions available** (massive dataset!)
+- ✅ **Pagination support** (100 posts per page, unlimited pages)
+- ✅ **Real-time sentiment scoring** (-1 to +1 per post)
+- ✅ **Subreddit breakdown** (WSB dominance tracking)
+- ✅ **47+ tickers scanned** in discovery phase
+
+**Live Test Results (Dec 16, 2025):**
+```
+🔥 DDOG: 86% SHORT Signal!
+   - Sentiment: +0.74 (extreme bullish)
+   - Bullish posts: 82%
+   - WSB Dominance: 80%
+   - Signal: FADE THE HYPE
+
+📈 Hot Tickers Discovered:
+   1. DDOG     +0.65  🔥 BULLISH
+   2. KOSS     +0.39  🔥 BULLISH
+   3. BBBY     +0.33  🔥 BULLISH
+   4. INTC     +0.32  🔥 BULLISH
+   5. SHOP     +0.31  🔥 BULLISH
+   ...
+   15. NVDA    +0.23  🎰 WSB HOT (61 posts)
+```
+
+---
+
+### ✅ FILES CREATED
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `live_monitoring/exploitation/reddit_exploiter.py` | 500+ | Core exploitation engine |
+| `live_monitoring/orchestrator/checkers/reddit_checker.py` | 250+ | Unified monitor integration |
+
+---
+
+### ✅ FEATURES IMPLEMENTED
+
+**1. RedditExploiter Class:**
+- ✅ `_fetch_mentions()` - Pagination support (up to 300 posts)
+- ✅ `analyze_ticker()` - Full sentiment analysis
+- ✅ `discover_hot_tickers()` - Find trending stocks
+- ✅ `get_contrarian_signals()` - Generate trading signals
+- ✅ `_generate_signal()` - Multi-factor signal scoring
+
+**2. Signal Types:**
+
+| Signal | Trigger | Action | Expected Edge |
+|--------|---------|--------|---------------|
+| **FADE_HYPE** | Sentiment > 0.4 + Bullish > 60% | SHORT | Crowd too bullish |
+| **FADE_FEAR** | Sentiment < -0.3 + Bearish > 50% | LONG | Crowd too bearish |
+| **PUMP_WARNING** | Mentions +200% + WSB > 60% | AVOID | Manipulation risk |
+| **MOMENTUM_SURGE** | Mentions +100% + Improving | Follow | Ride the wave |
+| **SENTIMENT_FLIP** | Trend reversal detected | WATCH | Potential reversal |
+
+**3. RedditChecker Integration:**
+- ✅ Runs hourly during RTH
+- ✅ Discord alerts for hot tickers
+- ✅ Discord alerts for contrarian signals
+- ✅ Deduplication (4-hour cooldown per symbol)
+
+---
+
+## 🎯 PHASE 5 EXTENSION TASKS - PLUMBER HIT LIST 🔨
+
+### **TASK 5.1: Integrate RedditChecker into UnifiedMonitor** ⏳
+**Priority:** HIGH
+**Effort:** 30 min
+
+**File:** `live_monitoring/orchestrator/unified_monitor.py`
+
+**Implementation:**
+1. Import RedditChecker
+2. Initialize in `_init_checkers()` with API key
+3. Add to main run loop (hourly during RTH)
+4. Test with live data
+
+**Acceptance Criteria:**
+- [ ] Reddit checker runs every hour during RTH
+- [ ] Hot ticker alerts appear in Discord
+- [ ] Contrarian signals appear in Discord
+
+---
+
+### **TASK 5.2: Add Historical Sentiment Tracking** ⏳
+**Priority:** HIGH
+**Effort:** 2 hours
+
+**Goal:** Track sentiment changes over time to catch trends EARLY.
+
+**File:** `live_monitoring/exploitation/reddit_exploiter.py`
+
+**Implementation:**
+```python
+class SentimentHistory:
+    """Track sentiment over time for trend detection."""
+    
+    def __init__(self, symbol: str):
+        self.symbol = symbol
+        self.history = []  # List of (timestamp, sentiment, mention_count)
+    
+    def add_datapoint(self, timestamp: datetime, sentiment: float, mentions: int):
+        self.history.append((timestamp, sentiment, mentions))
+        # Keep last 7 days
+        cutoff = datetime.now() - timedelta(days=7)
+        self.history = [(t, s, m) for t, s, m in self.history if t > cutoff]
+    
+    def get_trend(self) -> str:
+        """Calculate sentiment trend."""
+        if len(self.history) < 2:
+            return "INSUFFICIENT_DATA"
+        
+        recent = self.history[-5:]  # Last 5 datapoints
+        older = self.history[:-5]
+        
+        if not older:
+            return "INSUFFICIENT_DATA"
+        
+        recent_avg = sum(s for _, s, _ in recent) / len(recent)
+        older_avg = sum(s for _, s, _ in older) / len(older)
+        
+        if recent_avg > older_avg + 0.15:
+            return "BULLISH_SHIFT"
+        elif recent_avg < older_avg - 0.15:
+            return "BEARISH_SHIFT"
+        else:
+            return "STABLE"
+```
+
+**New Method:**
+```python
+def track_sentiment_history(self, symbols: List[str]) -> Dict[str, SentimentHistory]:
+    """Track sentiment history for multiple symbols."""
+```
+
+**Acceptance Criteria:**
+- [ ] SentimentHistory class tracks 7 days of data
+- [ ] `get_trend()` detects BULLISH_SHIFT, BEARISH_SHIFT, STABLE
+- [ ] New signal type: SENTIMENT_SHIFT_ALERT
+
+---
+
+### **TASK 5.3: Add Mention Velocity Detection** ⏳
+**Priority:** HIGH
+**Effort:** 1.5 hours
+
+**Goal:** Detect RAPID changes in mention volume (early pump detection).
+
+**File:** `live_monitoring/exploitation/reddit_exploiter.py`
+
+**Implementation:**
+```python
+def calculate_mention_velocity(self, symbol: str) -> Dict:
+    """
+    Calculate mention velocity (rate of change).
+    
+    Returns:
+        {
+            'velocity_1h': float,  # Mentions per hour (last hour)
+            'velocity_24h': float, # Mentions per hour (last 24h avg)
+            'acceleration': float, # Velocity change rate
+            'is_surging': bool,    # True if velocity > 3x normal
+        }
+    """
+```
+
+**New Signal Type:**
+- `VELOCITY_SURGE` - Mention velocity > 3x normal (early warning for pumps)
+
+**Acceptance Criteria:**
+- [ ] Velocity calculation implemented
+- [ ] Acceleration detection (rate of change of velocity)
+- [ ] VELOCITY_SURGE signal type added
+- [ ] Discord alert for velocity surges
+
+---
+
+### **TASK 5.4: Expand Ticker Universe** ⏳
+**Priority:** MEDIUM
+**Effort:** 1 hour
+
+**Goal:** Add more tickers to scan for opportunities.
+
+**File:** `live_monitoring/exploitation/reddit_exploiter.py`
+
+**Current Universe (47 tickers):**
+- Mega caps, Semiconductors, Meme stocks, Crypto, AI/Cloud, EVs, Fintech
+
+**Expansion:**
+```python
+# Add these categories:
+'SPACs': ['DWAC', 'IPOF', 'PSTH', 'CCIV', 'LCID'],
+'Biotech': ['MRNA', 'BNTX', 'NVAX', 'PFE', 'JNJ'],
+'Energy': ['XOM', 'CVX', 'OXY', 'FANG', 'DVN'],
+'Retail': ['GME', 'BBBY', 'KOSS', 'AMC', 'EXPR'],
+'Cannabis': ['TLRY', 'CGC', 'SNDL', 'ACB', 'HEXO'],
+'Airlines': ['AAL', 'UAL', 'DAL', 'LUV', 'SAVE'],
+```
+
+**Acceptance Criteria:**
+- [ ] Universe expanded to 80+ tickers
+- [ ] Category tagging for filtering
+- [ ] Configurable universe (can add/remove tickers)
+
+---
+
+### **TASK 5.5: Add WSB-Specific Signals** ⏳
+**Priority:** MEDIUM
+**Effort:** 2 hours
+
+**Goal:** Special handling for r/wallstreetbets activity.
+
+**File:** `live_monitoring/exploitation/reddit_exploiter.py`
+
+**Implementation:**
+```python
+class WSBAnalyzer:
+    """Special analysis for r/wallstreetbets activity."""
+    
+    # WSB-specific thresholds
+    WSB_DOMINANCE_MEME_RISK = 70  # >70% from WSB = meme risk
+    WSB_YOLO_THRESHOLD = 0.5     # High bullish sentiment in WSB
+    
+    def analyze_wsb_activity(self, mentions: List[RedditMention]) -> Dict:
+        """
+        Analyze WSB-specific patterns.
+        
+        Returns:
+            {
+                'wsb_dominance': float,
+                'yolo_score': float,  # How "YOLO" is the WSB crowd
+                'diamond_hands': int,  # Count of "diamond hands" mentions
+                'rocket_emoji': int,   # Count of 🚀 mentions
+                'is_meme_mode': bool,
+                'risk_level': str,    # 'LOW', 'MEDIUM', 'HIGH', 'EXTREME'
+            }
+        """
+```
+
+**New Signal Types:**
+- `WSB_MEME_ALERT` - High WSB dominance + extreme sentiment
+- `WSB_YOLO_WAVE` - WSB going full YOLO (extreme bullish)
+- `WSB_CAPITULATION` - WSB giving up (extreme bearish)
+
+**Acceptance Criteria:**
+- [ ] WSBAnalyzer class created
+- [ ] YOLO score calculation
+- [ ] Meme mode detection
+- [ ] Risk level classification
+
+---
+
+### **TASK 5.6: Add Subreddit-Specific Analysis** ⏳
+**Priority:** MEDIUM
+**Effort:** 1.5 hours
+
+**Goal:** Different treatment for different subreddits.
+
+**File:** `live_monitoring/exploitation/reddit_exploiter.py`
+
+**Subreddit Categories:**
+```python
+SUBREDDIT_WEIGHTS = {
+    # Retail/Meme (fade these)
+    'wallstreetbets': {'weight': 0.3, 'contrarian': True},
+    'stocks': {'weight': 0.5, 'contrarian': False},
+    'investing': {'weight': 0.7, 'contrarian': False},
+    
+    # Value investors (follow these)
+    'ValueInvesting': {'weight': 0.8, 'contrarian': False},
+    'SecurityAnalysis': {'weight': 0.9, 'contrarian': False},
+    
+    # Options (high signal, high noise)
+    'options': {'weight': 0.6, 'contrarian': False},
+    'thetagang': {'weight': 0.7, 'contrarian': False},
+    
+    # Meme central (strong fade)
+    'amcstock': {'weight': 0.2, 'contrarian': True},
+    'Superstonk': {'weight': 0.2, 'contrarian': True},
+}
+```
+
+**Implementation:**
+```python
+def calculate_weighted_sentiment(self, mentions: List[RedditMention]) -> float:
+    """
+    Calculate sentiment weighted by subreddit credibility.
+    
+    WSB posts get lower weight, ValueInvesting gets higher weight.
+    """
+```
+
+**Acceptance Criteria:**
+- [ ] Subreddit weights implemented
+- [ ] Weighted sentiment calculation
+- [ ] Contrarian flag per subreddit
+
+---
+
+### **TASK 5.7: Add Price Correlation Check** ⏳
+**Priority:** HIGH
+**Effort:** 2 hours
+
+**Goal:** Combine Reddit sentiment with price action for confirmation.
+
+**File:** `live_monitoring/exploitation/reddit_exploiter.py`
+
+**Implementation:**
+```python
+def correlate_with_price(self, symbol: str, analysis: RedditTickerAnalysis) -> Dict:
+    """
+    Correlate Reddit sentiment with price action.
+    
+    Returns:
+        {
+            'price_change_24h': float,
+            'price_change_7d': float,
+            'sentiment_price_correlation': float,  # -1 to +1
+            'divergence': bool,  # True if sentiment and price disagree
+            'divergence_type': str,  # 'BULLISH_DIV' or 'BEARISH_DIV'
+            'confirmation': str,    # 'CONFIRMED', 'DIVERGENT', 'NEUTRAL'
+        }
+    
+    Divergence Examples:
+    - Price falling but sentiment rising = BULLISH_DIV (potential reversal)
+    - Price rising but sentiment falling = BEARISH_DIV (potential top)
+    """
+```
+
+**New Signal Types:**
+- `BULLISH_DIVERGENCE` - Price down, sentiment up (accumulation)
+- `BEARISH_DIVERGENCE` - Price up, sentiment down (distribution)
+- `STEALTH_ACCUMULATION` - Low mentions, price rising quietly
+
+**Acceptance Criteria:**
+- [ ] Price data integration (yfinance)
+- [ ] Correlation calculation
+- [ ] Divergence detection
+- [ ] New signal types with Discord alerts
+
+---
+
+### **TASK 5.8: Add Real-Time Monitoring Mode** ⏳
+**Priority:** HIGH
+**Effort:** 2 hours
+
+**Goal:** Continuous monitoring for rapid sentiment shifts.
+
+**File:** `live_monitoring/exploitation/reddit_exploiter.py`
+
+**Implementation:**
+```python
+class RedditRealTimeMonitor:
+    """Real-time Reddit sentiment monitoring."""
+    
+    def __init__(self, exploiter: RedditExploiter):
+        self.exploiter = exploiter
+        self.baseline_sentiments = {}  # symbol -> baseline sentiment
+        self.last_check = {}           # symbol -> last check time
+    
+    def quick_scan(self, symbols: List[str]) -> List[Dict]:
+        """
+        Fast scan for sentiment changes.
+        
+        Only fetches 1 page (100 posts) per symbol for speed.
+        Compares to baseline to detect rapid shifts.
+        
+        Returns list of alerts for significant changes.
+        """
+    
+    def detect_rapid_shift(self, symbol: str, current: float, baseline: float) -> Optional[str]:
+        """
+        Detect if sentiment shifted rapidly.
+        
+        Returns:
+            'RAPID_BULLISH' if shift > +0.3
+            'RAPID_BEARISH' if shift < -0.3
+            None if no significant shift
+        """
+```
+
+**Integration with UnifiedMonitor:**
+- Every 15 minutes: Quick scan for rapid shifts
+- Hourly: Full scan with contrarian signals
+
+**Acceptance Criteria:**
+- [ ] Quick scan mode (100 posts only)
+- [ ] Baseline sentiment tracking
+- [ ] Rapid shift detection
+- [ ] 15-minute monitoring interval
+
+---
+
+### **TASK 5.9: Add Discord Rich Alerts** ⏳
+**Priority:** MEDIUM
+**Effort:** 1 hour
+
+**Goal:** Enhanced Discord alerts with more context.
+
+**File:** `live_monitoring/orchestrator/checkers/reddit_checker.py`
+
+**Enhancements:**
+```python
+def _create_rich_signal_embed(self, signal, price_data=None) -> dict:
+    """
+    Create rich Discord embed with:
+    - Sentiment chart (last 7 days) - ASCII sparkline
+    - Top 3 sample posts with sentiment scores
+    - Price correlation if available
+    - Risk assessment
+    - Suggested trade setup (if signal is actionable)
+    """
+```
+
+**Sample Alert:**
+```
+🔻 REDDIT SIGNAL: DDOG | FADE_HYPE | 86%
+
+📊 Sentiment: +0.74 (EXTREME BULLISH)
+📈 Trend: ▁▂▃▅▆▇█ (7-day)
+🎰 WSB: 80% dominance (MEME RISK!)
+
+💬 Top Posts:
+• [+0.92] "DDOG to the moon! 🚀"
+• [+0.85] "Loading up on calls"
+• [+0.78] "Best SaaS play right now"
+
+📉 Price: $125.50 (+8.2% 7d)
+⚠️ DIVERGENCE: Price up, but too crowded!
+
+🎯 Trade Setup: SHORT
+   Entry: $125.50
+   Stop: $130.00 (3.6% risk)
+   Target: $118.00 (6% reward)
+   R/R: 1.7:1
+```
+
+**Acceptance Criteria:**
+- [ ] Rich embeds with sparklines
+- [ ] Sample posts included
+- [ ] Price correlation shown
+- [ ] Trade setup when actionable
+
+---
+
+### **TASK 5.10: Add Backtesting Framework** ⏳
+**Priority:** HIGH
+**Effort:** 3 hours
+
+**Goal:** Validate Reddit signals historically.
+
+**File:** `backtesting/simulation/reddit_detector.py`
+
+**Implementation:**
+```python
+class RedditSignalSimulator:
+    """Backtest Reddit-based trading signals."""
+    
+    def __init__(self, exploiter: RedditExploiter):
+        self.exploiter = exploiter
+    
+    def simulate(self, symbols: List[str], days: int = 30) -> BacktestResult:
+        """
+        Backtest Reddit signals.
+        
+        For each day:
+        1. Get Reddit sentiment at market open
+        2. Generate signal
+        3. If actionable, simulate trade
+        4. Track P&L
+        
+        Returns BacktestResult with metrics.
+        """
+```
+
+**Metrics to Track:**
+- Win rate by signal type
+- Best performing signal type
+- Worst performing signal type
+- Best performing subreddit for signals
+- Optimal thresholds
+
+**Acceptance Criteria:**
+- [ ] RedditSignalSimulator class
+- [ ] 30-day backtest capability
+- [ ] Metrics by signal type
+- [ ] Threshold optimization
+
+---
+
+### **TASK 5.11: Add Ticker Discovery by Momentum** ⏳
+**Priority:** HIGH  
+**Effort:** 1.5 hours
+
+**Goal:** Discover NEW tickers that are gaining momentum on Reddit BEFORE they're mainstream.
+
+**File:** `live_monitoring/exploitation/reddit_exploiter.py`
+
+**Implementation:**
+```python
+def discover_emerging_tickers(self, min_mentions: int = 20, max_mentions: int = 100) -> List[Dict]:
+    """
+    Find tickers that are JUST starting to get attention.
+    
+    Sweet spot: 20-100 mentions (not yet mainstream, but growing)
+    
+    Returns:
+        [
+            {
+                'symbol': 'XYZ',
+                'mention_count': 45,
+                'velocity': 3.2,  # Mentions growing 3.2x
+                'sentiment': 0.65,
+                'top_subreddit': 'wallstreetbets',
+                'discovery_reason': 'Rapid mention growth',
+            }
+        ]
+    """
+```
+
+**Alert Type:**
+- `EMERGING_TICKER` - New ticker gaining momentum
+
+**Use Case:** Would have caught TSLA rally early if mentions were growing before the move!
+
+**Acceptance Criteria:**
+- [ ] Emerging ticker detection
+- [ ] Velocity-based discovery
+- [ ] Discord alerts for new discoveries
+
+---
+
+## 📋 PHASE 5 DEFINITION OF DONE
+
+**Plumber is DONE with Phase 5 when:**
+
+1. ✅ Core module complete (`reddit_exploiter.py`)
+2. ✅ Checker integration (`reddit_checker.py`)
+3. ⏳ Task 5.1: Integrated into UnifiedMonitor
+4. ⏳ Task 5.2: Historical sentiment tracking
+5. ⏳ Task 5.3: Mention velocity detection
+6. ⏳ Task 5.7: Price correlation check
+7. ⏳ Task 5.8: Real-time monitoring mode
+8. ⏳ Task 5.10: Backtesting framework
+
+**Validation Criteria:**
+- [ ] Discovers TSLA-like rallies BEFORE they happen
+- [ ] 60%+ win rate on FADE_HYPE signals (backtest)
+- [ ] 55%+ win rate on FADE_FEAR signals (backtest)
+- [ ] Discord alerts fire for all signal types
+- [ ] No false positives on PUMP_WARNING (>80% accuracy)
+
+---
+
+## 🎯 PHASE 5 TASK PRIORITY ORDER
+
+**Priority 1 (Critical - Do First):**
+1. Task 5.1: Integrate into UnifiedMonitor (30 min)
+2. Task 5.7: Add price correlation check (2 hours)
+3. Task 5.3: Add mention velocity detection (1.5 hours)
+
+**Priority 2 (High - Do Next):**
+4. Task 5.2: Add historical sentiment tracking (2 hours)
+5. Task 5.8: Add real-time monitoring mode (2 hours)
+6. Task 5.11: Ticker discovery by momentum (1.5 hours)
+
+**Priority 3 (Medium - Enhancement):**
+7. Task 5.5: Add WSB-specific signals (2 hours)
+8. Task 5.6: Add subreddit-specific analysis (1.5 hours)
+9. Task 5.4: Expand ticker universe (1 hour)
+10. Task 5.9: Add Discord rich alerts (1 hour)
+
+**Priority 4 (Validation):**
+11. Task 5.10: Add backtesting framework (3 hours)
+
+**Total Estimated Effort:** 18-20 hours
+
+---
+
+## 📊 REDDIT EXPLOITER DATA REFERENCE
+
+**API Endpoint:** `https://chartexchange.com/api/v1/data/reddit/mentions/stock/{SYMBOL}/`
+
+**Response Format:**
+```json
+{
+    "count": 774757,
+    "next": "http://chartexchange.com/api/v1/data/reddit/mentions/stock/?page=2&symbol=TSLA",
+    "previous": null,
+    "results": [
+        {
+            "subreddit": "wallstreetbets",
+            "created": "2025-12-16 22:08:29",
+            "sentiment": "0.318",
+            "thing_id": "nuer8v2",
+            "thing_type": "comment",
+            "author": "username",
+            "link": "https://www.reddit.com/r/...",
+            "text": "Post content here..."
+        }
+    ]
+}
+```
+
+**Available Fields:**
+- `subreddit` - Source subreddit
+- `created` - Post timestamp
+- `sentiment` - Sentiment score (-1 to +1)
+- `thing_type` - 'comment' or 'submission'
+- `author` - Reddit username
+- `text` - Post content (up to 500 chars)
+- `link` - Direct link to post
+
+**Rate Limits:** 1000 requests/minute (Tier 3)
+
+---
+
+**STATUS: 🔥 PHASE 5 READY FOR PLUMBER EXTENSION!** 🔨📱
+
+---
+
+## 📊 OVERALL PROGRESS SUMMARY (UPDATED)
+
+### ✅ PHASE 1: SQUEEZE DETECTOR
+- **Status:** ✅ **PRODUCTION READY**
+- **Results:** 40 trades, 55% WR, +17.08% P&L
+- **Completion:** 100%
+
+### ✅ PHASE 2: GAMMA TRACKER
+- **Status:** ✅ **PRODUCTION READY**
+- **Results:** 7 trades, 57.1% WR, 4.50 PF
+- **Completion:** 100%
+
+### ✅ PHASE 3: OPPORTUNITY SCANNER
+- **Status:** ✅ **PRODUCTION READY**
+- **Results:** Scanner working, FULLY INTEGRATED
+- **Completion:** 100%
+
+### ✅ PHASE 4: FTD ANALYZER
+- **Status:** ✅ **PRODUCTION READY**
+- **Results:** T+35 calendar, signal detection
+- **Completion:** 100%
+
+### ✅ PHASE 5: REDDIT EXPLOITER
+- **Status:** ✅ **CORE COMPLETE** / ⏳ **EXTENSION PENDING**
+- **Results:** 47+ tickers, contrarian signals, DDOG 86% SHORT
+- **Completion:** 50% (Core done, extensions pending)
+
+### ✅ PHASE 6: MODULARIZATION
+- **Status:** ✅ **COMPLETE**
+- **Results:** 13 checker modules, unified_monitor.py slimmed
+- **Completion:** 100%
+
+---
+
+**Total Production-Ready Modules:** 5/6 (83%)  
+**Total Lines of Exploitation Code:** 2,500+  
+**STATUS: 🔥🔥🔥 SYSTEM READY FOR ALPHA!** 💰🎯🚀
