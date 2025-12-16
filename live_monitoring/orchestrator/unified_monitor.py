@@ -23,6 +23,20 @@ from .alert_manager import AlertManager
 from .regime_detector import RegimeDetector
 from .momentum_detector import MomentumDetector
 from .monitor_initializer import MonitorInitializer
+from .checkers import (
+    FedChecker,
+    TrumpChecker,
+    EconomicChecker,
+    DarkPoolChecker,
+    SynthesisChecker,
+    NarrativeChecker,
+    TradyticsChecker,
+    SqueezeChecker,
+    GammaChecker,
+    ScannerChecker,
+    FTDChecker,
+    DailyRecapChecker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -279,6 +293,118 @@ class UnifiedAlphaMonitor:
         logger.info(f"   Gamma Tracker: {'✅' if self.gamma_enabled else '❌'}")
         logger.info(f"   Opportunity Scanner: {'✅' if self.scanner_enabled else '❌'}")
         logger.info(f"   FTD Analyzer: {'✅' if self.ftd_enabled else '❌'}")
+        
+        # Initialize all checkers
+        self._init_checkers()
+    
+    def _init_checkers(self):
+        """Initialize all checker modules."""
+        logger.info("🔧 Initializing checker modules...")
+        
+        # Fed Checker
+        self.fed_checker = FedChecker(
+            alert_manager=self.alert_manager,
+            fed_watch=self.fed_watch,
+            fed_officials=self.fed_officials,
+            unified_mode=self.unified_mode
+        ) if self.fed_enabled else None
+        
+        # Trump Checker
+        self.trump_checker = TrumpChecker(
+            alert_manager=self.alert_manager,
+            trump_pulse=self.trump_pulse,
+            trump_news=self.trump_news,
+            unified_mode=self.unified_mode
+        ) if self.trump_enabled else None
+        
+        # Economic Checker
+        self.economic_checker = EconomicChecker(
+            alert_manager=self.alert_manager,
+            econ_calendar=self.econ_calendar,
+            econ_engine=self.econ_engine,
+            econ_calendar_type=self.econ_calendar_type,
+            prev_fed_status=self.prev_fed_status,
+            unified_mode=self.unified_mode
+        ) if self.econ_enabled else None
+        
+        # Dark Pool Checker
+        self.dp_checker = DarkPoolChecker(
+            alert_manager=self.alert_manager,
+            dp_monitor_engine=self.dp_monitor_engine,
+            symbols=self.symbols,
+            unified_mode=self.unified_mode,
+            on_synthesis_trigger=lambda: None  # Synthesis handled separately
+        ) if self.dp_enabled else None
+        
+        # Synthesis Checker
+        self.synthesis_checker = SynthesisChecker(
+            alert_manager=self.alert_manager,
+            signal_brain=self.signal_brain,
+            macro_provider=self.macro_provider,
+            unified_mode=self.unified_mode
+        ) if self.brain_enabled else None
+        
+        # Narrative Checker
+        self.narrative_checker = NarrativeChecker(
+            alert_manager=self.alert_manager,
+            narrative_brain=self.narrative_brain,
+            regime_detector=self.regime_detector,
+            dp_monitor_engine=self.dp_monitor_engine,
+            unified_mode=self.unified_mode
+        ) if self.narrative_enabled else None
+        
+        # Tradytics Checker
+        self.tradytics_checker = TradyticsChecker(
+            alert_manager=self.alert_manager,
+            tradytics_llm_available=self.tradytics_llm_available,
+            tradytics_analysis_interval=self.tradytics_analysis_interval,
+            unified_mode=self.unified_mode
+        ) if self.tradytics_llm_available else None
+        
+        # Squeeze Checker
+        self.squeeze_checker = SqueezeChecker(
+            alert_manager=self.alert_manager,
+            squeeze_detector=self.squeeze_detector,
+            opportunity_scanner=self.opportunity_scanner,
+            squeeze_candidates=self.squeeze_candidates,
+            unified_mode=self.unified_mode
+        ) if self.squeeze_enabled else None
+        
+        # Gamma Checker
+        self.gamma_checker = GammaChecker(
+            alert_manager=self.alert_manager,
+            gamma_tracker=self.gamma_tracker,
+            symbols=self.symbols,
+            unified_mode=self.unified_mode
+        ) if self.gamma_enabled else None
+        
+        # Scanner Checker
+        self.scanner_checker = ScannerChecker(
+            alert_manager=self.alert_manager,
+            opportunity_scanner=self.opportunity_scanner,
+            squeeze_detector=self.squeeze_detector,
+            unified_mode=self.unified_mode
+        ) if self.scanner_enabled else None
+        
+        # FTD Checker
+        self.ftd_checker = FTDChecker(
+            alert_manager=self.alert_manager,
+            ftd_analyzer=self.ftd_analyzer,
+            ftd_candidates=self.ftd_candidates,
+            unified_mode=self.unified_mode
+        ) if self.ftd_enabled else None
+        
+        # Daily Recap Checker
+        self.daily_recap_checker = DailyRecapChecker(
+            alert_manager=self.alert_manager,
+            gamma_tracker=self.gamma_tracker,
+            symbols=self.symbols,
+            squeeze_enabled=self.squeeze_enabled,
+            gamma_enabled=self.gamma_enabled,
+            unified_mode=self.unified_mode
+        )
+        
+        logger.info("   ✅ All checkers initialized")
     
     # ═══════════════════════════════════════════════════════════════
     # ALERT METHODS (delegate to AlertManager)
@@ -1923,46 +2049,111 @@ class UnifiedAlphaMonitor:
             try:
                 now = datetime.now()
                 
-                if self.last_fed_check is None or (now - self.last_fed_check).seconds >= self.fed_interval:
-                    self.check_fed()
+                # Fed Checker
+                if self.fed_checker and (self.last_fed_check is None or (now - self.last_fed_check).seconds >= self.fed_interval):
+                    # Update prev_fed_status in checker before checking
+                    self.fed_checker.prev_fed_status = self.prev_fed_status
+                    alerts = self.fed_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+                    # Update prev_fed_status from checker after checking
+                    if hasattr(self.fed_checker, 'prev_fed_status'):
+                        self.prev_fed_status = self.fed_checker.prev_fed_status
                     self.last_fed_check = now
                 
-                if self.last_trump_check is None or (now - self.last_trump_check).seconds >= self.trump_interval:
-                    self.check_trump()
+                # Trump Checker
+                if self.trump_checker and (self.last_trump_check is None or (now - self.last_trump_check).seconds >= self.trump_interval):
+                    alerts = self.trump_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_trump_check = now
                 
-                if self.last_econ_check is None or (now - self.last_econ_check).seconds >= self.econ_interval:
-                    self.check_economics()
+                # Economic Checker
+                if self.economic_checker and (self.last_econ_check is None or (now - self.last_econ_check).seconds >= self.econ_interval):
+                    alerts = self.economic_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_econ_check = now
                 
                 is_market_hours = self._is_market_hours()
                 
-                if is_market_hours and (self.last_dp_check is None or (now - self.last_dp_check).seconds >= self.dp_interval):
-                    self.check_dark_pools()
+                # Get current prices for synthesis/narrative checkers
+                spy_price = 0.0
+                qqq_price = 0.0
+                if is_market_hours:
+                    try:
+                        import yfinance as yf
+                        spy_ticker = yf.Ticker('SPY')
+                        qqq_ticker = yf.Ticker('QQQ')
+                        spy_hist = spy_ticker.history(period='1d', interval='1m')
+                        qqq_hist = qqq_ticker.history(period='1d', interval='1m')
+                        if not spy_hist.empty:
+                            spy_price = float(spy_hist['Close'].iloc[-1])
+                        if not qqq_hist.empty:
+                            qqq_price = float(qqq_hist['Close'].iloc[-1])
+                    except:
+                        pass
+                
+                # Dark Pool Checker
+                if is_market_hours and self.dp_checker and (self.last_dp_check is None or (now - self.last_dp_check).seconds >= self.dp_interval):
+                    alerts = self.dp_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+                    # Get recent_dp_alerts from checker for synthesis/narrative
+                    self.recent_dp_alerts = self.dp_checker.get_recent_alerts()
                     self.last_dp_check = now
                 
-                if is_market_hours and self.brain_enabled and (self.last_synthesis_check is None or (now - self.last_synthesis_check).seconds >= self.synthesis_interval):
-                    self.check_synthesis()
+                # Synthesis Checker (returns alerts + result for narrative checker)
+                synthesis_result = None
+                if is_market_hours and self.synthesis_checker and (self.last_synthesis_check is None or (now - self.last_synthesis_check).seconds >= self.synthesis_interval):
+                    alerts, synthesis_result = self.synthesis_checker.check(
+                        recent_dp_alerts=self.recent_dp_alerts,
+                        spy_price=spy_price,
+                        qqq_price=qqq_price
+                    )
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_synthesis_check = now
+                    
+                    # Check Narrative Brain signals (needs synthesis_result)
+                    if synthesis_result and self.narrative_checker:
+                        narrative_alerts = self.narrative_checker.check(
+                            recent_dp_alerts=self.recent_dp_alerts,
+                            synthesis_result=synthesis_result,
+                            spy_price=spy_price,
+                            qqq_price=qqq_price
+                        )
+                        for alert in narrative_alerts:
+                            self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+                        if not narrative_alerts:
+                            self.recent_dp_alerts = []  # Clear if no narrative signal
                 
-                # 🔥 EXPLOITATION: Squeeze Detection (hourly during RTH)
-                if is_market_hours and self.squeeze_enabled and (self.last_squeeze_check is None or (now - self.last_squeeze_check).seconds >= self.squeeze_interval):
-                    self.check_squeeze_setups()
+                # Squeeze Checker
+                if is_market_hours and self.squeeze_checker and (self.last_squeeze_check is None or (now - self.last_squeeze_check).seconds >= self.squeeze_interval):
+                    alerts = self.squeeze_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_squeeze_check = now
                 
-                # 🎲 EXPLOITATION: Gamma Tracking (every 30 min during RTH - was hourly)
-                if is_market_hours and self.gamma_enabled and (self.last_gamma_check is None or (now - self.last_gamma_check).seconds >= self.gamma_interval):
-                    self.check_gamma_setups()
+                # Gamma Checker
+                if is_market_hours and self.gamma_checker and (self.last_gamma_check is None or (now - self.last_gamma_check).seconds >= self.gamma_interval):
+                    alerts = self.gamma_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_gamma_check = now
                 
-                # 🔍 EXPLOITATION: Opportunity Scanner (hourly during RTH)
-                if is_market_hours and self.scanner_enabled and (self.last_scanner_check is None or (now - self.last_scanner_check).seconds >= self.scanner_interval):
-                    self.check_opportunity_scanner()
+                # Scanner Checker
+                if is_market_hours and self.scanner_checker and (self.last_scanner_check is None or (now - self.last_scanner_check).seconds >= self.scanner_interval):
+                    alerts = self.scanner_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_scanner_check = now
                 
-                # 📈 EXPLOITATION: FTD Analyzer (hourly during RTH)
-                if is_market_hours and self.ftd_enabled and (self.last_ftd_check is None or (now - self.last_ftd_check).seconds >= self.ftd_interval):
-                    self.check_ftd_analyzer()
+                # FTD Checker
+                if is_market_hours and self.ftd_checker and (self.last_ftd_check is None or (now - self.last_ftd_check).seconds >= self.ftd_interval):
+                    alerts = self.ftd_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_ftd_check = now
                 
                 # 🚨 MOMENTUM: Selloff/Rally Detection (every minute during RTH)
@@ -1970,9 +2161,11 @@ class UnifiedAlphaMonitor:
                     self._check_selloffs()
                     self._check_rallies()
                 
-                # Tradytics analysis
-                if self.tradytics_llm_available and (self.last_tradytics_analysis is None or (now - self.last_tradytics_analysis).seconds >= self.tradytics_analysis_interval):
-                    self.autonomous_tradytics_analysis()
+                # Tradytics Checker
+                if self.tradytics_checker and (self.last_tradytics_analysis is None or (now - self.last_tradytics_analysis).seconds >= self.tradytics_analysis_interval):
+                    alerts = self.tradytics_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_tradytics_analysis = now
                 
                 # Narrative Brain scheduled updates
@@ -1985,9 +2178,10 @@ class UnifiedAlphaMonitor:
                             self.narrative_scheduler.mark_intra_day_update_sent()
                             logger.info(f"🧠 Narrative update sent: {update.alert_type.value}")
                 
-                # 📊 DAILY RECAP: Send at market close (4:00-4:05 PM ET)
-                if self._should_send_daily_recap(now):
-                    self._send_daily_recap()
+                # Daily Recap Checker
+                recap_alerts = self.daily_recap_checker.check(now)
+                for alert in recap_alerts:
+                    self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                 
                 time.sleep(30)
                 

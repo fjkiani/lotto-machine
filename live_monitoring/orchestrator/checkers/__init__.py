@@ -28,6 +28,7 @@ from .squeeze_checker import SqueezeChecker
 from .gamma_checker import GammaChecker
 from .scanner_checker import ScannerChecker
 from .ftd_checker import FTDChecker
+from .daily_recap_checker import DailyRecapChecker
 
 __all__ = [
     'BaseChecker',
@@ -43,5 +44,6 @@ __all__ = [
     'GammaChecker',
     'ScannerChecker',
     'FTDChecker',
+    'DailyRecapChecker',
 ]
 
