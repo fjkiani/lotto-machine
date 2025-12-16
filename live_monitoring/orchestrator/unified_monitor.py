@@ -874,7 +874,16 @@ class UnifiedAlphaMonitor:
                 
                 best_alert = max(self.recent_dp_alerts, key=get_alert_confluence)
                 bg = best_alert.battleground
-                ts = best_alert.trade_setup
+                
+                # CRITICAL FIX: Recalculate trade setup with CURRENT price!
+                # The cached trade setup may have stale entry prices from minutes ago
+                current_price = spy_price if bg.symbol == 'SPY' else qqq_price
+                if hasattr(self, 'dp_monitor_engine') and self.dp_monitor_engine:
+                    ts = self.dp_monitor_engine.trade_calculator.calculate_setup(bg, current_price=current_price)
+                    logger.debug(f"   📊 Recalculated trade setup: Entry ${ts.entry:.2f} (current price: ${current_price:.2f})")
+                else:
+                    ts = best_alert.trade_setup  # Fallback to cached
+                    logger.warning(f"   ⚠️ Using cached trade setup (no trade_calculator available)")
                 
                 # Regime-aware filtering
                 market_regime = self._detect_market_regime(spy_price)
@@ -905,19 +914,25 @@ class UnifiedAlphaMonitor:
                         logger.warning(f"   ⛔ REGIME FILTER: Blocking SHORT in UPTREND (confluence {avg_confluence:.0f}% < 90%)")
                         return False
                 
-                # Synthesis-signal alignment
+                # Synthesis-signal alignment - STRICT! No conflicting signals allowed
                 synthesis_bias = synthesis_result.confluence.bias.value if synthesis_result and hasattr(synthesis_result, 'confluence') else "NEUTRAL"
                 synthesis_score = synthesis_result.confluence.score if synthesis_result and hasattr(synthesis_result, 'confluence') else 50
                 
+                # HARD BLOCK any synthesis conflict (lowered threshold from 60 to 40)
                 if synthesis_bias == "BEARISH" and signal_direction == "LONG":
-                    if synthesis_score >= 60:
+                    if synthesis_score >= 40:  # More strict - block even weak bearish
                         logger.warning(f"   ⛔ SYNTHESIS CONFLICT: Blocking LONG (synthesis {synthesis_score:.0f}% BEARISH)")
                         return False
                 
                 if synthesis_bias == "BULLISH" and signal_direction == "SHORT":
-                    if synthesis_score >= 60:
+                    if synthesis_score >= 40:  # More strict - block even weak bullish
                         logger.warning(f"   ⛔ SYNTHESIS CONFLICT: Blocking SHORT (synthesis {synthesis_score:.0f}% BULLISH)")
                         return False
+                
+                # Also check for regime-synthesis alignment
+                if market_regime == "DOWNTREND" and synthesis_bias == "BULLISH":
+                    logger.warning(f"   ⚠️ REGIME-SYNTHESIS MISMATCH: Regime={market_regime}, Synthesis={synthesis_bias}")
+                    # Don't block, but log the inconsistency
                 
                 # ═══════════════════════════════════════════════════════════════
                 # GLOBAL DIRECTION LOCK - No flip-flopping between LONG/SHORT!
