@@ -23,6 +23,7 @@ from .dark_pool_checker import DarkPoolChecker
 from .narrative_checker import NarrativeChecker
 from .economic_checker import EconomicChecker
 from .synthesis_checker import SynthesisChecker
+from .tradytics_checker import TradyticsChecker
 
 __all__ = [
     'BaseChecker',
@@ -33,5 +34,6 @@ __all__ = [
     'NarrativeChecker',
     'EconomicChecker',
     'SynthesisChecker',
+    'TradyticsChecker',
 ]
 
