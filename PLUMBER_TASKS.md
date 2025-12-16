@@ -1902,6 +1902,272 @@ def discover_emerging_tickers(self, min_mentions: int = 20, max_mentions: int = 
 
 ---
 
+## 👔 MANAGER REVIEW - PHASE 5 PLAN ASSESSMENT
+
+**Reviewer:** Zo (Commander AI)  
+**Date:** 2025-12-17  
+**Status:** ✅ **APPROVED WITH RECOMMENDATIONS**
+
+---
+
+### ✅ STRENGTHS
+
+1. **Clear Problem Statement** ✅
+   - Addresses real gap: "missed TSLA rally"
+   - Solution is well-defined: "discover HOT tickers + contrarian signals"
+
+2. **Strong Data Foundation** ✅
+   - 774K+ mentions available (massive dataset)
+   - Pagination support confirmed
+   - Live test results validate approach (DDOG 86% SHORT)
+
+3. **Well-Structured Tasks** ✅
+   - Each task has clear acceptance criteria
+   - Implementation details provided (code snippets)
+   - Priority ordering is logical
+
+4. **Measurable Success Criteria** ✅
+   - Win rate targets (60% FADE_HYPE, 55% FADE_FEAR)
+   - False positive threshold (>80% accuracy)
+   - Clear validation metrics
+
+---
+
+### ⚠️ CRITICAL GAPS IDENTIFIED
+
+#### **GAP 1: Missing Dependency Management** 🔴
+**Issue:** Tasks don't explicitly list dependencies.
+
+**Example:**
+- Task 5.7 (Price Correlation) requires Task 5.2 (Historical Tracking) for trend comparison
+- Task 5.8 (Real-Time Mode) requires Task 5.3 (Velocity Detection) for baseline
+- Task 5.10 (Backtesting) requires ALL previous tasks to be complete
+
+**Recommendation:** Add dependency graph:
+```
+Task 5.1 → No dependencies (can start immediately)
+Task 5.2 → No dependencies
+Task 5.3 → No dependencies
+Task 5.7 → Requires: 5.2 (for trend comparison)
+Task 5.8 → Requires: 5.3 (for velocity baseline)
+Task 5.10 → Requires: 5.1, 5.2, 5.3, 5.7 (all core features)
+```
+
+---
+
+#### **GAP 2: Missing Rate Limit Strategy** 🔴
+**Issue:** No plan for handling 1000 req/min limit when scanning 47+ tickers.
+
+**Risk:**
+- Scanning 47 tickers × 3 pages = 141 requests
+- If done every hour = manageable
+- If done every 15 min (Task 5.8) = 564 requests/hour = potential rate limit issues
+
+**Recommendation:** Add Task 5.12:
+```markdown
+### **TASK 5.12: Implement Rate Limit Management** ⏳
+**Priority:** HIGH
+**Effort:** 1 hour
+
+**Implementation:**
+- Add request queue with rate limiting
+- Batch requests efficiently
+- Cache results (5-min TTL)
+- Prioritize high-value tickers
+- Skip low-priority scans if rate limit approaching
+```
+
+---
+
+#### **GAP 3: Missing Error Handling Strategy** 🟠
+**Issue:** No plan for API failures, missing data, or edge cases.
+
+**Scenarios Not Covered:**
+- API returns 404 for some tickers
+- Sentiment score is null/malformed
+- Subreddit field missing
+- Pagination fails mid-scan
+
+**Recommendation:** Add to Task 5.1 acceptance criteria:
+- [ ] Graceful handling of API errors (404, 500, timeout)
+- [ ] Fallback to cached data when API unavailable
+- [ ] Logging for debugging failed requests
+- [ ] Retry logic with exponential backoff
+
+---
+
+#### **GAP 4: Missing Data Persistence Strategy** 🟠
+**Issue:** Task 5.2 (Historical Tracking) mentions 7-day history but no storage plan.
+
+**Questions:**
+- Where is sentiment history stored? (Memory? Database? File?)
+- How to persist across restarts?
+- How to handle memory limits for 47+ tickers?
+
+**Recommendation:** Add to Task 5.2:
+```markdown
+**Storage Strategy:**
+- Use SQLite database: `data/reddit_sentiment_history.db`
+- Table: `sentiment_history` (symbol, timestamp, sentiment, mentions)
+- Keep 30 days of history (not just 7)
+- Cleanup old data daily
+```
+
+---
+
+#### **GAP 5: Missing Integration Testing Plan** 🟠
+**Issue:** No plan to test Reddit checker with UnifiedMonitor.
+
+**Risk:** Integration might break existing functionality.
+
+**Recommendation:** Add Task 5.13:
+```markdown
+### **TASK 5.13: Integration Testing** ⏳
+**Priority:** HIGH
+**Effort:** 1 hour
+
+**Test Scenarios:**
+1. Reddit checker runs without blocking other checkers
+2. Discord alerts format correctly
+3. Deduplication works across checkers
+4. Rate limits don't affect other API calls
+5. Error handling doesn't crash UnifiedMonitor
+```
+
+---
+
+#### **GAP 6: Missing Performance Benchmarks** 🟡
+**Issue:** No performance targets for real-time monitoring.
+
+**Questions:**
+- How long should 47-ticker scan take?
+- What's acceptable latency for alerts?
+- How much memory/CPU is acceptable?
+
+**Recommendation:** Add performance targets:
+```markdown
+**Performance Targets:**
+- Full scan (47 tickers, 3 pages each): < 2 minutes
+- Quick scan (47 tickers, 1 page each): < 30 seconds
+- Alert generation: < 5 seconds per signal
+- Memory usage: < 500MB for sentiment history
+```
+
+---
+
+#### **GAP 7: Missing Threshold Validation** 🟡
+**Issue:** Thresholds are hardcoded without validation plan.
+
+**Example:**
+- `FADE_HYPE_THRESHOLD = 0.4` - Why 0.4? Why not 0.35 or 0.45?
+- `MENTION_SURGE_THRESHOLD = 2.0` - Why 2x? Why not 1.5x or 3x?
+
+**Recommendation:** Add to Task 5.10 (Backtesting):
+- [ ] Test threshold sensitivity (0.3, 0.35, 0.4, 0.45, 0.5)
+- [ ] Find optimal thresholds via backtest
+- [ ] Document threshold rationale
+
+---
+
+### 📋 REVISED PRIORITY ORDER (WITH DEPENDENCIES)
+
+**Phase 5A (Foundation - Week 1):**
+1. **Task 5.1** → Integrate into UnifiedMonitor (30 min) ⚡ **START HERE**
+2. **Task 5.12** → Rate limit management (1 hour) ⚡ **CRITICAL**
+3. **Task 5.2** → Historical sentiment tracking (2 hours)
+4. **Task 5.3** → Mention velocity detection (1.5 hours)
+
+**Phase 5B (Core Features - Week 1-2):**
+5. **Task 5.7** → Price correlation check (2 hours) *[Requires 5.2]*
+6. **Task 5.8** → Real-time monitoring mode (2 hours) *[Requires 5.3]*
+7. **Task 5.11** → Ticker discovery by momentum (1.5 hours)
+
+**Phase 5C (Enhancements - Week 2):**
+8. **Task 5.5** → WSB-specific signals (2 hours)
+9. **Task 5.6** → Subreddit-specific analysis (1.5 hours)
+10. **Task 5.4** → Expand ticker universe (1 hour)
+11. **Task 5.9** → Discord rich alerts (1 hour)
+
+**Phase 5D (Validation - Week 2-3):**
+12. **Task 5.10** → Backtesting framework (3 hours) *[Requires 5.1, 5.2, 5.3, 5.7]*
+13. **Task 5.13** → Integration testing (1 hour) *[Requires all above]*
+
+**Revised Total Effort:** 20-22 hours (was 18-20)
+
+---
+
+### 🎯 UPDATED DEFINITION OF DONE
+
+**Phase 5 is COMPLETE when:**
+
+**Core Features (Must Have):**
+- [x] Core module complete (`reddit_exploiter.py`)
+- [x] Checker integration (`reddit_checker.py`)
+- [ ] Task 5.1: Integrated into UnifiedMonitor
+- [ ] Task 5.12: Rate limit management
+- [ ] Task 5.2: Historical sentiment tracking
+- [ ] Task 5.3: Mention velocity detection
+- [ ] Task 5.7: Price correlation check
+- [ ] Task 5.8: Real-time monitoring mode
+
+**Validation (Must Pass):**
+- [ ] Task 5.10: Backtesting framework complete
+- [ ] Task 5.13: Integration tests pass
+- [ ] 60%+ win rate on FADE_HYPE signals (backtest)
+- [ ] 55%+ win rate on FADE_FEAR signals (backtest)
+- [ ] No false positives on PUMP_WARNING (>80% accuracy)
+- [ ] Performance targets met (< 2 min full scan)
+
+**Enhancements (Nice to Have):**
+- [ ] Task 5.5: WSB-specific signals
+- [ ] Task 5.6: Subreddit-specific analysis
+- [ ] Task 5.4: Expanded ticker universe
+- [ ] Task 5.9: Discord rich alerts
+- [ ] Task 5.11: Emerging ticker discovery
+
+---
+
+### 🚨 RISK ASSESSMENT
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| API rate limits | HIGH | HIGH | Task 5.12 (rate limit management) |
+| Missing data quality | MEDIUM | MEDIUM | Robust error handling (Task 5.1) |
+| Performance issues | MEDIUM | MEDIUM | Performance benchmarks + caching |
+| False positives | MEDIUM | HIGH | Backtesting validation (Task 5.10) |
+| Integration bugs | LOW | HIGH | Integration testing (Task 5.13) |
+
+---
+
+### 💡 MANAGER RECOMMENDATIONS
+
+1. **Start with Task 5.1 + 5.12** - Get basic integration working with rate limits FIRST
+2. **Validate data quality early** - Test with 10 tickers before scaling to 47+
+3. **Iterate on thresholds** - Use backtesting to optimize, don't hardcode
+4. **Monitor performance** - Track scan times and memory usage from day 1
+5. **Document edge cases** - Log all API failures and data quality issues
+
+---
+
+### ✅ APPROVAL STATUS
+
+**Plan Status:** ✅ **APPROVED**  
+**Confidence Level:** 🟢 **HIGH** (85%)
+
+**Approved to proceed with:**
+- ✅ All Priority 1 tasks
+- ✅ All Priority 2 tasks
+- ⚠️ Priority 3 tasks (defer if time-constrained)
+- ✅ Priority 4 validation (must complete)
+
+**Next Review:** After Task 5.1 + 5.12 complete (check integration + rate limits)
+
+---
+
+**MANAGER SIGN-OFF:** ✅ **PROCEED WITH EXECUTION** 🔨
+
+---
+
 ## 📊 OVERALL PROGRESS SUMMARY (UPDATED)
 
 ### ✅ PHASE 1: SQUEEZE DETECTOR
