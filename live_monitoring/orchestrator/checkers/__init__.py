@@ -14,6 +14,7 @@ Each checker handles a single responsibility:
 - ScannerChecker: Opportunity scanner
 - FTDChecker: FTD analysis
 - DailyRecapChecker: Daily market recap
+- RedditChecker: Reddit sentiment (Phase 5)
 """
 
 from .base_checker import BaseChecker, CheckerAlert
@@ -29,6 +30,7 @@ from .gamma_checker import GammaChecker
 from .scanner_checker import ScannerChecker
 from .ftd_checker import FTDChecker
 from .daily_recap_checker import DailyRecapChecker
+from .reddit_checker import RedditChecker
 
 __all__ = [
     'BaseChecker',
@@ -45,5 +47,6 @@ __all__ = [
     'ScannerChecker',
     'FTDChecker',
     'DailyRecapChecker',
+    'RedditChecker',
 ]
 
