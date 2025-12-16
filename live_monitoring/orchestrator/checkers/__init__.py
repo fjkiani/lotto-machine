@@ -21,6 +21,8 @@ from .fed_checker import FedChecker
 from .trump_checker import TrumpChecker
 from .dark_pool_checker import DarkPoolChecker
 from .narrative_checker import NarrativeChecker
+from .economic_checker import EconomicChecker
+from .synthesis_checker import SynthesisChecker
 
 __all__ = [
     'BaseChecker',
@@ -29,5 +31,7 @@ __all__ = [
     'TrumpChecker',
     'DarkPoolChecker',
     'NarrativeChecker',
+    'EconomicChecker',
+    'SynthesisChecker',
 ]
 
