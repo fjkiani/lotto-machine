@@ -230,3 +230,4 @@ class NarrativeBrainTool(BaseTool):
         return "\n".join(lines)
 
 
+

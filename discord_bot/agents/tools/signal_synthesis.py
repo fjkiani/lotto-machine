@@ -153,3 +153,4 @@ class SignalSynthesisTool(BaseTool):
         return "\n".join(lines)
 
 
+

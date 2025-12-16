@@ -316,3 +316,7 @@ class TradyticsSynthesisEngine:
         for signal in self.signal_history[-50:]:  # Last 50 signals
             distribution[signal.get('feed_type', 'unknown')] += 1
         return dict(distribution)
+
+
+
+

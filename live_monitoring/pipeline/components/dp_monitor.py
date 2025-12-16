@@ -48,7 +48,10 @@ class DPMonitor:
     
     def check(self) -> Dict[str, Any]:
         """
-        Check Dark Pool levels + Selloff Detection.
+        Check Dark Pool levels.
+        
+        NOTE: This modular component is NOT currently used.
+        The deployed version uses run_all_monitors.py directly.
         
         Returns:
             Dict with alerts and buffered alerts for synthesis
@@ -59,14 +62,6 @@ class DPMonitor:
         }
         
         try:
-            # ═══════════════════════════════════════════════════════════════
-            # 🚨 SELLOFF DETECTION (Real-time momentum)
-            # Check for selloffs BEFORE checking DP levels
-            # ═══════════════════════════════════════════════════════════════
-            selloff_alerts = self._check_selloffs()
-            if selloff_alerts:
-                result['alerts'].extend(selloff_alerts)
-            
             # Use existing engine to check all symbols
             alerts = self.dp_monitor_engine.check_all_symbols(self.symbols)
             
@@ -142,116 +137,6 @@ class DPMonitor:
             result['error'] = str(e)
         
         return result
-    
-    def _check_selloffs(self) -> List[Dict[str, Any]]:
-        """
-        🚨 REAL-TIME SELLOFF DETECTION
-        
-        Detects rapid price drops with volume spikes (momentum-based).
-        This catches selloffs that happen BEFORE price reaches battlegrounds.
-        
-        Threshold: -0.5% drop in 20 minutes with 1.5x volume spike
-        """
-        selloff_alerts = []
-        
-        try:
-            from live_monitoring.core.signal_generator import SignalGenerator
-            from live_monitoring.core.ultra_institutional_engine import UltraInstitutionalEngine
-            import yfinance as yf
-            from datetime import datetime, timedelta
-            import os
-            
-            # Initialize SignalGenerator if needed
-            if not hasattr(self, '_signal_generator') or self._signal_generator is None:
-                try:
-                    api_key = os.getenv('CHARTEXCHANGE_API_KEY')
-                    self._signal_generator = SignalGenerator(api_key=api_key)
-                except Exception as e:
-                    logger.debug(f"   ⚠️ SignalGenerator not available for selloff detection: {e}")
-                    return selloff_alerts
-            
-            for symbol in self.symbols:
-                try:
-                    # Get recent minute bars (last 30 minutes)
-                    ticker = yf.Ticker(symbol)
-                    hist = ticker.history(period='1d', interval='1m')
-                    
-                    if hist.empty or len(hist) < 20:
-                        continue
-                    
-                    # Get last 30 bars for selloff detection
-                    minute_bars = hist.tail(30)
-                    current_price = float(minute_bars['Close'].iloc[-1])
-                    
-                    # Get institutional context (for selloff detector)
-                    inst_context = None
-                    try:
-                        from core.ultra_institutional_engine import UltraInstitutionalEngine
-                        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-                        inst_engine = UltraInstitutionalEngine(api_key=os.getenv('CHARTEXCHANGE_API_KEY'))
-                        inst_context = inst_engine.build_context(symbol, yesterday)
-                    except Exception as e:
-                        logger.debug(f"   ⚠️ Could not build institutional context for selloff: {e}")
-                    
-                    # Check for selloff
-                    selloff_signal = self._signal_generator._detect_realtime_selloff(
-                        symbol=symbol,
-                        current_price=current_price,
-                        minute_bars=minute_bars,
-                        context=inst_context
-                    )
-                    
-                    if selloff_signal:
-                        logger.warning(f"   🚨 SELLOFF DETECTED: {symbol} @ ${current_price:.2f}")
-                        logger.warning(f"      → Confidence: {selloff_signal.confidence:.0%}")
-                        logger.warning(f"      → Action: {selloff_signal.action.value}")
-                        
-                        # Create alert dict
-                        embed = {
-                            "title": f"🚨 **REAL-TIME SELLOFF** - {symbol}",
-                            "description": selloff_signal.rationale or "Rapid price drop with volume spike detected",
-                            "color": 0xff0000,  # Red for selloff
-                            "fields": [
-                                {
-                                    "name": "🎯 Trade Setup",
-                                    "value": f"**Action:** {selloff_signal.action.value}\n"
-                                            f"**Entry:** ${selloff_signal.entry_price:.2f}\n"
-                                            f"**Stop:** ${selloff_signal.stop_price:.2f}\n"
-                                            f"**Target:** ${selloff_signal.target_price:.2f}\n"
-                                            f"**Confidence:** {selloff_signal.confidence:.0%}",
-                                    "inline": False
-                                }
-                            ],
-                            "footer": {"text": "Real-time momentum detection"},
-                            "timestamp": datetime.now().isoformat()
-                        }
-                        
-                        content = f"🚨 **REAL-TIME SELLOFF** | {symbol} | {selloff_signal.action.value} @ ${current_price:.2f}"
-                        
-                        alert_dict = {
-                            'type': 'selloff',
-                            'embed': embed,
-                            'content': content,
-                            'source': 'selloff_detector',
-                            'symbol': symbol
-                        }
-                        
-                        selloff_alerts.append(alert_dict)
-                        
-                        # Send via callback
-                        if self.alert_callback:
-                            self.alert_callback(alert_dict)
-                            
-                except Exception as e:
-                    logger.debug(f"   ⚠️ Selloff check error for {symbol}: {e}")
-                    continue
-                    
-        except Exception as e:
-            logger.debug(f"   ⚠️ Selloff detection error: {e}")
-            import traceback
-            logger.debug(traceback.format_exc())
-        
-        return selloff_alerts
     
     def get_buffered_alerts(self) -> List:
         """Get buffered alerts for synthesis"""

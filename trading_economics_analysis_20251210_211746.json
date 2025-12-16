@@ -1,0 +1,154 @@
+{
+  "This Week High Impact": {
+    "error": "'str' object has no attribute 'get'"
+  },
+  "US Events This Week": {
+    "timestamp": "2025-12-10T21:17:45.612655",
+    "data_quality_score": 0,
+    "total_events": 0,
+    "analysis": {
+      "dates": {
+        "total_events": 0,
+        "unique_dates": 0,
+        "most_common_date": null,
+        "date_range": {
+          "earliest": null,
+          "latest": null
+        },
+        "future_dates": 0,
+        "current_date_default": false,
+        "date_distribution": {}
+      },
+      "countries": {
+        "total_events": 0,
+        "unique_countries": 0,
+        "short_codes": 0,
+        "actual_countries": 0,
+        "recognized_countries": 0,
+        "unrecognized_countries": 0,
+        "country_distribution": {},
+        "parsing_error_rate": 0
+      },
+      "importance": {
+        "importance_distribution": {},
+        "high_importance_events": 0,
+        "explicitly_high_events": 0,
+        "filtering_accuracy": 0
+      },
+      "events": {
+        "total_events": 0,
+        "unique_event_names": 0,
+        "parsing_errors": 0,
+        "valid_events": 0,
+        "economic_indicators": 0,
+        "central_bank_events": 0,
+        "other_events": 0,
+        "top_events": {},
+        "sample_events": []
+      },
+      "times": {
+        "total_times": 0,
+        "proper_times": 0,
+        "date_strings": 0,
+        "invalid_times": 0,
+        "parsing_accuracy": 0,
+        "sample_proper_times": [],
+        "sample_date_strings": []
+      },
+      "economic_data": {
+        "total_events": 0,
+        "with_actual": 0,
+        "with_forecast": 0,
+        "with_previous": 0,
+        "complete_triplets": 0,
+        "data_completeness": 0,
+        "potential_surprises": 0,
+        "sample_surprises": []
+      }
+    },
+    "exploitation_opportunities": [],
+    "recommendations": [
+      {
+        "priority": "CRITICAL",
+        "action": "Fix HTML parsing - current parser is broken",
+        "impact": "Data unusable in current state"
+      }
+    ]
+  },
+  "European Events": {
+    "timestamp": "2025-12-10T21:17:46.194516",
+    "data_quality_score": 0,
+    "total_events": 0,
+    "analysis": {
+      "dates": {
+        "total_events": 0,
+        "unique_dates": 0,
+        "most_common_date": null,
+        "date_range": {
+          "earliest": null,
+          "latest": null
+        },
+        "future_dates": 0,
+        "current_date_default": false,
+        "date_distribution": {}
+      },
+      "countries": {
+        "total_events": 0,
+        "unique_countries": 0,
+        "short_codes": 0,
+        "actual_countries": 0,
+        "recognized_countries": 0,
+        "unrecognized_countries": 0,
+        "country_distribution": {},
+        "parsing_error_rate": 0
+      },
+      "importance": {
+        "importance_distribution": {},
+        "high_importance_events": 0,
+        "explicitly_high_events": 0,
+        "filtering_accuracy": 0
+      },
+      "events": {
+        "total_events": 0,
+        "unique_event_names": 0,
+        "parsing_errors": 0,
+        "valid_events": 0,
+        "economic_indicators": 0,
+        "central_bank_events": 0,
+        "other_events": 0,
+        "top_events": {},
+        "sample_events": []
+      },
+      "times": {
+        "total_times": 0,
+        "proper_times": 0,
+        "date_strings": 0,
+        "invalid_times": 0,
+        "parsing_accuracy": 0,
+        "sample_proper_times": [],
+        "sample_date_strings": []
+      },
+      "economic_data": {
+        "total_events": 0,
+        "with_actual": 0,
+        "with_forecast": 0,
+        "with_previous": 0,
+        "complete_triplets": 0,
+        "data_completeness": 0,
+        "potential_surprises": 0,
+        "sample_surprises": []
+      }
+    },
+    "exploitation_opportunities": [],
+    "recommendations": [
+      {
+        "priority": "CRITICAL",
+        "action": "Fix HTML parsing - current parser is broken",
+        "impact": "Data unusable in current state"
+      }
+    ]
+  },
+  "Central Bank Events": {
+    "error": "'str' object has no attribute 'get'"
+  }
+}

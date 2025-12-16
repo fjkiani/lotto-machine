@@ -57,3 +57,4 @@ class CurrentSystemSimulator:
         return trades
 
 
+

@@ -239,12 +239,41 @@ class UnifiedAlphaMonitor:
         self.scanner_interval = 3600  # Scan every hour during RTH
         self.last_scanner_check = None
         
-        # Future: FTD Analyzer (Phase 4)
+        # FTD Analyzer (Phase 4)
+        self.ftd_enabled = False
+        self.ftd_analyzer = None
+        
+        try:
+            from live_monitoring.exploitation.ftd_analyzer import FTDAnalyzer
+            from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
+            
+            api_key = os.getenv('CHARTEXCHANGE_API_KEY') or os.getenv('CHART_EXCHANGE_API_KEY')
+            if api_key:
+                # Use existing dp_client if available, else create new
+                if hasattr(self, 'dp_client') and self.dp_client:
+                    self.ftd_analyzer = FTDAnalyzer(self.dp_client)
+                else:
+                    client = UltimateChartExchangeClient(api_key, tier=3)
+                    self.ftd_analyzer = FTDAnalyzer(client)
+                
+                self.ftd_enabled = True
+                logger.info("   ✅ FTD Analyzer initialized")
+            else:
+                logger.warning("   ⚠️ FTD Analyzer: No API key found")
+        except Exception as e:
+            logger.warning(f"   ⚠️ FTD Analyzer failed: {e}")
+        
+        # FTD state tracking
+        self.ftd_interval = 3600  # Check hourly (FTD data updates daily)
+        self.last_ftd_check = None
+        self.ftd_candidates = ['GME', 'AMC', 'LCID', 'RIVN', 'MARA', 'RIOT', 'SOFI', 'PLTR', 'NIO', 'BBBY']
+        
         # Future: Reddit Contrarian (Phase 5)
         
         logger.info(f"   Squeeze Detector: {'✅' if self.squeeze_enabled else '❌'}")
         logger.info(f"   Gamma Tracker: {'✅' if self.gamma_enabled else '❌'}")
         logger.info(f"   Opportunity Scanner: {'✅' if self.scanner_enabled else '❌'}")
+        logger.info(f"   FTD Analyzer: {'✅' if self.ftd_enabled else '❌'}")
     
     # ═══════════════════════════════════════════════════════════════
     # ALERT METHODS (delegate to AlertManager)
@@ -1534,6 +1563,117 @@ class UnifiedAlphaMonitor:
         except Exception as e:
             logger.error(f"   ❌ Opportunity scanner error: {e}")
     
+    def check_ftd_analyzer(self):
+        """
+        📈 Check for FTD-based opportunities (PHASE 4 EXPLOITATION).
+        Detects T+35 settlement cycles and forced covering events.
+        """
+        if not self.ftd_enabled or not self.ftd_analyzer:
+            return
+        
+        now = datetime.now()
+        today = now.strftime('%Y-%m-%d')
+        
+        logger.info("📈 Checking FTD opportunities...")
+        
+        try:
+            # Scan FTD candidates
+            signals = self.ftd_analyzer.get_ftd_candidates(self.ftd_candidates, min_score=50)
+            
+            if not signals:
+                logger.info("   📊 No FTD signals found.")
+                return
+            
+            for signal in signals:
+                # Check for duplicate alerts
+                alert_key = f"ftd_{signal.symbol}_{today}"
+                if self.alert_manager.is_alert_duplicate(alert_key, cooldown_minutes=60 * 24):
+                    logger.debug(f"   ⏭️ Skipping duplicate FTD alert for {signal.symbol}")
+                    continue
+                
+                # Determine color based on signal type
+                if signal.signal_type == "T35_WINDOW":
+                    color = 0xff0000  # Red - urgent
+                    emoji = "🚨"
+                elif signal.signal_type == "SPIKE":
+                    color = 0xff6600  # Orange - high priority
+                    emoji = "📈"
+                elif signal.signal_type == "COVERING_PRESSURE":
+                    color = 0xffcc00  # Yellow - medium
+                    emoji = "⚠️"
+                else:
+                    color = 0x00ccff  # Blue - info
+                    emoji = "📊"
+                
+                embed = {
+                    "title": f"{emoji} FTD SIGNAL: {signal.symbol}",
+                    "color": color,
+                    "description": f"**Type:** {signal.signal_type}\n"
+                                   f"**Score:** {signal.score:.0f}/100",
+                    "fields": [
+                        {"name": "📊 Current FTD", "value": f"{signal.current_ftd:,}", "inline": True},
+                        {"name": "📈 Spike Ratio", "value": f"{signal.ftd_spike_ratio:.1f}x", "inline": True},
+                        {"name": "⏰ Days to T+35", "value": f"{signal.days_to_t35}", "inline": True},
+                        {"name": "💰 Entry", "value": f"${signal.entry_price:.2f}", "inline": True},
+                        {"name": "🛑 Stop", "value": f"${signal.stop_price:.2f}", "inline": True},
+                        {"name": "🎯 Target", "value": f"${signal.target_price:.2f}", "inline": True},
+                        {"name": "⚖️ R/R Ratio", "value": f"{signal.risk_reward_ratio:.1f}:1", "inline": True},
+                    ],
+                    "footer": {"text": f"Exploitation Phase 4 • FTD Analyzer"},
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                
+                if signal.reasoning:
+                    embed["fields"].append({
+                        "name": "📝 Reasoning",
+                        "value": "\n".join(signal.reasoning[:3]),
+                        "inline": False
+                    })
+                
+                if signal.warnings:
+                    embed["fields"].append({
+                        "name": "⚠️ Warnings",
+                        "value": "\n".join(signal.warnings[:3]),
+                        "inline": False
+                    })
+                
+                content = f"{emoji} **FTD SIGNAL** | {signal.symbol} {signal.signal_type} | Score: {signal.score:.0f}/100"
+                
+                self.send_discord(embed, content=content, alert_type="ftd_signal", source="ftd_analyzer", symbol=signal.symbol)
+                self.alert_manager.add_alert_to_history(alert_key)
+                
+                logger.info(f"   {emoji} FTD signal sent for {signal.symbol}!")
+            
+            # Also check T+35 calendar for upcoming deadlines
+            calendar = self.ftd_analyzer.get_t35_calendar(self.ftd_candidates)
+            upcoming = [c for c in calendar if c['days_until'] <= 7]  # Within 7 days
+            
+            if upcoming:
+                logger.info(f"   📅 {len(upcoming)} upcoming T+35 deadlines within 7 days")
+                for event in upcoming[:3]:  # Top 3
+                    alert_key = f"t35_calendar_{event['symbol']}_{event['t35_date']}"
+                    if not self.alert_manager.is_alert_duplicate(alert_key, cooldown_minutes=60 * 24):
+                        embed = {
+                            "title": f"📅 T+35 DEADLINE: {event['symbol']}",
+                            "color": 0xff6600 if event['days_until'] <= 3 else 0xffcc00,
+                            "description": f"**Forced buy-in deadline approaching!**",
+                            "fields": [
+                                {"name": "📅 T+35 Date", "value": event['t35_date'], "inline": True},
+                                {"name": "⏰ Days Until", "value": f"{event['days_until']}", "inline": True},
+                                {"name": "📊 FTD Quantity", "value": f"{event['ftd_quantity']:,}", "inline": True},
+                            ],
+                            "footer": {"text": f"Exploitation Phase 4 • T+35 Calendar"},
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+                        
+                        content = f"📅 **T+35 DEADLINE** | {event['symbol']} in {event['days_until']} days | {event['ftd_quantity']:,} FTDs"
+                        
+                        self.send_discord(embed, content=content, alert_type="t35_calendar", source="ftd_analyzer", symbol=event['symbol'])
+                        self.alert_manager.add_alert_to_history(alert_key)
+            
+        except Exception as e:
+            logger.error(f"   ❌ FTD analyzer error: {e}")
+    
     # ═══════════════════════════════════════════════════════════════
     # DAILY RECAP FEATURE
     # ═══════════════════════════════════════════════════════════════
@@ -1748,6 +1888,11 @@ class UnifiedAlphaMonitor:
                 if is_market_hours and self.scanner_enabled and (self.last_scanner_check is None or (now - self.last_scanner_check).seconds >= self.scanner_interval):
                     self.check_opportunity_scanner()
                     self.last_scanner_check = now
+                
+                # 📈 EXPLOITATION: FTD Analyzer (hourly during RTH)
+                if is_market_hours and self.ftd_enabled and (self.last_ftd_check is None or (now - self.last_ftd_check).seconds >= self.ftd_interval):
+                    self.check_ftd_analyzer()
+                    self.last_ftd_check = now
                 
                 # 🚨 MOMENTUM: Selloff/Rally Detection (every minute during RTH)
                 if is_market_hours and (self.last_dp_check is None or (now - self.last_dp_check).seconds >= 60):

@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 """
-🎯 ALPHA INTELLIGENCE - UNIFIED MONITOR
+🎯 ALPHA INTELLIGENCE - UNIFIED MONITOR (MODULAR VERSION)
 
-Runs ALL monitoring systems in parallel:
+Runs ALL monitoring systems in parallel using modular components:
 1. 🏦 Fed Watch - Rate cut/hike probabilities + Fed official comments
 2. 🎯 Trump Intelligence - Trump statements + market exploitation
 3. 📊 Economic Learning - LEARNED patterns predict Fed Watch moves
 4. 🚨 Proactive Alerts - Pre-event positioning alerts
 
 This is the MASTER DEPLOYMENT script for 24/7 monitoring.
+
+MODULAR ARCHITECTURE:
+- AlertManager: Handles all Discord alerting
+- RegimeDetector: Multi-factor market regime detection
+- MomentumDetector: Selloff/rally detection
+- MonitorInitializer: Component initialization
+- UnifiedAlphaMonitor: Main orchestrator (uses all modules)
 
 Usage:
     python3 run_all_monitors.py
@@ -23,9 +30,7 @@ import os
 import sys
 import time
 import logging
-import threading
-import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Load environment
@@ -43,8 +48,52 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ═══════════════════════════════════════════════════════════════
+# IMPORT MODULAR VERSION
+# ═══════════════════════════════════════════════════════════════
+try:
+    from live_monitoring.orchestrator.unified_monitor import UnifiedAlphaMonitor
+    logger.info("✅ Using MODULAR UnifiedAlphaMonitor")
+except ImportError as e:
+    logger.error(f"❌ Failed to import modular UnifiedAlphaMonitor: {e}")
+    logger.error("   Make sure live_monitoring/orchestrator/unified_monitor.py exists")
+    raise
 
-class UnifiedAlphaMonitor:
+
+# ═══════════════════════════════════════════════════════════════
+# IMPORT MODULAR VERSION
+# ═══════════════════════════════════════════════════════════════
+try:
+    from live_monitoring.orchestrator.unified_monitor import UnifiedAlphaMonitor
+    logger.info("   ✅ Using MODULAR UnifiedAlphaMonitor from live_monitoring.orchestrator")
+except ImportError as e:
+    logger.error(f"   ❌ Failed to import modular UnifiedAlphaMonitor: {e}")
+    logger.error("   Falling back to legacy implementation...")
+    raise  # For now, require modular version
+
+# ═══════════════════════════════════════════════════════════════
+# LEGACY IMPLEMENTATION (kept for reference, but not used)
+# ═══════════════════════════════════════════════════════════════
+# The original 2546-line implementation is now in:
+# live_monitoring/orchestrator/unified_monitor.py (modular version)
+# 
+# If you need the legacy version, it's still in git history.
+# ═══════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════
+# LEGACY CLASS COMMENTED OUT - Using modular version instead
+# ═══════════════════════════════════════════════════════════════
+# The original 2546-line implementation has been modularized into:
+# - live_monitoring/orchestrator/unified_monitor.py (main class)
+# - live_monitoring/orchestrator/alert_manager.py
+# - live_monitoring/orchestrator/regime_detector.py
+# - live_monitoring/orchestrator/momentum_detector.py
+# - live_monitoring/orchestrator/monitor_initializer.py
+#
+# If you need the legacy version, check git history.
+# ═══════════════════════════════════════════════════════════════
+
+class _LegacyUnifiedAlphaMonitor_DEPRECATED:
     """
     Master orchestrator for all monitoring systems.
     """

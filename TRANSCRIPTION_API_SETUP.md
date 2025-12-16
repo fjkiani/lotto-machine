@@ -272,3 +272,7 @@ pip install assemblyai  # or deepgram-sdk
 - ✅ Direct URL support
 
 Just pick AssemblyAI and you're golden! 🚀
+
+
+
+

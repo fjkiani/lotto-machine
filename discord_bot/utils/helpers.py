@@ -57,3 +57,7 @@ async def send_paginated_response(interaction, content: str, title: str = ""):
             part_header = f"**Part {i+1}/{len(chunks)}**\n\n"
             await interaction.followup.send(f"{part_header}{chunk}")
 
+
+
+
+

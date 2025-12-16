@@ -274,14 +274,14 @@ Format as clear, structured text suitable for Discord.
             video_id = self.extract_video_id(url)
             logger.info(f"📥 Downloading audio for {video_id}...")
             
-            # Create temp file
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
-                temp_path = tmp_file.name
+            # Create temp file path (yt-dlp will add extension)
+            temp_dir = tempfile.gettempdir()
+            temp_base = os.path.join(temp_dir, f"youtube_{video_id}")
             
-            # Download audio (try without conversion first, fallback to conversion if needed)
+            # Download audio (yt-dlp will add extension)
             ydl_opts = {
                 'format': 'bestaudio/best',
-                'outtmpl': temp_path.replace('.wav', ''),
+                'outtmpl': temp_base + '.%(ext)s',  # Let yt-dlp add extension
                 'quiet': True,
                 'no_warnings': True,
             }
@@ -297,20 +297,16 @@ Format as clear, structured text suitable for Discord.
                         'preferredcodec': 'wav',
                         'preferredquality': '192',
                     }]
+                    logger.info("Using ffmpeg for audio conversion")
             except (FileNotFoundError, subprocess.TimeoutExpired):
-                # ffmpeg not available, use native format
-                logger.warning("ffmpeg not found, using native audio format")
+                # ffmpeg not available, use native format (webm, m4a, etc.)
+                logger.info("ffmpeg not found, using native audio format")
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            
-            # Find the actual file (yt-dlp may change extension)
-            audio_file = None
-            base_path = temp_path.replace('.wav', '')
-            for ext in ['.wav', '.m4a', '.mp3', '.webm', '.opus']:
-                if os.path.exists(base_path + ext):
-                    audio_file = base_path + ext
-                    break
+                info = ydl.extract_info(url, download=True)
+                # Get the actual extension from yt-dlp
+                actual_ext = info.get('ext', 'webm')
+                audio_file = temp_base + '.' + actual_ext
             
             if not audio_file:
                 return {

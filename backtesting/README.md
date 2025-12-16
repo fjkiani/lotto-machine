@@ -8,19 +8,28 @@
 
 ```
 backtesting/
-├── __init__.py              # Main exports
+├── __init__.py                    # Main exports
 ├── config/
-│   └── trading_params.py    # Configurable parameters
+│   └── trading_params.py         # Configurable parameters
 ├── data/
-│   └── loader.py            # Load DP alerts from database
+│   ├── loader.py                  # Load DP alerts from database
+│   └── alerts_loader.py           # Load production signals
 ├── simulation/
-│   ├── trade_simulator.py   # Simulate individual trades
-│   ├── current_system.py    # Current system logic
-│   └── narrative_brain.py   # Narrative Brain logic
+│   ├── trade_simulator.py         # Simulate individual trades
+│   ├── current_system.py          # Current system logic
+│   ├── narrative_brain.py         # Narrative Brain logic
+│   └── squeeze_detector.py        # 🔥 Squeeze detector simulator (NEW)
 ├── analysis/
-│   └── performance.py       # Calculate metrics
+│   ├── performance.py             # Calculate metrics
+│   ├── signal_analyzer.py         # Analyze production signals
+│   ├── diagnostics.py             # Production diagnostics
+│   └── production_health.py       # Health monitoring
 └── reports/
-    └── generator.py          # Generate reports
+    ├── generator.py               # Generate reports
+    ├── signal_report.py           # Signal analysis reports
+    ├── diagnostic_report.py       # Diagnostic reports
+    ├── health_report.py           # Health reports
+    └── squeeze_report.py          # 🔥 Squeeze backtest reports (NEW)
 ```
 
 ---
@@ -188,6 +197,95 @@ TradingParams(
 - Trade-by-trade breakdown
 - Comparison analysis
 
+### **✅ Production Monitoring** (NEW)
+- System health checks
+- Data staleness detection
+- Uptime tracking
+- Prevents Dec 11 issues automatically
+
+---
+
+## 🏥 PRODUCTION MONITORING
+
+### **Check System Health:**
+```bash
+python3 check_production_health.py --date 2025-12-11
+```
+
+### **Full Diagnostics:**
+```bash
+python3 diagnose_production.py --date 2025-12-11
+```
+
+### **What It Prevents:**
+- ✅ System crashes (detects gaps > 30 min)
+- ✅ Stale data (rejects data > 1 hour old)
+- ✅ After-hours signals (only during RTH)
+- ✅ No RTH coverage (alerts if 0%)
+
+### **Integration:**
+```python
+from backtesting.monitoring import ProductionMonitor, MonitorConfig
+
+monitor = ProductionMonitor(MonitorConfig(
+    max_data_age_hours=1.0,
+    max_uptime_gap_minutes=30
+))
+
+should_generate, reason = monitor.should_generate_signals(data_timestamp)
+if not should_generate:
+    logger.warning(f"Skipping: {reason}")
+    continue
+```
+
+## 🔥 SQUEEZE DETECTOR BACKTEST (NEW)
+
+### **Quick Start:**
+```bash
+# Basic backtest (30 days, SPY/QQQ)
+python3 backtest_squeeze.py
+
+# Custom date range and symbols
+python3 backtest_squeeze.py --days 90 --symbols GME AMC BBBY
+
+# Specific date range
+python3 backtest_squeeze.py --start-date 2025-01-01 --end-date 2025-01-31 --symbols GME
+```
+
+### **Programmatic Usage:**
+```python
+from backtesting import (
+    SqueezeDetectorSimulator,
+    SqueezeReportGenerator,
+    PerformanceAnalyzer,
+    TradingParams
+)
+from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
+from live_monitoring.exploitation.squeeze_detector import SqueezeDetector
+
+# Initialize
+client = UltimateChartExchangeClient(api_key, tier=3)
+detector = SqueezeDetector(client)
+simulator = SqueezeDetectorSimulator(detector, TradingParams())
+
+# Run simulation
+trades = simulator.simulate(['GME', 'AMC'], start_date, end_date)
+
+# Analyze
+analyzer = PerformanceAnalyzer()
+metrics = analyzer.analyze(trades)
+squeeze_metrics = SqueezeReportGenerator.calculate_squeeze_metrics(trades)
+
+# Generate report
+report = SqueezeReportGenerator.generate_report(metrics, squeeze_metrics)
+print(report)
+```
+
+### **Components:**
+- `SqueezeDetectorSimulator`: Simulates squeeze detector on historical dates
+- `SqueezeReportGenerator`: Generates squeeze-specific reports
+- Uses existing `PerformanceAnalyzer` and `TradingParams`
+
 ---
 
 ## 🔄 EXTENDING THE FRAMEWORK
@@ -195,14 +293,15 @@ TradingParams(
 ### **Add New System Simulator:**
 
 1. Create new file: `backtesting/simulation/my_system.py`
-2. Implement `simulate(alerts: List[DPAlert]) -> List[Trade]`
+2. Implement `simulate(alerts: List[DPAlert]) -> List[Trade]` OR
+   Implement `simulate(symbols: List[str], start_date, end_date) -> List[Trade]` for date-based
 3. Use in main script:
 
 ```python
 from backtesting.simulation.my_system import MySystemSimulator
 
 my_sim = MySystemSimulator(trade_sim, params)
-my_trades = my_sim.simulate(alerts)
+my_trades = my_sim.simulate(alerts)  # or date-based simulate()
 ```
 
 ### **Add New Metrics:**
@@ -223,5 +322,6 @@ my_trades = my_sim.simulate(alerts)
 ---
 
 **Ready to backtest any session with one command!** 🚀
+
 
 

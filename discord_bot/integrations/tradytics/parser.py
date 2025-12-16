@@ -63,3 +63,7 @@ class TradyticsParser:
             logger.error(f"❌ Error parsing Tradytics alert: {e}")
             return None
 
+
+
+
+

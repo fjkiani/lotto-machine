@@ -15,6 +15,7 @@ from .tools.signal_synthesis import SignalSynthesisTool
 from .tools.fed_watch import FedWatchTool
 from .tools.economic import EconomicTool
 from .tools.trade_calc import TradeCalculatorTool
+from .tools.video_transcription import VideoTranscriptionTool
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ class AlphaIntelligenceAgent:
             FedWatchTool,
             EconomicTool,
             TradeCalculatorTool,
+            VideoTranscriptionTool,
         ]
         
         for tool_class in tool_classes:
@@ -125,6 +127,7 @@ class AlphaIntelligenceAgent:
                 if tool_name in self.tools:
                     tool = self.tools[tool_name]
                     result = tool.execute(params)
+                    # Store ToolResult directly
                     results[tool_name] = result
             
             # 3. Synthesize response
@@ -215,7 +218,15 @@ class AlphaIntelligenceAgent:
         for tool_name, result in results.items():
             if tool_name in self.tools:
                 tool = self.tools[tool_name]
-                formatted = tool.format_response(result)
+                # result is a ToolResult object
+                if hasattr(tool, 'format_response'):
+                    formatted = tool.format_response(result)
+                else:
+                    # Fallback formatting
+                    if result.success:
+                        formatted = str(result.data)
+                    else:
+                        formatted = f"❌ Error: {result.error}"
                 response_parts.append(formatted)
         
         # Combine responses

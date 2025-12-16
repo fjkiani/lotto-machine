@@ -301,10 +301,12 @@ class UltimateChartExchangeClient:
         endpoint = "/data/options/chain-summary/"
         formatted_symbol = f"US:{symbol.upper()}" if not symbol.startswith('US:') else symbol.upper()
         
+        # Try without date first (date might be optional)
         params = {
-            'symbol': formatted_symbol,
-            'date': date or datetime.now().strftime('%Y-%m-%d')
+            'symbol': formatted_symbol
         }
+        if date:
+            params['date'] = date
         
         data = self._make_request(endpoint, params)
         
@@ -452,10 +454,36 @@ class UltimateChartExchangeClient:
         Returns:
             List of daily mention data with sentiment
         """
-        endpoint = "/data/social/reddit/mentions/"
+        endpoint = f"/data/reddit/mentions/stock/{symbol.upper()}/"
         
         params = {
-            'symbol': f"US:{symbol.upper()}",
+            'days': days
+        }
+        
+        data = self._make_request(endpoint, params=params)
+        
+        # Handle paginated response
+        if data and isinstance(data, dict) and 'results' in data:
+            return data['results']
+        elif data and isinstance(data, list):
+            return data
+        
+        return []
+    
+    def get_reddit_daily_mentions(self, symbol: str, days: int = 7) -> List[Dict]:
+        """
+        Get daily Reddit mention counts for a symbol
+        
+        Args:
+            symbol: Ticker symbol
+            days: Number of days to fetch
+        
+        Returns:
+            List of daily mention counts
+        """
+        endpoint = f"/data/reddit/mentions/daily/stock/{symbol.upper()}/"
+        
+        params = {
             'days': days
         }
         

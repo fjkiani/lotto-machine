@@ -494,3 +494,4 @@ async def alpha_command(interaction: discord.Interaction, query: str):
 **This architecture transforms your Discord bot from a simple Q&A system into an intelligent market assistant with access to ALL your data sources.** 🧠🚀
 
 
+

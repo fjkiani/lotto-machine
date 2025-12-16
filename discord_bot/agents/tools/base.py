@@ -109,3 +109,4 @@ class BaseTool(ABC):
         return f"{self.name}: {self.description} - Capabilities: {', '.join(self.capabilities)}"
 
 
+

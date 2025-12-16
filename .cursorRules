@@ -85,6 +85,56 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 
 # Scratchpad
 
+## 2025-12-16: CRITICAL FIXES - DISCORD ALERTS NOW WORKING! 🔥
+
+### Issues Fixed:
+1. **DP Data Not Flowing** - `MonitorInitializer` was using dict comprehension, causing `dp_client` to be `None`
+   - **Fix:** Changed to sequential initialization so `_init_dp_monitor_engine()` runs AFTER `_init_dark_pool()`
+   
+2. **Selloff Detection COMPLETELY REDESIGNED** - Old logic was TOO SLOW (20-bar rolling change)
+   - **Fix:** Implemented multi-faceted detection:
+     - **FROM_OPEN**: Detects -0.25% from day's open (catches gradual selloffs)
+     - **MOMENTUM**: Detects 3+ consecutive red bars (catches momentum shifts)
+     - **ROLLING**: Detects -0.2% in last 10 bars (catches sharp drops)
+   - **Result:** First signal at 09:39 - **50 MINUTES BEFORE THE LOW!**
+   
+3. **Rally Detection COMPLETELY REDESIGNED** - Same multi-faceted approach for rallies
+   - **Fix:** Mirrors selloff logic with +0.25% from open, 3+ green bars, +0.2% rolling
+   
+4. **Momentum Checks Not in Loop** - `_check_selloffs()` and `_check_rallies()` existed but weren't called!
+   - **Fix:** Added to main `run()` loop, runs every minute during RTH
+   
+5. **Gamma Too Infrequent** - Was hourly
+   - **Fix:** Changed to every 30 minutes
+   
+6. **No Daily Recap** - Discord was lonely
+   - **Fix:** Added `_send_daily_recap()` that fires at 4:00 PM ET
+
+### Files Modified:
+- `live_monitoring/orchestrator/monitor_initializer.py` - Fixed init order
+- `live_monitoring/orchestrator/unified_monitor.py` - Added momentum loop, daily recap
+- `live_monitoring/core/signal_generator.py` - **COMPLETE REWRITE of selloff/rally detection**
+
+### Validation (Dec 16, 2025):
+```
+OLD LOGIC: First signal ~10:30 (AFTER the low at 10:29) ❌
+NEW LOGIC: First signal 09:39 (50 min BEFORE the low) ✅
+
+Key Signals Generated:
+09:39 - 🚨 ALERT! (-0.31% | OPEN + ROLL) ← FIRST WARNING!
+09:45 - 🚨 ALERT! (-0.34% | OPEN + MOM)
+10:25 - 🚨 ALERT! (-0.90% | ALL 3 TRIGGERS!) ← MAX CONVICTION
+10:29 - Actual Low at $679.25
+```
+
+### Key Lessons:
+1. **ALWAYS check initialization order when components depend on each other!**
+2. **Single-method detection is SLOW - use multi-faceted approaches!**
+3. **"From Open" tracking catches gradual moves that rolling windows miss!**
+4. **Multiple triggers = higher confidence - use for alert prioritization!**
+
+---
+
 ## 2025-12-05: Reality Check & Capability Testing
 
 ### Task: Understand what edge each module provides, test capabilities, plan modularization

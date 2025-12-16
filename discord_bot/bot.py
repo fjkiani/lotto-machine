@@ -18,6 +18,7 @@ sys.path.insert(0, str(base_path))
 
 from .services.savage_llm_service import SavageLLMService
 from .integrations.tradytics.listener import TradyticsListener
+from .integrations.video_transcription.listener import VideoTranscriptionListener
 
 # Setup logging
 logging.basicConfig(
@@ -51,6 +52,7 @@ class AlphaIntelligenceBot(discord.Client):
         # Initialize services
         self.savage_llm = SavageLLMService()
         self.tradytics_listener = TradyticsListener(self)
+        self.video_transcription_listener = VideoTranscriptionListener(self)
 
         # Bot status
         self.ready = False
@@ -93,8 +95,9 @@ class AlphaIntelligenceBot(discord.Client):
         if message.author == self.user:
             return
 
-        # Let Tradytics listener handle autonomous processing
+        # Let listeners handle autonomous processing
         await self.tradytics_listener.process_message(message)
+        await self.video_transcription_listener.process_message(message)
 
     async def on_ready(self):
         """Called when bot connects to Discord"""

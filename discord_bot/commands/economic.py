@@ -49,3 +49,7 @@ def setup(bot):
         except Exception as e:
             await interaction.followup.send("❌ The economic battlefield is too volatile right now. Try again later.")
 
+
+
+
+

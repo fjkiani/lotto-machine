@@ -60,3 +60,7 @@ def setup(bot):
         except Exception as e:
             await interaction.followup.send("❌ Savagery level containment breach! The AI is fighting back.")
 
+
+
+
+

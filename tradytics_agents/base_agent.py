@@ -247,3 +247,7 @@ class BaseTradyticsAgent(ABC):
                 'feed_type': self.feed_type,
                 'timestamp': datetime.now().isoformat()
             }
+
+
+
+

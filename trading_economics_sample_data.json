@@ -1,0 +1,112 @@
+{
+  "timestamp": "2025-12-10T21:18:40.984412",
+  "total_events_found": 528,
+  "sample_events": [
+    {
+      "time": "Wednesday December 10 2025",
+      "country": "Actual",
+      "importance": 1,
+      "event": "Consensus",
+      "actual": "Forecast",
+      "date": "2025-12-10"
+    },
+    {
+      "time": "12:30 AM",
+      "country": "AU",
+      "importance": 1,
+      "event": "AU",
+      "actual": "RBA Chart Pack",
+      "date": "2025-12-10"
+    },
+    {
+      "time": "01:30 AM",
+      "country": "CN",
+      "importance": 1,
+      "event": "CN",
+      "actual": "Inflation Rate YoYNOV",
+      "forecast": "0.7%",
+      "previous": "0.2%",
+      "date": "2025-12-10"
+    },
+    {
+      "time": "01:30 AM",
+      "country": "CN",
+      "importance": 1,
+      "event": "CN",
+      "actual": "Inflation Rate MoMNOV",
+      "forecast": "-0.1%",
+      "previous": "0.2%",
+      "date": "2025-12-10"
+    },
+    {
+      "time": "01:30 AM",
+      "country": "CN",
+      "importance": 1,
+      "event": "CN",
+      "actual": "PPI YoYNOV",
+      "forecast": "-2.2%",
+      "previous": "-2.1%",
+      "date": "2025-12-10"
+    },
+    {
+      "time": "03:00 AM",
+      "country": "ID",
+      "importance": 1,
+      "event": "ID",
+      "actual": "Retail Sales YoYOCT",
+      "forecast": "4.3%",
+      "previous": "3.7%",
+      "date": "2025-12-10"
+    },
+    {
+      "time": "06:00 AM",
+      "country": "SA",
+      "importance": 1,
+      "event": "SA",
+      "actual": "Industrial Production YoYOCT",
+      "forecast": "8.9%",
+      "previous": "9.3%",
+      "date": "2025-12-10"
+    },
+    {
+      "time": "07:00 AM",
+      "country": "TR",
+      "importance": 1,
+      "event": "TR",
+      "actual": "Industrial Production YoYOCT",
+      "forecast": "2.2%",
+      "previous": "3.0%\u00ae",
+      "date": "2025-12-10"
+    },
+    {
+      "time": "07:00 AM",
+      "country": "TR",
+      "importance": 1,
+      "event": "TR",
+      "actual": "Industrial Production MoMOCT",
+      "forecast": "-0.8%",
+      "previous": "-2.1%\u00ae",
+      "date": "2025-12-10"
+    },
+    {
+      "time": "07:45 AM",
+      "country": "EA",
+      "importance": 1,
+      "event": "EA",
+      "actual": "ECB Machado Speech",
+      "date": "2025-12-10"
+    }
+  ],
+  "filter_tests": {
+    "countries_tested": [
+      "United States",
+      "US",
+      "united_states"
+    ],
+    "importance_levels": [
+      "high",
+      "medium",
+      "low"
+    ]
+  }
+}

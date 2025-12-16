@@ -102,3 +102,4 @@ class NarrativeBrainSimulator:
         return timedelta(hours=6)  # Default: been quiet
 
 
+
