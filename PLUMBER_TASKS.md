@@ -860,3 +860,404 @@ python3 -m pytest tests/exploitation/test_ftd_analyzer.py -v
 **Last Updated:** 2025-12-17  
 **Status:** ALL HIGH PRIORITY TASKS COMPLETE!
 **Next:** Optional enhancements (Gamma time-of-day, Reddit Contrarian - Phase 5)
+
+---
+
+## 🏗️ PHASE 6: UNIFIED MONITOR MODULARIZATION - HIGH PRIORITY! 🔧
+
+**Status:** ⏳ **PENDING** - CRITICAL REFACTORING NEEDED
+
+**Problem:** `unified_monitor.py` is **~2,000 lines** - a MONSTER file that violates single-responsibility principle!
+
+**Goal:** Break down into focused, testable modules (~200-400 lines each)
+
+---
+
+### 📊 CURRENT STATE ANALYSIS
+
+**File:** `live_monitoring/orchestrator/unified_monitor.py`
+**Lines:** ~2,000 (TOO BIG!)
+
+**Current Responsibilities (ALL IN ONE FILE!):**
+1. Alert sending/Discord integration (~100 lines)
+2. Regime detection (~50 lines)
+3. Momentum detection (selloffs/rallies) (~100 lines)
+4. Fed monitoring (~100 lines)
+5. Trump monitoring (~100 lines)
+6. Economic calendar (~150 lines)
+7. Dark pool monitoring (~150 lines)
+8. Signal synthesis/brain (~200 lines)
+9. Narrative brain signals (~250 lines)
+10. Tradytics analysis (~200 lines)
+11. Squeeze detection (~150 lines)
+12. Gamma tracking (~100 lines)
+13. Opportunity scanning (~200 lines)
+14. FTD analysis (~150 lines)
+15. Daily recap (~150 lines)
+16. Main run loop (~100 lines)
+17. Initialization (~200 lines)
+
+**Issues:**
+- ❌ Hard to test individual components
+- ❌ Hard to maintain (2000 lines!)
+- ❌ Hard to understand (too many responsibilities)
+- ❌ Changes in one area risk breaking others
+- ❌ Difficult to onboard new developers
+
+---
+
+### 🎯 TARGET ARCHITECTURE
+
+**New Structure:**
+```
+live_monitoring/orchestrator/
+├── unified_monitor.py          # ~300 lines - Main orchestrator (thin layer)
+├── alert_manager.py            # ✅ EXISTS (~150 lines)
+├── regime_detector.py          # ✅ EXISTS (~100 lines)
+├── momentum_detector.py        # ✅ EXISTS (~150 lines)
+├── monitor_initializer.py      # ✅ EXISTS (~200 lines)
+├── checkers/                   # NEW DIRECTORY
+│   ├── __init__.py
+│   ├── fed_checker.py          # ~100 lines
+│   ├── trump_checker.py        # ~100 lines
+│   ├── economic_checker.py     # ~150 lines
+│   ├── dark_pool_checker.py    # ~150 lines
+│   ├── synthesis_checker.py    # ~200 lines
+│   ├── narrative_checker.py    # ~250 lines
+│   ├── tradytics_checker.py    # ~200 lines
+│   └── daily_recap.py          # ~150 lines
+└── exploitation/               # MOVE EXPLOITATION LOGIC
+    ├── squeeze_checker.py      # ~150 lines
+    ├── gamma_checker.py        # ~100 lines
+    ├── scanner_checker.py      # ~200 lines
+    └── ftd_checker.py          # ~150 lines
+```
+
+**Each Checker Pattern:**
+```python
+class FedChecker:
+    """Single responsibility: Check Fed watch and officials."""
+    
+    def __init__(self, fed_watch, fed_officials, alert_manager):
+        self.fed_watch = fed_watch
+        self.fed_officials = fed_officials
+        self.alert_manager = alert_manager
+        self.prev_status = None
+        self.seen_comments = set()
+    
+    def check(self) -> List[Alert]:
+        """Run check and return any alerts to send."""
+        # All Fed logic here
+        pass
+```
+
+---
+
+### 🔧 MODULARIZATION TASKS
+
+#### **TASK 6.1: Create Checker Base Class** ⏳
+**Priority:** HIGH
+**Effort:** 1 hour
+
+**File:** `live_monitoring/orchestrator/checkers/base_checker.py`
+
+```python
+from abc import ABC, abstractmethod
+from typing import List, Optional
+from dataclasses import dataclass
+
+@dataclass
+class CheckerAlert:
+    """Standard alert format from checkers."""
+    embed: dict
+    content: str
+    alert_type: str
+    source: str
+    symbol: Optional[str] = None
+
+class BaseChecker(ABC):
+    """Base class for all checkers."""
+    
+    def __init__(self, alert_manager):
+        self.alert_manager = alert_manager
+        self.enabled = True
+    
+    @abstractmethod
+    def check(self) -> List[CheckerAlert]:
+        """Run check and return alerts."""
+        pass
+    
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Checker name for logging."""
+        pass
+```
+
+---
+
+#### **TASK 6.2: Extract Fed Checker** ⏳
+**Priority:** HIGH
+**Effort:** 1 hour
+
+**File:** `live_monitoring/orchestrator/checkers/fed_checker.py`
+
+**Extract from unified_monitor.py:**
+- `check_fed()` method (lines 395-468)
+- Fed-related state: `prev_fed_status`, `seen_fed_comments`
+
+**Acceptance Criteria:**
+- [ ] FedChecker class created
+- [ ] All Fed logic moved
+- [ ] unified_monitor.py calls `self.fed_checker.check()`
+- [ ] Tests pass
+
+---
+
+#### **TASK 6.3: Extract Trump Checker** ⏳
+**Priority:** HIGH
+**Effort:** 1 hour
+
+**File:** `live_monitoring/orchestrator/checkers/trump_checker.py`
+
+**Extract from unified_monitor.py:**
+- `check_trump()` method (lines 470-531)
+- Trump-related state: `prev_trump_sentiment`, `seen_trump_news`, `trump_topic_tracker`
+
+---
+
+#### **TASK 6.4: Extract Economic Checker** ⏳
+**Priority:** HIGH
+**Effort:** 1.5 hours
+
+**File:** `live_monitoring/orchestrator/checkers/economic_checker.py`
+
+**Extract from unified_monitor.py:**
+- `check_economics()` method (lines 533-635)
+- `_fetch_economic_events()` method (lines 1229-1293)
+- Economic-related state: `alerted_events`
+
+---
+
+#### **TASK 6.5: Extract Dark Pool Checker** ⏳
+**Priority:** HIGH
+**Effort:** 1.5 hours
+
+**File:** `live_monitoring/orchestrator/checkers/dark_pool_checker.py`
+
+**Extract from unified_monitor.py:**
+- `check_dark_pools()` method (lines 637-646)
+- `_check_dark_pools_modular()` method (lines 648-686)
+- `_check_dark_pools_legacy()` method (lines 688-692)
+- `_on_dp_outcome()` method (lines 694-717)
+- DP-related state: `recent_dp_alerts`
+
+---
+
+#### **TASK 6.6: Extract Synthesis Checker** ⏳
+**Priority:** HIGH
+**Effort:** 2 hours
+
+**File:** `live_monitoring/orchestrator/checkers/synthesis_checker.py`
+
+**Extract from unified_monitor.py:**
+- `check_synthesis()` method (lines 719-806)
+- Synthesis-related state: `last_synthesis_sent`
+
+---
+
+#### **TASK 6.7: Extract Narrative Checker** ⏳
+**Priority:** HIGH
+**Effort:** 2 hours
+
+**File:** `live_monitoring/orchestrator/checkers/narrative_checker.py`
+
+**Extract from unified_monitor.py:**
+- `_check_narrative_brain_signals()` method (lines 808-1012)
+- Narrative-related state: `last_narrative_sent`, `_last_level_directions`, `_last_symbol_directions`
+
+**This is the BIGGEST method - needs careful extraction!**
+
+---
+
+#### **TASK 6.8: Extract Tradytics Checker** ⏳
+**Priority:** MEDIUM
+**Effort:** 1.5 hours
+
+**File:** `live_monitoring/orchestrator/checkers/tradytics_checker.py`
+
+**Extract from unified_monitor.py:**
+- `autonomous_tradytics_analysis()` method (lines 1064-1093)
+- `_generate_sample_tradytics_alerts()` method (lines 1095-1098)
+- `_analyze_tradytics_alert()` method (lines 1100-1145)
+- `process_tradytics_webhook()` method (lines 1147-1184)
+- `_classify_alert_type()` method (lines 1186-1198)
+- `_extract_symbols()` method (lines 1200-1206)
+- `_send_tradytics_analysis_alert()` method (lines 1208-1227)
+- Tradytics-related state: `seen_tradytics_alerts`, `tradytics_alerts_processed`
+
+---
+
+#### **TASK 6.9: Extract Exploitation Checkers** ⏳
+**Priority:** MEDIUM
+**Effort:** 3 hours (4 checkers)
+
+**Files:**
+- `live_monitoring/orchestrator/checkers/squeeze_checker.py`
+- `live_monitoring/orchestrator/checkers/gamma_checker.py`
+- `live_monitoring/orchestrator/checkers/scanner_checker.py`
+- `live_monitoring/orchestrator/checkers/ftd_checker.py`
+
+**Extract from unified_monitor.py:**
+- `check_squeeze_setups()` + `_send_squeeze_alert()` (lines 1299-1413)
+- `check_gamma_setups()` (lines 1415-1476)
+- `check_opportunity_scanner()` (lines 1478-1620)
+- `check_ftd_analyzer()` (lines 1622-1731)
+
+---
+
+#### **TASK 6.10: Extract Daily Recap** ⏳
+**Priority:** LOW
+**Effort:** 1 hour
+
+**File:** `live_monitoring/orchestrator/checkers/daily_recap.py`
+
+**Extract from unified_monitor.py:**
+- `_should_send_daily_recap()` method (lines 1737-1761)
+- `_send_daily_recap()` method (lines 1763-1889)
+- Recap-related state: `_last_recap_date`
+
+---
+
+#### **TASK 6.11: Slim Down Main Orchestrator** ⏳
+**Priority:** HIGH
+**Effort:** 2 hours
+
+**File:** `live_monitoring/orchestrator/unified_monitor.py`
+
+**After all extractions, unified_monitor.py should:**
+- Initialize all checkers
+- Run main loop calling each checker
+- Be ~300 lines max
+
+**New Structure:**
+```python
+class UnifiedAlphaMonitor:
+    def __init__(self):
+        # Initialize modular components
+        self.alert_manager = AlertManager()
+        self.regime_detector = RegimeDetector()
+        self.momentum_detector = MomentumDetector()
+        
+        # Initialize checkers
+        self.fed_checker = FedChecker(...)
+        self.trump_checker = TrumpChecker(...)
+        self.economic_checker = EconomicChecker(...)
+        self.dp_checker = DarkPoolChecker(...)
+        self.synthesis_checker = SynthesisChecker(...)
+        self.narrative_checker = NarrativeChecker(...)
+        self.tradytics_checker = TradyticsChecker(...)
+        self.squeeze_checker = SqueezeChecker(...)
+        self.gamma_checker = GammaChecker(...)
+        self.scanner_checker = ScannerChecker(...)
+        self.ftd_checker = FTDChecker(...)
+        self.recap_checker = DailyRecapChecker(...)
+    
+    def run(self):
+        """Main loop - just orchestrates checkers."""
+        while self.running:
+            now = datetime.now()
+            is_market_hours = self._is_market_hours()
+            
+            # Run each checker at its interval
+            self._run_checker(self.fed_checker, self.fed_interval)
+            self._run_checker(self.trump_checker, self.trump_interval)
+            
+            if is_market_hours:
+                self._run_checker(self.dp_checker, self.dp_interval)
+                self._run_checker(self.squeeze_checker, self.squeeze_interval)
+                # ... etc
+            
+            time.sleep(30)
+    
+    def _run_checker(self, checker, interval):
+        """Run a checker if interval elapsed."""
+        if checker.should_run(interval):
+            alerts = checker.check()
+            for alert in alerts:
+                self.alert_manager.send_discord(alert.embed, alert.content, ...)
+```
+
+---
+
+### 📋 DEFINITION OF DONE
+
+**Phase 6 is COMPLETE when:**
+
+1. ✅ Base checker class created
+2. ✅ All 12 checkers extracted:
+   - Fed, Trump, Economic
+   - Dark Pool, Synthesis, Narrative
+   - Tradytics
+   - Squeeze, Gamma, Scanner, FTD
+   - Daily Recap
+3. ✅ unified_monitor.py is ~300 lines
+4. ✅ All tests pass
+5. ✅ No functionality lost
+6. ✅ Discord alerts still work
+
+**Estimated Total Effort:** 15-20 hours
+
+---
+
+### 🎯 TASK PRIORITY ORDER
+
+**Phase 6A (Critical - Do First):**
+1. Task 6.1: Create base checker class
+2. Task 6.11: Plan slim orchestrator structure
+3. Task 6.5: Extract Dark Pool checker (most complex)
+4. Task 6.7: Extract Narrative checker (biggest method)
+
+**Phase 6B (High Priority):**
+5. Task 6.2: Extract Fed checker
+6. Task 6.3: Extract Trump checker
+7. Task 6.4: Extract Economic checker
+8. Task 6.6: Extract Synthesis checker
+
+**Phase 6C (Medium Priority):**
+9. Task 6.8: Extract Tradytics checker
+10. Task 6.9: Extract Exploitation checkers (4 files)
+
+**Phase 6D (Lower Priority):**
+11. Task 6.10: Extract Daily Recap
+
+---
+
+### 📝 MODULARIZATION LOG
+
+**Date:** 2025-12-17
+**Status:** PLAN CREATED
+
+**Current State:**
+- unified_monitor.py: ~2,000 lines ❌
+- Existing modular components: alert_manager, regime_detector, momentum_detector, monitor_initializer ✅
+
+**Target State:**
+- unified_monitor.py: ~300 lines ✅
+- 12 focused checker modules ✅
+- Each module: 100-250 lines ✅
+- Total: Same functionality, better organization ✅
+
+---
+
+### 🚨 IMPORTANT NOTES
+
+1. **Test after EACH extraction** - Don't break production!
+2. **Keep backward compatibility** - Methods should work the same
+3. **Preserve state carefully** - Some checkers share state
+4. **Update imports** - Make sure all imports work
+5. **Run live test** - Verify Discord alerts still fire
+
+---
+
+**STATUS: 📋 PLAN READY FOR PLUMBER!** 🔧
