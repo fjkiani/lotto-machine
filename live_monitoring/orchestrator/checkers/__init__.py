@@ -17,6 +17,17 @@ Each checker handles a single responsibility:
 """
 
 from .base_checker import BaseChecker, CheckerAlert
+from .fed_checker import FedChecker
+from .trump_checker import TrumpChecker
+from .dark_pool_checker import DarkPoolChecker
+from .narrative_checker import NarrativeChecker
 
-__all__ = ['BaseChecker', 'CheckerAlert']
+__all__ = [
+    'BaseChecker',
+    'CheckerAlert',
+    'FedChecker',
+    'TrumpChecker',
+    'DarkPoolChecker',
+    'NarrativeChecker',
+]
 
