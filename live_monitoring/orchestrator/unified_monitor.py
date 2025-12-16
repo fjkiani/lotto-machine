@@ -268,6 +268,10 @@ class UnifiedAlphaMonitor:
         self.last_ftd_check = None
         self.ftd_candidates = ['GME', 'AMC', 'LCID', 'RIVN', 'MARA', 'RIOT', 'SOFI', 'PLTR', 'NIO', 'BBBY']
         
+        # Squeeze candidates - stocks with high short interest potential
+        # These are checked by squeeze detector instead of SPY/QQQ
+        self.squeeze_candidates = ['GME', 'AMC', 'LCID', 'RIVN', 'MARA', 'RIOT', 'SOFI', 'PLTR', 'NIO', 'NVDA', 'TSLA']
+        
         # Future: Reddit Contrarian (Phase 5)
         
         logger.info(f"   Squeeze Detector: {'✅' if self.squeeze_enabled else '❌'}")
@@ -1302,7 +1306,8 @@ class UnifiedAlphaMonitor:
         logger.info("🔥 Checking for SQUEEZE setups...")
         
         try:
-            for symbol in self.symbols:
+            # Check squeeze candidates, NOT SPY/QQQ (they're index ETFs with low SI)
+            for symbol in self.squeeze_candidates:
                 signal = self.squeeze_detector.analyze(symbol)
                 
                 if signal:
@@ -1433,8 +1438,8 @@ class UnifiedAlphaMonitor:
             # Get today's date for tracking
             today = datetime.now().strftime('%Y-%m-%d')
             
-            # Run market scan
-            opportunities = self.opportunity_scanner.scan_market(min_score=50, max_results=10)
+            # Run market scan (lowered threshold from 50 to 45 to catch more opportunities)
+            opportunities = self.opportunity_scanner.scan_market(min_score=45, max_results=10)
             
             if not opportunities:
                 logger.info("   📊 No high-score opportunities found")
