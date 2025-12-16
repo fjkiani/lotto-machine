@@ -42,23 +42,37 @@ class DPMonitorEngine:
         logger.info(f"   Learning Engine: {'✅' if learning_engine else '❌'}")
         logger.info(f"   DP Client: {'✅ (reusing)' if dp_client else '🆕 (new)'}")
     
-    def check_symbol(self, symbol: str) -> List[DPAlert]:
+    def check_symbol(self, symbol: str, current_price: float = None) -> List[DPAlert]:
         """
         Check a single symbol for DP alerts.
         
         Args:
             symbol: Stock symbol (e.g., 'SPY')
+            current_price: Current market price (REQUIRED for real-time entries!)
             
         Returns:
             List of DPAlert objects
         """
-        # Get nearby battlegrounds
+        # Get nearby battlegrounds (this also fetches current price if not provided)
         battlegrounds = self.battleground_analyzer.get_nearby_battlegrounds(
             symbol, max_distance_pct=0.5
         )
         
         if not battlegrounds:
             return []
+        
+        # Use the current price from battleground analyzer if not provided
+        if current_price is None and battlegrounds:
+            # Get current price from the first battleground's distance calculation
+            # or fetch it fresh
+            try:
+                import yfinance as yf
+                ticker = yf.Ticker(symbol)
+                current_price = ticker.info.get('regularMarketPrice') or ticker.fast_info.get('lastPrice')
+            except Exception as e:
+                logger.warning(f"Could not fetch current price for {symbol}: {e}")
+                # Fall back to using the DP level (not ideal)
+                current_price = None
         
         # Get AI predictions if learning engine available
         ai_predictions = {}
@@ -80,26 +94,33 @@ class DPMonitorEngine:
                 except Exception as e:
                     logger.debug(f"AI prediction error: {e}")
         
-        # Generate alerts
-        alerts = self.alert_generator.generate_alerts(battlegrounds, ai_predictions)
+        # Generate alerts with CURRENT PRICE for real-time entries
+        alerts = self.alert_generator.generate_alerts(
+            battlegrounds, 
+            ai_predictions,
+            current_price=current_price  # Pass current price!
+        )
         
         return alerts
     
-    def check_all_symbols(self, symbols: List[str]) -> List[DPAlert]:
+    def check_all_symbols(self, symbols: List[str], prices: Dict[str, float] = None) -> List[DPAlert]:
         """
         Check multiple symbols for DP alerts.
         
         Args:
             symbols: List of stock symbols
+            prices: Dict of {symbol: current_price} for real-time entries
             
         Returns:
             List of all DPAlert objects
         """
         all_alerts = []
+        prices = prices or {}
         
         for symbol in symbols:
             try:
-                alerts = self.check_symbol(symbol)
+                current_price = prices.get(symbol)
+                alerts = self.check_symbol(symbol, current_price=current_price)
                 all_alerts.extend(alerts)
             except Exception as e:
                 logger.error(f"❌ Error checking {symbol}: {e}")

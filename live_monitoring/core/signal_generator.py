@@ -307,45 +307,96 @@ class SignalGenerator:
         context: InstitutionalContext = None,
     ) -> Optional[LiveSignal]:
         """
-        Detect real-time selloff using recent 1m bars + INSTITUTIONAL CONTEXT.
+        Detect real-time selloff using MULTIPLE detection methods:
         
-        Logic (institutional-aware momentum detector):
-        - Check price/volume for selloff pattern
-        - Check if at DP battleground (support breaking vs bounce)
-        - Check institutional flow (lit % vs dark pool %)
-        - Adjust confidence based on DP edge
-        - Attach FULL institutional context to rationale
+        1. FROM OPEN: Price drops X% from day's open (EARLY WARNING)
+        2. MOMENTUM: Rapid decline with consecutive red bars
+        3. ACCELERATION: Rate of decline increasing
+        
+        This catches selloffs EARLY, not after they've happened!
         """
         try:
-            if minute_bars is None or len(minute_bars) < 10:
+            if minute_bars is None or len(minute_bars) < 5:
                 return None
 
             closes = minute_bars["Close"]
             volumes = minute_bars["Volume"]
-
-            # Use last 20 bars if available, otherwise all
-            lookback = min(20, len(closes))
+            
+            # Get key prices
+            day_open = float(minute_bars["Open"].iloc[0])  # First bar's open = day open
+            current_close = float(closes.iloc[-1])
+            
+            # ═══════════════════════════════════════════════════════════════
+            # METHOD 1: FROM OPEN DETECTION (EARLY WARNING!)
+            # ═══════════════════════════════════════════════════════════════
+            pct_from_open = (current_close - day_open) / day_open
+            
+            # Trigger at -0.25% from open (catches weakness EARLY)
+            from_open_triggered = pct_from_open <= -0.0025
+            
+            # ═══════════════════════════════════════════════════════════════
+            # METHOD 2: CONSECUTIVE RED BARS (MOMENTUM)
+            # ═══════════════════════════════════════════════════════════════
+            consecutive_red = 0
+            for i in range(len(closes) - 1, max(0, len(closes) - 10), -1):
+                if closes.iloc[i] < closes.iloc[i-1]:
+                    consecutive_red += 1
+                else:
+                    break
+            
+            # 3+ consecutive red bars = momentum selling
+            momentum_triggered = consecutive_red >= 3
+            
+            # ═══════════════════════════════════════════════════════════════
+            # METHOD 3: ROLLING DECLINE (original method, kept as backup)
+            # ═══════════════════════════════════════════════════════════════
+            lookback = min(10, len(closes))  # Shortened from 20 to 10
             recent_closes = closes.tail(lookback)
             recent_volumes = volumes.tail(lookback)
-
+            
             start_price = float(recent_closes.iloc[0])
             end_price = float(recent_closes.iloc[-1])
-            pct_change = (end_price - start_price) / start_price
-
-            avg_volume = float(recent_volumes.iloc[:-1].mean())
-            last_volume = float(recent_volumes.iloc[-1])
-
-            # Step 1: Check price/volume (basic selloff pattern)
-            if pct_change > -0.005:  # -0.5% threshold
+            rolling_change = (end_price - start_price) / start_price
+            
+            rolling_triggered = rolling_change <= -0.002  # -0.2% in 10 bars
+            
+            # ═══════════════════════════════════════════════════════════════
+            # COMBINED TRIGGER: Any method can fire, but need at least 2 for HIGH confidence
+            # ═══════════════════════════════════════════════════════════════
+            triggers_hit = sum([from_open_triggered, momentum_triggered, rolling_triggered])
+            
+            if triggers_hit == 0:
+                return None
+            
+            # Volume check (relaxed - just need above average)
+            avg_volume = float(volumes.iloc[:-1].mean()) if len(volumes) > 1 else 0
+            last_volume = float(volumes.iloc[-1])
+            volume_elevated = avg_volume > 0 and last_volume > avg_volume * 1.0  # Just above average
+            
+            # Skip if volume is dead (no conviction)
+            if not volume_elevated and triggers_hit < 2:
                 return None
 
-            volume_spike = avg_volume > 0 and last_volume > avg_volume * 1.5
-            if not volume_spike:
-                return None
-
-            # Step 2: Base confidence from price action
-            move_strength = min(abs(pct_change) / 0.025, 1.0)
-            base_confidence = 0.6 + 0.3 * move_strength
+            # Step 2: Base confidence based on trigger strength
+            # More triggers = higher confidence
+            base_confidence = 0.50 + (triggers_hit * 0.15)  # 50% base + 15% per trigger
+            
+            # Boost for larger moves from open
+            if abs(pct_from_open) >= 0.005:  # -0.5% or more from open
+                base_confidence += 0.10
+            
+            # Boost for strong momentum (5+ red bars)
+            if consecutive_red >= 5:
+                base_confidence += 0.10
+            
+            # Build detection method string for rationale
+            detection_methods = []
+            if from_open_triggered:
+                detection_methods.append(f"FROM_OPEN ({pct_from_open*100:.2f}%)")
+            if momentum_triggered:
+                detection_methods.append(f"MOMENTUM ({consecutive_red} red bars)")
+            if rolling_triggered:
+                detection_methods.append(f"ROLLING ({rolling_change*100:.2f}%)")
 
             # Step 3: INSTITUTIONAL EDGE - adjust confidence based on DP context
             if context:
@@ -397,18 +448,21 @@ class SignalGenerator:
             stop_price = current_price * 1.01
             target_price = current_price * 0.985
 
-            # Step 4: Build FULL rationale with institutional edge
+            # Step 4: Build FULL rationale with DETECTION METHODS
             rationale_parts = [
-                f"REAL-TIME SELLOFF: {pct_change * 100:.2f}% in last {lookback} min",
-                f"volume spike {last_volume/avg_volume:.1f}x"
+                f"🚨 EARLY SELLOFF DETECTED: {' + '.join(detection_methods)}",
+                f"From open: {pct_from_open * 100:.2f}%",
             ]
             
+            if volume_elevated:
+                vol_ratio = last_volume/avg_volume if avg_volume > 0 else 1.0
+                rationale_parts.append(f"Volume: {vol_ratio:.1f}x avg")
+            
             if context:
-                rationale_parts.append(f"INSTITUTIONAL FLOW: {flow_signal}")
-                rationale_parts.append(distribution_signal)
+                rationale_parts.append(f"FLOW: {flow_signal}")
                 if nearest_battleground:
                     rationale_parts.append(
-                        f"DP BATTLEGROUND: ${nearest_battleground:.2f} "
+                        f"DP: ${nearest_battleground:.2f} "
                         f"({'AT SUPPORT' if at_battleground else f'{distance_to_battleground:.1f}% away'})"
                     )
             
@@ -416,8 +470,10 @@ class SignalGenerator:
 
             # Build supporting factors
             supporting_factors = [
-                f"Price action: {pct_change * 100:.2f}% drop",
-                f"Volume spike: {last_volume/avg_volume:.1f}x avg" if avg_volume > 0 else "Volume spike: N/A",
+                f"Detection: {', '.join(detection_methods)}",
+                f"From open: {pct_from_open * 100:.2f}%",
+                f"Consecutive red bars: {consecutive_red}",
+                f"Volume: {last_volume/avg_volume:.1f}x avg" if avg_volume > 0 else "Volume: N/A",
             ]
             
             if context:
@@ -464,46 +520,92 @@ class SignalGenerator:
         context: InstitutionalContext = None,
     ) -> Optional[LiveSignal]:
         """
-        Detect real-time rally/meltup using recent 1m bars + INSTITUTIONAL CONTEXT.
+        Detect real-time rally using MULTIPLE detection methods:
         
-        COUNTERPART to selloff detection - catches rapid upward moves.
+        1. FROM OPEN: Price rises X% from day's open (EARLY WARNING)
+        2. MOMENTUM: Rapid rise with consecutive green bars
+        3. ACCELERATION: Rate of rise increasing
         
-        Logic:
-        - Check price/volume for rally pattern (+0.5% with volume spike)
-        - Check if at DP battleground (resistance breaking vs rejection)
-        - Check institutional flow (accumulation signal)
-        - Adjust confidence based on DP edge
+        This catches rallies EARLY!
         """
         try:
-            if minute_bars is None or len(minute_bars) < 10:
+            if minute_bars is None or len(minute_bars) < 5:
                 return None
 
             closes = minute_bars["Close"]
             volumes = minute_bars["Volume"]
-
-            # Use last 20 bars if available
-            lookback = min(20, len(closes))
+            
+            # Get key prices
+            day_open = float(minute_bars["Open"].iloc[0])
+            current_close = float(closes.iloc[-1])
+            
+            # ═══════════════════════════════════════════════════════════════
+            # METHOD 1: FROM OPEN DETECTION (EARLY WARNING!)
+            # ═══════════════════════════════════════════════════════════════
+            pct_from_open = (current_close - day_open) / day_open
+            
+            # Trigger at +0.25% from open
+            from_open_triggered = pct_from_open >= 0.0025
+            
+            # ═══════════════════════════════════════════════════════════════
+            # METHOD 2: CONSECUTIVE GREEN BARS (MOMENTUM)
+            # ═══════════════════════════════════════════════════════════════
+            consecutive_green = 0
+            for i in range(len(closes) - 1, max(0, len(closes) - 10), -1):
+                if closes.iloc[i] > closes.iloc[i-1]:
+                    consecutive_green += 1
+                else:
+                    break
+            
+            # 3+ consecutive green bars = momentum buying
+            momentum_triggered = consecutive_green >= 3
+            
+            # ═══════════════════════════════════════════════════════════════
+            # METHOD 3: ROLLING RISE (original method, kept as backup)
+            # ═══════════════════════════════════════════════════════════════
+            lookback = min(10, len(closes))
             recent_closes = closes.tail(lookback)
             recent_volumes = volumes.tail(lookback)
-
+            
             start_price = float(recent_closes.iloc[0])
             end_price = float(recent_closes.iloc[-1])
-            pct_change = (end_price - start_price) / start_price
-
-            avg_volume = float(recent_volumes.iloc[:-1].mean())
-            last_volume = float(recent_volumes.iloc[-1])
-
-            # Step 1: Check price/volume (basic rally pattern)
-            if pct_change < 0.005:  # +0.5% threshold (opposite of selloff)
+            rolling_change = (end_price - start_price) / start_price
+            
+            rolling_triggered = rolling_change >= 0.002  # +0.2% in 10 bars
+            
+            # ═══════════════════════════════════════════════════════════════
+            # COMBINED TRIGGER
+            # ═══════════════════════════════════════════════════════════════
+            triggers_hit = sum([from_open_triggered, momentum_triggered, rolling_triggered])
+            
+            if triggers_hit == 0:
+                return None
+            
+            # Volume check (relaxed)
+            avg_volume = float(volumes.iloc[:-1].mean()) if len(volumes) > 1 else 0
+            last_volume = float(volumes.iloc[-1])
+            volume_elevated = avg_volume > 0 and last_volume > avg_volume * 1.0
+            
+            if not volume_elevated and triggers_hit < 2:
                 return None
 
-            volume_spike = avg_volume > 0 and last_volume > avg_volume * 1.5
-            if not volume_spike:
-                return None
-
-            # Step 2: Base confidence from price action
-            move_strength = min(abs(pct_change) / 0.025, 1.0)
-            base_confidence = 0.6 + 0.3 * move_strength
+            # Step 2: Base confidence based on trigger strength
+            base_confidence = 0.50 + (triggers_hit * 0.15)
+            
+            if abs(pct_from_open) >= 0.005:
+                base_confidence += 0.10
+            
+            if consecutive_green >= 5:
+                base_confidence += 0.10
+            
+            # Build detection method string
+            detection_methods = []
+            if from_open_triggered:
+                detection_methods.append(f"FROM_OPEN ({pct_from_open*100:+.2f}%)")
+            if momentum_triggered:
+                detection_methods.append(f"MOMENTUM ({consecutive_green} green bars)")
+            if rolling_triggered:
+                detection_methods.append(f"ROLLING ({rolling_change*100:+.2f}%)")
 
             # Step 3: INSTITUTIONAL EDGE - adjust confidence based on DP context
             if context:
@@ -554,15 +656,18 @@ class SignalGenerator:
             stop_price = current_price * 0.99  # 1% stop loss
             target_price = current_price * 1.015  # 1.5% target
 
-            # Step 4: Build FULL rationale with institutional edge
+            # Step 4: Build FULL rationale with DETECTION METHODS
             rationale_parts = [
-                f"REAL-TIME RALLY: +{pct_change * 100:.2f}% in last {lookback} min",
-                f"volume spike {last_volume/avg_volume:.1f}x"
+                f"🚀 EARLY RALLY DETECTED: {' + '.join(detection_methods)}",
+                f"From open: {pct_from_open * 100:+.2f}%",
             ]
             
+            if volume_elevated:
+                vol_ratio = last_volume/avg_volume if avg_volume > 0 else 1.0
+                rationale_parts.append(f"Volume: {vol_ratio:.1f}x avg")
+            
             if context:
-                rationale_parts.append(f"INSTITUTIONAL FLOW: {flow_signal}")
-                rationale_parts.append(accumulation_signal)
+                rationale_parts.append(f"FLOW: {flow_signal}")
                 if nearest_battleground:
                     rationale_parts.append(
                         f"DP BATTLEGROUND: ${nearest_battleground:.2f} "
@@ -573,8 +678,10 @@ class SignalGenerator:
 
             # Build supporting factors
             supporting_factors = [
-                f"Price action: +{pct_change * 100:.2f}% gain",
-                f"Volume spike: {last_volume/avg_volume:.1f}x avg" if avg_volume > 0 else "Volume spike: N/A",
+                f"Detection: {', '.join(detection_methods)}",
+                f"From open: {pct_from_open * 100:+.2f}%",
+                f"Consecutive green bars: {consecutive_green}",
+                f"Volume: {last_volume/avg_volume:.1f}x avg" if avg_volume > 0 else "Volume: N/A",
             ]
             
             if context:

@@ -49,7 +49,8 @@ class AlertGenerator:
     def generate_alerts(
         self, 
         battlegrounds: List[Battleground],
-        ai_predictions: Optional[Dict[float, dict]] = None
+        ai_predictions: Optional[Dict[float, dict]] = None,
+        current_price: float = None
     ) -> List[DPAlert]:
         """
         Generate alerts for battlegrounds that warrant attention.
@@ -58,6 +59,7 @@ class AlertGenerator:
             battlegrounds: List of analyzed battlegrounds
             ai_predictions: Optional predictions from learning engine
                            {level_price -> {'probability': float, 'confidence': str, 'patterns': list}}
+            current_price: Current market price for REAL-TIME entries (REQUIRED!)
         
         Returns:
             List of DPAlert objects for levels that should be alerted
@@ -83,8 +85,8 @@ class AlertGenerator:
             # Determine priority
             priority = self._get_priority(bg, alert_type)
             
-            # Calculate trade setup
-            trade_setup = self.trade_calculator.calculate_setup(bg)
+            # Calculate trade setup with CURRENT PRICE for real-time entries
+            trade_setup = self.trade_calculator.calculate_setup(bg, current_price=current_price)
             
             # Get AI prediction if available
             ai_pred = ai_predictions.get(bg.price, {})
