@@ -347,9 +347,10 @@ class SignalGenerator:
             # ═══════════════════════════════════════════════════════════════
             # METHOD 2: CONSECUTIVE RED BARS (MOMENTUM)
             # ═══════════════════════════════════════════════════════════════
+            # Use recent_closes for momentum (not full day)
             consecutive_red = 0
-            for i in range(len(closes) - 1, max(0, len(closes) - 10), -1):
-                if closes.iloc[i] < closes.iloc[i-1]:
+            for i in range(len(recent_closes) - 1, max(0, len(recent_closes) - 10), -1):
+                if recent_closes.iloc[i] < recent_closes.iloc[i-1]:
                     consecutive_red += 1
                 else:
                     break
@@ -360,12 +361,13 @@ class SignalGenerator:
             # ═══════════════════════════════════════════════════════════════
             # METHOD 3: ROLLING DECLINE (original method, kept as backup)
             # ═══════════════════════════════════════════════════════════════
-            lookback = min(10, len(closes))  # Shortened from 20 to 10
-            recent_closes = closes.tail(lookback)
-            recent_volumes = volumes.tail(lookback)
+            # Use momentum bars for rolling check too (avoid variable collision)
+            lookback = min(10, len(recent_closes))  # Shortened from 20 to 10
+            rolling_window_closes = recent_closes.tail(lookback)
+            rolling_window_volumes = recent_volumes.tail(lookback)
             
-            start_price = float(recent_closes.iloc[0])
-            end_price = float(recent_closes.iloc[-1])
+            start_price = float(rolling_window_closes.iloc[0])
+            end_price = float(rolling_window_closes.iloc[-1])
             rolling_change = (end_price - start_price) / start_price
             
             rolling_triggered = rolling_change <= -0.002  # -0.2% in 10 bars
@@ -378,9 +380,9 @@ class SignalGenerator:
             if triggers_hit == 0:
                 return None
             
-            # Volume check (relaxed - just need above average)
-            avg_volume = float(volumes.iloc[:-1].mean()) if len(volumes) > 1 else 0
-            last_volume = float(volumes.iloc[-1])
+            # Volume check (relaxed - just need above average) - use momentum volumes
+            avg_volume = float(recent_volumes.iloc[:-1].mean()) if len(recent_volumes) > 1 else 0
+            last_volume = float(recent_volumes.iloc[-1])
             volume_elevated = avg_volume > 0 and last_volume > avg_volume * 1.0  # Just above average
             
             # Skip if volume is dead (no conviction)
@@ -546,8 +548,18 @@ class SignalGenerator:
             volumes = minute_bars["Volume"]
             
             # Get key prices
+            # CRITICAL: Use FIRST bar of the day as day_open (now that we pass full day data)
             day_open = float(minute_bars["Open"].iloc[0])
             current_close = float(closes.iloc[-1])
+            
+            # For momentum detection, use only recent bars (last 30)
+            if len(minute_bars) > 30:
+                recent_bars_for_momentum = minute_bars.tail(30)
+                momentum_closes = recent_bars_for_momentum["Close"]
+                momentum_volumes = recent_bars_for_momentum["Volume"]
+            else:
+                momentum_closes = closes
+                momentum_volumes = volumes
             
             # ═══════════════════════════════════════════════════════════════
             # METHOD 1: FROM OPEN DETECTION (EARLY WARNING!)
@@ -560,9 +572,10 @@ class SignalGenerator:
             # ═══════════════════════════════════════════════════════════════
             # METHOD 2: CONSECUTIVE GREEN BARS (MOMENTUM)
             # ═══════════════════════════════════════════════════════════════
+            # Use momentum_closes for momentum (not full day)
             consecutive_green = 0
-            for i in range(len(closes) - 1, max(0, len(closes) - 10), -1):
-                if closes.iloc[i] > closes.iloc[i-1]:
+            for i in range(len(momentum_closes) - 1, max(0, len(momentum_closes) - 10), -1):
+                if momentum_closes.iloc[i] > momentum_closes.iloc[i-1]:
                     consecutive_green += 1
                 else:
                     break
@@ -573,12 +586,13 @@ class SignalGenerator:
             # ═══════════════════════════════════════════════════════════════
             # METHOD 3: ROLLING RISE (original method, kept as backup)
             # ═══════════════════════════════════════════════════════════════
-            lookback = min(10, len(closes))
-            recent_closes = closes.tail(lookback)
-            recent_volumes = volumes.tail(lookback)
+            # Use momentum bars for rolling check too (avoid variable collision)
+            lookback = min(10, len(momentum_closes))
+            rolling_window_closes = momentum_closes.tail(lookback)
+            rolling_window_volumes = momentum_volumes.tail(lookback)
             
-            start_price = float(recent_closes.iloc[0])
-            end_price = float(recent_closes.iloc[-1])
+            start_price = float(rolling_window_closes.iloc[0])
+            end_price = float(rolling_window_closes.iloc[-1])
             rolling_change = (end_price - start_price) / start_price
             
             rolling_triggered = rolling_change >= 0.002  # +0.2% in 10 bars
@@ -591,9 +605,9 @@ class SignalGenerator:
             if triggers_hit == 0:
                 return None
             
-            # Volume check (relaxed)
-            avg_volume = float(volumes.iloc[:-1].mean()) if len(volumes) > 1 else 0
-            last_volume = float(volumes.iloc[-1])
+            # Volume check (relaxed) - use momentum volumes
+            avg_volume = float(momentum_volumes.iloc[:-1].mean()) if len(momentum_volumes) > 1 else 0
+            last_volume = float(momentum_volumes.iloc[-1])
             volume_elevated = avg_volume > 0 and last_volume > avg_volume * 1.0
             
             if not volume_elevated and triggers_hit < 2:
