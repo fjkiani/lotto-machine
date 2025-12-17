@@ -2234,17 +2234,621 @@ Task 5.10 → Requires: 5.1, 5.2, 5.3, 5.7 (all core features)
 - **Completion:** 100%
 
 ### ✅ PHASE 5: REDDIT EXPLOITER
-- **Status:** ✅ **CORE COMPLETE** / ⏳ **EXTENSION PENDING**
-- **Results:** 47+ tickers, contrarian signals, DDOG 86% SHORT
-- **Completion:** 50% (Core done, extensions pending)
+- **Status:** ✅ **COMPLETE** (including backtesting)
+- **Results:** 47+ tickers, contrarian signals, CONFIRMED_MOMENTUM for TSLA
+- **Completion:** 100% ✅
 
 ### ✅ PHASE 6: MODULARIZATION
 - **Status:** ✅ **COMPLETE**
 - **Results:** 13 checker modules, unified_monitor.py slimmed
 - **Completion:** 100%
 
+### ✅ PHASE 7: REDDIT BACKTESTING INFRASTRUCTURE (NEW!)
+- **Status:** ✅ **COMPLETE**
+- **Results:** Real data backtesting, signal tracking, forward validation
+- **Completion:** 100%
+
 ---
 
-**Total Production-Ready Modules:** 5/6 (83%)  
-**Total Lines of Exploitation Code:** 2,500+  
-**STATUS: 🔥🔥🔥 SYSTEM READY FOR ALPHA!** 💰🎯🚀
+## 🔥 PHASE 7: REDDIT BACKTESTING - COMPLETE! 📊
+
+**Date Completed:** 2025-12-17  
+**Goal:** Build scalable backtesting infrastructure using REAL data
+
+### 📊 KEY FINDINGS
+
+**ChartExchange API Limitation Discovered:**
+- Reddit endpoint returns only ~100 most recent mentions (not historical daily aggregates)
+- No historical time-series data available for past dates
+
+**Solution Implemented:**
+1. **Real-Time Analysis** - Use ChartExchange for current sentiment analysis
+2. **Signal Tracking Database** - Record signals as they're generated for forward validation
+3. **Historical Price Validation** - Use yfinance to check if similar price patterns led to profits
+
+### ✅ FILES CREATED
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `backtesting/simulation/reddit_real_backtest.py` | 450+ | Real data Reddit backtester |
+| `backtesting/simulation/reddit_signal_tracker.py` | 300+ | Signal tracking database |
+| `backtesting/data/reddit_historical.py` | 350+ | Historical data collector |
+| `backtest_reddit_full.py` | 150+ | Master backtest script |
+
+### 📈 LIVE SIGNAL RESULTS (Dec 17, 2025)
+
+```
+🎯 ACTIONABLE SIGNALS:
+   🚀 TSLA  | LONG  | CONFIRMED_MOMENTUM   | Str: 80% | $489.88 | Val: MODERATE
+   
+👀 WATCH LIST:
+   META: SENTIMENT_FLIP (WATCH_LONG)
+
+⚠️ AVOID (Velocity Surge - potential pump):
+   NVDA, MSFT, AMZN, AMD, GME, HOOD
+```
+
+**TSLA Signal Details:**
+- Real Reddit Activity: 100 mentions, +0.107 avg sentiment
+- WSB: 47 mentions | r/stocks: 29 mentions
+- Price Action: +3.07% today, +8.51% 5d, +22.09% 20d
+- Historical Pattern Match: 58.8% success rate on similar setups
+
+### 🎯 SIGNAL TRACKING SYSTEM
+
+**Database:** `data/reddit_signal_tracking.db` (SQLite)
+
+**Features:**
+- Records signals with timestamp, price, sentiment
+- Auto-updates 1d, 3d, 5d, 10d returns
+- Calculates win/loss by signal type
+- Tracks pattern match validation
+
+**Current Tracking:**
+```
+📈 SIGNAL COUNTS:
+   Total Signals: 15
+   Validated: 0 (pending - just started tracking)
+   Pending: 15
+
+📋 RECENT SIGNALS:
+   ⏳ TSLA  | CONFIRMED_MOMENTUM   | LONG  | $489.88 | pending
+   ⏳ NVDA  | VELOCITY_SURGE       | AVOID | $177.72 | pending
+   ⏳ META  | SENTIMENT_FLIP       | WATCH | $657.15 | pending
+```
+
+### 📊 BACKTEST USAGE
+
+```bash
+# Analyze current signals
+python3 backtest_reddit_full.py --analyze
+
+# Record signals for forward tracking  
+python3 backtest_reddit_full.py --record
+
+# Update tracked signals with current prices
+python3 backtest_reddit_full.py --update
+
+# Show performance report
+python3 backtest_reddit_full.py --report
+
+# Do everything
+python3 backtest_reddit_full.py --all
+```
+
+### ✅ ACCEPTANCE CRITERIA MET
+
+1. ✅ Uses REAL ChartExchange Reddit data (not mock)
+2. ✅ Uses REAL yfinance price data
+3. ✅ Signal tracking with SQLite persistence
+4. ✅ Forward validation system (1d, 3d, 5d, 10d returns)
+5. ✅ Historical pattern matching (checks if similar setups worked)
+6. ✅ Win rate tracking by signal type
+7. ✅ Modular architecture (extends existing backtesting framework)
+8. ✅ Master script with CLI arguments
+
+### 🔥 PHASE 5.12: ENHANCED DP SYNTHESIS (COMPLETED 2025-12-17)
+
+Added multi-factor synthesis that combines Reddit + DP + Institutional data:
+
+**New File:** `backtesting/simulation/reddit_enhanced_backtest.py`
+
+**Decision Logic:**
+```
+AVOID → LONG upgrade requires 4+ confirmation points:
+  +2: Price rallying (5D > 5%)
+  +2: DP support with significant volume
+  +2: Institutional accumulation (buy pressure > 60%)
+  +1: Mega-cap status
+  +1: Bullish options (P/C < 0.8)
+  +1: High volume (1.5x+)
+```
+
+**Results (12/17/2025):**
+| Symbol | Original | DP Data | Enhanced | Score |
+|--------|----------|---------|----------|-------|
+| TSLA | LONG | Support | LONG ✅ | Confirmed |
+| NVDA | AVOID | Support (6.4M) | WATCH 👀 | 3 |
+| MSFT | AVOID | Support (2.2M) | WATCH 👀 | 3 |
+| AMD | AVOID | Resistance | AVOID ⚠️ | 1 |
+| GME | AVOID | Support (318K) | WATCH 👀 | 2 |
+
+**Usage:**
+```bash
+python3 backtest_reddit_full.py --enhanced
+```
+
+### 🎯 NEXT STEPS (For Future Validation)
+
+1. **Daily Signal Recording** - Run `--record` daily to build signal history
+2. **Weekly Performance Review** - Run `--update` + `--report` after 5+ days
+3. **Threshold Tuning** - Adjust signal thresholds based on actual win rates
+4. **Live Deployment Validation** - Compare Discord alerts to tracked signals
+5. **Integrate Enhanced Logic into Live Monitor** - Move DP synthesis to production
+
+---
+
+### 🔥 PHASE 5.13: LIVE DP SYNTHESIS INTEGRATION (COMPLETED 2025-12-17)
+
+**Fully integrated DP synthesis into live `RedditChecker`:**
+
+**Changes Made:**
+1. ✅ Added `_init_dp_client()` - Initializes ChartExchange client for DP data
+2. ✅ Added `_enhance_signal_with_dp()` - Multi-factor upgrade logic
+3. ✅ Updated `check()` - Applies DP enhancement to all signals
+4. ✅ Updated `_create_signal_embed()` - Shows enhancement reasons
+5. ✅ Updated `_calculate_trade_setup()` - Uses enhanced action
+
+**Live Test Results (12/17/2025):**
+```
+🚀 REDDIT SIGNAL | TSLA | LONG | 80%
+   Trade Setup: Entry $489.88 | Stop $480.08 | Target $509.48 | R/R 2.0:1
+
+👀 REDDIT ENHANCED | MSFT | AVOID→WATCH_LONG | 60%
+   DP Enhancement:
+   • 👀 UPGRADED: AVOID → WATCH (score: 3)
+   • ✅ DP support at $476.39 (2,266,540 vol)
+   • ✅ Mega-cap (more reliable momentum)
+
+👀 REDDIT ENHANCED | NVDA | AVOID→WATCH_LONG | 60%
+   DP Enhancement:
+   • 👀 UPGRADED: AVOID → WATCH (score: 3)
+   • ✅ DP support at $177.72 (6,460,498 vol)
+   • ✅ Mega-cap (more reliable momentum)
+```
+
+**DP Synthesis Logic (Production):**
+```python
+# Upgrade AVOID → LONG if score ≥ 4
+# Upgrade AVOID → WATCH if score 2-3
+# Confirm AVOID if score < 2
+
+UPGRADE_POINTS = {
+    'price_rallying_5d': 2,     # Price up 5%+ in 5 days
+    'dp_support': 2,            # DP level below price with volume
+    'institutional_accumulation': 2,  # Buy pressure > 60%
+    'mega_cap': 1,              # Large cap = more reliable
+    'high_volume': 1            # Volume 1.5x+ average
+}
+```
+
+---
+
+**Total Production-Ready Modules:** 7/7 (100%)
+**DP Synthesis:** ✅ FULLY INTEGRATED INTO LIVE SYSTEM
+
+---
+
+## 🚀 PRODUCTION DEPLOYMENT COMPLETE (2025-12-17)
+
+### **Anti-Spam Controls:**
+| Type | Cooldown | Max Per Check |
+|------|----------|---------------|
+| Hot Tickers | 4 hours | 3 |
+| Emerging Tickers | 6 hours | 3 |
+| Signals | 4 hours | 5 |
+
+### **Signal Storage:**
+- ✅ All signals stored in SQLite (`data/reddit_signal_tracking.db`)
+- ✅ Tracks: symbol, type, action, strength, entry price, sentiment, reasoning
+- ✅ Auto-updates: 1d, 3d, 5d, 10d returns
+- ✅ Calculates win rate by signal type
+
+### **Algorithm Improvement:**
+- ✅ `get_performance_report()` - Get win rates by signal type
+- ✅ `SIGNAL_TYPE_WEIGHTS` in config - Adjustable weights
+- ✅ Stats tracking: signals generated, upgraded, stored
+- ✅ Future: Auto-tuning based on performance
+
+### **Modular Architecture:**
+```
+live_monitoring/
+├── config/
+│   └── reddit_config.py        # Centralized configuration
+├── exploitation/
+│   └── reddit_exploiter.py     # Core signal logic
+├── orchestrator/
+│   └── checkers/
+│       └── reddit_checker.py   # Production checker with DP synthesis
+└── ...
+
+backtesting/
+├── simulation/
+│   ├── reddit_signal_tracker.py  # Signal storage & validation
+│   └── reddit_enhanced_backtest.py  # Backtesting with DP
+└── ...
+```
+
+### **Production Test Results (12/17/2025):**
+```
+📊 Results:
+   Alerts generated: 11
+   Stats: {
+     'signals_generated': 5,
+     'signals_upgraded': 4,
+     'signals_stored': 5,
+     'alerts_sent': 5
+   }
+
+📈 Database:
+   Total signals: 20
+   Pending validation: 20
+```
+
+### **To Run:**
+```bash
+# Already running as part of UnifiedAlphaMonitor
+# RedditChecker runs hourly during market hours
+
+# Manual test:
+python3 -c "from live_monitoring.orchestrator.checkers.reddit_checker import RedditChecker; ..."
+
+# View stored signals:
+python3 -c "from backtesting.simulation.reddit_signal_tracker import RedditSignalTracker; RedditSignalTracker().print_report()"
+
+# Update signal returns:
+python3 backtest_reddit_full.py --update --report
+```
+
+### **Weekly Algorithm Review:**
+1. Run `--update --report` to update returns
+2. Check win rates by signal type
+3. Adjust `SIGNAL_TYPE_WEIGHTS` if needed
+4. Lower strength threshold for high-performing types
+5. Raise threshold or disable poor-performing types
+
+---
+
+**STATUS: PRODUCTION DEPLOYED ✅**  
+**Total Lines of Exploitation Code:** 3,500+  
+**STATUS: 🔥🔥🔥 FULL SYSTEM COMPLETE!** 💰🎯🚀
+
+---
+
+## 🔧 PHASE 8: CONTINUOUS IMPROVEMENT TASKS
+
+**Status:** 🔄 **ONGOING** - These are enhancement tasks to improve the system over time.
+
+---
+
+### 📊 TASK 8.1: Reddit Win Rate Validation (HIGH PRIORITY)
+
+**Goal:** Validate Reddit signal win rates after 1-2 weeks of tracking.
+
+**Current State:** 20+ signals stored, 0 validated (just started tracking)
+
+**Tasks:**
+1. ⏳ Run daily `python3 backtest_reddit_full.py --update` to update returns
+2. ⏳ After 5 days: Run `--report` to check preliminary win rates
+3. ⏳ After 10 days: Analyze win rates by signal type
+4. ⏳ Tune thresholds based on actual performance
+
+**Acceptance Criteria:**
+- [ ] 20+ signals validated (1d, 3d, 5d returns calculated)
+- [ ] Win rate by signal type documented
+- [ ] Underperforming signal types identified
+- [ ] Threshold adjustments made if needed
+
+**Schedule:**
+- Daily: `--update`
+- Weekly: `--report` + analysis
+- Bi-weekly: Threshold tuning
+
+---
+
+### 📊 TASK 8.2: DP Synthesis Optimization (MEDIUM PRIORITY)
+
+**Goal:** Optimize the DP upgrade scoring system based on actual results.
+
+**Current Scoring:**
+```python
+UPGRADE_POINTS = {
+    'price_rallying_5d': 2,
+    'dp_support': 2,
+    'institutional_accumulation': 2,
+    'mega_cap': 1,
+    'high_volume': 1
+}
+```
+
+**Tasks:**
+1. ⏳ Track upgrade success rate (AVOID→WATCH→outcome)
+2. ⏳ Track non-upgrade accuracy (AVOID→AVOID→outcome)
+3. ⏳ Analyze which factors predict success best
+4. ⏳ Adjust weights based on analysis
+
+**Acceptance Criteria:**
+- [ ] 50+ upgraded signals tracked
+- [ ] Factor correlation analysis complete
+- [ ] Weights adjusted if improvement >5%
+- [ ] Document new weights + rationale
+
+**Data Collection Required:**
+```sql
+-- Add to signals table
+dp_upgrade_score INT,
+dp_factors TEXT,  -- JSON of which factors triggered
+upgrade_success BOOL  -- Did upgrade lead to profit?
+```
+
+---
+
+### 📊 TASK 8.3: Mega-Cap vs Small-Cap Strategy Split (MEDIUM PRIORITY)
+
+**Goal:** Different strategies for mega-caps vs meme stocks.
+
+**Observation:** Mega-caps (TSLA, NVDA, MSFT) have different dynamics than meme stocks (GME, AMC).
+
+**Tasks:**
+1. ⏳ Separate win rate tracking by market cap category
+2. ⏳ Tune thresholds differently for each category
+3. ⏳ Consider separate signal types for each
+4. ⏳ Update Discord alerts to show category
+
+**Categories:**
+- **Mega-Cap:** TSLA, NVDA, AAPL, MSFT, META, AMZN, GOOGL, AMD
+- **Mid-Cap:** COIN, HOOD, SOFI, PLTR
+- **Meme/Small:** GME, AMC, LCID, RIVN, BBBY
+
+**Acceptance Criteria:**
+- [ ] Win rates by category documented
+- [ ] Category-specific thresholds if >5% difference
+- [ ] Discord alerts show category
+
+---
+
+### 📊 TASK 8.4: Options Data Alternative (LOW PRIORITY)
+
+**Goal:** Find alternative for ChartExchange options API (returns 400).
+
+**Current Issue:** `get_options_chain_summary()` returns 400 for all symbols.
+
+**Alternatives to Explore:**
+1. ⏳ yfinance options data (already used for gamma tracker)
+2. ⏳ Tradier API (free tier)
+3. ⏳ Polygon.io options (paid)
+4. ⏳ CBOE data (delayed)
+
+**Tasks:**
+1. ⏳ Test yfinance options for Reddit-tracked symbols
+2. ⏳ Extract max pain and P/C ratio
+3. ⏳ Add to DP synthesis scoring
+4. ⏳ Update reddit_enhanced_backtest.py
+
+**Acceptance Criteria:**
+- [ ] Options data available for top 20 symbols
+- [ ] Max pain distance added to scoring
+- [ ] P/C ratio added to scoring
+- [ ] Backtesting updated
+
+---
+
+### 📊 TASK 8.5: Historical Win Rate Database (MEDIUM PRIORITY)
+
+**Goal:** Build historical database to improve pattern matching.
+
+**Current State:** Only tracking forward from 12/17/2025.
+
+**Tasks:**
+1. ⏳ Create historical_patterns table
+2. ⏳ Record validated signals with full context
+3. ⏳ Build pattern matching algorithm
+4. ⏳ Add "Similar Historical Setup" to alerts
+
+**Schema:**
+```sql
+CREATE TABLE historical_patterns (
+    id INTEGER PRIMARY KEY,
+    symbol TEXT,
+    signal_date DATE,
+    signal_type TEXT,
+    sentiment_at_signal REAL,
+    wsb_dominance REAL,
+    dp_support BOOL,
+    price_5d_before REAL,
+    price_5d_after REAL,
+    outcome TEXT,  -- WIN, LOSS, NEUTRAL
+    profit_pct REAL
+);
+```
+
+**Usage:**
+```python
+def find_similar_patterns(current_signal):
+    """Find historical signals with similar characteristics."""
+    # Query for similar sentiment + WSB + price action
+    # Return success rate of similar patterns
+```
+
+**Acceptance Criteria:**
+- [ ] 100+ historical patterns stored
+- [ ] Pattern matching returns top 5 similar
+- [ ] Discord alerts show "58% success rate on similar setups"
+
+---
+
+### 📊 TASK 8.6: Auto-Tuning Implementation (LOW PRIORITY)
+
+**Goal:** Implement automatic threshold adjustment based on performance.
+
+**Current State:** Manual tuning via `reddit_config.py`.
+
+**Tasks:**
+1. ⏳ Define auto-tune rules
+2. ⏳ Implement `auto_tune_thresholds()` function
+3. ⏳ Add safety limits (max +/- 10% adjustment)
+4. ⏳ Run weekly as cron job
+
+**Auto-Tune Rules:**
+```python
+def auto_tune_thresholds(min_trades=20):
+    """
+    Adjust thresholds based on win rates.
+    
+    Rules:
+    - If signal_type win_rate > 65%: increase weight by 0.1
+    - If signal_type win_rate < 45%: decrease weight by 0.1
+    - If signal_type trades < 5: no adjustment (insufficient data)
+    - Max weight: 1.5, Min weight: 0.3
+    """
+```
+
+**Acceptance Criteria:**
+- [ ] Auto-tune function implemented
+- [ ] Safety limits prevent runaway adjustments
+- [ ] Weekly cron job configured (optional)
+- [ ] Logging shows all adjustments made
+
+---
+
+### 📊 TASK 8.7: Real-Time Reddit Streaming (FUTURE)
+
+**Goal:** Reduce latency from hourly to near real-time.
+
+**Current State:** RedditChecker runs every hour.
+
+**Options:**
+1. ⏳ Reddit API streaming (requires Reddit developer account)
+2. ⏳ Increase frequency to every 15 min for top 10 symbols
+3. ⏳ Pushshift alternative (if available)
+
+**Tasks:**
+1. ⏳ Evaluate Reddit API rate limits
+2. ⏳ Implement priority-based frequency
+3. ⏳ Add rapid shift detection for breaking news
+4. ⏳ Test latency improvement
+
+**Acceptance Criteria:**
+- [ ] Priority symbols checked every 15 min
+- [ ] Breaking sentiment shifts detected within 15 min
+- [ ] No rate limit issues
+
+---
+
+### 📊 TASK 8.8: Discord Alert Formatting Improvements (LOW PRIORITY)
+
+**Goal:** Improve alert readability and actionability.
+
+**Current State:** Alerts include DP synthesis but could be cleaner.
+
+**Tasks:**
+1. ⏳ Add emoji legend at bottom of alerts
+2. ⏳ Add "Quick Action" button suggestions
+3. ⏳ Add sparkline for sentiment trend (ASCII)
+4. ⏳ Add confidence color coding
+
+**Sample Improved Alert:**
+```
+🚀 REDDIT SIGNAL | TSLA | LONG | 80%
+
+📊 Sentiment: +0.11 (neutral-positive)
+📈 Trend: ▁▂▃▄▅▆▇█ (7-day)
+🎰 WSB: 47% (moderate)
+
+🏛️ DP SYNTHESIS:
+✅ DP support at $485.00 (2.1M vol)
+✅ Mega-cap confirmed
+✅ Price rallying +8.5% (5d)
+🎯 Score: 5/8 → LONG CONFIRMED
+
+💹 TRADE SETUP:
+Entry: $489.88 | Stop: $480.08 | Target: $509.48
+R/R: 2.0:1 | Position: 2%
+
+📋 Legend: 🚀=LONG | 🔻=SHORT | 👀=WATCH | ⚠️=AVOID
+```
+
+**Acceptance Criteria:**
+- [ ] Improved formatting implemented
+- [ ] Trade setup more prominent
+- [ ] Legend added to alerts
+- [ ] User feedback positive
+
+---
+
+### 📊 TASK 8.9: Performance Dashboard (FUTURE)
+
+**Goal:** Web dashboard for monitoring system performance.
+
+**Current State:** CLI-only monitoring via backtest scripts.
+
+**Tasks:**
+1. ⏳ Create simple Streamlit dashboard
+2. ⏳ Show real-time signal stats
+3. ⏳ Show win rates by signal type
+4. ⏳ Show equity curve
+
+**Features:**
+- Live signal feed
+- Win rate charts by type
+- DP synthesis success rate
+- Historical pattern matches
+
+**Acceptance Criteria:**
+- [ ] Dashboard accessible via localhost:8501
+- [ ] Updates every 5 minutes
+- [ ] Mobile-friendly
+
+---
+
+## 📋 TASK PRIORITY SUMMARY
+
+### 🔴 HIGH PRIORITY (Do This Week)
+1. **Task 8.1:** Reddit Win Rate Validation (run daily `--update`)
+2. **Task 8.2:** DP Synthesis Optimization (after 50+ upgrades tracked)
+
+### 🟡 MEDIUM PRIORITY (Do This Month)
+3. **Task 8.3:** Mega-Cap vs Small-Cap Strategy Split
+4. **Task 8.5:** Historical Win Rate Database
+
+### 🟢 LOW PRIORITY (Future Enhancements)
+5. **Task 8.4:** Options Data Alternative
+6. **Task 8.6:** Auto-Tuning Implementation
+7. **Task 8.7:** Real-Time Reddit Streaming
+8. **Task 8.8:** Discord Alert Formatting Improvements
+9. **Task 8.9:** Performance Dashboard
+
+---
+
+## 🎯 IMMEDIATE ACTION ITEMS
+
+**Tomorrow (12/18/2025):**
+1. ⏳ Run `python3 backtest_reddit_full.py --update` to update 1d returns
+2. ⏳ Check Discord for any new Reddit signals
+3. ⏳ Review signal storage (should have 25+ signals)
+
+**This Week:**
+1. ⏳ Run `--update` daily
+2. ⏳ Run `--report` on Friday to check preliminary results
+3. ⏳ Start Task 8.1 validation
+
+**Next Week:**
+1. ⏳ Analyze 5d returns
+2. ⏳ Identify underperforming signal types
+3. ⏳ Start Task 8.2 DP synthesis optimization
+
+---
+
+**STATUS: CONTINUOUS IMPROVEMENT PHASE ACTIVE** 🔄
+**Last Updated:** 2025-12-17
+**Next Review:** 2025-12-24 (Weekly)

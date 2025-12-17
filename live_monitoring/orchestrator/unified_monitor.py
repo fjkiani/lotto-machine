@@ -80,19 +80,7 @@ class UnifiedAlphaMonitor:
         self.alert_manager = AlertManager()
         self.regime_detector = RegimeDetector()
         
-        # Initialize monitors (this will set up all components)
-        self._init_monitors()
-        
-        # Initialize exploitation modules
-        self._init_exploitation_modules()
-        
-        # Initialize momentum detector (needs signal_generator)
-        self.momentum_detector = MomentumDetector(
-            signal_generator=getattr(self, 'signal_generator', None),
-            institutional_engine=getattr(self, 'institutional_engine', None)
-        )
-        
-        # State tracking
+        # State tracking (MUST BE BEFORE _init_monitors and _init_exploitation_modules)
         self.prev_fed_status = None
         self.prev_trump_sentiment = None
         self.seen_fed_comments = set()
@@ -104,6 +92,18 @@ class UnifiedAlphaMonitor:
         self.last_narrative_sent = None
         self._last_level_directions = {}
         self._last_regime_details = {}
+        
+        # Initialize monitors (this will set up all components)
+        self._init_monitors()
+        
+        # Initialize exploitation modules
+        self._init_exploitation_modules()
+        
+        # Initialize momentum detector (needs signal_generator)
+        self.momentum_detector = MomentumDetector(
+            signal_generator=getattr(self, 'signal_generator', None),
+            institutional_engine=getattr(self, 'institutional_engine', None)
+        )
         
         logger.info("=" * 70)
         logger.info("🎯 ALPHA INTELLIGENCE - UNIFIED MONITOR STARTED (MODULAR)")
@@ -427,7 +427,6 @@ class UnifiedAlphaMonitor:
         api_key = os.getenv('CHARTEXCHANGE_API_KEY') or os.getenv('CHART_EXCHANGE_API_KEY')
         self.reddit_checker = RedditChecker(
             alert_manager=self.alert_manager,
-            unified_mode=self.unified_mode,
             reddit_exploiter=self.reddit_exploiter,
             api_key=api_key
         ) if self.reddit_enabled else None
