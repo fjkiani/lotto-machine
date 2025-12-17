@@ -30,6 +30,7 @@ class GammaChecker(BaseChecker):
         self,
         alert_manager,
         gamma_tracker=None,
+        gamma_exposure_tracker=None,
         symbols=None,
         unified_mode=False
     ):
@@ -38,12 +39,14 @@ class GammaChecker(BaseChecker):
         
         Args:
             alert_manager: AlertManager instance for deduplication
-            gamma_tracker: GammaTracker instance
+            gamma_tracker: GammaTracker instance (max pain based)
+            gamma_exposure_tracker: GammaExposureTracker instance (flip level based)
             symbols: List of symbols to check (e.g., ['SPY', 'QQQ'])
             unified_mode: If True, suppresses individual alerts
         """
         super().__init__(alert_manager, unified_mode)
         self.gamma_tracker = gamma_tracker
+        self.gamma_exposure_tracker = gamma_exposure_tracker
         self.symbols = symbols or []
     
     @property
@@ -53,12 +56,12 @@ class GammaChecker(BaseChecker):
 
     def check(self) -> List[CheckerAlert]:
         """
-        Check for gamma ramp setups.
+        Check for gamma ramp setups AND gamma flip signals.
         
         Returns:
             List of CheckerAlert objects (empty if no signals)
         """
-        if not self.gamma_tracker:
+        if not self.gamma_tracker and not self.gamma_exposure_tracker:
             return []
         
         logger.info("🎲 Checking for GAMMA setups...")
@@ -66,20 +69,43 @@ class GammaChecker(BaseChecker):
         try:
             alerts = []
             
-            # Check multiple expirations for each symbol
             for symbol in self.symbols:
-                # Check nearest and weekly expirations
-                for exp_idx in [0, 4]:  # 0=nearest, 4=weekly (Friday)
-                    signal = self.gamma_tracker.analyze(symbol, expiration_idx=exp_idx)
-                    
-                    if signal:
-                        alert = self._create_gamma_alert(signal)
-                        if alert:
-                            alerts.append(alert)
-                            logger.info(f"   🎲 Gamma signal sent for {signal.symbol} ({signal.direction})!")
+                # PRIORITY 1: Check for gamma flip signals (more precise)
+                if self.gamma_exposure_tracker:
+                    try:
+                        import yfinance as yf
+                        ticker = yf.Ticker(symbol)
+                        hist = ticker.history(period='1d')
+                        if not hist.empty:
+                            current_price = float(hist['Close'].iloc[-1])
+                            
+                            gamma_data = self.gamma_exposure_tracker.calculate_gamma_exposure(symbol, current_price)
+                            if gamma_data:
+                                flip_signal = self.gamma_exposure_tracker.detect_gamma_flip_signal(gamma_data)
+                                
+                                if flip_signal:
+                                    alert = self._create_gamma_flip_alert(flip_signal)
+                                    if alert:
+                                        alerts.append(alert)
+                                        logger.info(f"   🎯 GAMMA FLIP signal sent for {symbol} ({flip_signal['action']})!")
+                                        continue  # Skip ramp check if flip detected
+                    except Exception as e:
+                        logger.debug(f"   ⚠️ Gamma flip check error for {symbol}: {e}")
+                
+                # PRIORITY 2: Check for gamma ramp signals (max pain based)
+                if self.gamma_tracker:
+                    # Check multiple expirations for each symbol
+                    for exp_idx in [0, 4]:  # 0=nearest, 4=weekly (Friday)
+                        signal = self.gamma_tracker.analyze(symbol, expiration_idx=exp_idx)
                         
-                        # Only send one signal per symbol (break after first hit)
-                        break
+                        if signal:
+                            alert = self._create_gamma_alert(signal)
+                            if alert:
+                                alerts.append(alert)
+                                logger.info(f"   🎲 Gamma ramp signal sent for {signal.symbol} ({signal.direction})!")
+                            
+                            # Only send one signal per symbol (break after first hit)
+                            break
             
             return alerts
                     
@@ -129,5 +155,49 @@ class GammaChecker(BaseChecker):
             alert_type="gamma_signal",
             source="gamma_checker",
             symbol=signal.symbol
+        )
+    
+    def _create_gamma_flip_alert(self, flip_signal: dict) -> Optional[CheckerAlert]:
+        """Create a CheckerAlert from a gamma flip signal."""
+        direction_color = 15548997 if flip_signal['action'] == 'SHORT' else 3066993  # Red for SHORT, Green for LONG
+        direction_emoji = "🔻" if flip_signal['action'] == 'SHORT' else "🔺"
+        
+        entry_range = flip_signal['entry_range']
+        
+        embed = {
+            "title": f"🎯 GAMMA FLIP {flip_signal['action']}: {flip_signal['symbol']}",
+            "color": direction_color,
+            "description": f"**Price retesting gamma flip level**\n**Confidence: {flip_signal['confidence']:.0%}**",
+            "fields": [
+                {"name": "🎯 Gamma Flip Level", "value": f"${flip_signal['gamma_flip_level']:.2f}", "inline": True},
+                {"name": f"{direction_emoji} Action", "value": f"**{flip_signal['action']}**", "inline": True},
+                {"name": "📊 Regime", "value": f"{flip_signal['regime']} Gamma", "inline": True},
+                {"name": "📍 Entry Zone", "value": f"${entry_range[0]:.2f}-${entry_range[1]:.2f}\n(retest of flip)", "inline": True},
+                {"name": "🛑 Stop", "value": f"${flip_signal['stop_price']:.2f}\n(TIGHT - above flip)", "inline": True},
+                {"name": "🎯 Target 1", "value": f"${flip_signal['target1']:.2f}\nR/R: {flip_signal['risk_reward1']:.1f}:1", "inline": True},
+                {"name": "🎯 Target 2", "value": f"${flip_signal['target2']:.2f}\nR/R: {flip_signal['risk_reward2']:.1f}:1", "inline": True},
+                {"name": "📏 Distance to Flip", "value": f"{flip_signal['distance_to_flip_pct']:.2f}%", "inline": True},
+                {"name": "⚡ Total GEX", "value": f"{flip_signal['total_gex']:,.0f} shares", "inline": True},
+            ],
+            "footer": {"text": f"Exploitation Phase 2 • Gamma Flip Detection"},
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Add reasoning
+        if flip_signal['reasoning']:
+            embed["fields"].append({
+                "name": "📝 Reasoning",
+                "value": "\n".join([f"• {r}" for r in flip_signal['reasoning'][:5]]),
+                "inline": False
+            })
+        
+        content = f"🎯 **GAMMA FLIP {flip_signal['action']}** 🎯 | {flip_signal['symbol']} retesting flip at ${flip_signal['gamma_flip_level']:.2f}"
+        
+        return CheckerAlert(
+            embed=embed,
+            content=content,
+            alert_type="gamma_flip_signal",
+            source="gamma_checker",
+            symbol=flip_signal['symbol']
         )
 

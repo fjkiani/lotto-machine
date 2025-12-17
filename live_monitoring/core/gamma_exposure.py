@@ -220,6 +220,118 @@ class GammaExposureTracker:
             summary += f"Distance to Flip: {distance:.2f}%\n"
         
         return summary
+    
+    def detect_gamma_flip_signal(self, gamma_data: GammaExposureData, 
+                                 retest_threshold_pct: float = 0.5) -> Optional[Dict]:
+        """
+        Detect gamma flip signal when price retests the flip level.
+        
+        Gamma Flip Signal Logic:
+        - When price retests gamma flip level (within threshold), generate signal
+        - Below flip + negative gamma = SHORT (amplifying moves down)
+        - Above flip + positive gamma = LONG (amplifying moves up)
+        
+        Args:
+            gamma_data: Gamma exposure analysis result
+            retest_threshold_pct: Max distance to flip level for retest (default 0.5%)
+        
+        Returns:
+            Dict with signal details if detected, None otherwise
+        """
+        if not gamma_data or not gamma_data.gamma_flip_level:
+            return None
+        
+        flip_level = gamma_data.gamma_flip_level
+        current_price = gamma_data.price
+        regime = gamma_data.current_regime
+        
+        # Calculate distance to flip level
+        distance_to_flip = abs(current_price - flip_level)
+        distance_pct = (distance_to_flip / current_price) * 100
+        
+        # Check if price is retesting flip level
+        if distance_pct > retest_threshold_pct:
+            return None  # Not at flip level
+        
+        # Determine signal direction based on regime
+        if regime == 'NEGATIVE':
+            # Below flip = negative gamma = amplifying moves DOWN = SHORT
+            action = 'SHORT'
+            direction = 'DOWN'
+            entry = current_price
+            # Stop just above flip level (if breaks above, gamma becomes positive = stabilizing)
+            stop = flip_level * 1.003  # 0.3% above flip
+            # Target 1: 0.7% below entry (conservative)
+            target1 = entry * 0.993
+            # Target 2: 1.2% below entry (aggressive)
+            target2 = entry * 0.988
+            
+            risk = stop - entry
+            reward1 = entry - target1
+            reward2 = entry - target2
+            rr1 = reward1 / risk if risk > 0 else 0
+            rr2 = reward2 / risk if risk > 0 else 0
+            
+            reasoning = [
+                f"Price retesting gamma flip at ${flip_level:.2f}",
+                f"Below flip = NEGATIVE gamma regime",
+                f"Negative gamma = dealers amplify moves DOWN",
+                f"Entry zone: ${entry:.2f} (retest of flip)",
+                f"Stop: ${stop:.2f} (above flip - if breaks, gamma stabilizes)",
+            ]
+            
+        elif regime == 'POSITIVE':
+            # Above flip = positive gamma = amplifying moves UP = LONG
+            action = 'LONG'
+            direction = 'UP'
+            entry = current_price
+            # Stop just below flip level (if breaks below, gamma becomes negative = amplifying down)
+            stop = flip_level * 0.997  # 0.3% below flip
+            # Target 1: 0.7% above entry (conservative)
+            target1 = entry * 1.007
+            # Target 2: 1.2% above entry (aggressive)
+            target2 = entry * 1.012
+            
+            risk = entry - stop
+            reward1 = target1 - entry
+            reward2 = target2 - entry
+            rr1 = reward1 / risk if risk > 0 else 0
+            rr2 = reward2 / risk if risk > 0 else 0
+            
+            reasoning = [
+                f"Price retesting gamma flip at ${flip_level:.2f}",
+                f"Above flip = POSITIVE gamma regime",
+                f"Positive gamma = dealers amplify moves UP",
+                f"Entry zone: ${entry:.2f} (retest of flip)",
+                f"Stop: ${stop:.2f} (below flip - if breaks, gamma amplifies down)",
+            ]
+        else:
+            return None  # Unknown regime
+        
+        # Calculate confidence based on distance to flip and total GEX
+        distance_score = max(0, 100 - (distance_pct * 200))  # Closer = higher score
+        gex_score = min(abs(gamma_data.total_gex) / 1000000 * 50, 50)  # Higher GEX = higher score
+        confidence = min(distance_score + gex_score, 95)
+        
+        return {
+            'symbol': gamma_data.symbol,
+            'signal_type': 'GAMMA_FLIP',
+            'action': action,
+            'direction': direction,
+            'entry_price': entry,
+            'entry_range': (flip_level * 0.999, flip_level * 1.001),  # Tight entry zone
+            'stop_price': stop,
+            'target1': target1,
+            'target2': target2,
+            'risk_reward1': rr1,
+            'risk_reward2': rr2,
+            'gamma_flip_level': flip_level,
+            'distance_to_flip_pct': distance_pct,
+            'regime': regime,
+            'confidence': confidence / 100,  # Convert to 0-1 scale
+            'reasoning': reasoning,
+            'total_gex': gamma_data.total_gex,
+        }
 
 
 if __name__ == "__main__":

@@ -390,9 +390,15 @@ class UnifiedAlphaMonitor:
         ) if self.squeeze_enabled else None
         
         # Gamma Checker
+        # Get gamma_exposure_tracker from signal_generator if available
+        gamma_exposure_tracker = None
+        if hasattr(self, 'signal_generator') and hasattr(self.signal_generator, 'gamma_tracker'):
+            gamma_exposure_tracker = self.signal_generator.gamma_tracker
+        
         self.gamma_checker = GammaChecker(
             alert_manager=self.alert_manager,
             gamma_tracker=self.gamma_tracker,
+            gamma_exposure_tracker=gamma_exposure_tracker,
             symbols=self.symbols,
             unified_mode=self.unified_mode
         ) if self.gamma_enabled else None
