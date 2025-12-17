@@ -50,6 +50,11 @@ class ScannerChecker(BaseChecker):
         # State management
         self.scanned_today: Set[str] = set()
     
+    @property
+    def name(self) -> str:
+        """Return checker name for identification."""
+        return "scanner_checker"
+
     def check(self) -> List[CheckerAlert]:
         """
         Scan market for new opportunities.

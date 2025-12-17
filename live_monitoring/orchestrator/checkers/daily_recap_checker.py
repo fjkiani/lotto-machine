@@ -88,6 +88,11 @@ class DailyRecapChecker(BaseChecker):
             logger.debug(f"Daily recap check error: {e}")
             return False
     
+    @property
+    def name(self) -> str:
+        """Return checker name for identification."""
+        return "daily_recap_checker"
+
     def check(self, now: Optional[datetime] = None) -> List[CheckerAlert]:
         """
         Check if it's time to send daily recap and generate it.

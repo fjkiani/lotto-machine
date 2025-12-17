@@ -52,6 +52,11 @@ class SynthesisChecker(BaseChecker):
         # State management
         self.last_synthesis_sent = None
     
+    @property
+    def name(self) -> str:
+        """Return checker name for identification."""
+        return "synthesis_checker"
+
     def check(
         self,
         recent_dp_alerts: List,

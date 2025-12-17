@@ -58,6 +58,11 @@ class NarrativeChecker(BaseChecker):
         self._last_level_directions = {}
         self._last_regime_details = {}
     
+    @property
+    def name(self) -> str:
+        """Return checker name for identification."""
+        return "narrative_checker"
+
     def check(
         self,
         recent_dp_alerts: List,

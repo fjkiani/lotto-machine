@@ -46,6 +46,11 @@ class GammaChecker(BaseChecker):
         self.gamma_tracker = gamma_tracker
         self.symbols = symbols or []
     
+    @property
+    def name(self) -> str:
+        """Return checker name for identification."""
+        return "gamma_checker"
+
     def check(self) -> List[CheckerAlert]:
         """
         Check for gamma ramp setups.

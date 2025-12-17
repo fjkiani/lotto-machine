@@ -56,6 +56,11 @@ class EconomicChecker(BaseChecker):
         # State management
         self.alerted_events = set()
     
+    @property
+    def name(self) -> str:
+        """Return checker name for identification."""
+        return "economic_checker"
+    
     def check(self) -> List[CheckerAlert]:
         """
         Check for upcoming economic events.

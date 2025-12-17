@@ -54,6 +54,11 @@ class TradyticsChecker(BaseChecker):
         self.seen_tradytics_alerts = set()
         self.tradytics_alerts_processed = 0
     
+    @property
+    def name(self) -> str:
+        """Return checker name for identification."""
+        return "tradytics_checker"
+
     def check(self) -> List[CheckerAlert]:
         """
         Run autonomous Tradytics analysis.

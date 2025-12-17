@@ -46,6 +46,11 @@ class FTDChecker(BaseChecker):
         self.ftd_analyzer = ftd_analyzer
         self.ftd_candidates = ftd_candidates or []
     
+    @property
+    def name(self) -> str:
+        """Return checker name for identification."""
+        return "ftd_checker"
+
     def check(self) -> List[CheckerAlert]:
         """
         Check for FTD-based opportunities.

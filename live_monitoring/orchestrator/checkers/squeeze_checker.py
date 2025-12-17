@@ -50,6 +50,11 @@ class SqueezeChecker(BaseChecker):
         self.opportunity_scanner = opportunity_scanner
         self.squeeze_candidates = squeeze_candidates or []
     
+    @property
+    def name(self) -> str:
+        """Return checker name for identification."""
+        return "squeeze_checker"
+
     def check(self) -> List[CheckerAlert]:
         """
         Check for short squeeze setups using dynamic discovery.
