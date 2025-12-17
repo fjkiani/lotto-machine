@@ -52,14 +52,16 @@ class BaseChecker(ABC):
                 return alerts
     """
     
-    def __init__(self, alert_manager):
+    def __init__(self, alert_manager, unified_mode=False):
         """
         Initialize checker.
         
         Args:
             alert_manager: AlertManager instance for sending alerts
+            unified_mode: If True, suppresses individual alerts (for unified synthesis)
         """
         self.alert_manager = alert_manager
+        self.unified_mode = unified_mode
         self.enabled = True
         self._last_check_time = None
     
