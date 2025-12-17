@@ -36,6 +36,7 @@ from .checkers import (
     ScannerChecker,
     FTDChecker,
     DailyRecapChecker,
+    RedditChecker,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,7 @@ class UnifiedAlphaMonitor:
         self.dp_interval = 60        # 1 minute
         self.synthesis_interval = 60  # 1 minute
         self.squeeze_interval = 3600  # 1 hour - squeeze detection
+        self.reddit_interval = 3600   # 1 hour - Reddit sentiment (Phase 5)
         
         # Track last run times
         self.last_fed_check = None
@@ -72,6 +74,7 @@ class UnifiedAlphaMonitor:
         self.last_synthesis_check = None
         self.last_tradytics_analysis = None
         self.last_squeeze_check = None
+        self.last_reddit_check = None
         
         # Initialize modular components
         self.alert_manager = AlertManager()
@@ -287,12 +290,28 @@ class UnifiedAlphaMonitor:
         # This is just a starting point for known high-SI stocks
         self.squeeze_candidates = ['GME', 'AMC', 'LCID', 'RIVN', 'MARA', 'RIOT']
         
-        # Future: Reddit Contrarian (Phase 5)
+        # Reddit Exploiter (Phase 5)
+        self.reddit_enabled = False
+        self.reddit_exploiter = None
+        
+        try:
+            from live_monitoring.exploitation.reddit_exploiter import RedditExploiter
+            
+            api_key = os.getenv('CHARTEXCHANGE_API_KEY') or os.getenv('CHART_EXCHANGE_API_KEY')
+            if api_key:
+                self.reddit_exploiter = RedditExploiter(api_key=api_key)
+                self.reddit_enabled = True
+                logger.info("   ✅ Reddit Exploiter initialized")
+            else:
+                logger.warning("   ⚠️ Reddit Exploiter: No API key found")
+        except Exception as e:
+            logger.warning(f"   ⚠️ Reddit Exploiter failed: {e}")
         
         logger.info(f"   Squeeze Detector: {'✅' if self.squeeze_enabled else '❌'}")
         logger.info(f"   Gamma Tracker: {'✅' if self.gamma_enabled else '❌'}")
         logger.info(f"   Opportunity Scanner: {'✅' if self.scanner_enabled else '❌'}")
         logger.info(f"   FTD Analyzer: {'✅' if self.ftd_enabled else '❌'}")
+        logger.info(f"   Reddit Exploiter: {'✅' if self.reddit_enabled else '❌'}")
         
         # Initialize all checkers
         self._init_checkers()
@@ -403,6 +422,15 @@ class UnifiedAlphaMonitor:
             gamma_enabled=self.gamma_enabled,
             unified_mode=self.unified_mode
         )
+        
+        # Reddit Checker (Phase 5)
+        api_key = os.getenv('CHARTEXCHANGE_API_KEY') or os.getenv('CHART_EXCHANGE_API_KEY')
+        self.reddit_checker = RedditChecker(
+            alert_manager=self.alert_manager,
+            unified_mode=self.unified_mode,
+            reddit_exploiter=self.reddit_exploiter,
+            api_key=api_key
+        ) if self.reddit_enabled else None
         
         logger.info("   ✅ All checkers initialized")
     
@@ -1207,6 +1235,7 @@ class UnifiedAlphaMonitor:
         self.last_synthesis_check = now
         self.last_squeeze_check = now
         self.last_gamma_check = now
+        self.last_reddit_check = now
         self.gamma_interval = 1800  # Check gamma every 30 min (was hourly)
         
         while self.running:
@@ -1319,6 +1348,13 @@ class UnifiedAlphaMonitor:
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_ftd_check = now
+                
+                # Reddit Checker (Phase 5)
+                if is_market_hours and self.reddit_checker and (self.last_reddit_check is None or (now - self.last_reddit_check).seconds >= self.reddit_interval):
+                    alerts = self.reddit_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+                    self.last_reddit_check = now
                 
                 # 🚨 MOMENTUM: Selloff/Rally Detection (every minute during RTH)
                 if is_market_hours and (self.last_dp_check is None or (now - self.last_dp_check).seconds >= 60):
