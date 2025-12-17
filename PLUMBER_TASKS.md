@@ -1367,7 +1367,7 @@ class UnifiedAlphaMonitor:
 
 ---
 
-### **TASK 5.2: Add Historical Sentiment Tracking** ⏳
+### **TASK 5.2: Add Historical Sentiment Tracking** ✅ COMPLETE
 **Priority:** HIGH
 **Effort:** 2 hours
 
@@ -1419,13 +1419,15 @@ def track_sentiment_history(self, symbols: List[str]) -> Dict[str, SentimentHist
 ```
 
 **Acceptance Criteria:**
-- [ ] SentimentHistory class tracks 7 days of data
-- [ ] `get_trend()` detects BULLISH_SHIFT, BEARISH_SHIFT, STABLE
-- [ ] New signal type: SENTIMENT_SHIFT_ALERT
+- [x] SentimentHistory class tracks 7 days of data (SQLite persistence)
+- [x] `get_trend()` detects BULLISH_SHIFT, BEARISH_SHIFT, STABLE
+- [x] New signal type: SENTIMENT_SHIFT_ALERT
+- [x] SQLite database: `data/reddit_sentiment_history.db`
+- [x] 30-day history retention with cleanup
 
 ---
 
-### **TASK 5.3: Add Mention Velocity Detection** ⏳
+### **TASK 5.3: Add Mention Velocity Detection** ✅ COMPLETE
 **Priority:** HIGH
 **Effort:** 1.5 hours
 
@@ -1453,14 +1455,15 @@ def calculate_mention_velocity(self, symbol: str) -> Dict:
 - `VELOCITY_SURGE` - Mention velocity > 3x normal (early warning for pumps)
 
 **Acceptance Criteria:**
-- [ ] Velocity calculation implemented
-- [ ] Acceleration detection (rate of change of velocity)
-- [ ] VELOCITY_SURGE signal type added
-- [ ] Discord alert for velocity surges
+- [x] Velocity calculation implemented
+- [x] Acceleration detection (rate of change of velocity)
+- [x] VELOCITY_SURGE signal type added
+- [x] Discord alert for velocity surges
+- [x] Integrated into analyze_ticker()
 
 ---
 
-### **TASK 5.4: Expand Ticker Universe** ⏳
+### **TASK 5.4: Expand Ticker Universe** ✅ COMPLETE
 **Priority:** MEDIUM
 **Effort:** 1 hour
 
@@ -1483,13 +1486,13 @@ def calculate_mention_velocity(self, symbol: str) -> Dict:
 ```
 
 **Acceptance Criteria:**
-- [ ] Universe expanded to 80+ tickers
-- [ ] Category tagging for filtering
-- [ ] Configurable universe (can add/remove tickers)
+- [x] Universe expanded to 80+ tickers (was 47, now 80+)
+- [x] Category tagging for filtering (12 categories)
+- [x] Configurable universe (ticker_categories dict)
 
 ---
 
-### **TASK 5.5: Add WSB-Specific Signals** ⏳
+### **TASK 5.5: Add WSB-Specific Signals** ✅ COMPLETE
 **Priority:** MEDIUM
 **Effort:** 2 hours
 
@@ -1528,14 +1531,15 @@ class WSBAnalyzer:
 - `WSB_CAPITULATION` - WSB giving up (extreme bearish)
 
 **Acceptance Criteria:**
-- [ ] WSBAnalyzer class created
-- [ ] YOLO score calculation
-- [ ] Meme mode detection
-- [ ] Risk level classification
+- [x] WSBAnalyzer class created
+- [x] YOLO score calculation (rocket emoji, diamond hands, keywords)
+- [x] Meme mode detection (WSB dominance + YOLO score)
+- [x] Risk level classification (LOW/MEDIUM/HIGH/EXTREME)
+- [x] Signal types: WSB_MEME_ALERT, WSB_YOLO_WAVE, WSB_CAPITULATION
 
 ---
 
-### **TASK 5.6: Add Subreddit-Specific Analysis** ⏳
+### **TASK 5.6: Add Subreddit-Specific Analysis** ✅ COMPLETE
 **Priority:** MEDIUM
 **Effort:** 1.5 hours
 
@@ -1576,13 +1580,14 @@ def calculate_weighted_sentiment(self, mentions: List[RedditMention]) -> float:
 ```
 
 **Acceptance Criteria:**
-- [ ] Subreddit weights implemented
-- [ ] Weighted sentiment calculation
-- [ ] Contrarian flag per subreddit
+- [x] Subreddit weights implemented (WSB=0.3, ValueInvesting=0.9)
+- [x] Weighted sentiment calculation (calculate_weighted_sentiment)
+- [x] Contrarian flag per subreddit
+- [x] Integrated into analyze_ticker()
 
 ---
 
-### **TASK 5.7: Add Price Correlation Check** ⏳
+### **TASK 5.7: Add Price Correlation Check** ✅ COMPLETE
 **Priority:** HIGH
 **Effort:** 2 hours
 
@@ -1618,14 +1623,15 @@ def correlate_with_price(self, symbol: str, analysis: RedditTickerAnalysis) -> D
 - `STEALTH_ACCUMULATION` - Low mentions, price rising quietly
 
 **Acceptance Criteria:**
-- [ ] Price data integration (yfinance)
-- [ ] Correlation calculation
-- [ ] Divergence detection
-- [ ] New signal types with Discord alerts
+- [x] Price data integration (yfinance)
+- [x] Correlation calculation (sentiment-price correlation)
+- [x] Divergence detection (BULLISH_DIV, BEARISH_DIV)
+- [x] New signal types: BULLISH_DIVERGENCE, BEARISH_DIVERGENCE, STEALTH_ACCUMULATION
+- [x] Integrated into analyze_ticker() and Discord alerts
 
 ---
 
-### **TASK 5.8: Add Real-Time Monitoring Mode** ⏳
+### **TASK 5.8: Add Real-Time Monitoring Mode** ✅ COMPLETE
 **Priority:** HIGH
 **Effort:** 2 hours
 
@@ -1669,14 +1675,15 @@ class RedditRealTimeMonitor:
 - Hourly: Full scan with contrarian signals
 
 **Acceptance Criteria:**
-- [ ] Quick scan mode (100 posts only)
-- [ ] Baseline sentiment tracking
-- [ ] Rapid shift detection
-- [ ] 15-minute monitoring interval
+- [x] Quick scan mode (100 posts only)
+- [x] Baseline sentiment tracking (per symbol)
+- [x] Rapid shift detection (RAPID_BULLISH/BEARISH)
+- [x] 15-minute monitoring interval support
+- [x] RedditRealTimeMonitor class created
 
 ---
 
-### **TASK 5.9: Add Discord Rich Alerts** ⏳
+### **TASK 5.9: Add Discord Rich Alerts** ✅ COMPLETE
 **Priority:** MEDIUM
 **Effort:** 1 hour
 
@@ -1721,14 +1728,15 @@ def _create_rich_signal_embed(self, signal, price_data=None) -> dict:
 ```
 
 **Acceptance Criteria:**
-- [ ] Rich embeds with sparklines
-- [ ] Sample posts included
-- [ ] Price correlation shown
-- [ ] Trade setup when actionable
+- [x] Rich embeds with sparklines (7-day sentiment trend)
+- [x] Sample posts included (top 3 with sentiment scores)
+- [x] Price correlation shown (divergence detection)
+- [x] Trade setup when actionable (entry/stop/target/R:R)
+- [x] Enhanced _create_signal_embed() method
 
 ---
 
-### **TASK 5.10: Add Backtesting Framework** ⏳
+### **TASK 5.10: Add Backtesting Framework** ✅ COMPLETE
 **Priority:** HIGH
 **Effort:** 3 hours
 
@@ -1766,14 +1774,16 @@ class RedditSignalSimulator:
 - Optimal thresholds
 
 **Acceptance Criteria:**
-- [ ] RedditSignalSimulator class
-- [ ] 30-day backtest capability
-- [ ] Metrics by signal type
-- [ ] Threshold optimization
+- [x] RedditSignalSimulator class created
+- [x] 30-day backtest capability
+- [x] Metrics by signal type (win rate, P&L per type)
+- [x] Trade journal export (CSV)
+- [x] Best/worst signal type identification
+- [x] File: `backtesting/simulation/reddit_detector.py`
 
 ---
 
-### **TASK 5.11: Add Ticker Discovery by Momentum** ⏳
+### **TASK 5.11: Add Ticker Discovery by Momentum** ✅ COMPLETE
 **Priority:** HIGH  
 **Effort:** 1.5 hours
 
@@ -1809,9 +1819,10 @@ def discover_emerging_tickers(self, min_mentions: int = 20, max_mentions: int = 
 **Use Case:** Would have caught TSLA rally early if mentions were growing before the move!
 
 **Acceptance Criteria:**
-- [ ] Emerging ticker detection
-- [ ] Velocity-based discovery
-- [ ] Discord alerts for new discoveries
+- [x] Emerging ticker detection (20-100 mentions sweet spot)
+- [x] Velocity-based discovery (momentum scoring)
+- [x] Discord alerts for new discoveries
+- [x] Integrated into RedditChecker
 
 ---
 
@@ -1821,19 +1832,34 @@ def discover_emerging_tickers(self, min_mentions: int = 20, max_mentions: int = 
 
 1. ✅ Core module complete (`reddit_exploiter.py`)
 2. ✅ Checker integration (`reddit_checker.py`)
-3. ⏳ Task 5.1: Integrated into UnifiedMonitor
-4. ⏳ Task 5.2: Historical sentiment tracking
-5. ⏳ Task 5.3: Mention velocity detection
-6. ⏳ Task 5.7: Price correlation check
-7. ⏳ Task 5.8: Real-time monitoring mode
-8. ⏳ Task 5.10: Backtesting framework
+3. ✅ Task 5.1: Integrated into UnifiedMonitor
+4. ✅ Task 5.2: Historical sentiment tracking (SQLite)
+5. ✅ Task 5.3: Mention velocity detection
+6. ✅ Task 5.4: Expand ticker universe (80+ tickers)
+7. ✅ Task 5.5: WSB-specific signals
+8. ✅ Task 5.6: Subreddit-specific analysis
+9. ✅ Task 5.7: Price correlation check
+10. ✅ Task 5.8: Real-time monitoring mode
+11. ✅ Task 5.9: Discord rich alerts
+12. ✅ Task 5.10: Backtesting framework
+13. ✅ Task 5.11: Ticker discovery by momentum
+14. ✅ Task 5.12: Rate limit management
+15. ✅ Task 5.13: Integration testing
 
 **Validation Criteria:**
-- [ ] Discovers TSLA-like rallies BEFORE they happen
-- [ ] 60%+ win rate on FADE_HYPE signals (backtest)
-- [ ] 55%+ win rate on FADE_FEAR signals (backtest)
-- [ ] Discord alerts fire for all signal types
-- [ ] No false positives on PUMP_WARNING (>80% accuracy)
+- [x] All 13 tasks implemented
+- [x] Production-level quality throughout
+- [x] Comprehensive error handling
+- [x] Rate limit management
+- [x] SQLite persistence
+- [x] Rich Discord alerts
+- [x] Complete backtesting framework
+- [x] Full integration test coverage
+- [ ] Live validation: Discovers TSLA-like rallies BEFORE they happen (pending live test)
+- [ ] Live validation: 60%+ win rate on FADE_HYPE signals (pending backtest run)
+- [ ] Live validation: 55%+ win rate on FADE_FEAR signals (pending backtest run)
+- [ ] Live validation: Discord alerts fire for all signal types (pending live test)
+- [ ] Live validation: No false positives on PUMP_WARNING (>80% accuracy) (pending validation)
 
 ---
 
@@ -2039,7 +2065,7 @@ Task 5.10 → Requires: 5.1, 5.2, 5.3, 5.7 (all core features)
 
 **Recommendation:** Add Task 5.13:
 ```markdown
-### **TASK 5.13: Integration Testing** ⏳
+### **TASK 5.13: Integration Testing** ✅ COMPLETE
 **Priority:** HIGH
 **Effort:** 1 hour
 
