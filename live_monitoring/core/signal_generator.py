@@ -323,8 +323,18 @@ class SignalGenerator:
             volumes = minute_bars["Volume"]
             
             # Get key prices
+            # CRITICAL: Use FIRST bar of the day as day_open, not first of minute_bars
             day_open = float(minute_bars["Open"].iloc[0])  # First bar's open = day open
             current_close = float(closes.iloc[-1])
+            
+            # For momentum detection, use only recent bars (last 30)
+            if len(minute_bars) > 30:
+                recent_bars_for_momentum = minute_bars.tail(30)
+                recent_closes = recent_bars_for_momentum["Close"]
+                recent_volumes = recent_bars_for_momentum["Volume"]
+            else:
+                recent_closes = closes
+                recent_volumes = volumes
             
             # ═══════════════════════════════════════════════════════════════
             # METHOD 1: FROM OPEN DETECTION (EARLY WARNING!)

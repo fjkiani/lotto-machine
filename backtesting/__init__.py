@@ -1,6 +1,6 @@
 """
 🎯 BACKTESTING FRAMEWORK
-Modular, reusable backtesting system for DP alerts
+Modular, reusable backtesting system for DP alerts and Reddit signals
 """
 
 from .data.loader import DataLoader
@@ -22,6 +22,8 @@ from .monitoring.production_monitor import ProductionMonitor, MonitorConfig
 from .config.trading_params import TradingParams
 from .simulation.squeeze_detector import SqueezeDetectorSimulator, SqueezeSignal
 from .simulation.gamma_detector import GammaDetectorSimulator, GammaBacktestSignal
+from .simulation.reddit_detector import RedditSignalSimulator, RedditBacktestResult, RedditBacktestTrade
+from .simulation.reddit_signal_tracker import RedditSignalTracker, TrackedSignal
 
 __all__ = [
     'DataLoader',
@@ -52,7 +54,13 @@ __all__ = [
     'GammaBacktestSignal',
     'ProductionMonitor',
     'MonitorConfig',
-    'TradingParams'
+    'TradingParams',
+    # Reddit backtesting
+    'RedditSignalSimulator',
+    'RedditBacktestResult',
+    'RedditBacktestTrade',
+    'RedditSignalTracker',
+    'TrackedSignal',
 ]
 
 

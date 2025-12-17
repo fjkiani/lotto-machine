@@ -42,7 +42,9 @@ class MomentumDetector:
                 if hist.empty or len(hist) < 20:
                     continue
                 
-                minute_bars = hist.tail(30)
+                # CRITICAL FIX: Pass FULL day data, not just last 30 minutes!
+                # The selloff detection needs the day's open price, not just recent bars
+                minute_bars = hist  # Use full day data
                 current_price = float(minute_bars['Close'].iloc[-1])
                 
                 # Get institutional context
@@ -97,7 +99,9 @@ class MomentumDetector:
                 if hist.empty or len(hist) < 20:
                     continue
                 
-                minute_bars = hist.tail(30)
+                # CRITICAL FIX: Pass FULL day data, not just last 30 minutes!
+                # The rally detection needs the day's open price, not just recent bars
+                minute_bars = hist  # Use full day data
                 current_price = float(minute_bars['Close'].iloc[-1])
                 
                 # Get institutional context
