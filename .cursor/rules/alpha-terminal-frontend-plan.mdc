@@ -1,0 +1,1224 @@
+# 🎯 ALPHA TERMINAL - Frontend Architecture Plan
+
+## Mission Statement
+Build a **REAL-TIME INSTITUTIONAL INTELLIGENCE DASHBOARD** that makes Bloomberg Terminal look like a fucking calculator from 1985. Our terminal will be:
+- **Beautiful** - Dark mode, neon accents, cinematic feel
+- **Fast** - Sub-second updates, WebSocket-powered
+- **Intelligent** - AI-driven insights, not just data vomit
+- **Actionable** - Every pixel leads to a trade decision
+
+---
+
+## 🏗️ ARCHITECTURE OVERVIEW
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           ALPHA TERMINAL                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │   MARKET    │  │   SIGNALS   │  │  DARK POOL  │  │   GAMMA     │        │
+│  │  OVERVIEW   │  │   CENTER    │  │   FLOW      │  │   TRACKER   │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │   SQUEEZE   │  │   OPTIONS   │  │   REDDIT    │  │   MACRO     │        │
+│  │   SCANNER   │  │   FLOW      │  │  SENTIMENT  │  │   INTEL     │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │                    NARRATIVE BRAIN (AI SYNTHESIS)                │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           BACKEND SERVICES                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │  FastAPI    │  │  WebSocket  │  │   Redis     │  │  PostgreSQL │        │
+│  │  REST API   │  │   Server    │  │   Cache     │  │   Database  │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │              UNIFIED ALPHA MONITOR (Existing Backend)            │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📦 TECH STACK
+
+### Frontend
+| Component | Technology | Why |
+|-----------|------------|-----|
+| Framework | **Next.js 14** (App Router) | Server components, streaming, edge runtime |
+| UI Library | **Tailwind CSS** + **shadcn/ui** | Beautiful, fast, customizable |
+| Charts | **TradingView Lightweight Charts** + **Recharts** | Professional trading charts |
+| State | **Zustand** | Simple, fast, scalable |
+| Real-time | **Socket.io Client** | WebSocket with fallbacks |
+| Animations | **Framer Motion** | Smooth, cinematic transitions |
+| Icons | **Lucide React** | Clean, consistent iconography |
+
+### Backend API Layer
+| Component | Technology | Why |
+|-----------|------------|-----|
+| API Framework | **FastAPI** | Async, fast, auto-docs |
+| WebSocket | **FastAPI WebSockets** + **Redis Pub/Sub** | Real-time broadcast |
+| Cache | **Redis** | Sub-millisecond reads |
+| Database | **PostgreSQL** + **TimescaleDB** | Time-series optimized |
+| Task Queue | **Celery** + **Redis** | Background processing |
+| Auth | **JWT** + **OAuth2** | Secure, stateless |
+
+### Infrastructure
+| Component | Technology | Why |
+|-----------|------------|-----|
+| Hosting | **Vercel** (Frontend) + **Render/Railway** (Backend) | Easy deployment |
+| CDN | **Vercel Edge** | Global, fast |
+| Monitoring | **Sentry** + **Prometheus** | Error tracking, metrics |
+| Logging | **Loguru** + **Loki** | Structured logging |
+
+---
+
+## 🎨 DESIGN SYSTEM
+
+### Color Palette (Dark Mode First)
+```css
+:root {
+  /* Background Layers */
+  --bg-primary: #0a0a0f;      /* Deepest black */
+  --bg-secondary: #12121a;    /* Card backgrounds */
+  --bg-tertiary: #1a1a25;     /* Elevated surfaces */
+  --bg-hover: #22222f;        /* Hover states */
+  
+  /* Accent Colors */
+  --accent-green: #00ff88;    /* Bullish, success */
+  --accent-red: #ff3366;      /* Bearish, danger */
+  --accent-blue: #00d4ff;     /* Neutral, info */
+  --accent-purple: #a855f7;   /* AI/Synthesis */
+  --accent-orange: #ff9500;   /* Warning, attention */
+  --accent-gold: #ffd700;     /* Premium, signals */
+  
+  /* Text */
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0b0;
+  --text-muted: #606070;
+  
+  /* Borders */
+  --border-subtle: #2a2a35;
+  --border-active: #3a3a45;
+  
+  /* Glow Effects */
+  --glow-green: 0 0 20px rgba(0, 255, 136, 0.3);
+  --glow-red: 0 0 20px rgba(255, 51, 102, 0.3);
+  --glow-blue: 0 0 20px rgba(0, 212, 255, 0.3);
+}
+```
+
+### Typography
+```css
+/* Font Stack */
+--font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+--font-sans: 'Inter', 'SF Pro Display', system-ui, sans-serif;
+--font-display: 'Space Grotesk', 'Inter', sans-serif;
+
+/* Sizes */
+--text-xs: 0.75rem;    /* 12px - labels, metadata */
+--text-sm: 0.875rem;   /* 14px - body, tables */
+--text-base: 1rem;     /* 16px - default */
+--text-lg: 1.125rem;   /* 18px - headings */
+--text-xl: 1.25rem;    /* 20px - section titles */
+--text-2xl: 1.5rem;    /* 24px - page titles */
+--text-3xl: 2rem;      /* 32px - hero numbers */
+```
+
+### Component Patterns
+```
+┌─────────────────────────────────────┐
+│ 📊 CARD TITLE            ⋮ Actions │  ← Header with menu
+├─────────────────────────────────────┤
+│                                     │
+│         MAIN CONTENT                │  ← Content area
+│                                     │
+├─────────────────────────────────────┤
+│ Updated 2s ago          View More → │  ← Footer with timestamp
+└─────────────────────────────────────┘
+```
+
+---
+
+## 📱 DASHBOARD LAYOUTS
+
+### Main Dashboard (360° View)
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ 🎯 ALPHA TERMINAL                    SPY $665.20 ▲0.45%    QQQ $520.10 ▲0.62%   │
+│ ════════════════════════════════════════════════════════════════════════════════ │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ ┌────────────────────────────┐ ┌────────────────────────────┐ ┌────────────────┐ │
+│ │     MARKET OVERVIEW        │ │     ACTIVE SIGNALS         │ │  QUICK STATS   │ │
+│ │  ┌──────────────────────┐  │ │  ┌──────────────────────┐  │ │                │ │
+│ │  │    SPY CHART         │  │ │  │ 🔥 SQUEEZE: GME     │  │ │ Signals: 12    │ │
+│ │  │    [TradingView]     │  │ │  │    Score: 85/100    │  │ │ Master: 3      │ │
+│ │  │                      │  │ │  ├──────────────────────┤  │ │ Win Rate: 67%  │ │
+│ │  │                      │  │ │  │ 🎲 GAMMA: SPY       │  │ │                │ │
+│ │  └──────────────────────┘  │ │  │    Direction: UP    │  │ │ DP Levels: 8   │ │
+│ │  VIX: 14.2  Vol: 45M       │ │  └──────────────────────┘  │ │ Battlegrounds  │ │
+│ └────────────────────────────┘ └────────────────────────────┘ └────────────────┘ │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ ┌────────────────────────────┐ ┌────────────────────────────┐ ┌────────────────┐ │
+│ │     DARK POOL FLOW         │ │     OPTIONS FLOW           │ │  REDDIT PULSE  │ │
+│ │  ┌──────────────────────┐  │ │  P/C Ratio: 0.85          │ │                │ │
+│ │  │ $665.50  ████████ 2.1M│  │ │  Max Pain: $660           │ │ 🚀 TSLA: +47%  │ │
+│ │  │ $664.00  ██████   1.5M│  │ │  ┌──────────────────────┐ │ │ 📉 NVDA: -12%  │ │
+│ │  │ $662.75  ████     0.8M│  │ │  │   CALL OI HEATMAP    │ │ │ ⚠️ GME: SURGE  │ │
+│ │  └──────────────────────┘  │ │  └──────────────────────┘ │ │                │ │
+│ │  DP%: 42% | Buying: 65%    │ │  Gamma Flip: $658          │ │ Velocity: 2.3x │ │
+│ └────────────────────────────┘ └────────────────────────────┘ └────────────────┘ │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ ┌────────────────────────────────────────────────────────────────────────────┐   │
+│ │                        🧠 NARRATIVE BRAIN                                   │   │
+│ │  "SPY testing major DP resistance at $665.50 with 2.1M shares. Gamma       │   │
+│ │   flip at $658 suggests dealers are long gamma above. FOMC tomorrow        │   │
+│ │   creates binary event risk. RECOMMENDATION: Wait for DP resolution."      │   │
+│ │                                                                    75% ████│   │
+│ └────────────────────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🧩 COMPONENT SPECIFICATIONS
+
+### 1. MARKET OVERVIEW WIDGET
+
+**Purpose:** Real-time price action with institutional context
+
+**Data Sources:**
+- `yfinance` / Yahoo Finance API (price, volume)
+- ChartExchange API (DP levels overlay)
+- Internal: RegimeDetector output
+
+**Refresh Rate:** 
+- Price: 1 second (WebSocket)
+- Chart: 5 seconds (REST + incremental)
+- Regime: 30 seconds
+
+**Component Structure:**
+```typescript
+interface MarketOverviewProps {
+  symbol: string;
+  timeframe: '1m' | '5m' | '15m' | '1h' | '1d';
+  showDPLevels: boolean;
+  showGammaLevels: boolean;
+  showVWAP: boolean;
+}
+
+interface MarketData {
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  avgVolume: number;
+  high: number;
+  low: number;
+  open: number;
+  vwap: number;
+  regime: 'UPTREND' | 'DOWNTREND' | 'CHOP' | 'BREAKOUT';
+}
+```
+
+**Visual Elements:**
+- TradingView Lightweight Chart (candlestick)
+- DP Level overlays (horizontal lines with volume labels)
+- Gamma flip level (dashed line)
+- VWAP line
+- Volume bars with institutional highlighting
+- Regime indicator badge
+
+**API Endpoints:**
+```
+GET  /api/market/{symbol}/quote          → Real-time quote
+GET  /api/market/{symbol}/candles        → Historical candles
+WS   /ws/market/{symbol}                 → Live price stream
+GET  /api/market/{symbol}/dp-levels      → Dark pool levels
+GET  /api/market/{symbol}/gamma-levels   → Gamma exposure levels
+```
+
+---
+
+### 2. ACTIVE SIGNALS CENTER
+
+**Purpose:** Display all active trading signals with priority ranking
+
+**Data Sources:**
+- Internal: SignalGenerator output
+- Internal: All checker outputs (squeeze, gamma, DP, etc.)
+
+**Refresh Rate:**
+- Signals: Real-time via WebSocket
+- Signal status: 10 seconds
+
+**Component Structure:**
+```typescript
+interface Signal {
+  id: string;
+  symbol: string;
+  type: SignalType;
+  action: 'LONG' | 'SHORT' | 'AVOID' | 'WATCH';
+  confidence: number;  // 0-100
+  entryPrice: number;
+  stopPrice: number;
+  targetPrice: number;
+  riskReward: number;
+  reasoning: string[];
+  warnings: string[];
+  timestamp: Date;
+  source: string;  // Which checker generated it
+  isMaster: boolean;  // 75%+ confidence
+}
+
+type SignalType = 
+  | 'SQUEEZE' | 'GAMMA_RAMP' | 'BREAKOUT' | 'BOUNCE'
+  | 'SELLOFF' | 'RALLY' | 'GAP_BREAKOUT' | 'GAP_FILL'
+  | 'CALL_ACCUMULATION' | 'PUT_ACCUMULATION';
+```
+
+**Visual Elements:**
+- Signal cards with color-coded borders (green=bullish, red=bearish)
+- Confidence meter (progress bar)
+- Entry/Stop/Target visualization
+- Countdown timer (for time-sensitive signals)
+- "Master Signal" badge for 75%+
+- Expand/collapse for reasoning
+
+**API Endpoints:**
+```
+GET  /api/signals                        → All active signals
+GET  /api/signals/master                 → Master signals only (75%+)
+GET  /api/signals/{id}                   → Single signal details
+WS   /ws/signals                         → Live signal stream
+POST /api/signals/{id}/acknowledge       → Mark signal as seen
+```
+
+---
+
+### 3. DARK POOL FLOW WIDGET
+
+**Purpose:** Visualize institutional dark pool activity and battlegrounds
+
+**Data Sources:**
+- ChartExchange API (DP levels, prints)
+- Internal: DPMonitorEngine output
+
+**Refresh Rate:**
+- Levels: 1 minute
+- Prints: Real-time via WebSocket (when available)
+- Battleground status: 30 seconds
+
+**Component Structure:**
+```typescript
+interface DarkPoolLevel {
+  price: number;
+  volume: number;
+  type: 'SUPPORT' | 'RESISTANCE';
+  strength: 'WEAK' | 'MODERATE' | 'STRONG' | 'BATTLEGROUND';
+  touches: number;
+  lastTouch: Date;
+}
+
+interface DarkPoolPrint {
+  price: number;
+  volume: number;
+  side: 'BUY' | 'SELL' | 'UNKNOWN';
+  timestamp: Date;
+  exchange: string;
+}
+
+interface DarkPoolSummary {
+  totalVolume: number;
+  dpPercent: number;  // % of total volume
+  buyingPressure: number;  // 0-100
+  nearestSupport: DarkPoolLevel;
+  nearestResistance: DarkPoolLevel;
+  battlegrounds: DarkPoolLevel[];
+}
+```
+
+**Visual Elements:**
+- Horizontal bar chart of DP levels (price vs volume)
+- Color coding: Green=support, Red=resistance, Gold=battleground
+- Current price indicator
+- Buy/Sell pressure gauge
+- Recent prints feed (scrolling)
+- Distance to nearest levels (% and $)
+
+**API Endpoints:**
+```
+GET  /api/darkpool/{symbol}/levels       → DP levels
+GET  /api/darkpool/{symbol}/prints       → Recent prints
+GET  /api/darkpool/{symbol}/summary      → Aggregated metrics
+WS   /ws/darkpool/{symbol}               → Live DP stream
+```
+
+---
+
+### 4. GAMMA TRACKER WIDGET
+
+**Purpose:** Options-derived gamma exposure and max pain analysis
+
+**Data Sources:**
+- yfinance / Options chain data
+- Internal: GammaExposureTracker output
+
+**Refresh Rate:**
+- Gamma levels: 5 minutes
+- Max pain: 15 minutes (changes slowly)
+- P/C ratio: 1 minute
+
+**Component Structure:**
+```typescript
+interface GammaData {
+  symbol: string;
+  expiration: string;
+  maxPain: number;
+  maxPainDistance: number;  // % from current price
+  gammaFlipLevel: number;
+  currentRegime: 'POSITIVE' | 'NEGATIVE';
+  totalCallOI: number;
+  totalPutOI: number;
+  putCallRatio: number;
+  gammaByStrike: Record<number, number>;
+  dealerPosition: 'LONG_GAMMA' | 'SHORT_GAMMA';
+}
+```
+
+**Visual Elements:**
+- Gamma exposure chart (strike vs GEX)
+- Max pain indicator with distance
+- P/C ratio gauge
+- Gamma flip level line
+- OI heatmap by strike
+- Expiration selector tabs
+
+**API Endpoints:**
+```
+GET  /api/gamma/{symbol}                 → Current gamma data
+GET  /api/gamma/{symbol}/history         → Historical gamma
+GET  /api/gamma/{symbol}/expirations     → Available expirations
+WS   /ws/gamma/{symbol}                  → Live gamma updates
+```
+
+---
+
+### 5. SQUEEZE SCANNER WIDGET
+
+**Purpose:** Identify and track short squeeze candidates
+
+**Data Sources:**
+- ChartExchange API (short interest, borrow fees)
+- Internal: SqueezeDetector output
+
+**Refresh Rate:**
+- Scanner: 1 hour (during RTH)
+- Individual signals: Real-time when generated
+
+**Component Structure:**
+```typescript
+interface SqueezeCandidate {
+  symbol: string;
+  score: number;  // 0-100
+  shortInterest: number;  // %
+  borrowFee: number;  // %
+  daysTocover: number;
+  ftdSpike: number;  // ratio
+  dpSupport: number;  // buying pressure %
+  priceChange5d: number;
+  volumeRatio: number;
+  reasoning: string[];
+  warnings: string[];
+}
+```
+
+**Visual Elements:**
+- Sortable table of candidates
+- Score badge with color gradient
+- Sparkline charts (5-day price)
+- Key metrics columns
+- Filter controls (min score, min SI%, etc.)
+- Click to expand for full analysis
+
+**API Endpoints:**
+```
+GET  /api/squeeze/scan                   → Run scanner
+GET  /api/squeeze/candidates             → Current candidates
+GET  /api/squeeze/{symbol}               → Single symbol analysis
+WS   /ws/squeeze                         → Live squeeze alerts
+```
+
+---
+
+### 6. OPTIONS FLOW WIDGET
+
+**Purpose:** Track unusual options activity and institutional positioning
+
+**Data Sources:**
+- yfinance (delayed options data)
+- Future: Premium API for real-time sweeps
+
+**Refresh Rate:**
+- Flow data: 5 minutes
+- Signals: Real-time via WebSocket
+
+**Component Structure:**
+```typescript
+interface OptionsFlow {
+  symbol: string;
+  putCallRatio: number;
+  maxPain: number;
+  totalCallVolume: number;
+  totalPutVolume: number;
+  unusualActivity: UnusualOption[];
+  sentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+}
+
+interface UnusualOption {
+  strike: number;
+  expiration: string;
+  type: 'CALL' | 'PUT';
+  volume: number;
+  openInterest: number;
+  volumeOIRatio: number;
+  premium: number;
+  side: 'BUY' | 'SELL';
+  isUnusual: boolean;
+}
+```
+
+**Visual Elements:**
+- P/C ratio gauge with historical comparison
+- Max pain vs current price visualization
+- Unusual activity feed (scrolling)
+- OI by strike heatmap
+- Volume vs OI chart
+- Sentiment indicator
+
+**API Endpoints:**
+```
+GET  /api/options/{symbol}/flow          → Options flow data
+GET  /api/options/{symbol}/unusual       → Unusual activity
+GET  /api/options/{symbol}/chain         → Full options chain
+WS   /ws/options/{symbol}                → Live options updates
+```
+
+---
+
+### 7. REDDIT SENTIMENT WIDGET
+
+**Purpose:** Track retail sentiment and identify contrarian opportunities
+
+**Data Sources:**
+- ChartExchange API (Reddit mentions)
+- Internal: RedditExploiter output
+
+**Refresh Rate:**
+- Mentions: 1 hour
+- Signals: Real-time via WebSocket
+
+**Component Structure:**
+```typescript
+interface RedditSentiment {
+  symbol: string;
+  totalMentions: number;
+  mentionChange24h: number;  // %
+  avgSentiment: number;  // -1 to 1
+  wsbMentions: number;
+  velocity: number;  // mentions per hour
+  signalType: RedditSignalType;
+  action: 'LONG' | 'SHORT' | 'AVOID' | 'WATCH';
+  dpEnhanced: boolean;
+  enhancementReasons: string[];
+}
+
+type RedditSignalType = 
+  | 'VELOCITY_SURGE' | 'SENTIMENT_FLIP' | 'CONFIRMED_MOMENTUM'
+  | 'PUMP_DUMP_RISK' | 'STEALTH_ACCUMULATION';
+```
+
+**Visual Elements:**
+- Mention count with trend arrow
+- Sentiment gauge (-100 to +100)
+- Velocity sparkline
+- Signal type badge
+- DP synthesis indicator
+- Top mentioned tickers list
+
+**API Endpoints:**
+```
+GET  /api/reddit/{symbol}                → Symbol sentiment
+GET  /api/reddit/trending                → Trending tickers
+GET  /api/reddit/signals                 → Active Reddit signals
+WS   /ws/reddit                          → Live Reddit updates
+```
+
+---
+
+### 8. MACRO INTELLIGENCE WIDGET
+
+**Purpose:** Track Fed, Trump, and economic events
+
+**Data Sources:**
+- Internal: FedChecker, TrumpChecker, EconomicChecker outputs
+
+**Refresh Rate:**
+- Fed: 5 minutes
+- Trump: 3 minutes
+- Economic: 1 hour
+
+**Component Structure:**
+```typescript
+interface MacroIntelligence {
+  fed: {
+    nextMeeting: Date;
+    rateExpectation: string;
+    recentStatements: FedStatement[];
+    sentiment: 'HAWKISH' | 'DOVISH' | 'NEUTRAL';
+  };
+  trump: {
+    recentActivity: TrumpActivity[];
+    marketImpact: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+    affectedSectors: string[];
+  };
+  economic: {
+    upcomingEvents: EconomicEvent[];
+    recentReleases: EconomicRelease[];
+    surpriseIndex: number;
+  };
+}
+```
+
+**Visual Elements:**
+- Event calendar with countdown
+- Fed dot plot visualization
+- Trump activity feed
+- Economic surprise chart
+- Impact indicators by sector
+
+**API Endpoints:**
+```
+GET  /api/macro/fed                      → Fed intelligence
+GET  /api/macro/trump                    → Trump intelligence
+GET  /api/macro/economic                 → Economic calendar
+GET  /api/macro/summary                  → Combined macro view
+WS   /ws/macro                           → Live macro updates
+```
+
+---
+
+### 9. NARRATIVE BRAIN WIDGET
+
+**Purpose:** AI-synthesized market narrative and recommendations
+
+**Data Sources:**
+- Internal: NarrativeBrain output
+- All other widget data (synthesized)
+
+**Refresh Rate:**
+- Narrative: 1 minute
+- Full synthesis: 5 minutes
+
+**Component Structure:**
+```typescript
+interface NarrativeSynthesis {
+  timestamp: Date;
+  narrative: string;  // Human-readable market story
+  confidence: number;
+  marketBias: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | 'UNCERTAIN';
+  keyFactors: {
+    factor: string;
+    impact: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
+    weight: number;
+  }[];
+  recommendation: {
+    action: string;
+    reasoning: string;
+    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  };
+  alerts: string[];
+}
+```
+
+**Visual Elements:**
+- Large narrative text block (typewriter effect)
+- Confidence meter
+- Key factors breakdown (weighted list)
+- Recommendation card
+- Alert badges
+- "Ask AI" input for questions
+
+**API Endpoints:**
+```
+GET  /api/narrative/current              → Current narrative
+GET  /api/narrative/history              → Historical narratives
+POST /api/narrative/ask                  → Ask AI a question
+WS   /ws/narrative                       → Live narrative updates
+```
+
+---
+
+## 🔌 BACKEND API LAYER
+
+### FastAPI Application Structure
+
+```
+backend/
+├── app/
+│   ├── __init__.py
+│   ├── main.py                 # FastAPI app entry point
+│   ├── config.py               # Configuration
+│   ├── dependencies.py         # Dependency injection
+│   │
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── v1/
+│   │   │   ├── __init__.py
+│   │   │   ├── market.py       # Market data endpoints
+│   │   │   ├── signals.py      # Signals endpoints
+│   │   │   ├── darkpool.py     # Dark pool endpoints
+│   │   │   ├── gamma.py        # Gamma endpoints
+│   │   │   ├── squeeze.py      # Squeeze endpoints
+│   │   │   ├── options.py      # Options flow endpoints
+│   │   │   ├── reddit.py       # Reddit sentiment endpoints
+│   │   │   ├── macro.py        # Macro intelligence endpoints
+│   │   │   └── narrative.py    # Narrative brain endpoints
+│   │   │
+│   │   └── websocket/
+│   │       ├── __init__.py
+│   │       ├── manager.py      # WebSocket connection manager
+│   │       ├── market_ws.py    # Market data WebSocket
+│   │       ├── signals_ws.py   # Signals WebSocket
+│   │       └── unified_ws.py   # Unified stream WebSocket
+│   │
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── security.py         # JWT, auth
+│   │   ├── cache.py            # Redis cache
+│   │   └── database.py         # PostgreSQL connection
+│   │
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── market.py           # Market data models
+│   │   ├── signal.py           # Signal models
+│   │   └── user.py             # User models
+│   │
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── market_service.py   # Market data service
+│   │   ├── signal_service.py   # Signal aggregation service
+│   │   └── cache_service.py    # Cache management
+│   │
+│   └── integrations/
+│       ├── __init__.py
+│       ├── unified_monitor.py  # Bridge to existing monitor
+│       ├── chartexchange.py    # ChartExchange client
+│       └── yfinance.py         # yfinance wrapper
+│
+├── tests/
+├── alembic/                    # Database migrations
+├── requirements.txt
+├── Dockerfile
+└── docker-compose.yml
+```
+
+### WebSocket Architecture
+
+```python
+# backend/app/api/websocket/manager.py
+
+class ConnectionManager:
+    """
+    Manages WebSocket connections with Redis pub/sub for scaling
+    """
+    def __init__(self):
+        self.active_connections: Dict[str, List[WebSocket]] = {}
+        self.redis = Redis()
+    
+    async def connect(self, websocket: WebSocket, channel: str):
+        await websocket.accept()
+        if channel not in self.active_connections:
+            self.active_connections[channel] = []
+        self.active_connections[channel].append(websocket)
+    
+    async def broadcast(self, channel: str, message: dict):
+        """Broadcast to all connections on a channel"""
+        if channel in self.active_connections:
+            for connection in self.active_connections[channel]:
+                await connection.send_json(message)
+        
+        # Also publish to Redis for multi-instance support
+        await self.redis.publish(channel, json.dumps(message))
+```
+
+### Caching Strategy
+
+```python
+# Cache TTLs by data type
+CACHE_TTL = {
+    'market_quote': 1,          # 1 second
+    'market_candles': 5,        # 5 seconds
+    'dp_levels': 60,            # 1 minute
+    'dp_prints': 30,            # 30 seconds
+    'gamma_data': 300,          # 5 minutes
+    'squeeze_scan': 3600,       # 1 hour
+    'reddit_sentiment': 3600,   # 1 hour
+    'macro_data': 300,          # 5 minutes
+    'narrative': 60,            # 1 minute
+}
+```
+
+---
+
+## 🖥️ FRONTEND STRUCTURE
+
+```
+frontend/
+├── app/
+│   ├── layout.tsx              # Root layout
+│   ├── page.tsx                # Dashboard home
+│   ├── globals.css             # Global styles
+│   │
+│   ├── (dashboard)/
+│   │   ├── layout.tsx          # Dashboard layout
+│   │   ├── page.tsx            # Main 360° view
+│   │   ├── signals/
+│   │   │   └── page.tsx        # Signals deep dive
+│   │   ├── darkpool/
+│   │   │   └── page.tsx        # Dark pool analysis
+│   │   ├── gamma/
+│   │   │   └── page.tsx        # Gamma analysis
+│   │   ├── squeeze/
+│   │   │   └── page.tsx        # Squeeze scanner
+│   │   ├── options/
+│   │   │   └── page.tsx        # Options flow
+│   │   ├── reddit/
+│   │   │   └── page.tsx        # Reddit sentiment
+│   │   └── macro/
+│   │       └── page.tsx        # Macro intelligence
+│   │
+│   └── api/                    # Next.js API routes (proxy)
+│
+├── components/
+│   ├── ui/                     # shadcn/ui components
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── badge.tsx
+│   │   └── ...
+│   │
+│   ├── widgets/
+│   │   ├── MarketOverview.tsx
+│   │   ├── SignalsCenter.tsx
+│   │   ├── DarkPoolFlow.tsx
+│   │   ├── GammaTracker.tsx
+│   │   ├── SqueezeScanner.tsx
+│   │   ├── OptionsFlow.tsx
+│   │   ├── RedditSentiment.tsx
+│   │   ├── MacroIntel.tsx
+│   │   └── NarrativeBrain.tsx
+│   │
+│   ├── charts/
+│   │   ├── TradingViewChart.tsx
+│   │   ├── GammaChart.tsx
+│   │   ├── HeatMap.tsx
+│   │   └── Sparkline.tsx
+│   │
+│   └── layout/
+│       ├── Header.tsx
+│       ├── Sidebar.tsx
+│       ├── WidgetGrid.tsx
+│       └── Footer.tsx
+│
+├── hooks/
+│   ├── useWebSocket.ts         # WebSocket hook
+│   ├── useMarketData.ts        # Market data hook
+│   ├── useSignals.ts           # Signals hook
+│   └── useInterval.ts          # Polling hook
+│
+├── lib/
+│   ├── api.ts                  # API client
+│   ├── websocket.ts            # WebSocket client
+│   ├── utils.ts                # Utility functions
+│   └── formatters.ts           # Data formatters
+│
+├── stores/
+│   ├── marketStore.ts          # Market data store
+│   ├── signalStore.ts          # Signals store
+│   └── settingsStore.ts        # User settings store
+│
+├── types/
+│   ├── market.ts
+│   ├── signal.ts
+│   ├── darkpool.ts
+│   └── ...
+│
+├── styles/
+│   └── themes/
+│       └── dark.css
+│
+├── public/
+│   └── assets/
+│
+├── package.json
+├── tailwind.config.js
+├── next.config.js
+└── tsconfig.json
+```
+
+---
+
+## 🔄 REAL-TIME DATA FLOW
+
+### WebSocket Message Types
+
+```typescript
+// Unified WebSocket message format
+interface WSMessage {
+  type: MessageType;
+  channel: string;
+  data: any;
+  timestamp: string;
+}
+
+type MessageType = 
+  | 'MARKET_QUOTE'      // Price update
+  | 'MARKET_CANDLE'     // New candle
+  | 'SIGNAL_NEW'        // New signal generated
+  | 'SIGNAL_UPDATE'     // Signal status update
+  | 'SIGNAL_EXPIRED'    // Signal expired/closed
+  | 'DP_LEVEL'          // DP level update
+  | 'DP_PRINT'          // New DP print
+  | 'GAMMA_UPDATE'      // Gamma data update
+  | 'SQUEEZE_ALERT'     // Squeeze detected
+  | 'REDDIT_ALERT'      // Reddit signal
+  | 'MACRO_EVENT'       // Macro event
+  | 'NARRATIVE_UPDATE'  // New narrative
+  | 'SYSTEM_STATUS';    // System health
+```
+
+### Client-Side WebSocket Hook
+
+```typescript
+// hooks/useWebSocket.ts
+export function useWebSocket(channels: string[]) {
+  const [connected, setConnected] = useState(false);
+  const [messages, setMessages] = useState<Map<string, any>>(new Map());
+  
+  useEffect(() => {
+    const ws = new WebSocket(WS_URL);
+    
+    ws.onopen = () => {
+      setConnected(true);
+      // Subscribe to channels
+      ws.send(JSON.stringify({ 
+        type: 'SUBSCRIBE', 
+        channels 
+      }));
+    };
+    
+    ws.onmessage = (event) => {
+      const msg: WSMessage = JSON.parse(event.data);
+      setMessages(prev => new Map(prev).set(msg.channel, msg.data));
+    };
+    
+    return () => ws.close();
+  }, [channels]);
+  
+  return { connected, messages };
+}
+```
+
+### Backend WebSocket Publisher
+
+```python
+# Integration with existing UnifiedAlphaMonitor
+class WebSocketPublisher:
+    """
+    Publishes events from UnifiedAlphaMonitor to WebSocket clients
+    """
+    def __init__(self, redis_client):
+        self.redis = redis_client
+    
+    async def publish_signal(self, signal: LiveSignal):
+        """Publish new signal to WebSocket"""
+        await self.redis.publish('signals', json.dumps({
+            'type': 'SIGNAL_NEW',
+            'channel': 'signals',
+            'data': signal.to_dict(),
+            'timestamp': datetime.utcnow().isoformat()
+        }))
+    
+    async def publish_market_update(self, symbol: str, quote: dict):
+        """Publish market quote update"""
+        await self.redis.publish(f'market:{symbol}', json.dumps({
+            'type': 'MARKET_QUOTE',
+            'channel': f'market:{symbol}',
+            'data': quote,
+            'timestamp': datetime.utcnow().isoformat()
+        }))
+```
+
+---
+
+## 📊 DATABASE SCHEMA
+
+### PostgreSQL + TimescaleDB
+
+```sql
+-- Signals table (hypertable for time-series)
+CREATE TABLE signals (
+    id SERIAL,
+    symbol VARCHAR(10) NOT NULL,
+    signal_type VARCHAR(50) NOT NULL,
+    action VARCHAR(10) NOT NULL,
+    confidence DECIMAL(5,2) NOT NULL,
+    entry_price DECIMAL(10,2),
+    stop_price DECIMAL(10,2),
+    target_price DECIMAL(10,2),
+    reasoning JSONB,
+    warnings JSONB,
+    source VARCHAR(50),
+    is_master BOOLEAN DEFAULT FALSE,
+    status VARCHAR(20) DEFAULT 'ACTIVE',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ,
+    closed_at TIMESTAMPTZ,
+    outcome VARCHAR(20),  -- WIN, LOSS, EXPIRED
+    PRIMARY KEY (id, created_at)
+);
+
+SELECT create_hypertable('signals', 'created_at');
+
+-- Dark pool levels (daily snapshots)
+CREATE TABLE dp_levels (
+    id SERIAL,
+    symbol VARCHAR(10) NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    volume BIGINT NOT NULL,
+    level_type VARCHAR(20),  -- SUPPORT, RESISTANCE
+    strength VARCHAR(20),    -- WEAK, MODERATE, STRONG, BATTLEGROUND
+    date DATE NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (id, created_at)
+);
+
+SELECT create_hypertable('dp_levels', 'created_at');
+
+-- Market data (1-minute candles)
+CREATE TABLE market_candles (
+    symbol VARCHAR(10) NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL,
+    open DECIMAL(10,2),
+    high DECIMAL(10,2),
+    low DECIMAL(10,2),
+    close DECIMAL(10,2),
+    volume BIGINT,
+    PRIMARY KEY (symbol, timestamp)
+);
+
+SELECT create_hypertable('market_candles', 'timestamp');
+
+-- User preferences
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255),
+    settings JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    last_login TIMESTAMPTZ
+);
+
+-- Alert history
+CREATE TABLE alert_history (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id),
+    signal_id INT,
+    alert_type VARCHAR(50),
+    channel VARCHAR(50),  -- DISCORD, EMAIL, PUSH
+    sent_at TIMESTAMPTZ DEFAULT NOW(),
+    acknowledged_at TIMESTAMPTZ
+);
+
+-- Indexes
+CREATE INDEX idx_signals_symbol ON signals (symbol, created_at DESC);
+CREATE INDEX idx_signals_type ON signals (signal_type, created_at DESC);
+CREATE INDEX idx_dp_levels_symbol ON dp_levels (symbol, date DESC);
+CREATE INDEX idx_market_candles_symbol ON market_candles (symbol, timestamp DESC);
+```
+
+---
+
+## 🚀 DEPLOYMENT ARCHITECTURE
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              PRODUCTION                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐       │
+│  │    Vercel       │     │    Render       │     │    Render       │       │
+│  │   (Frontend)    │────▶│   (FastAPI)     │────▶│   (Monitor)     │       │
+│  │   Next.js 14    │     │   REST + WS     │     │   Background    │       │
+│  └─────────────────┘     └─────────────────┘     └─────────────────┘       │
+│           │                      │                       │                  │
+│           │                      ▼                       │                  │
+│           │              ┌─────────────────┐             │                  │
+│           │              │     Redis       │◀────────────┘                  │
+│           │              │   (Upstash)     │                                │
+│           │              │   Cache + PubSub│                                │
+│           │              └─────────────────┘                                │
+│           │                      │                                          │
+│           │                      ▼                                          │
+│           │              ┌─────────────────┐                                │
+│           │              │   PostgreSQL    │                                │
+│           └─────────────▶│   (Neon/Supabase)│                               │
+│                          │   + TimescaleDB │                                │
+│                          └─────────────────┘                                │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Environment Variables
+
+```bash
+# Frontend (.env.local)
+NEXT_PUBLIC_API_URL=https://api.alpha-terminal.com
+NEXT_PUBLIC_WS_URL=wss://api.alpha-terminal.com/ws
+
+# Backend (.env)
+DATABASE_URL=postgresql://...
+REDIS_URL=redis://...
+CHARTEXCHANGE_API_KEY=...
+JWT_SECRET=...
+DISCORD_WEBHOOK_URL=...
+```
+
+---
+
+## 📋 IMPLEMENTATION PHASES
+
+### Phase 1: Foundation (Week 1-2)
+- [ ] Set up Next.js 14 project with Tailwind + shadcn/ui
+- [ ] Create design system (colors, typography, components)
+- [ ] Build basic layout (header, sidebar, widget grid)
+- [ ] Set up FastAPI backend with basic endpoints
+- [ ] Implement Redis caching layer
+- [ ] Create PostgreSQL schema with TimescaleDB
+
+### Phase 2: Core Widgets (Week 3-4)
+- [ ] Market Overview widget with TradingView chart
+- [ ] Signals Center widget with real-time updates
+- [ ] Dark Pool Flow widget with level visualization
+- [ ] WebSocket infrastructure (client + server)
+
+### Phase 3: Advanced Widgets (Week 5-6)
+- [ ] Gamma Tracker widget with GEX chart
+- [ ] Squeeze Scanner widget with sortable table
+- [ ] Options Flow widget with heatmap
+- [ ] Reddit Sentiment widget
+
+### Phase 4: Intelligence Layer (Week 7-8)
+- [ ] Macro Intelligence widget
+- [ ] Narrative Brain widget with AI synthesis
+- [ ] Cross-widget data integration
+- [ ] Alert system (push notifications)
+
+### Phase 5: Polish & Deploy (Week 9-10)
+- [ ] Performance optimization
+- [ ] Mobile responsiveness
+- [ ] Error handling and fallbacks
+- [ ] Testing (unit, integration, e2e)
+- [ ] Production deployment
+- [ ] Documentation
+
+---
+
+## 🎯 SUCCESS METRICS
+
+### Performance Targets
+- **Initial Load:** < 2 seconds
+- **WebSocket Latency:** < 100ms
+- **API Response:** < 200ms (p95)
+- **Chart Render:** < 500ms
+- **Memory Usage:** < 200MB (client)
+
+### User Experience
+- **Real-time feel:** Updates within 1 second
+- **Zero data loss:** All signals visible
+- **Intuitive navigation:** < 3 clicks to any data
+- **Mobile usable:** Responsive on tablets
+
+### Business Metrics
+- **Uptime:** 99.9%
+- **Signal accuracy:** Track win/loss rates
+- **User engagement:** Time on dashboard
+- **Alert response:** Time to acknowledge
+
+---
+
+## 🔧 DEVELOPMENT COMMANDS
+
+```bash
+# Frontend
+cd frontend
+npm install
+npm run dev           # Development server
+npm run build         # Production build
+npm run lint          # Lint check
+npm run test          # Run tests
+
+# Backend
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload  # Development server
+pytest                          # Run tests
+alembic upgrade head           # Run migrations
+
+# Docker
+docker-compose up -d           # Start all services
+docker-compose logs -f         # View logs
+```
+
+---
+
+## 📚 REFERENCES
+
+### Existing Code to Integrate
+- `live_monitoring/orchestrator/unified_monitor.py` - Main monitor
+- `live_monitoring/core/signal_generator.py` - Signal generation
+- `live_monitoring/orchestrator/checkers/` - All checker modules
+- `core/data/ultimate_chartexchange_client.py` - ChartExchange API
+
+### External Resources
+- [TradingView Lightweight Charts](https://tradingview.github.io/lightweight-charts/)
+- [shadcn/ui](https://ui.shadcn.com/)
+- [FastAPI WebSockets](https://fastapi.tiangolo.com/advanced/websockets/)
+- [TimescaleDB](https://www.timescale.com/)
+
+---
+
+## 💡 PLUMBER NOTES
+
+1. **Start with the WebSocket infrastructure** - Everything depends on real-time data
+2. **Use the existing monitor output** - Don't reinvent signal generation
+3. **Cache aggressively** - Redis is your friend
+4. **Test with mock data first** - Don't hammer APIs during development
+5. **Mobile-first design** - Many traders use tablets
+6. **Error boundaries everywhere** - One widget crash shouldn't kill the dashboard
+7. **Logging is critical** - You'll need it for debugging production issues
+
+---
+
+**ALPHA'S VISION:**
+*"Bloomberg charges $24,000/year for a terminal that looks like it was designed in 1992. We're building something beautiful, intelligent, and FREE (or cheap). This is how we democratize institutional intelligence."* 🚀💰🎯
+
+---
+
+**Document Version:** 1.0
+**Last Updated:** December 17, 2024
+**Author:** Zo (Alpha's AI)
