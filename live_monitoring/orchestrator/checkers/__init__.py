@@ -15,6 +15,8 @@ Each checker handles a single responsibility:
 - FTDChecker: FTD analysis
 - DailyRecapChecker: Daily market recap
 - RedditChecker: Reddit sentiment (Phase 5)
+- PreMarketGapChecker: Pre-market gap analysis (Phase 6)
+- OptionsFlowChecker: Options flow analysis (Phase 6)
 """
 
 from .base_checker import BaseChecker, CheckerAlert
@@ -31,6 +33,8 @@ from .scanner_checker import ScannerChecker
 from .ftd_checker import FTDChecker
 from .daily_recap_checker import DailyRecapChecker
 from .reddit_checker import RedditChecker
+from .premarket_gap_checker import PreMarketGapChecker
+from .options_flow_checker import OptionsFlowChecker
 
 __all__ = [
     'BaseChecker',
@@ -48,5 +52,7 @@ __all__ = [
     'FTDChecker',
     'DailyRecapChecker',
     'RedditChecker',
+    'PreMarketGapChecker',
+    'OptionsFlowChecker',
 ]
 

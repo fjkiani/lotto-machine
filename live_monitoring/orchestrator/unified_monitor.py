@@ -37,6 +37,8 @@ from .checkers import (
     FTDChecker,
     DailyRecapChecker,
     RedditChecker,
+    PreMarketGapChecker,
+    OptionsFlowChecker,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,6 +67,8 @@ class UnifiedAlphaMonitor:
         self.synthesis_interval = 60  # 1 minute
         self.squeeze_interval = 3600  # 1 hour - squeeze detection
         self.reddit_interval = 3600   # 1 hour - Reddit sentiment (Phase 5)
+        self.premarket_gap_interval = 300  # 5 minutes - only runs pre-market
+        self.options_flow_interval = 1800  # 30 minutes - options flow analysis
         
         # Track last run times
         self.last_fed_check = None
@@ -75,6 +79,8 @@ class UnifiedAlphaMonitor:
         self.last_tradytics_analysis = None
         self.last_squeeze_check = None
         self.last_reddit_check = None
+        self.last_premarket_gap_check = None
+        self.last_options_flow_check = None
         
         # Initialize modular components
         self.alert_manager = AlertManager()
@@ -437,7 +443,21 @@ class UnifiedAlphaMonitor:
             api_key=api_key
         ) if self.reddit_enabled else None
         
-        logger.info("   ✅ All checkers initialized")
+        # Pre-Market Gap Checker (Phase 6)
+        self.premarket_gap_checker = PreMarketGapChecker(
+            alert_manager=self.alert_manager,
+            api_key=api_key,
+            unified_mode=self.unified_mode
+        )
+        
+        # Options Flow Checker (Phase 6)
+        self.options_flow_checker = OptionsFlowChecker(
+            alert_manager=self.alert_manager,
+            api_key=api_key,
+            unified_mode=self.unified_mode
+        )
+        
+        logger.info("   ✅ All checkers initialized (including Phase 6: PreMarketGap, OptionsFlow)")
     
     # ═══════════════════════════════════════════════════════════════
     # ALERT METHODS (delegate to AlertManager)
@@ -627,11 +647,16 @@ class UnifiedAlphaMonitor:
                 {"name": "📊 Gamma Tracker", "value": "✅ Max Pain\nDealer Flow", "inline": True},
                 {"name": "📈 Short Interest", "value": "✅ Live Tracking\nDaily Updates", "inline": True},
                 
+                # === PHASE 6: NEW STRATEGIES ===
+                {"name": "🌅 Pre-Market Gap", "value": "✅ Gap + DP Confluence\n20-25% edge", "inline": True},
+                {"name": "📊 Options Flow", "value": "✅ P/C Ratio + Sweeps\n15-20% edge", "inline": True},
+                {"name": "🎲 Gamma Flip", "value": "✅ Flip Level Retest\nDealer Hedging", "inline": True},
+                
                 # === SYNTHESIS ===
                 {"name": "🧠 Signal Brain", "value": "✅ Multi-Factor\n75%+ Threshold" if self.brain_enabled else "❌ Disabled", "inline": False},
-                {"name": "⚡ Status", "value": "**ALL SYSTEMS GO**\nReady for RTH 9:30-4:00 ET", "inline": False},
+                {"name": "⚡ Status", "value": "**ALL SYSTEMS GO**\nReady for RTH 9:30-4:00 ET\n12 Active Strategies", "inline": False},
             ],
-            "footer": {"text": "Modular v2.0 | Selloff/Rally Fixed Dec 17"},
+            "footer": {"text": "Modular v2.1 | Phase 6 Strategies Dec 17"},
             "timestamp": datetime.utcnow().isoformat()
         }
         
@@ -1254,6 +1279,8 @@ class UnifiedAlphaMonitor:
         self.last_squeeze_check = now
         self.last_gamma_check = now
         self.last_reddit_check = now
+        self.last_premarket_gap_check = None  # Run immediately on first check
+        self.last_options_flow_check = None  # Run immediately on first check
         self.gamma_interval = 1800  # Check gamma every 30 min (was hourly)
         
         while self.running:
@@ -1373,6 +1400,20 @@ class UnifiedAlphaMonitor:
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_reddit_check = now
+                
+                # Pre-Market Gap Checker (Phase 6) - Runs ONCE per day before market open
+                if self.premarket_gap_checker and (self.last_premarket_gap_check is None or (now - self.last_premarket_gap_check).seconds >= self.premarket_gap_interval):
+                    alerts = self.premarket_gap_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert_type="premarket_gap", source="premarket_gap_checker", symbol=alert.fields.get("Symbol", ""))
+                    self.last_premarket_gap_check = now
+                
+                # Options Flow Checker (Phase 6) - Runs during RTH every 30 min
+                if is_market_hours and self.options_flow_checker and (self.last_options_flow_check is None or (now - self.last_options_flow_check).seconds >= self.options_flow_interval):
+                    alerts = self.options_flow_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert_type="options_flow", source="options_flow_checker", symbol=alert.fields.get("Symbol", ""))
+                    self.last_options_flow_check = now
                 
                 # 🚨 MOMENTUM: Selloff/Rally Detection (every minute during RTH)
                 if is_market_hours and (self.last_dp_check is None or (now - self.last_dp_check).seconds >= 60):

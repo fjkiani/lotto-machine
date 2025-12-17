@@ -39,6 +39,18 @@ class SignalType(Enum):
     SELLOFF = "SELLOFF"
     RALLY = "RALLY"  # Counterpart to selloff - rapid upward move
     
+    # Pre-Market Gap signals (from PreMarketGapStrategy)
+    GAP_BREAKOUT = "GAP_BREAKOUT"      # Gap up above DP resistance - bullish continuation
+    GAP_BREAKDOWN = "GAP_BREAKDOWN"    # Gap down below DP support - bearish continuation
+    GAP_FILL = "GAP_FILL"              # Gap likely to fill - mean reversion
+    GAP_UP = "GAP_UP"                  # Generic gap up detected
+    GAP_DOWN = "GAP_DOWN"              # Generic gap down detected
+    
+    # Options Flow signals (from OptionsFlowStrategy)
+    CALL_ACCUMULATION = "CALL_ACCUMULATION"      # Heavy call buying - bullish
+    PUT_ACCUMULATION = "PUT_ACCUMULATION"        # Heavy put buying - bearish
+    GAMMA_SQUEEZE_OPTIONS = "GAMMA_SQUEEZE_OPTIONS"  # Gamma squeeze setup via options flow
+    
     # Lottery signals
     LOTTERY_0DTE_CALL = "LOTTERY_0DTE_CALL"
     LOTTERY_0DTE_PUT = "LOTTERY_0DTE_PUT"
