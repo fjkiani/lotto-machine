@@ -424,89 +424,89 @@ class FedWatchFetcher:
                 answer = perplexity_data['answer']
                 answer_lower = answer.lower()
 
-            # BEST PATTERN: "CUT: 87.2%, HOLD: 12.8%" format
-            # This is what Perplexity returns - handles decimals!
-            cut_direct = re.search(r'cut[:\s]+(\d{1,3}(?:\.\d+)?)\s*%', answer_lower)
-            hold_direct = re.search(r'hold[:\s]+(\d{1,3}(?:\.\d+)?)\s*%', answer_lower)
-            
-            if cut_direct:
-                status.prob_cut = float(cut_direct.group(1))
-                logger.info(f"   📉 Found CUT: {status.prob_cut}%")
-            
-            if hold_direct:
-                status.prob_hold = float(hold_direct.group(1))
-                logger.info(f"   ➡️ Found HOLD: {status.prob_hold}%")
-            
-            # If direct format didn't work, try other patterns
-            if status.prob_cut == 0:
-                # Look for "probability of cut is 87%" or "87% probability of a cut"
-                patterns = [
-                    r'probability\s+of\s+(?:a\s+)?(?:rate\s+)?cut[^\d]*(?:is\s+)?(\d{2,3})(?:\.\d+)?%',
-                    r'(\d{2,3})(?:\.\d+)?%\s+probability\s+of\s+(?:a\s+)?(?:rate\s+)?cut',
-                    r'cut\s+(?:is\s+)?(?:at\s+)?(?:approximately\s+)?(\d{2,3})(?:\.\d+)?%',
-                    r'(\d{2,3})(?:\.\d+)?%\s+(?:to\s+\d+%\s+)?(?:chance\s+)?(?:of\s+)?(?:a\s+)?cut',
-                ]
-                for p in patterns:
-                    m = re.search(p, answer_lower)
-                    if m:
-                        status.prob_cut = float(m.group(1))
-                        logger.info(f"   📉 Found CUT (pattern): {status.prob_cut}%")
-                        break
-            
-            if status.prob_hold == 0:
-                # Look for "probability of hold is 13%" or "13% probability of hold"
-                patterns = [
-                    r'probability\s+of\s+(?:the\s+)?(?:fed\s+)?hold[^\d]*(?:is\s+)?(\d{1,3})(?:\.\d+)?%',
-                    r'(\d{1,3})(?:\.\d+)?%\s+probability\s+of\s+(?:a\s+)?hold',
-                    r'hold[^\d]*(?:is\s+)?(?:at\s+)?(?:around\s+)?(\d{1,3})(?:\.\d+)?%',
-                    r'steady[^\d]*(\d{1,3})(?:\.\d+)?%',
-                ]
-                for p in patterns:
-                    m = re.search(p, answer_lower)
-                    if m:
-                        status.prob_hold = float(m.group(1))
-                        logger.info(f"   ➡️ Found HOLD (pattern): {status.prob_hold}%")
-                        break
-            
-            # SANITY CHECK: If cut is very high (>80%), hold should be low (<20%) and vice versa
-            # This catches cases where the data is inverted
-            if status.prob_cut > 0 and status.prob_hold > 0:
-                total = status.prob_cut + status.prob_hold
+                # BEST PATTERN: "CUT: 87.2%, HOLD: 12.8%" format
+                # This is what Perplexity returns - handles decimals!
+                cut_direct = re.search(r'cut[:\s]+(\d{1,3}(?:\.\d+)?)\s*%', answer_lower)
+                hold_direct = re.search(r'hold[:\s]+(\d{1,3}(?:\.\d+)?)\s*%', answer_lower)
                 
-                # Check if data looks inverted (cut < hold when market favors cuts)
-                # Current market (Dec 5, 2025): Market STRONGLY favors cuts (87% cut, 13% hold)
-                # If we see cut < 50% and hold > 50%, it's likely WRONG
-                if status.prob_cut < 50 and status.prob_hold > 50:
-                    # This is likely inverted - swap them
-                    logger.warning(f"   ⚠️ Data looks inverted (Cut {status.prob_cut}% < Hold {status.prob_hold}%)")
-                    logger.warning(f"   🔄 Market favors cuts - swapping values")
-                    status.prob_cut, status.prob_hold = status.prob_hold, status.prob_cut
-                    logger.info(f"   ✅ Swapped: Cut {status.prob_cut}% | Hold {status.prob_hold}%")
+                if cut_direct:
+                    status.prob_cut = float(cut_direct.group(1))
+                    logger.info(f"   📉 Found CUT: {status.prob_cut}%")
                 
-                # Also check if total doesn't add up
-                if total < 90 or total > 110:
-                    # Something's wrong, try to infer from context
-                    if 'favors' in answer_lower and 'cut' in answer_lower:
-                        # Market favors cut = cut should be higher
-                        if status.prob_cut < status.prob_hold:
-                            status.prob_cut, status.prob_hold = status.prob_hold, status.prob_cut
-                            logger.info(f"   🔄 Swapped (market favors cut): Cut {status.prob_cut}% | Hold {status.prob_hold}%")
-            
-            # If we still don't have data, look for the first two percentages > 10%
-            if status.prob_cut == 0 and status.prob_hold == 0:
-                all_pcts = re.findall(r'(\d{2,3})(?:\.\d+)?%', answer)
-                valid_pcts = [float(p) for p in all_pcts if float(p) > 10 and float(p) <= 100]
+                if hold_direct:
+                    status.prob_hold = float(hold_direct.group(1))
+                    logger.info(f"   ➡️ Found HOLD: {status.prob_hold}%")
                 
-                if len(valid_pcts) >= 2:
-                    # Determine which is cut vs hold based on context
-                    # "favors cut" or "cut at 87%" means first high number is cut
-                    if 'favors' in answer_lower:
-                        status.prob_cut = max(valid_pcts[:2])
-                        status.prob_hold = min(valid_pcts[:2])
-                    else:
-                        status.prob_cut = valid_pcts[0]
-                        status.prob_hold = valid_pcts[1]
-                    logger.info(f"   📊 Extracted: Cut {status.prob_cut}% | Hold {status.prob_hold}%")
+                # If direct format didn't work, try other patterns
+                if status.prob_cut == 0:
+                    # Look for "probability of cut is 87%" or "87% probability of a cut"
+                    patterns = [
+                        r'probability\s+of\s+(?:a\s+)?(?:rate\s+)?cut[^\d]*(?:is\s+)?(\d{2,3})(?:\.\d+)?%',
+                        r'(\d{2,3})(?:\.\d+)?%\s+probability\s+of\s+(?:a\s+)?(?:rate\s+)?cut',
+                        r'cut\s+(?:is\s+)?(?:at\s+)?(?:approximately\s+)?(\d{2,3})(?:\.\d+)?%',
+                        r'(\d{2,3})(?:\.\d+)?%\s+(?:to\s+\d+%\s+)?(?:chance\s+)?(?:of\s+)?(?:a\s+)?cut',
+                    ]
+                    for p in patterns:
+                        m = re.search(p, answer_lower)
+                        if m:
+                            status.prob_cut = float(m.group(1))
+                            logger.info(f"   📉 Found CUT (pattern): {status.prob_cut}%")
+                            break
+                
+                if status.prob_hold == 0:
+                    # Look for "probability of hold is 13%" or "13% probability of hold"
+                    patterns = [
+                        r'probability\s+of\s+(?:the\s+)?(?:fed\s+)?hold[^\d]*(?:is\s+)?(\d{1,3})(?:\.\d+)?%',
+                        r'(\d{1,3})(?:\.\d+)?%\s+probability\s+of\s+(?:a\s+)?hold',
+                        r'hold[^\d]*(?:is\s+)?(?:at\s+)?(?:around\s+)?(\d{1,3})(?:\.\d+)?%',
+                        r'steady[^\d]*(\d{1,3})(?:\.\d+)?%',
+                    ]
+                    for p in patterns:
+                        m = re.search(p, answer_lower)
+                        if m:
+                            status.prob_hold = float(m.group(1))
+                            logger.info(f"   ➡️ Found HOLD (pattern): {status.prob_hold}%")
+                            break
+                
+                # SANITY CHECK: If cut is very high (>80%), hold should be low (<20%) and vice versa
+                # This catches cases where the data is inverted
+                if status.prob_cut > 0 and status.prob_hold > 0:
+                    total = status.prob_cut + status.prob_hold
+                    
+                    # Check if data looks inverted (cut < hold when market favors cuts)
+                    # Current market (Dec 5, 2025): Market STRONGLY favors cuts (87% cut, 13% hold)
+                    # If we see cut < 50% and hold > 50%, it's likely WRONG
+                    if status.prob_cut < 50 and status.prob_hold > 50:
+                        # This is likely inverted - swap them
+                        logger.warning(f"   ⚠️ Data looks inverted (Cut {status.prob_cut}% < Hold {status.prob_hold}%)")
+                        logger.warning(f"   🔄 Market favors cuts - swapping values")
+                        status.prob_cut, status.prob_hold = status.prob_hold, status.prob_cut
+                        logger.info(f"   ✅ Swapped: Cut {status.prob_cut}% | Hold {status.prob_hold}%")
+                    
+                    # Also check if total doesn't add up
+                    if total < 90 or total > 110:
+                        # Something's wrong, try to infer from context
+                        if 'favors' in answer_lower and 'cut' in answer_lower:
+                            # Market favors cut = cut should be higher
+                            if status.prob_cut < status.prob_hold:
+                                status.prob_cut, status.prob_hold = status.prob_hold, status.prob_cut
+                                logger.info(f"   🔄 Swapped (market favors cut): Cut {status.prob_cut}% | Hold {status.prob_hold}%")
+                
+                # If we still don't have data, look for the first two percentages > 10%
+                if status.prob_cut == 0 and status.prob_hold == 0:
+                    all_pcts = re.findall(r'(\d{2,3})(?:\.\d+)?%', answer)
+                    valid_pcts = [float(p) for p in all_pcts if float(p) > 10 and float(p) <= 100]
+                    
+                    if len(valid_pcts) >= 2:
+                        # Determine which is cut vs hold based on context
+                        # "favors cut" or "cut at 87%" means first high number is cut
+                        if 'favors' in answer_lower:
+                            status.prob_cut = max(valid_pcts[:2])
+                            status.prob_hold = min(valid_pcts[:2])
+                        else:
+                            status.prob_cut = valid_pcts[0]
+                            status.prob_hold = valid_pcts[1]
+                        logger.info(f"   📊 Extracted: Cut {status.prob_cut}% | Hold {status.prob_hold}%")
         
         # FINAL SANITY CHECK: If parsed data looks wrong, use known accurate values
         # Current market context (Dec 5, 2025): Market STRONGLY favors cuts
