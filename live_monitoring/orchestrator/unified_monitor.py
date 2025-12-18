@@ -600,14 +600,25 @@ class UnifiedAlphaMonitor:
     # Now handled by SynthesisChecker and NarrativeChecker
     
     def _is_market_hours(self) -> bool:
-        """Check if currently in RTH."""
+        """Check if currently in RTH (Eastern Time)."""
         from datetime import time as dt_time
-        now = datetime.now()
-        current_time = now.time()
+        import pytz
+        
+        # CRITICAL: Use Eastern Time, not server local time!
+        # Render runs on UTC, but market hours are in ET
+        et = pytz.timezone('America/New_York')
+        now_utc = datetime.now(pytz.UTC)
+        now_et = now_utc.astimezone(et)
+        
+        current_time = now_et.time()
         market_open = dt_time(9, 30)
         market_close = dt_time(16, 0)
-        is_weekday = now.weekday() < 5
+        is_weekday = now_et.weekday() < 5
         in_hours = market_open <= current_time < market_close
+        
+        # Debug logging
+        logger.debug(f"   🕐 Market hours check: ET={now_et.strftime('%H:%M:%S')}, is_weekday={is_weekday}, in_hours={in_hours}")
+        
         return is_weekday and in_hours
     
     def _get_current_intelligence_snapshot(self) -> dict:
@@ -1274,6 +1285,15 @@ class UnifiedAlphaMonitor:
     def run(self):
         """Main run loop."""
         logger.info("🚀 Starting unified monitoring (MODULAR)...")
+        
+        # Log timezone info for debugging
+        import pytz
+        et = pytz.timezone('America/New_York')
+        now_utc = datetime.now(pytz.UTC)
+        now_et = now_utc.astimezone(et)
+        logger.info(f"   🕐 Server UTC: {now_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+        logger.info(f"   🕐 Eastern Time: {now_et.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+        logger.info(f"   📊 Market hours check: {self._is_market_hours()}")
         
         # Send startup alert with explicit logging
         logger.info("📤 Attempting to send startup alert to Discord...")
