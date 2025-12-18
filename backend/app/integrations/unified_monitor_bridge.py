@@ -560,11 +560,64 @@ class MonitorBridge:
             if not self.monitor or not hasattr(self.monitor, 'reddit_checker'):
                 return None
             
-            # Get recent Reddit data from checker
-            # This would need to be implemented based on actual RedditChecker API
-            # For now, return None
-            # TODO: Implement actual Reddit data fetching
-            return None
+            reddit_checker = self.monitor.reddit_checker
+            if not reddit_checker or not hasattr(reddit_checker, 'exploiter'):
+                return None
+            
+            # Ensure exploiter is initialized
+            if hasattr(reddit_checker, '_ensure_exploiter'):
+                if not reddit_checker._ensure_exploiter():
+                    return None
+            
+            exploiter = reddit_checker.exploiter
+            if not exploiter:
+                return None
+            
+            # Get contrarian signals for this symbol
+            signals = exploiter.get_contrarian_signals(min_strength=50)
+            symbol_signals = [s for s in signals if s.symbol == symbol]
+            
+            if not symbol_signals:
+                # Try to get sentiment history
+                try:
+                    if hasattr(exploiter, '_get_sentiment_history'):
+                        history = exploiter._get_sentiment_history(symbol)
+                        if history:
+                            # Get latest sentiment
+                            latest = history[-1] if history else None
+                            if latest:
+                                _, sentiment, mentions = latest
+                                return {
+                                    "mentions": mentions,
+                                    "sentiment": sentiment,
+                                    "score": int(abs(sentiment) * 100),
+                                    "signal_type": "NEUTRAL" if abs(sentiment) < 0.2 else ("BULLISH" if sentiment > 0 else "BEARISH")
+                                }
+                except:
+                    pass
+                
+                # Return default if no data
+                return {
+                    "mentions": 0,
+                    "sentiment": 0.0,
+                    "score": 0,
+                    "signal_type": "NONE"
+                }
+            
+            # Use the most recent signal
+            signal = symbol_signals[0]
+            
+            result = {
+                "mentions": signal.total_mentions if hasattr(signal, 'total_mentions') else 0,
+                "sentiment": signal.avg_sentiment if hasattr(signal, 'avg_sentiment') else 0.0,
+                "score": int(signal.signal_strength) if hasattr(signal, 'signal_strength') else 0,
+                "signal_type": str(signal.signal_type.value) if hasattr(signal, 'signal_type') and hasattr(signal.signal_type, 'value') else str(signal.signal_type) if hasattr(signal, 'signal_type') else "NONE"
+            }
+            
+            # Cache result
+            self._cache[cache_key] = (datetime.now(), result)
+            
+            return result
             
         except Exception as e:
             logger.error(f"Error getting reddit data for {symbol}: {e}", exc_info=True)
@@ -593,18 +646,78 @@ class MonitorBridge:
             
             # Get Fed data if available
             if self.monitor and hasattr(self.monitor, 'fed_checker'):
-                # TODO: Implement actual Fed data fetching
-                pass
+                fed_checker = self.monitor.fed_checker
+                if fed_checker and fed_checker.fed_watch:
+                    try:
+                        status = fed_checker.fed_watch.get_current_status(force_refresh=False)
+                        if status:
+                            result["fed_data"] = {
+                                "status": status.most_likely_outcome,
+                                "prob_cut": status.prob_cut,
+                                "prob_hold": status.prob_hold,
+                                "prob_hike": status.prob_hike,
+                                "details": f"Cut: {status.prob_cut:.1f}% | Hold: {status.prob_hold:.1f}% | Hike: {status.prob_hike:.1f}% | Most Likely: {status.most_likely_outcome}"
+                            }
+                    except Exception as e:
+                        logger.debug(f"Error fetching Fed data: {e}")
             
             # Get Trump data if available
             if self.monitor and hasattr(self.monitor, 'trump_checker'):
-                # TODO: Implement actual Trump data fetching
-                pass
+                trump_checker = self.monitor.trump_checker
+                if trump_checker and trump_checker.trump_pulse:
+                    try:
+                        situation = trump_checker.trump_pulse.get_current_situation()
+                        if situation:
+                            # Determine sentiment from situation
+                            sentiment = "NEUTRAL"
+                            if hasattr(situation, 'risk_level'):
+                                risk = situation.risk_level
+                                if risk > 0.6:
+                                    sentiment = "BEARISH"
+                                elif risk < 0.4:
+                                    sentiment = "BULLISH"
+                            
+                            result["trump_data"] = {
+                                "sentiment": sentiment,
+                                "risk_level": getattr(situation, 'risk_level', 0.5),
+                                "details": f"Situation: {getattr(situation, 'summary', 'No summary available')}"
+                            }
+                    except Exception as e:
+                        logger.debug(f"Error fetching Trump data: {e}")
             
             # Get Economic data if available
             if self.monitor and hasattr(self.monitor, 'econ_checker'):
-                # TODO: Implement actual Economic data fetching
-                pass
+                econ_checker = self.monitor.econ_checker
+                if econ_checker and econ_checker.econ_calendar:
+                    try:
+                        today = datetime.now().strftime('%Y-%m-%d')
+                        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+                        
+                        # Load events
+                        today_data = econ_checker.econ_calendar.load_events(date=today, min_impact="medium")
+                        tomorrow_data = econ_checker.econ_calendar.load_events(date=tomorrow, min_impact="medium")
+                        
+                        today_events = today_data.get('macro_events', [])
+                        tomorrow_events = tomorrow_data.get('macro_events', [])
+                        all_events = today_events + tomorrow_events
+                        
+                        # Format events
+                        upcoming = []
+                        for event in all_events[:5]:  # Top 5 events
+                            if isinstance(event, dict):
+                                upcoming.append({
+                                    "name": event.get('name', 'Unknown'),
+                                    "date": event.get('date', today),
+                                    "impact": event.get('impact', 'medium'),
+                                    "time": event.get('time', 'TBD')
+                                })
+                        
+                        result["econ_data"] = {
+                            "upcoming_events": upcoming,
+                            "details": f"{len(all_events)} upcoming events (showing {len(upcoming)})"
+                        }
+                    except Exception as e:
+                        logger.debug(f"Error fetching Economic data: {e}")
             
             # Cache result
             self._cache[cache_key] = (datetime.now(), result)
