@@ -80,6 +80,8 @@ class DarkPoolChecker(BaseChecker):
                 logger.info("   📊 No DP alerts triggered")
                 return alerts
             
+            logger.info(f"   ✅ Generated {len(dp_alerts)} DP alerts")
+            
             for alert in dp_alerts:
                 embed = self.dp_monitor_engine.format_discord_alert(alert)
                 bg = alert.battleground
@@ -104,8 +106,9 @@ class DarkPoolChecker(BaseChecker):
                         source="dp_monitor",
                         symbol=alert.symbol
                     ))
+                    logger.info(f"   📤 DP alert queued for immediate send: {alert.symbol} @ ${bg.price:.2f}")
                 else:
-                    logger.debug(f"   🔇 DP alert buffered (unified mode): {alert.symbol} @ ${bg.price:.2f}")
+                    logger.info(f"   🔇 DP alert buffered (unified mode): {alert.symbol} @ ${bg.price:.2f} (will send via synthesis)")
             
             # Trigger synthesis if we have enough alerts
             if len(self.recent_dp_alerts) >= 2 and self.on_synthesis_trigger:

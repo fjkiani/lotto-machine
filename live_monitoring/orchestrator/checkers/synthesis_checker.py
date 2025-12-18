@@ -120,7 +120,10 @@ class SynthesisChecker(BaseChecker):
                         qqq_levels.append(level_data)
             
             if not spy_levels and not qqq_levels:
+                logger.info(f"   ⚠️  No DP levels extracted from {len(recent_dp_alerts)} recent alerts")
                 return [], None
+            
+            logger.info(f"   📊 Extracted {len(spy_levels)} SPY levels, {len(qqq_levels)} QQQ levels from {len(recent_dp_alerts)} alerts")
             
             # Get macro context
             fed_sentiment = "NEUTRAL"
@@ -135,6 +138,7 @@ class SynthesisChecker(BaseChecker):
                     logger.debug(f"   ⚠️ Could not get macro context: {e}")
             
             # Generate synthesis
+            logger.info(f"   🧠 Generating synthesis with {len(spy_levels)} SPY + {len(qqq_levels)} QQQ levels...")
             result = self.signal_brain.analyze(
                 spy_levels=spy_levels,
                 qqq_levels=qqq_levels,
@@ -144,12 +148,21 @@ class SynthesisChecker(BaseChecker):
                 trump_risk=trump_risk,
             )
             
+            # Log synthesis result
+            if result:
+                confluence = getattr(result, 'confluence', None)
+                logger.info(f"   📊 Synthesis result: confluence={confluence}, unified_mode={self.unified_mode}, recent_alerts={len(recent_dp_alerts)}")
+            
             # Check if should send
             should_send = False
             if self.unified_mode and len(recent_dp_alerts) > 0:
                 should_send = True
+                logger.info(f"   ✅ Should send (unified_mode + {len(recent_dp_alerts)} alerts)")
             elif self.signal_brain.should_alert(result):
                 should_send = True
+                logger.info(f"   ✅ Should send (should_alert returned True)")
+            else:
+                logger.info(f"   ⚠️  Should NOT send (should_alert returned False)")
             
             if not should_send:
                 return [], result  # Return result even if not alerting (for Narrative checker)
