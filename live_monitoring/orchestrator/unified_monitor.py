@@ -1318,9 +1318,24 @@ class UnifiedAlphaMonitor:
         self.last_options_flow_check = None  # Run immediately on first check
         self.gamma_interval = 1800  # Check gamma every 30 min (was hourly)
         
+        # Heartbeat tracking
+        last_heartbeat = datetime.now()
+        heartbeat_interval = 300  # Log heartbeat every 5 minutes
+        loop_count = 0
+        
         while self.running:
             try:
                 now = datetime.now()
+                loop_count += 1
+                
+                # Heartbeat logging (every 5 minutes)
+                if (now - last_heartbeat).seconds >= heartbeat_interval:
+                    import pytz
+                    et = pytz.timezone('America/New_York')
+                    now_et = now.astimezone(et) if now.tzinfo else pytz.UTC.localize(now).astimezone(et)
+                    is_mkt = self._is_market_hours()
+                    logger.info(f"💓 HEARTBEAT | Loop #{loop_count} | ET: {now_et.strftime('%H:%M:%S')} | Market: {'OPEN' if is_mkt else 'CLOSED'}")
+                    last_heartbeat = now
                 
                 # Fed Checker
                 if self.fed_checker and (self.last_fed_check is None or (now - self.last_fed_check).seconds >= self.fed_interval):
