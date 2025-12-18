@@ -460,6 +460,231 @@ Reference specific levels (e.g., "${levels[0].get('price', 0):.2f} with {levels[
         return prompt
 
 
+class GammaAgent(SavageAgent):
+    """Gamma exposure analysis agent"""
+    
+    def __init__(self, redis_client=None):
+        super().__init__("Gamma Agent", "gamma", redis_client)
+    
+    def _build_prompt(self, data: Dict, context: Dict = None) -> str:
+        gamma_data = data.get('gamma_data', {})
+        symbol = data.get('symbol', 'UNKNOWN')
+        price = data.get('price', 0)
+        
+        regime = gamma_data.get('current_regime', 'UNKNOWN')
+        flip_level = gamma_data.get('gamma_flip_level')
+        total_gex = gamma_data.get('total_gex', 0)
+        distance_to_flip = gamma_data.get('distance_to_flip_pct', 0)
+        
+        prompt = f"""You are the Gamma Agent - a savage gamma exposure specialist.
+
+CURRENT GAMMA DATA FOR {symbol}:
+- Price: ${price:.2f}
+- Gamma Regime: {regime}
+- Gamma Flip Level: ${flip_level:.2f if flip_level else 'N/A'}
+- Total GEX: {total_gex:,.0f} shares
+- Distance to Flip: {distance_to_flip:.2f}%
+
+CONTEXT:
+{context or 'No additional context'}
+
+YOUR MISSION:
+Analyze this gamma exposure with brutal honesty. Tell me:
+1. What does this gamma regime REALLY mean for price action?
+2. Is the flip level significant? Why or why not?
+3. Should I trade WITH or AGAINST the gamma regime?
+4. What's the risk if price breaks through the flip level?
+5. What's the best entry strategy given this gamma setup?
+
+Be savage. Explain dealer positioning. Predict price behavior. Challenge weak analysis."""
+        
+        return prompt
+
+
+class SqueezeAgent(SavageAgent):
+    """Short squeeze detection agent"""
+    
+    def __init__(self, redis_client=None):
+        super().__init__("Squeeze Agent", "squeeze", redis_client)
+    
+    def _build_prompt(self, data: Dict, context: Dict = None) -> str:
+        squeeze_signal = data.get('squeeze_signal', {})
+        symbol = data.get('symbol', 'UNKNOWN')
+        
+        score = squeeze_signal.get('score', 0)
+        si_pct = squeeze_signal.get('short_interest_pct', 0)
+        borrow_fee = squeeze_signal.get('borrow_fee_pct', 0)
+        ftd_spike = squeeze_signal.get('ftd_spike_ratio', 0)
+        dp_buying = squeeze_signal.get('dp_buying_pressure', 0)
+        entry = squeeze_signal.get('entry_price', 0)
+        stop = squeeze_signal.get('stop_price', 0)
+        target = squeeze_signal.get('target_price', 0)
+        rr = squeeze_signal.get('risk_reward_ratio', 0)
+        
+        prompt = f"""You are the Squeeze Agent - a savage short squeeze specialist.
+
+SQUEEZE SETUP FOR {symbol}:
+- Score: {score:.0f}/100
+- Short Interest: {si_pct:.1f}%
+- Borrow Fee: {borrow_fee:.1f}%
+- FTD Spike: {ftd_spike:.2f}x
+- DP Buying Pressure: {dp_buying:.1%}
+- Entry: ${entry:.2f}
+- Stop: ${stop:.2f}
+- Target: ${target:.2f}
+- R/R: {rr:.1f}:1
+
+CONTEXT:
+{context or 'No additional context'}
+
+YOUR MISSION:
+Analyze this squeeze setup with brutal honesty. Tell me:
+1. Is this a REAL squeeze or just high SI?
+2. What's the catalyst that could trigger the squeeze?
+3. Is the R/R worth the risk?
+4. What are the warning signs I should watch for?
+5. When should I exit if the squeeze doesn't materialize?
+
+Be savage. Identify fake squeezes. Explain the mechanics. Predict outcomes."""
+        
+        return prompt
+
+
+class OptionsAgent(SavageAgent):
+    """Options flow analysis agent"""
+    
+    def __init__(self, redis_client=None):
+        super().__init__("Options Agent", "options", redis_client)
+    
+    def _build_prompt(self, data: Dict, context: Dict = None) -> str:
+        options_signal = data.get('options_signal', {})
+        symbol = data.get('symbol', 'UNKNOWN')
+        
+        direction = options_signal.get('direction', 'UNKNOWN')
+        score = options_signal.get('score', 0)
+        pc_ratio = options_signal.get('put_call_ratio', 0)
+        max_pain = options_signal.get('max_pain', 0)
+        call_oi = options_signal.get('total_call_oi', 0)
+        put_oi = options_signal.get('total_put_oi', 0)
+        entry = options_signal.get('entry_price', 0)
+        stop = options_signal.get('stop_price', 0)
+        target = options_signal.get('target_price', 0)
+        
+        prompt = f"""You are the Options Agent - a savage options flow specialist.
+
+OPTIONS FLOW FOR {symbol}:
+- Direction: {direction}
+- Score: {score:.0f}/100
+- P/C Ratio: {pc_ratio:.2f}
+- Max Pain: ${max_pain:.2f}
+- Call OI: {call_oi:,}
+- Put OI: {put_oi:,}
+- Entry: ${entry:.2f}
+- Stop: ${stop:.2f}
+- Target: ${target:.2f}
+
+CONTEXT:
+{context or 'No additional context'}
+
+YOUR MISSION:
+Analyze this options flow with brutal honesty. Tell me:
+1. What is the options market REALLY telling us?
+2. Is max pain a magnet or a trap?
+3. What's the gamma exposure at key strikes?
+4. Is this institutional flow or retail FOMO?
+5. What's the best strategy given this options setup?
+
+Be savage. Decode institutional positioning. Predict pin behavior. Challenge weak signals."""
+        
+        return prompt
+
+
+class RedditAgent(SavageAgent):
+    """Reddit sentiment analysis agent"""
+    
+    def __init__(self, redis_client=None):
+        super().__init__("Reddit Agent", "reddit", redis_client)
+    
+    def _build_prompt(self, data: Dict, context: Dict = None) -> str:
+        reddit_data = data.get('reddit_data', {})
+        symbol = data.get('symbol', 'UNKNOWN')
+        
+        mentions = reddit_data.get('mentions', 0)
+        sentiment = reddit_data.get('sentiment', 'NEUTRAL')
+        score = reddit_data.get('score', 0)
+        signal_type = reddit_data.get('signal_type', 'NONE')
+        
+        prompt = f"""You are the Reddit Agent - a savage contrarian sentiment specialist.
+
+REDDIT SENTIMENT FOR {symbol}:
+- Mentions: {mentions}
+- Sentiment: {sentiment}
+- Score: {score:.0f}/100
+- Signal Type: {signal_type}
+
+CONTEXT:
+{context or 'No additional context'}
+
+YOUR MISSION:
+Analyze this Reddit sentiment with brutal honesty. Tell me:
+1. Is this genuine retail interest or a pump?
+2. Should I FADE or FOLLOW this sentiment?
+3. What's the contrarian play here?
+4. Is this stealth accumulation or FOMO?
+5. What's the risk of trading against retail?
+
+Be savage. Identify pumps. Explain contrarian logic. Predict retail behavior."""
+        
+        return prompt
+
+
+class MacroAgent(SavageAgent):
+    """Macro analysis agent (Fed, Trump, Economic)"""
+    
+    def __init__(self, redis_client=None):
+        super().__init__("Macro Agent", "macro", redis_client)
+    
+    def _build_prompt(self, data: Dict, context: Dict = None) -> str:
+        fed_data = data.get('fed_data', {})
+        trump_data = data.get('trump_data', {})
+        econ_data = data.get('econ_data', {})
+        
+        fed_status = fed_data.get('status', 'UNKNOWN')
+        trump_sentiment = trump_data.get('sentiment', 'NEUTRAL')
+        econ_events = econ_data.get('upcoming_events', [])
+        
+        prompt = f"""You are the Macro Agent - a savage macro intelligence specialist.
+
+MACRO INTELLIGENCE:
+- Fed Status: {fed_status}
+- Trump Sentiment: {trump_sentiment}
+- Economic Events: {len(econ_events)} upcoming
+
+FED DETAILS:
+{fed_data.get('details', 'No Fed data')}
+
+TRUMP DETAILS:
+{trump_data.get('details', 'No Trump data')}
+
+ECONOMIC DETAILS:
+{econ_data.get('details', 'No economic data')}
+
+CONTEXT:
+{context or 'No additional context'}
+
+YOUR MISSION:
+Analyze this macro environment with brutal honesty. Tell me:
+1. What's the REAL macro picture right now?
+2. How will Fed policy affect markets?
+3. What's Trump's impact on market sentiment?
+4. What economic events should I watch?
+5. What's the macro risk to my positions?
+
+Be savage. Connect macro dots. Predict policy impacts. Challenge weak narratives."""
+        
+        return prompt
+
+
 class NarrativeBrainAgent(SavageAgent):
     """Master agent that synthesizes ALL other agents - uses ACTUAL data structures"""
     

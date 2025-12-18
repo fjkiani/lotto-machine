@@ -379,4 +379,239 @@ class MonitorBridge:
         except Exception as e:
             logger.error(f"Error getting market data for {symbol}: {e}", exc_info=True)
             return None
+    
+    def get_gamma_data(self, symbol: str) -> Optional[Dict]:
+        """
+        Get gamma exposure data for a symbol
+        
+        Returns:
+            Dict with gamma exposure analysis
+        """
+        cache_key = f"gamma:{symbol}"
+        if cache_key in self._cache:
+            cached_time, cached_data = self._cache[cache_key]
+            if (datetime.now() - cached_time).total_seconds() < 300:  # 5 minute cache
+                return cached_data
+        
+        try:
+            from live_monitoring.core.gamma_exposure import GammaExposureTracker
+            
+            # Get current price
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period='1d')
+            if hist.empty:
+                return None
+            current_price = float(hist['Close'].iloc[-1])
+            
+            # Calculate gamma exposure
+            tracker = GammaExposureTracker()
+            gamma_data = tracker.calculate_gamma_exposure(symbol, current_price)
+            
+            if not gamma_data:
+                return None
+            
+            # Calculate distance to flip
+            distance_to_flip = 0.0
+            if gamma_data.gamma_flip_level:
+                distance_to_flip = abs(current_price - gamma_data.gamma_flip_level) / current_price * 100
+            
+            result = {
+                "symbol": symbol,
+                "price": current_price,
+                "gamma_data": {
+                    "current_regime": gamma_data.current_regime,
+                    "gamma_flip_level": gamma_data.gamma_flip_level,
+                    "total_gex": gamma_data.total_gex,
+                    "distance_to_flip_pct": distance_to_flip,
+                    "date": gamma_data.date
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Cache result
+            self._cache[cache_key] = (datetime.now(), result)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error getting gamma data for {symbol}: {e}", exc_info=True)
+            return None
+    
+    def get_squeeze_data(self, symbol: str) -> Optional[Dict]:
+        """
+        Get squeeze signal data for a symbol
+        
+        Returns:
+            Dict with squeeze signal analysis
+        """
+        cache_key = f"squeeze:{symbol}"
+        if cache_key in self._cache:
+            cached_time, cached_data = self._cache[cache_key]
+            if (datetime.now() - cached_time).total_seconds() < 3600:  # 1 hour cache
+                return cached_data
+        
+        try:
+            from live_monitoring.exploitation.squeeze_detector import SqueezeDetector
+            from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
+            
+            api_key = os.getenv('CHARTEXCHANGE_API_KEY') or os.getenv('CHART_EXCHANGE_API_KEY')
+            if not api_key:
+                return None
+            
+            client = UltimateChartExchangeClient(api_key)
+            detector = SqueezeDetector(client)
+            
+            # Analyze for squeeze
+            signal = detector.analyze(symbol)
+            
+            if not signal:
+                return None
+            
+            result = {
+                "symbol": symbol,
+                "squeeze_signal": {
+                    "score": signal.score,
+                    "short_interest_pct": signal.short_interest_pct,
+                    "borrow_fee_pct": signal.borrow_fee_pct,
+                    "ftd_spike_ratio": signal.ftd_spike_ratio,
+                    "dp_buying_pressure": signal.dp_buying_pressure,
+                    "entry_price": signal.entry_price,
+                    "stop_price": signal.stop_price,
+                    "target_price": signal.target_price,
+                    "risk_reward_ratio": signal.risk_reward_ratio,
+                    "reasoning": signal.reasoning,
+                    "warnings": signal.warnings
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Cache result
+            self._cache[cache_key] = (datetime.now(), result)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error getting squeeze data for {symbol}: {e}", exc_info=True)
+            return None
+    
+    def get_options_data(self, symbol: str) -> Optional[Dict]:
+        """
+        Get options flow data for a symbol
+        
+        Returns:
+            Dict with options flow signal
+        """
+        cache_key = f"options:{symbol}"
+        if cache_key in self._cache:
+            cached_time, cached_data = self._cache[cache_key]
+            if (datetime.now() - cached_time).total_seconds() < 1800:  # 30 minute cache
+                return cached_data
+        
+        try:
+            from live_monitoring.exploitation.gamma_tracker import GammaTracker
+            
+            tracker = GammaTracker()
+            signal = tracker.analyze(symbol)
+            
+            if not signal:
+                return None
+            
+            result = {
+                "symbol": symbol,
+                "options_signal": {
+                    "direction": signal.direction,
+                    "score": signal.score,
+                    "put_call_ratio": signal.put_call_ratio,
+                    "max_pain": signal.max_pain,
+                    "total_call_oi": signal.total_call_oi,
+                    "total_put_oi": signal.total_put_oi,
+                    "entry_price": signal.entry_price,
+                    "stop_price": signal.stop_price,
+                    "target_price": signal.target_price,
+                    "expiration": signal.expiration
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Cache result
+            self._cache[cache_key] = (datetime.now(), result)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error getting options data for {symbol}: {e}", exc_info=True)
+            return None
+    
+    def get_reddit_data(self, symbol: str) -> Optional[Dict]:
+        """
+        Get Reddit sentiment data for a symbol
+        
+        Returns:
+            Dict with Reddit sentiment analysis
+        """
+        cache_key = f"reddit:{symbol}"
+        if cache_key in self._cache:
+            cached_time, cached_data = self._cache[cache_key]
+            if (datetime.now() - cached_time).total_seconds() < 3600:  # 1 hour cache
+                return cached_data
+        
+        try:
+            # Check if monitor has reddit checker
+            if not self.monitor or not hasattr(self.monitor, 'reddit_checker'):
+                return None
+            
+            # Get recent Reddit data from checker
+            # This would need to be implemented based on actual RedditChecker API
+            # For now, return None
+            # TODO: Implement actual Reddit data fetching
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting reddit data for {symbol}: {e}", exc_info=True)
+            return None
+    
+    def get_macro_data(self) -> Optional[Dict]:
+        """
+        Get macro data (Fed, Trump, Economic)
+        
+        Returns:
+            Dict with macro intelligence
+        """
+        cache_key = "macro_data"
+        if cache_key in self._cache:
+            cached_time, cached_data = self._cache[cache_key]
+            if (datetime.now() - cached_time).total_seconds() < 300:  # 5 minute cache
+                return cached_data
+        
+        try:
+            result = {
+                "fed_data": {"status": "UNKNOWN", "details": "No Fed data available"},
+                "trump_data": {"sentiment": "NEUTRAL", "details": "No Trump data available"},
+                "econ_data": {"upcoming_events": [], "details": "No economic data available"},
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Get Fed data if available
+            if self.monitor and hasattr(self.monitor, 'fed_checker'):
+                # TODO: Implement actual Fed data fetching
+                pass
+            
+            # Get Trump data if available
+            if self.monitor and hasattr(self.monitor, 'trump_checker'):
+                # TODO: Implement actual Trump data fetching
+                pass
+            
+            # Get Economic data if available
+            if self.monitor and hasattr(self.monitor, 'econ_checker'):
+                # TODO: Implement actual Economic data fetching
+                pass
+            
+            # Cache result
+            self._cache[cache_key] = (datetime.now(), result)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error getting macro data: {e}", exc_info=True)
+            return None
 

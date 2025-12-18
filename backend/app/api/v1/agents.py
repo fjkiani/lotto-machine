@@ -12,7 +12,8 @@ from pydantic import BaseModel
 
 from backend.app.core.dependencies import get_monitor_bridge, get_redis
 from backend.app.services.savage_agents import (
-    MarketAgent, SignalAgent, DarkPoolAgent, NarrativeBrainAgent
+    MarketAgent, SignalAgent, DarkPoolAgent, NarrativeBrainAgent,
+    GammaAgent, SqueezeAgent, OptionsAgent, RedditAgent, MacroAgent
 )
 from backend.app.integrations.unified_monitor_bridge import MonitorBridge
 
@@ -40,6 +41,16 @@ def get_agent(agent_name: str, monitor_bridge: MonitorBridge, redis_client):
             _agents[agent_name] = SignalAgent(redis_client)
         elif agent_name == "darkpool":
             _agents[agent_name] = DarkPoolAgent(redis_client)
+        elif agent_name == "gamma":
+            _agents[agent_name] = GammaAgent(redis_client)
+        elif agent_name == "squeeze":
+            _agents[agent_name] = SqueezeAgent(redis_client)
+        elif agent_name == "options":
+            _agents[agent_name] = OptionsAgent(redis_client)
+        elif agent_name == "reddit":
+            _agents[agent_name] = RedditAgent(redis_client)
+        elif agent_name == "macro":
+            _agents[agent_name] = MacroAgent(redis_client)
         else:
             raise HTTPException(404, f"Unknown agent: {agent_name}")
     
@@ -107,6 +118,62 @@ async def analyze_with_agent(
                 "symbol": symbol,
                 "current_price": current_price
             }
+        
+        elif agent_name == "gamma":
+            # Fetch gamma data
+            symbol = request.symbol or "SPY"
+            gamma_data = monitor_bridge.get_gamma_data(symbol)
+            if gamma_data:
+                data = gamma_data
+            else:
+                raise HTTPException(404, f"No gamma data available for {symbol}")
+        
+        elif agent_name == "squeeze":
+            # Fetch squeeze data
+            symbol = request.symbol or "SPY"
+            squeeze_data = monitor_bridge.get_squeeze_data(symbol)
+            if squeeze_data:
+                data = squeeze_data
+            else:
+                raise HTTPException(404, f"No squeeze data available for {symbol}")
+        
+        elif agent_name == "options":
+            # Fetch options data
+            symbol = request.symbol or "SPY"
+            options_data = monitor_bridge.get_options_data(symbol)
+            if options_data:
+                data = options_data
+            else:
+                raise HTTPException(404, f"No options data available for {symbol}")
+        
+        elif agent_name == "reddit":
+            # Fetch Reddit data
+            symbol = request.symbol or "SPY"
+            reddit_data = monitor_bridge.get_reddit_data(symbol)
+            if reddit_data:
+                data = {
+                    "symbol": symbol,
+                    "reddit_data": reddit_data
+                }
+            else:
+                # Return empty data if not available
+                data = {
+                    "symbol": symbol,
+                    "reddit_data": {
+                        "mentions": 0,
+                        "sentiment": "NEUTRAL",
+                        "score": 0,
+                        "signal_type": "NONE"
+                    }
+                }
+        
+        elif agent_name == "macro":
+            # Fetch macro data
+            macro_data = monitor_bridge.get_macro_data()
+            if macro_data:
+                data = macro_data
+            else:
+                raise HTTPException(404, "No macro data available")
     
     context = request.context or {}
     
@@ -136,32 +203,41 @@ async def get_current_narrative(
     Returns:
         Unified narrative with all agent insights
     """
-    # Initialize all agents
-    agents = [
-        MarketAgent(redis_client),
-        SignalAgent(redis_client),
-        DarkPoolAgent(redis_client),
-    ]
-    
-    narrative_brain = NarrativeBrainAgent(agents, redis_client)
+    # Use the service from dependencies (includes all agents)
+    from backend.app.core.dependencies import get_savage_agents_service
+    narrative_brain = get_savage_agents_service()
     
     # Gather ALL data from monitor bridge
+    symbol = "SPY"
+    market_data = monitor_bridge.get_market_data(symbol)
+    current_price = market_data.get('price', 0.0) if market_data else 0.0
+    
     all_data = {
-        "market": monitor_bridge.get_market_data('SPY'),
-        "signals": monitor_bridge.get_current_signals('SPY'),
+        "market": market_data,
+        "signals": monitor_bridge.get_current_signals(symbol),
         "synthesis_result": monitor_bridge.get_synthesis_result(),
         "narrative_update": monitor_bridge.get_narrative_update(),
         "dp_data": {
-            "levels": monitor_bridge.get_dp_levels('SPY'),
+            "levels": monitor_bridge.get_dp_levels(symbol),
             "prints": [],
             "battlegrounds": [],
             "summary": {},
-            "symbol": "SPY",
-            "current_price": monitor_bridge.get_market_data('SPY').get('price', 0.0) if monitor_bridge.get_market_data('SPY') else 0.0
+            "symbol": symbol,
+            "current_price": current_price
         },
-        "gamma_data": {},  # TODO: Fetch gamma data
-        "institutional_context": {},  # TODO: Fetch inst context
-        "checker_alerts": []  # TODO: Fetch recent alerts
+        "gamma": monitor_bridge.get_gamma_data(symbol) or {},
+        "squeeze": monitor_bridge.get_squeeze_data(symbol) or {},
+        "options": monitor_bridge.get_options_data(symbol) or {},
+        "reddit": {
+            "symbol": symbol,
+            "reddit_data": monitor_bridge.get_reddit_data(symbol) or {
+                "mentions": 0,
+                "sentiment": "NEUTRAL",
+                "score": 0,
+                "signal_type": "NONE"
+            }
+        },
+        "macro": monitor_bridge.get_macro_data() or {}
     }
     
     # Synthesize
@@ -173,9 +249,14 @@ async def get_current_narrative(
         raise HTTPException(500, f"Narrative synthesis failed: {str(e)}")
 
 
+class NarrativeAskRequest(BaseModel):
+    """Request body for narrative brain question"""
+    question: str
+
+
 @router.post("/agents/narrative/ask")
 async def ask_narrative_brain(
-    question: str,
+    request: NarrativeAskRequest,
     monitor_bridge: MonitorBridge = Depends(get_monitor_bridge),
     redis_client = Depends(get_redis)
 ):
@@ -187,35 +268,45 @@ async def ask_narrative_brain(
         "question": "What's happening with SPY right now?"
     }
     """
+    question = request.question
     if not question or not question.strip():
         raise HTTPException(400, "Question is required")
     
-    # Initialize narrative brain
-    agents = [
-        MarketAgent(redis_client),
-        SignalAgent(redis_client),
-        DarkPoolAgent(redis_client),
-    ]
-    
-    narrative_brain = NarrativeBrainAgent(agents, redis_client)
+    # Use the service from dependencies (includes all agents)
+    from backend.app.core.dependencies import get_savage_agents_service
+    narrative_brain = get_savage_agents_service()
     
     # Gather current data
+    symbol = "SPY"
+    market_data = monitor_bridge.get_market_data(symbol)
+    current_price = market_data.get('price', 0.0) if market_data else 0.0
+    
     all_data = {
-        "market": monitor_bridge.get_market_data('SPY'),
-        "signals": monitor_bridge.get_current_signals('SPY'),
+        "market": market_data,
+        "signals": monitor_bridge.get_current_signals(symbol),
         "synthesis_result": monitor_bridge.get_synthesis_result(),
         "narrative_update": monitor_bridge.get_narrative_update(),
         "dp_data": {
-            "levels": monitor_bridge.get_dp_levels('SPY'),
+            "levels": monitor_bridge.get_dp_levels(symbol),
             "prints": [],
             "battlegrounds": [],
             "summary": {},
-            "symbol": "SPY",
-            "current_price": monitor_bridge.get_market_data('SPY').get('price', 0.0) if monitor_bridge.get_market_data('SPY') else 0.0
+            "symbol": symbol,
+            "current_price": current_price
         },
-        "gamma_data": {},
-        "institutional_context": {},
-        "checker_alerts": []
+        "gamma": monitor_bridge.get_gamma_data(symbol) or {},
+        "squeeze": monitor_bridge.get_squeeze_data(symbol) or {},
+        "options": monitor_bridge.get_options_data(symbol) or {},
+        "reddit": {
+            "symbol": symbol,
+            "reddit_data": monitor_bridge.get_reddit_data(symbol) or {
+                "mentions": 0,
+                "sentiment": "NEUTRAL",
+                "score": 0,
+                "signal_type": "NONE"
+            }
+        },
+        "macro": monitor_bridge.get_macro_data() or {}
     }
     
     # Build question prompt

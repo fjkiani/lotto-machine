@@ -50,3 +50,41 @@ def set_monitor_bridge(monitor):
     bridge = get_monitor_bridge()
     bridge.set_monitor(monitor)
 
+
+def get_savage_agents_service():
+    """Get NarrativeBrainAgent with all specialized agents (singleton)"""
+    from backend.app.services.savage_agents import (
+        MarketAgent, SignalAgent, DarkPoolAgent,
+        GammaAgent, SqueezeAgent, OptionsAgent, RedditAgent, MacroAgent,
+        NarrativeBrainAgent
+    )
+    
+    redis_client = get_redis()
+    
+    # Initialize all specialized agents
+    market_agent = MarketAgent(redis_client=redis_client)
+    signal_agent = SignalAgent(redis_client=redis_client)
+    dark_pool_agent = DarkPoolAgent(redis_client=redis_client)
+    gamma_agent = GammaAgent(redis_client=redis_client)
+    squeeze_agent = SqueezeAgent(redis_client=redis_client)
+    options_agent = OptionsAgent(redis_client=redis_client)
+    reddit_agent = RedditAgent(redis_client=redis_client)
+    macro_agent = MacroAgent(redis_client=redis_client)
+    
+    # Create NarrativeBrainAgent with all agents
+    narrative_brain = NarrativeBrainAgent(
+        agents=[
+            market_agent,
+            signal_agent,
+            dark_pool_agent,
+            gamma_agent,
+            squeeze_agent,
+            options_agent,
+            reddit_agent,
+            macro_agent,
+        ],
+        redis_client=redis_client
+    )
+    
+    return narrative_brain
+
