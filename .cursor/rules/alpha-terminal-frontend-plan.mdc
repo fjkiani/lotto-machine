@@ -70,7 +70,7 @@ Build a **REAL-TIME INSTITUTIONAL INTELLIGENCE DASHBOARD** that makes Bloomberg 
 ### Infrastructure
 | Component | Technology | Why |
 |-----------|------------|-----|
-| Hosting | **Vercel** (Frontend) + **Render/Railway** (Backend) | Easy deployment |
+| Hosting | **Netlify** (Frontend) + **Render/Railway** (Backend) | Easy deployment |
 | CDN | **Vercel Edge** | Global, fast |
 | Monitoring | **Sentry** + **Prometheus** | Error tracking, metrics |
 | Logging | **Loguru** + **Loki** | Structured logging |
@@ -141,6 +141,680 @@ Build a **REAL-TIME INSTITUTIONAL INTELLIGENCE DASHBOARD** that makes Bloomberg 
 │ Updated 2s ago          View More → │  ← Footer with timestamp
 └─────────────────────────────────────┘
 ```
+
+---
+
+## 🔌 EXISTING CODEBASE INTEGRATION
+
+### **CRITICAL: What We Already Have**
+
+Before building the frontend, you need to understand the **EXISTING BACKEND** that's already running in production. This is NOT a greenfield project - you're building a **FRONTEND LAYER** on top of a sophisticated monitoring system.
+
+---
+
+### **📁 Existing Backend Structure**
+
+```
+ai-hedge-fund-main/
+├── live_monitoring/
+│   ├── orchestrator/
+│   │   ├── unified_monitor.py          # 🎯 MAIN ORCHESTRATOR (runs everything)
+│   │   ├── alert_manager.py            # Discord alerting (you'll bridge this)
+│   │   ├── checkers/                   # All signal checkers
+│   │   │   ├── fed_checker.py
+│   │   │   ├── trump_checker.py
+│   │   │   ├── dark_pool_checker.py
+│   │   │   ├── gamma_checker.py
+│   │   │   ├── squeeze_checker.py
+│   │   │   ├── reddit_checker.py
+│   │   │   ├── premarket_gap_checker.py
+│   │   │   └── options_flow_checker.py
+│   │   ├── momentum_detector.py       # Selloff/rally detection
+│   │   └── regime_detector.py          # Market regime (UP/DOWN/CHOP)
+│   │
+│   ├── core/
+│   │   ├── signal_generator.py         # 🧠 SIGNAL GENERATION ENGINE
+│   │   ├── gamma_exposure.py           # Gamma calculations
+│   │   ├── lottery_signals.py         # Signal type definitions
+│   │   └── data_fetcher.py             # Data acquisition
+│   │
+│   ├── strategies/
+│   │   ├── premarket_gap_strategy.py
+│   │   └── options_flow_strategy.py
+│   │
+│   └── agents/
+│       ├── fed_watch_monitor.py        # Fed rate probabilities
+│       ├── fed_officials_monitor.py    # Fed officials comments
+│       └── ...
+│
+├── core/
+│   ├── data/
+│   │   └── ultimate_chartexchange_client.py  # 🔑 PRIMARY DATA SOURCE
+│   ├── rigorous_dp_signal_engine.py    # DP signal logic
+│   ├── ultra_institutional_engine.py   # Institutional context builder
+│   └── master_signal_generator.py      # Master signal filter
+│
+└── backtesting/
+    └── simulation/
+        └── reddit_enhanced_backtest.py  # Backtesting framework
+```
+
+---
+
+### **🎯 Key Classes You'll Interact With**
+
+#### **1. UnifiedAlphaMonitor** (`live_monitoring/orchestrator/unified_monitor.py`)
+
+**What it does:** The main orchestrator that runs ALL monitoring systems. It's already running in production on Render.
+
+**How you'll use it:**
+- **DON'T** modify this directly
+- **DO** create a FastAPI bridge that calls its methods
+- **DO** subscribe to its alert stream via WebSocket
+
+**Example Integration:**
+```python
+# backend/app/integrations/unified_monitor_bridge.py
+
+from live_monitoring.orchestrator.unified_monitor import UnifiedAlphaMonitor
+
+class MonitorBridge:
+    """
+    Bridge between FastAPI and existing UnifiedAlphaMonitor
+    """
+    def __init__(self):
+        # Initialize the existing monitor
+        self.monitor = UnifiedAlphaMonitor()
+        
+        # Start it in background thread
+        self.monitor_thread = threading.Thread(target=self.monitor.run, daemon=True)
+        self.monitor_thread.start()
+    
+    def get_current_signals(self) -> List[dict]:
+        """
+        Get all active signals from signal_generator
+        """
+        # Access the monitor's signal generator
+        if hasattr(self.monitor, 'signal_generator'):
+            signals = self.monitor.signal_generator.get_active_signals()
+            return [self._signal_to_dict(s) for s in signals]
+        return []
+    
+    def get_dp_levels(self, symbol: str) -> List[dict]:
+        """
+        Get dark pool levels for a symbol
+        """
+        # Access the monitor's DP engine
+        if hasattr(self.monitor, 'dp_monitor_engine'):
+            levels = self.monitor.dp_monitor_engine.get_levels(symbol)
+            return [self._level_to_dict(l) for l in levels]
+        return []
+```
+
+---
+
+#### **2. SignalGenerator** (`live_monitoring/core/signal_generator.py`)
+
+**What it does:** Generates all trading signals (squeeze, gamma, DP breakout, selloff, rally, etc.)
+
+**Key Methods:**
+```python
+class SignalGenerator:
+    def generate_signals(self, symbol: str, inst_context: InstitutionalContext) -> List[LiveSignal]:
+        """Generate all signals for a symbol"""
+    
+    def get_active_signals(self) -> List[LiveSignal]:
+        """Get currently active signals"""
+    
+    def _detect_realtime_selloff(self, symbol: str, minute_bars: pd.DataFrame) -> Optional[LiveSignal]:
+        """Detect selloff signals"""
+    
+    def _detect_realtime_rally(self, symbol: str, minute_bars: pd.DataFrame) -> Optional[LiveSignal]:
+        """Detect rally signals"""
+```
+
+**How you'll use it:**
+```python
+# backend/app/api/v1/signals.py
+
+from live_monitoring.core.signal_generator import SignalGenerator
+from live_monitoring.core.ultra_institutional_engine import UltraInstitutionalEngine
+
+@router.get("/signals")
+async def get_signals(symbol: str = "SPY"):
+    """
+    Get all active signals for a symbol
+    """
+    # Initialize signal generator (or get from monitor bridge)
+    api_key = os.getenv('CHARTEXCHANGE_API_KEY')
+    inst_engine = UltraInstitutionalEngine(api_key=api_key)
+    signal_gen = SignalGenerator(api_key=api_key)
+    
+    # Build institutional context
+    inst_context = inst_engine.build_context(symbol, date=datetime.now().date())
+    
+    # Generate signals
+    signals = signal_gen.generate_signals(symbol, inst_context)
+    
+    # Convert to API format
+    return {
+        "symbol": symbol,
+        "signals": [signal_to_dict(s) for s in signals],
+        "timestamp": datetime.utcnow().isoformat()
+    }
+```
+
+---
+
+#### **3. UltimateChartExchangeClient** (`core/data/ultimate_chartexchange_client.py`)
+
+**What it does:** Primary data source for ALL institutional data (DP levels, prints, short interest, options, Reddit, FTDs)
+
+**Key Methods:**
+```python
+class UltimateChartExchangeClient:
+    def get_dark_pool_levels(self, symbol: str, date: str) -> Dict:
+        """Get DP levels for a symbol on a date"""
+    
+    def get_dark_pool_prints(self, symbol: str, date: str) -> Dict:
+        """Get recent DP prints"""
+    
+    def get_short_interest(self, symbol: str, date: str) -> Dict:
+        """Get short interest data"""
+    
+    def get_options_chain_summary(self, symbol: str, date: str) -> Dict:
+        """Get options chain summary (P/C ratio, max pain)"""
+    
+    def get_reddit_mentions(self, symbol: str, days: int = 7) -> Dict:
+        """Get Reddit mention data"""
+    
+    def get_ftd_data(self, symbol: str, date: str) -> Dict:
+        """Get Failure to Deliver data"""
+```
+
+**How you'll use it:**
+```python
+# backend/app/api/v1/darkpool.py
+
+from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
+
+@router.get("/darkpool/{symbol}/levels")
+async def get_dp_levels(symbol: str, date: str = None):
+    """
+    Get dark pool levels for a symbol
+    """
+    api_key = os.getenv('CHARTEXCHANGE_API_KEY')
+    client = UltimateChartExchangeClient(api_key=api_key)
+    
+    # Use yesterday if date not provided (T+1 data)
+    if not date:
+        date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    
+    levels_data = client.get_dark_pool_levels(symbol, date)
+    
+    if not levels_data or 'levels' not in levels_data:
+        return {"symbol": symbol, "levels": []}
+    
+    # Format for frontend
+    levels = []
+    for level in levels_data['levels']:
+        levels.append({
+            "price": float(level.get('level', 0)),
+            "volume": int(level.get('volume', 0)),
+            "type": "SUPPORT" if level.get('type') == 'support' else "RESISTANCE",
+            "strength": level.get('strength', 'MODERATE')
+        })
+    
+    return {
+        "symbol": symbol,
+        "date": date,
+        "levels": levels,
+        "total_volume": levels_data.get('total_volume', 0),
+        "dp_percent": levels_data.get('dp_percent', 0)
+    }
+```
+
+---
+
+#### **4. GammaExposureTracker** (`live_monitoring/core/gamma_exposure.py`)
+
+**What it does:** Calculates gamma exposure, gamma flip levels, and max pain
+
+**Key Methods:**
+```python
+class GammaExposureTracker:
+    def calculate_gamma_exposure(self, symbol: str, expiration: str = None) -> Dict:
+        """Calculate GEX for all strikes"""
+    
+    def find_gamma_flip_level(self, symbol: str) -> Optional[float]:
+        """Find the price where gamma flips from positive to negative"""
+    
+    def get_max_pain(self, symbol: str, expiration: str = None) -> float:
+        """Calculate max pain strike"""
+```
+
+**How you'll use it:**
+```python
+# backend/app/api/v1/gamma.py
+
+from live_monitoring.core.gamma_exposure import GammaExposureTracker
+
+@router.get("/gamma/{symbol}")
+async def get_gamma_data(symbol: str):
+    """
+    Get gamma exposure data for a symbol
+    """
+    api_key = os.getenv('CHARTEXCHANGE_API_KEY')
+    tracker = GammaExposureTracker(api_key=api_key)
+    
+    # Calculate gamma exposure
+    gex_data = tracker.calculate_gamma_exposure(symbol)
+    
+    # Get gamma flip level
+    flip_level = tracker.find_gamma_flip_level(symbol)
+    
+    # Get max pain
+    max_pain = tracker.get_max_pain(symbol)
+    
+    return {
+        "symbol": symbol,
+        "gamma_by_strike": gex_data.get('gamma_by_strike', {}),
+        "gamma_flip_level": flip_level,
+        "max_pain": max_pain,
+        "current_regime": gex_data.get('current_regime', 'POSITIVE'),
+        "total_gex": gex_data.get('total_gex', 0)
+    }
+```
+
+---
+
+#### **5. Checkers** (`live_monitoring/orchestrator/checkers/`)
+
+**What they do:** Each checker monitors a specific data source and generates alerts
+
+**Available Checkers:**
+- `FedChecker` - Fed rate probabilities
+- `TrumpChecker` - Trump intelligence
+- `DarkPoolChecker` - DP battlegrounds
+- `GammaChecker` - Gamma signals
+- `SqueezeChecker` - Short squeeze candidates
+- `RedditChecker` - Reddit sentiment signals
+- `PreMarketGapChecker` - Gap analysis
+- `OptionsFlowChecker` - Options flow signals
+
+**How you'll use them:**
+```python
+# backend/app/api/v1/signals.py
+
+from live_monitoring.orchestrator.checkers import (
+    GammaChecker, SqueezeChecker, RedditChecker
+)
+
+@router.get("/signals/by-type/{signal_type}")
+async def get_signals_by_type(signal_type: str):
+    """
+    Get signals filtered by type
+    """
+    # Get checkers from monitor bridge
+    bridge = get_monitor_bridge()
+    
+    signals = []
+    
+    if signal_type == "gamma":
+        if bridge.monitor.gamma_checker:
+            alerts = bridge.monitor.gamma_checker.check()
+            signals = [alert_to_signal(a) for a in alerts]
+    
+    elif signal_type == "squeeze":
+        if bridge.monitor.squeeze_checker:
+            alerts = bridge.monitor.squeeze_checker.check()
+            signals = [alert_to_signal(a) for a in alerts]
+    
+    elif signal_type == "reddit":
+        if bridge.monitor.reddit_checker:
+            alerts = bridge.monitor.reddit_checker.check()
+            signals = [alert_to_signal(a) for a in alerts]
+    
+    return {"signal_type": signal_type, "signals": signals}
+```
+
+---
+
+### **🔄 Data Flow Architecture**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    EXISTING BACKEND (Production)                 │
+│                                                                  │
+│  UnifiedAlphaMonitor                                            │
+│    ├── SignalGenerator → LiveSignal objects                    │
+│    ├── DarkPoolChecker → CheckerAlert objects                  │
+│    ├── GammaChecker → CheckerAlert objects                     │
+│    ├── RedditChecker → CheckerAlert objects                     │
+│    └── ... (all checkers)                                       │
+│                                                                  │
+│  UltimateChartExchangeClient                                    │
+│    └── Raw API data (DP, short, options, Reddit)               │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            │ (Bridge Layer)
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    NEW FASTAPI LAYER (You Build This)            │
+│                                                                  │
+│  FastAPI Application                                             │
+│    ├── REST Endpoints → JSON responses                          │
+│    ├── WebSocket Server → Real-time streams                     │
+│    ├── MonitorBridge → Calls existing monitor                   │
+│    └── DataFormatters → Converts to frontend format            │
+│                                                                  │
+│  Redis Cache                                                     │
+│    └── Cached responses (1s-1h TTL)                              │
+│                                                                  │
+│  PostgreSQL + TimescaleDB                                        │
+│    └── Historical data storage                                   │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            │ (HTTP/WebSocket)
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    FRONTEND (Next.js)                            │
+│                                                                  │
+│  React Components                                                │
+│    ├── MarketOverview → GET /api/market/{symbol}               │
+│    ├── SignalsCenter → WS /ws/signals                          │
+│    ├── DarkPoolFlow → GET /api/darkpool/{symbol}                │
+│    └── ... (all widgets)                                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### **📡 WebSocket Integration Pattern**
+
+**Backend (FastAPI):**
+```python
+# backend/app/api/websocket/unified_ws.py
+
+from fastapi import WebSocket
+from live_monitoring.orchestrator.unified_monitor import UnifiedAlphaMonitor
+
+class UnifiedWebSocketManager:
+    """
+    Bridges existing monitor alerts to WebSocket clients
+    """
+    def __init__(self):
+        self.monitor = UnifiedAlphaMonitor()
+        self.clients: List[WebSocket] = []
+        
+        # Hook into monitor's alert system
+        self._setup_alert_hooks()
+    
+    def _setup_alert_hooks(self):
+        """
+        Intercept alerts from UnifiedAlphaMonitor and broadcast via WebSocket
+        """
+        original_send = self.monitor.alert_manager.send_discord
+        
+        async def intercepted_send(embed, content=None, alert_type=None, source=None, symbol=None):
+            # Send to Discord (original behavior)
+            await original_send(embed, content, alert_type, source, symbol)
+            
+            # Also broadcast via WebSocket
+            await self.broadcast({
+                "type": "SIGNAL_NEW",
+                "channel": "signals",
+                "data": {
+                    "alert_type": alert_type,
+                    "source": source,
+                    "symbol": symbol,
+                    "embed": embed,
+                    "content": content
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        
+        self.monitor.alert_manager.send_discord = intercepted_send
+    
+    async def broadcast(self, message: dict):
+        """Broadcast message to all connected clients"""
+        for client in self.clients:
+            await client.send_json(message)
+
+@app.websocket("/ws/unified")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    manager.clients.append(websocket)
+    
+    try:
+        while True:
+            # Keep connection alive
+            await websocket.receive_text()
+    except:
+        manager.clients.remove(websocket)
+```
+
+**Frontend (React):**
+```typescript
+// frontend/hooks/useUnifiedWebSocket.ts
+
+import { useEffect, useState } from 'react';
+import { io, Socket } from 'socket.io-client';
+
+export function useUnifiedWebSocket() {
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [messages, setMessages] = useState<Map<string, any>>(new Map());
+  const [connected, setConnected] = useState(false);
+  
+  useEffect(() => {
+    const ws = new WebSocket(process.env.NEXT_PUBLIC_WS_URL + '/ws/unified');
+    
+    ws.onopen = () => {
+      setConnected(true);
+      console.log('✅ WebSocket connected');
+    };
+    
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      
+      // Update messages map
+      setMessages(prev => {
+        const next = new Map(prev);
+        next.set(msg.channel, msg.data);
+        return next;
+      });
+      
+      // Handle different message types
+      switch (msg.type) {
+        case 'SIGNAL_NEW':
+          // Update signals store
+          break;
+        case 'MARKET_QUOTE':
+          // Update market data
+          break;
+        case 'DP_PRINT':
+          // Update DP flow
+          break;
+      }
+    };
+    
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      setConnected(false);
+    };
+    
+    ws.onclose = () => {
+      setConnected(false);
+      // Reconnect after 3 seconds
+      setTimeout(() => {
+        setSocket(ws);
+      }, 3000);
+    };
+    
+    setSocket(ws);
+    
+    return () => {
+      ws.close();
+    };
+  }, []);
+  
+  return { socket, messages, connected };
+}
+```
+
+---
+
+### **🔑 Environment Variables You'll Need**
+
+```bash
+# Backend (.env)
+CHARTEXCHANGE_API_KEY=your_key_here          # Primary data source
+PERPLEXITY_API_KEY=your_key_here             # Fed Watch fallback
+DISCORD_WEBHOOK_URL=your_webhook             # Existing alerting
+DATABASE_URL=postgresql://...                # PostgreSQL
+REDIS_URL=redis://...                        # Cache + Pub/Sub
+JWT_SECRET=your_secret                       # Auth
+
+# Frontend (.env.local)
+NEXT_PUBLIC_API_URL=https://api.alpha-terminal.com
+NEXT_PUBLIC_WS_URL=wss://api.alpha-terminal.com
+```
+
+---
+
+### **⚠️ CRITICAL INTEGRATION NOTES**
+
+1. **Don't Modify Existing Code:** The `UnifiedAlphaMonitor` is running in production. Create a **bridge layer** instead.
+
+2. **Use Existing Data Sources:** Always use `UltimateChartExchangeClient` - don't create new API clients.
+
+3. **Respect Rate Limits:** ChartExchange API has rate limits. Use Redis caching aggressively.
+
+4. **T+1 Data:** Some data (DP levels, prints) is T+1 (available next day). Handle this gracefully in the UI.
+
+5. **Signal Format:** Existing signals use `LiveSignal` dataclass. Convert to JSON for API responses.
+
+6. **Alert Format:** Existing alerts use `CheckerAlert` dataclass. Convert to JSON for WebSocket.
+
+7. **Error Handling:** Existing code has extensive error handling. Don't break it - wrap it.
+
+---
+
+### **📚 Code Examples: Complete Integration**
+
+**Example 1: Market Data Endpoint**
+```python
+# backend/app/api/v1/market.py
+
+from fastapi import APIRouter, HTTPException
+from live_monitoring.core.data_fetcher import DataFetcher
+from live_monitoring.core.regime_detector import RegimeDetector
+import yfinance as yf
+
+router = APIRouter()
+
+@router.get("/market/{symbol}/quote")
+async def get_market_quote(symbol: str):
+    """
+    Get real-time market quote with regime detection
+    """
+    try:
+        # Get price data
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period='1d', interval='1m')
+        
+        if hist.empty:
+            raise HTTPException(404, "No data available")
+        
+        latest = hist.iloc[-1]
+        current_price = float(latest['Close'])
+        
+        # Get regime using existing detector
+        regime_detector = RegimeDetector()
+        regime = regime_detector.detect(current_price)
+        
+        # Calculate metrics
+        open_price = float(hist['Open'].iloc[0])
+        change = current_price - open_price
+        change_percent = (change / open_price) * 100
+        
+        return {
+            "symbol": symbol,
+            "price": current_price,
+            "change": change,
+            "change_percent": change_percent,
+            "volume": int(latest['Volume']),
+            "high": float(hist['High'].max()),
+            "low": float(hist['Low'].min()),
+            "open": open_price,
+            "regime": regime,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+```
+
+**Example 2: Signals Endpoint with Caching**
+```python
+# backend/app/api/v1/signals.py
+
+from fastapi import APIRouter, Depends
+from app.core.cache import get_redis
+from live_monitoring.core.signal_generator import SignalGenerator
+from live_monitoring.core.ultra_institutional_engine import UltraInstitutionalEngine
+
+router = APIRouter()
+
+@router.get("/signals")
+async def get_signals(
+    symbol: str = "SPY",
+    redis = Depends(get_redis)
+):
+    """
+    Get all active signals for a symbol (cached 30 seconds)
+    """
+    cache_key = f"signals:{symbol}"
+    
+    # Check cache
+    cached = await redis.get(cache_key)
+    if cached:
+        return json.loads(cached)
+    
+    # Generate signals
+    api_key = os.getenv('CHARTEXCHANGE_API_KEY')
+    inst_engine = UltraInstitutionalEngine(api_key=api_key)
+    signal_gen = SignalGenerator(api_key=api_key)
+    
+    # Build context
+    inst_context = inst_engine.build_context(symbol, date=datetime.now().date())
+    
+    # Generate signals
+    signals = signal_gen.generate_signals(symbol, inst_context)
+    
+    # Format response
+    response = {
+        "symbol": symbol,
+        "signals": [signal_to_dict(s) for s in signals],
+        "count": len(signals),
+        "master_count": sum(1 for s in signals if s.is_master_signal),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    
+    # Cache for 30 seconds
+    await redis.setex(cache_key, 30, json.dumps(response))
+    
+    return response
+```
+
+---
+
+### **🎯 Your Job as Frontend Plumber**
+
+1. **Build the Bridge:** Create FastAPI endpoints that call existing monitor methods
+2. **Format the Data:** Convert existing Python objects to JSON for frontend
+3. **Stream the Alerts:** Intercept existing alerts and broadcast via WebSocket
+4. **Cache Aggressively:** Use Redis to avoid hammering existing APIs
+5. **Don't Break Anything:** Existing monitor must continue running unchanged
 
 ---
 

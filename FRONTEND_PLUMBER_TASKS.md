@@ -7,6 +7,49 @@
 
 ## 📋 MASTER TASK LIST
 
+### Phase 0: Codebase Understanding (BEFORE Phase 1)
+
+**CRITICAL:** Before writing ANY code, you MUST understand the existing backend. This is NOT a greenfield project!
+
+#### 0.1 Study Existing Architecture
+- [ ] **P0-001:** Read `.cursor/rules/alpha-terminal-frontend-plan.mdc` section "EXISTING CODEBASE INTEGRATION"
+- [ ] **P0-002:** Study `live_monitoring/orchestrator/unified_monitor.py` - understand how it orchestrates everything
+- [ ] **P0-003:** Study `live_monitoring/core/signal_generator.py` - understand signal generation logic
+- [ ] **P0-004:** Study `core/data/ultimate_chartexchange_client.py` - understand data source
+- [ ] **P0-005:** Study `live_monitoring/orchestrator/checkers/` - understand all checker types
+- [ ] **P0-006:** Review existing signal types in `live_monitoring/core/lottery_signals.py`
+
+#### 0.2 Understand Data Flow
+- [ ] **P0-007:** Trace how a signal is generated: API → SignalGenerator → Checker → Alert
+- [ ] **P0-008:** Understand how `UnifiedAlphaMonitor` runs (it's already in production!)
+- [ ] **P0-009:** Understand the alert system (`alert_manager.py`) - you'll bridge this
+- [ ] **P0-010:** Review existing WebSocket usage (if any) in the codebase
+
+#### 0.3 Set Up Development Environment
+- [ ] **P0-011:** Clone the repository and set up Python environment
+- [ ] **P0-012:** Install all Python dependencies (`pip install -r requirements.txt`)
+- [ ] **P0-013:** Set up `.env` file with `CHARTEXCHANGE_API_KEY` (get from Alpha)
+- [ ] **P0-014:** Test that you can import and use `UltimateChartExchangeClient`
+- [ ] **P0-015:** Test that you can import and use `SignalGenerator`
+- [ ] **P0-016:** Run existing monitor locally (if possible) to see it in action
+
+#### 0.4 Create Integration Test Scripts
+- [ ] **P0-017:** Create `backend/tests/integration/test_chartexchange_client.py` - test data fetching
+- [ ] **P0-018:** Create `backend/tests/integration/test_signal_generator.py` - test signal generation
+- [ ] **P0-019:** Create `backend/tests/integration/test_monitor_bridge.py` - test bridge pattern
+- [ ] **P0-020:** Document any issues or questions in `INTEGRATION_NOTES.md`
+
+**Acceptance Criteria:**
+- ✅ You can successfully import and use all key classes
+- ✅ You understand the data flow from API → Signal → Alert
+- ✅ You know which classes to use for each widget
+- ✅ You've tested data fetching with real API keys
+- ✅ You've created at least 3 integration test scripts
+
+**Time Estimate:** 2-3 days (before starting Phase 1)
+
+---
+
 ### Phase 1: Foundation (Week 1-2)
 
 #### 1.1 Project Setup
@@ -56,12 +99,22 @@
 - [ ] **P1-013:** Create dashboard layout (`app/(dashboard)/layout.tsx`)
 
 #### 1.4 Backend API Setup
-- [ ] **P1-014:** Initialize FastAPI project structure (see MDC)
-- [ ] **P1-015:** Set up PostgreSQL with TimescaleDB
-- [ ] **P1-016:** Set up Redis (Upstash or local)
-- [ ] **P1-017:** Create database models and migrations
-- [ ] **P1-018:** Implement basic health check endpoint
-- [ ] **P1-019:** Set up CORS and security middleware
+- [ ] **P1-014:** Initialize FastAPI project structure (see MDC section "Backend API Layer")
+- [ ] **P1-015:** Create `app/integrations/unified_monitor_bridge.py` - bridge to existing monitor
+  - Reference: MDC section "Key Classes You'll Interact With" → MonitorBridge example
+- [ ] **P1-016:** Create `app/core/data_formatters.py` - convert Python objects to JSON
+  - Functions: `signal_to_dict()`, `level_to_dict()`, `alert_to_dict()`
+- [ ] **P1-017:** Set up PostgreSQL with TimescaleDB
+- [ ] **P1-018:** Set up Redis (Upstash or local) for caching
+- [ ] **P1-019:** Create database models and migrations (see MDC "Database Schema")
+- [ ] **P1-020:** Implement basic health check endpoint
+- [ ] **P1-021:** Set up CORS and security middleware
+- [ ] **P1-022:** Create first API endpoint: `GET /api/market/{symbol}/quote`
+  - Reference: MDC "Code Examples" → Market Data Endpoint
+  - Use existing `RegimeDetector` and `yfinance`
+- [ ] **P1-023:** Create second API endpoint: `GET /api/signals`
+  - Reference: MDC "Code Examples" → Signals Endpoint with Caching
+  - Use existing `SignalGenerator` and `UltraInstitutionalEngine`
 
 ---
 
@@ -111,13 +164,19 @@
 
 #### 2.4 WebSocket Infrastructure
 - [ ] **P2-026:** Create `ConnectionManager` class (backend)
+  - Reference: MDC "WebSocket Integration Pattern" → UnifiedWebSocketManager
 - [ ] **P2-027:** Implement Redis pub/sub for scaling
-- [ ] **P2-028:** Create `useWebSocket` hook (frontend)
-- [ ] **P2-029:** Implement channel subscription system
-- [ ] **P2-030:** Add reconnection logic with exponential backoff
-- [ ] **P2-031:** Create connection status indicator
-- [ ] **P2-032:** **WS:** `/ws/market/{symbol}` - price stream
-- [ ] **P2-033:** **WS:** `/ws/signals` - signal stream
+- [ ] **P2-028:** Create `UnifiedWebSocketManager` that intercepts monitor alerts
+  - Reference: MDC "WebSocket Integration Pattern" → Backend example
+  - Hook into `alert_manager.send_discord` to broadcast via WebSocket
+- [ ] **P2-029:** Create `useUnifiedWebSocket` hook (frontend)
+  - Reference: MDC "WebSocket Integration Pattern" → Frontend example
+- [ ] **P2-030:** Implement channel subscription system
+- [ ] **P2-031:** Add reconnection logic with exponential backoff
+- [ ] **P2-032:** Create connection status indicator
+- [ ] **P2-033:** **WS:** `/ws/unified` - unified stream (all alerts)
+- [ ] **P2-034:** **WS:** `/ws/market/{symbol}` - price stream
+- [ ] **P2-035:** **WS:** `/ws/signals` - signal stream
 
 ---
 
