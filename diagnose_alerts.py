@@ -1,126 +1,117 @@
 #!/usr/bin/env python3
 """
-Quick diagnostic to check why no alerts are being sent
+Diagnostic script to check why alerts aren't firing to Discord
 """
 
 import os
 import sys
-from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
+# Load environment
 load_dotenv()
 
-print("=" * 70)
-print("🔍 ALERT SYSTEM DIAGNOSTIC")
-print("=" * 70)
+print("🔍 DIAGNOSING ALERT SYSTEM")
+print("=" * 60)
 
-# 1. Check if script is running
-print("\n1️⃣ CHECKING IF SCRIPT IS RUNNING...")
-import subprocess
-result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
-if 'run_all_monitors.py' in result.stdout:
-    print("   ✅ Script is running")
-    for line in result.stdout.split('\n'):
-        if 'run_all_monitors.py' in line:
-            print(f"   📋 {line[:100]}")
+# Check 1: Discord Webhook
+discord_webhook = os.getenv('DISCORD_WEBHOOK_URL')
+if discord_webhook:
+    print(f"✅ DISCORD_WEBHOOK_URL is set: {discord_webhook[:20]}...")
 else:
-    print("   ❌ Script is NOT running!")
-    print("   💡 Run: python3 run_all_monitors.py")
+    print("❌ DISCORD_WEBHOOK_URL is NOT set!")
+    print("   This is why alerts aren't being sent to Discord!")
 
-# 2. Check Discord webhook
-print("\n2️⃣ CHECKING DISCORD WEBHOOK...")
-webhook = os.getenv('DISCORD_WEBHOOK_URL')
-if webhook:
-    print(f"   ✅ Webhook is set: {webhook[:30]}...")
-else:
-    print("   ❌ DISCORD_WEBHOOK_URL not set!")
-
-# 3. Check market hours
-print("\n3️⃣ CHECKING MARKET HOURS...")
-now = datetime.now()
-is_market_hours = 9 <= now.hour < 16 and now.weekday() < 5
-print(f"   Current time: {now.strftime('%Y-%m-%d %H:%M:%S')}")
-print(f"   Market hours: {'✅ YES' if is_market_hours else '❌ NO (market closed)'}")
-
-# 4. Check current prices
-print("\n4️⃣ CHECKING CURRENT PRICES...")
+# Check 2: Test AlertManager
+print("\n📦 Testing AlertManager...")
 try:
-    import yfinance as yf
-    for symbol in ['SPY', 'QQQ']:
-        try:
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(period='1d', interval='1m')
-            if not hist.empty:
-                price = float(hist['Close'].iloc[-1])
-                print(f"   {symbol}: ${price:.2f}")
-            else:
-                print(f"   {symbol}: ❌ No data")
-        except Exception as e:
-            print(f"   {symbol}: ❌ Error - {e}")
-except ImportError:
-    print("   ❌ yfinance not installed")
-
-# 5. Check DP levels proximity
-print("\n5️⃣ CHECKING DP LEVELS PROXIMITY...")
-try:
-    from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
+    from live_monitoring.orchestrator.alert_manager import AlertManager
     
-    api_key = os.getenv('CHARTEXCHANGE_API_KEY')
-    if not api_key:
-        print("   ❌ CHARTEXCHANGE_API_KEY not set!")
+    alert_mgr = AlertManager()
+    print(f"   AlertManager initialized")
+    print(f"   Discord webhook: {'✅ Set' if alert_mgr.discord_webhook else '❌ NOT SET'}")
+    
+    # Test sending an alert
+    test_embed = {
+        "title": "🧪 TEST ALERT",
+        "description": "This is a test alert to verify Discord integration",
+        "color": 3066993,
+        "timestamp": "2024-12-18T00:00:00Z"
+    }
+    
+    print("\n📤 Attempting to send test alert...")
+    result = alert_mgr.send_discord(test_embed, "🧪 TEST ALERT - If you see this, Discord is working!", "test", "diagnostic")
+    
+    if result:
+        print("   ✅ Test alert sent successfully!")
     else:
-        client = UltimateChartExchangeClient(api_key)
-        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        print("   ❌ Test alert failed to send")
+        if not alert_mgr.discord_webhook:
+            print("   ⚠️  Reason: DISCORD_WEBHOOK_URL not configured")
         
-        for symbol in ['SPY', 'QQQ']:
-            try:
-                ticker = yf.Ticker(symbol)
-                hist = ticker.history(period='1d', interval='1m')
-                if hist.empty:
-                    continue
-                current_price = float(hist['Close'].iloc[-1])
-                
-                dp_levels = client.get_dark_pool_levels(symbol, yesterday)
-                if dp_levels:
-                    print(f"   {symbol} @ ${current_price:.2f}:")
-                    for level in dp_levels[:5]:
-                        level_price = float(level.get('level', 0))
-                        distance_pct = abs(current_price - level_price) / level_price * 100
-                        volume = int(level.get('volume', 0))
-                        status = "✅ CLOSE" if distance_pct <= 0.5 else "⚠️ FAR"
-                        print(f"      {status} - ${level_price:.2f} ({distance_pct:.2f}% away, {volume:,} shares)")
-                else:
-                    print(f"   {symbol}: ❌ No DP levels found")
-            except Exception as e:
-                print(f"   {symbol}: ❌ Error - {e}")
 except Exception as e:
-    print(f"   ❌ DP check error: {e}")
+    print(f"   ❌ Error testing AlertManager: {e}")
+    import traceback
+    traceback.print_exc()
 
-# 6. Check recent alerts buffer
-print("\n6️⃣ CHECKING ALERT SYSTEM STATUS...")
-print("   💡 If script is running, check logs for:")
-print("      - 'No DP alerts triggered' = Price not close enough to battlegrounds")
-print("      - 'Synthesis: X% Y' (no alert needed) = Threshold not met")
-print("      - 'UNIFIED MODE: ENABLED' = Individual alerts suppressed")
+# Check 3: Check if checkers are generating alerts
+print("\n🔍 Checking if checkers are generating alerts...")
+try:
+    from live_monitoring.orchestrator.unified_monitor import UnifiedAlphaMonitor
+    
+    print("   Initializing UnifiedAlphaMonitor...")
+    monitor = UnifiedAlphaMonitor()
+    
+    print(f"   Fed checker: {'✅ Enabled' if monitor.fed_checker else '❌ Disabled'}")
+    print(f"   Trump checker: {'✅ Enabled' if monitor.trump_checker else '❌ Disabled'}")
+    print(f"   DP checker: {'✅ Enabled' if monitor.dp_checker else '❌ Disabled'}")
+    print(f"   Gamma checker: {'✅ Enabled' if monitor.gamma_checker else '❌ Disabled'}")
+    
+    # Test Fed checker
+    if monitor.fed_checker:
+        print("\n   Testing Fed checker...")
+        alerts = monitor.fed_checker.check()
+        print(f"   Fed checker generated {len(alerts)} alerts")
+        if alerts:
+            for alert in alerts:
+                print(f"      - {alert.alert_type} from {alert.source}")
+        else:
+            print("      ⚠️  No alerts generated (might be normal if no changes)")
+    
+    # Test Trump checker
+    if monitor.trump_checker:
+        print("\n   Testing Trump checker...")
+        alerts = monitor.trump_checker.check()
+        print(f"   Trump checker generated {len(alerts)} alerts")
+        if alerts:
+            for alert in alerts:
+                print(f"      - {alert.alert_type} from {alert.source}")
+        else:
+            print("      ⚠️  No alerts generated (might be normal if no new Trump news)")
+    
+except Exception as e:
+    print(f"   ❌ Error checking checkers: {e}")
+    import traceback
+    traceback.print_exc()
 
-# 7. Recommendations
-print("\n" + "=" * 70)
-print("💡 RECOMMENDATIONS:")
-print("=" * 70)
+# Check 4: Environment variables
+print("\n🔑 Environment Variables Check:")
+env_vars = [
+    'DISCORD_WEBHOOK_URL',
+    'CHARTEXCHANGE_API_KEY',
+    'PERPLEXITY_API_KEY',
+]
 
-if not webhook:
-    print("   ❌ Set DISCORD_WEBHOOK_URL in .env file")
-if 'run_all_monitors.py' not in result.stdout:
-    print("   ❌ Start the monitoring script: python3 run_all_monitors.py")
-if not is_market_hours:
-    print("   ⚠️  Market is closed - alerts only fire during market hours (9:30 AM - 4:00 PM ET)")
-else:
-    print("   ✅ Market is open - alerts should fire if conditions are met")
-    print("   💡 If still no alerts:")
-    print("      - Price may not be close enough to DP battlegrounds (<0.5%)")
-    print("      - Synthesis threshold may not be met (need confluence)")
-    print("      - Check logs for 'No DP alerts triggered' messages")
+for var in env_vars:
+    value = os.getenv(var)
+    if value:
+        print(f"   ✅ {var}: {'*' * 20} (set)")
+    else:
+        print(f"   ❌ {var}: NOT SET")
 
-print("\n" + "=" * 70)
-
-
+print("\n" + "=" * 60)
+print("✅ DIAGNOSIS COMPLETE")
+print("\n💡 RECOMMENDATIONS:")
+if not discord_webhook:
+    print("   1. Set DISCORD_WEBHOOK_URL in .env file")
+    print("   2. Restart the monitor")
+    print("   3. Check Render environment variables if deployed")

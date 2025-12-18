@@ -111,6 +111,8 @@ class AlertManager:
     
     def send_discord(self, embed: dict, content: str = None, alert_type: str = "general", source: str = "monitor", symbol: str = None) -> bool:
         """Send Discord notification and log to database with deduplication."""
+        logger.info(f"📤 AlertManager.send_discord called: type={alert_type}, source={source}, symbol={symbol}")
+        
         alert_hash = self._generate_alert_hash(embed, content, alert_type, source, symbol)
         
         # Check if we've sent this alert recently
@@ -135,17 +137,21 @@ class AlertManager:
         
         if not self.discord_webhook:
             logger.warning("   ⚠️ DISCORD_WEBHOOK_URL not set! (Alert logged to database)")
+            logger.warning(f"   Webhook value: {self.discord_webhook}")
             return False
+        
+        logger.info(f"   📤 Sending to Discord webhook: {self.discord_webhook[:30]}...")
         
         try:
             payload = {"embeds": [embed]}
             if content:
                 payload["content"] = content
             
+            logger.info(f"   📦 Payload size: {len(str(payload))} chars")
             response = requests.post(self.discord_webhook, json=payload, timeout=10)
             
             if response.status_code in [200, 204]:
-                logger.debug(f"   ✅ Discord sent successfully (status: {response.status_code})")
+                logger.info(f"   ✅ Discord sent successfully (status: {response.status_code})")
                 return True
             else:
                 logger.error(f"   ❌ Discord returned status {response.status_code}: {response.text[:200]} (Alert logged to database)")

@@ -624,9 +624,13 @@ class UnifiedAlphaMonitor:
     
     def send_startup_alert(self):
         """Send startup notification."""
+        logger.info("   📤 send_startup_alert() called")
+        
         if self.startup_alert_sent:
+            logger.info("   ⏭️ Startup alert already sent, skipping")
             return
         
+        logger.info("   📝 Building startup embed...")
         embed = {
             "title": "🎯 ALPHA INTELLIGENCE - ONLINE (MODULAR)",
             "color": 3066993,
@@ -660,8 +664,11 @@ class UnifiedAlphaMonitor:
             "timestamp": datetime.utcnow().isoformat()
         }
         
-        self.send_discord(embed, alert_type="startup", source="monitor")
+        logger.info("   📤 Calling send_discord for startup alert...")
+        result = self.send_discord(embed, alert_type="startup", source="monitor")
+        logger.info(f"   {'✅' if result else '❌'} send_discord returned: {result}")
         self.startup_alert_sent = True
+        logger.info("   ✅ Startup alert marked as sent")
     
     # NOTE: All old checker methods removed - now handled by modular checker classes:
     # - FedChecker, TrumpChecker, EconomicChecker
@@ -1268,7 +1275,15 @@ class UnifiedAlphaMonitor:
         """Main run loop."""
         logger.info("🚀 Starting unified monitoring (MODULAR)...")
         
-        self.send_startup_alert()
+        # Send startup alert with explicit logging
+        logger.info("📤 Attempting to send startup alert to Discord...")
+        try:
+            self.send_startup_alert()
+            logger.info("✅ Startup alert method completed")
+        except Exception as e:
+            logger.error(f"❌ Startup alert failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
         
         now = datetime.now()
         self.last_fed_check = now
