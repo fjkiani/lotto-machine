@@ -91,20 +91,48 @@ discord_bot = None
 
 
 def run_monitors():
-    """Run the unified monitor in background thread."""
+    """Run the unified monitor in background thread with auto-restart."""
     global monitor
     
-    try:
-        from run_all_monitors import UnifiedAlphaMonitor
+    restart_count = 0
+    max_restarts = 100  # Max restarts before giving up
+    
+    while restart_count < max_restarts:
+        try:
+            from run_all_monitors import UnifiedAlphaMonitor
+            
+            logger.info(f"🚀 Starting Unified Alpha Monitor... (attempt {restart_count + 1})")
+            monitor = UnifiedAlphaMonitor()
+            monitor.run()
+            
+            # If run() exits normally (shouldn't happen), log it
+            logger.warning("⚠️ Monitor.run() exited normally - this shouldn't happen!")
+            
+        except Exception as e:
+            logger.error(f"❌ Monitor crashed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            
+            # Send crash notification to Discord
+            try:
+                import requests
+                webhook = os.getenv('DISCORD_WEBHOOK_URL')
+                if webhook:
+                    crash_embed = {
+                        "title": "🚨 MONITOR CRASHED - AUTO-RESTARTING",
+                        "color": 0xFF0000,
+                        "description": f"**Error:** {str(e)[:500]}\n**Restart attempt:** {restart_count + 1}",
+                        "footer": {"text": "Auto-restart in 30 seconds..."}
+                    }
+                    requests.post(webhook, json={"embeds": [crash_embed]}, timeout=10)
+            except:
+                pass
         
-        logger.info("🚀 Starting Unified Alpha Monitor...")
-        monitor = UnifiedAlphaMonitor()
-        monitor.run()
-        
-    except Exception as e:
-        logger.error(f"❌ Monitor error: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
+        restart_count += 1
+        logger.info(f"🔄 Restarting monitor in 30 seconds... (attempt {restart_count}/{max_restarts})")
+        time.sleep(30)  # Wait before restart
+    
+    logger.error(f"❌ Monitor failed after {max_restarts} restart attempts. Giving up.")
 
 
 def self_ping():
@@ -126,6 +154,35 @@ def self_ping():
                 logger.warning(f"⚠️ Self-ping returned {response.status_code}")
         except Exception as e:
             logger.debug(f"Self-ping error: {e}")
+
+
+def watchdog():
+    """
+    Watchdog thread to monitor the health of the monitor thread.
+    If monitor.run() stops, this will detect it and log warnings.
+    """
+    global monitor
+    
+    # Wait for monitor to initialize
+    time.sleep(60)
+    
+    while True:
+        try:
+            time.sleep(300)  # Check every 5 minutes
+            
+            if monitor is None:
+                logger.warning("⚠️ WATCHDOG: Monitor object is None!")
+            elif not getattr(monitor, 'running', False):
+                logger.warning("⚠️ WATCHDOG: Monitor.running is False!")
+            else:
+                # Check last heartbeat
+                import pytz
+                et = pytz.timezone('America/New_York')
+                now_et = datetime.now(pytz.UTC).astimezone(et)
+                logger.info(f"🐕 WATCHDOG: Monitor alive | ET: {now_et.strftime('%Y-%m-%d %H:%M:%S')} | running={monitor.running}")
+                
+        except Exception as e:
+            logger.error(f"❌ WATCHDOG error: {e}")
 
 
 def run_discord_bot():
@@ -713,6 +770,11 @@ def main():
     ping_thread = threading.Thread(target=self_ping, daemon=True)
     ping_thread.start()
     logger.info("   ✅ Self-ping thread started (pings every 10 min)")
+    
+    # Start watchdog thread (monitors monitor health)
+    watchdog_thread = threading.Thread(target=watchdog, daemon=True)
+    watchdog_thread.start()
+    logger.info("   ✅ Watchdog thread started (checks every 5 min)")
 
     # Start Discord bot thread
     if discord_available:
