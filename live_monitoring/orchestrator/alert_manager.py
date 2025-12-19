@@ -135,6 +135,9 @@ class AlertManager:
         # Always log to database first
         self._log_alert_to_database(alert_type, embed, content, source, symbol)
         
+        # Publish to WebSocket (non-blocking, optional)
+        self._publish_to_websocket(embed, content, alert_type, source, symbol)
+        
         if not self.discord_webhook:
             logger.warning("   ⚠️ DISCORD_WEBHOOK_URL not set! (Alert logged to database)")
             logger.warning(f"   Webhook value: {self.discord_webhook}")
@@ -165,4 +168,22 @@ class AlertManager:
             import traceback
             logger.debug(traceback.format_exc())
             return False
+    
+    def _publish_to_websocket(self, embed: dict, content: str = None, alert_type: str = "general", source: str = "monitor", symbol: str = None):
+        """
+        Publish alert to WebSocket (non-blocking, optional).
+        
+        This is a fire-and-forget operation that won't break
+        existing functionality if WebSocket is unavailable.
+        """
+        try:
+            # Try to import WebSocket bridge (may not be available)
+            from backend.app.integrations.alert_websocket_bridge import publish_alert_to_websocket_sync
+            publish_alert_to_websocket_sync(embed, content, alert_type, source, symbol)
+        except ImportError:
+            # WebSocket bridge not available - this is OK
+            pass
+        except Exception as e:
+            # Log but don't fail - WebSocket is optional
+            logger.debug(f"   ⚠️ WebSocket publish failed (non-critical): {e}")
 
