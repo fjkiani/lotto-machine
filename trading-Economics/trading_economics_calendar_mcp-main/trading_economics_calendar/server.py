@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from fastmcp import FastMCP
-from .client import TradingEconomicsClient, fetch_calendar_events
+from .enhanced_client import EnhancedTradingEconomicsClient, fetch_calendar_events_enhanced
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,7 +42,8 @@ async def get_economic_events(
         List of economic events with details like country, event name, actual/forecast values
     """
     try:
-        events = await fetch_calendar_events(
+        # Use enhanced API client instead of broken HTML scraper
+        events = await fetch_calendar_events_enhanced(
             countries=countries,
             importance=importance,
             start_date=start_date,
@@ -74,7 +75,7 @@ async def get_today_economic_events(
         from datetime import datetime
         today = datetime.now().strftime('%Y-%m-%d')
         
-        events = await fetch_calendar_events(
+        events = await fetch_calendar_events_enhanced(
             countries=countries,
             importance=importance,
             start_date=today,
@@ -106,7 +107,7 @@ async def get_week_economic_events(
         today = datetime.now()
         week_end = today + timedelta(days=7)
         
-        events = await fetch_calendar_events(
+        events = await fetch_calendar_events_enhanced(
             countries=countries,
             importance=importance,
             start_date=today.strftime('%Y-%m-%d'),
@@ -127,7 +128,7 @@ async def get_major_countries() -> Dict[str, str]:
         Dictionary mapping country codes to country names
     """
     try:
-        client = TradingEconomicsClient()
+        client = EnhancedTradingEconomicsClient()
         return client.get_major_countries()
     except Exception as e:
         logger.error(f"Error getting major countries: {e}")
@@ -143,7 +144,7 @@ async def get_importance_levels() -> Dict[str, int]:
         Dictionary mapping importance names to numeric levels
     """
     try:
-        client = TradingEconomicsClient()
+        client = EnhancedTradingEconomicsClient()
         return client.get_importance_levels()
     except Exception as e:
         logger.error(f"Error getting importance levels: {e}")
@@ -168,7 +169,7 @@ async def get_high_impact_events(
         List of high-impact economic events
     """
     try:
-        events = await fetch_calendar_events(
+        events = await fetch_calendar_events_enhanced(
             countries=countries,
             importance="high",
             start_date=start_date,
@@ -200,7 +201,7 @@ async def get_events_by_country(
         List of economic events for the specified country
     """
     try:
-        events = await fetch_calendar_events(
+        events = await fetch_calendar_events_enhanced(
             countries=[country],
             importance=importance,
             start_date=start_date,

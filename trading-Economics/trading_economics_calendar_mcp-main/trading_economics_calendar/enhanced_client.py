@@ -137,18 +137,9 @@ class EnhancedTradingEconomicsClient:
                 elif isinstance(importance, (int, str)) and str(importance) in ['1', '2', '3']:
                     params['importance'] = str(importance)
             
-            # Country filtering
-            if countries:
-                # Normalize country names
-                country_list = []
-                for country in countries:
-                    normalized = country.lower().strip()
-                    # Try to map to standard name
-                    mapped = self.COUNTRY_MAPPING.get(normalized, normalized)
-                    country_list.append(mapped)
-                
-                # API accepts comma-separated countries
-                params['countries'] = ','.join(country_list)
+            # NOTE: API country filtering is BROKEN - it ignores the parameter
+            # We'll do client-side filtering instead to get more events
+            # Don't add countries to params - fetch all events and filter client-side
             
             # Category filtering (if supported)
             if category:
@@ -170,6 +161,36 @@ class EnhancedTradingEconomicsClient:
                 normalized = self._normalize_event(event)
                 if normalized:
                     normalized_events.append(normalized)
+            
+            # CLIENT-SIDE FILTERING: API country filter is broken, filter manually
+            if countries:
+                filtered_events = []
+                country_names_lower = [c.lower().strip() for c in countries]
+                
+                for event in normalized_events:
+                    event_country = event.get('country', '').lower()
+                    # Check if event country matches any requested country
+                    matches = False
+                    for req_country in country_names_lower:
+                        # Direct match
+                        if req_country == event_country:
+                            matches = True
+                            break
+                        # Check if mapped country matches
+                        mapped = self.COUNTRY_MAPPING.get(req_country, req_country)
+                        if mapped.lower() == event_country:
+                            matches = True
+                            break
+                        # Check if country code matches (e.g., "US" in "United States")
+                        if req_country in event_country or event_country in req_country:
+                            matches = True
+                            break
+                    
+                    if matches:
+                        filtered_events.append(event)
+                
+                normalized_events = filtered_events
+                logger.debug(f"Client-side filtered to {len(normalized_events)} events matching countries: {countries}")
             
             logger.info(f"Fetched {len(normalized_events)} events from API")
             return normalized_events
