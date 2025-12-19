@@ -20,8 +20,18 @@ import pandas as pd
 # Add parent paths
 base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, base_path)
+sys.path.insert(0, os.path.join(base_path, 'backtesting', 'config'))
 
-from ..config.trading_params import TradingParams
+# Try to import TradingParams, fallback to defaults if not found
+try:
+    from trading_params import TradingParams
+except ImportError:
+    # Create a simple fallback
+    class TradingParams:
+        def __init__(self):
+            self.min_gap_pct = 0.3
+            self.stop_loss_pct = 0.5
+            self.target_pct = 1.0
 
 
 @dataclass
@@ -80,11 +90,15 @@ class OptionsFlowBacktester:
             if calls.empty or puts.empty:
                 return None
             
-            # Calculate metrics
-            total_call_volume = int(calls['volume'].sum())
-            total_put_volume = int(puts['volume'].sum())
-            total_call_oi = int(calls['openInterest'].sum())
-            total_put_oi = int(puts['openInterest'].sum())
+            # Calculate metrics (handle NaN values)
+            total_call_volume = int(calls['volume'].fillna(0).sum())
+            total_put_volume = int(puts['volume'].fillna(0).sum())
+            total_call_oi = int(calls['openInterest'].fillna(0).sum())
+            total_put_oi = int(puts['openInterest'].fillna(0).sum())
+            
+            # Skip if no volume data
+            if total_call_volume == 0 and total_put_volume == 0:
+                return None
             
             # Put/Call ratio
             pc_ratio = total_put_volume / total_call_volume if total_call_volume > 0 else 1.0
@@ -105,14 +119,16 @@ class OptionsFlowBacktester:
                 # Pain for calls (if price > strike, call holders profit)
                 call_row = calls[calls['strike'] == strike]
                 if not call_row.empty:
-                    call_oi = int(call_row['openInterest'].iloc[0])
+                    call_oi_val = call_row['openInterest'].iloc[0]
+                    call_oi = int(call_oi_val) if pd.notna(call_oi_val) else 0
                     if current_price > strike:
                         call_pain = (current_price - strike) * call_oi * 100
                 
                 # Pain for puts (if price < strike, put holders profit)
                 put_row = puts[puts['strike'] == strike]
                 if not put_row.empty:
-                    put_oi = int(put_row['openInterest'].iloc[0])
+                    put_oi_val = put_row['openInterest'].iloc[0]
+                    put_oi = int(put_oi_val) if pd.notna(put_oi_val) else 0
                     if current_price < strike:
                         put_pain = (strike - current_price) * put_oi * 100
                 

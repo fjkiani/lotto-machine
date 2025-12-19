@@ -21,8 +21,18 @@ base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 sys.path.insert(0, base_path)
 sys.path.insert(0, os.path.join(base_path, 'core', 'data'))
 sys.path.insert(0, os.path.join(base_path, 'live_monitoring', 'strategies'))
+sys.path.insert(0, os.path.join(base_path, 'backtesting', 'config'))
 
-from ..config.trading_params import TradingParams
+# Try to import TradingParams, fallback to defaults if not found
+try:
+    from trading_params import TradingParams
+except ImportError:
+    # Create a simple fallback
+    class TradingParams:
+        def __init__(self):
+            self.min_gap_pct = 0.3
+            self.stop_loss_pct = 0.5
+            self.target_pct = 1.0
 
 
 @dataclass
