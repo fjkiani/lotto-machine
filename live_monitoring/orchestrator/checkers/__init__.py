@@ -16,7 +16,8 @@ Each checker handles a single responsibility:
 - DailyRecapChecker: Daily market recap
 - RedditChecker: Reddit sentiment (Phase 5)
 - PreMarketGapChecker: Pre-market gap analysis (Phase 6)
-- OptionsFlowChecker: Options flow analysis (Phase 6)
+- OptionsFlowChecker: Options flow analysis (Phase 6 - RapidAPI)
+- NewsIntelligenceChecker: News intelligence (Phase 6 - RapidAPI)
 """
 
 from .base_checker import BaseChecker, CheckerAlert
@@ -35,6 +36,7 @@ from .daily_recap_checker import DailyRecapChecker
 from .reddit_checker import RedditChecker
 from .premarket_gap_checker import PreMarketGapChecker
 from .options_flow_checker import OptionsFlowChecker
+from .news_intelligence_checker import NewsIntelligenceChecker
 
 __all__ = [
     'BaseChecker',
@@ -54,5 +56,6 @@ __all__ = [
     'RedditChecker',
     'PreMarketGapChecker',
     'OptionsFlowChecker',
+    'NewsIntelligenceChecker',
 ]
 

@@ -39,6 +39,7 @@ from .checkers import (
     RedditChecker,
     PreMarketGapChecker,
     OptionsFlowChecker,
+    NewsIntelligenceChecker,
 )
 
 logger = logging.getLogger(__name__)
@@ -450,14 +451,22 @@ class UnifiedAlphaMonitor:
             unified_mode=self.unified_mode
         )
         
-        # Options Flow Checker (Phase 6)
+        # Options Flow Checker (Phase 6 - RapidAPI)
+        rapidapi_key = os.getenv('YAHOO_RAPIDAPI_KEY')
         self.options_flow_checker = OptionsFlowChecker(
             alert_manager=self.alert_manager,
-            api_key=api_key,
+            api_key=rapidapi_key,
             unified_mode=self.unified_mode
         )
         
-        logger.info("   ✅ All checkers initialized (including Phase 6: PreMarketGap, OptionsFlow)")
+        # News Intelligence Checker (Phase 6 - RapidAPI)
+        self.news_intelligence_checker = NewsIntelligenceChecker(
+            alert_manager=self.alert_manager,
+            api_key=rapidapi_key,
+            unified_mode=self.unified_mode
+        )
+        
+        logger.info("   ✅ All checkers initialized (including Phase 6: PreMarketGap, OptionsFlow, NewsIntelligence)")
     
     # ═══════════════════════════════════════════════════════════════
     # ALERT METHODS (delegate to AlertManager)
@@ -1316,7 +1325,9 @@ class UnifiedAlphaMonitor:
         self.last_reddit_check = now
         self.last_premarket_gap_check = None  # Run immediately on first check
         self.last_options_flow_check = None  # Run immediately on first check
+        self.last_news_intelligence_check = None  # Run immediately on first check
         self.gamma_interval = 1800  # Check gamma every 30 min (was hourly)
+        self.news_intelligence_interval = 900  # Check news every 15 min
         
         # Heartbeat tracking
         last_heartbeat = datetime.now()
@@ -1455,15 +1466,22 @@ class UnifiedAlphaMonitor:
                 if self.premarket_gap_checker and (self.last_premarket_gap_check is None or (now - self.last_premarket_gap_check).seconds >= self.premarket_gap_interval):
                     alerts = self.premarket_gap_checker.check()
                     for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert_type="premarket_gap", source="premarket_gap_checker", symbol=alert.fields.get("Symbol", ""))
+                        self.send_discord(alert.embed, alert.content, alert_type="premarket_gap", source="premarket_gap_checker", symbol=alert.symbol or "")
                     self.last_premarket_gap_check = now
                 
                 # Options Flow Checker (Phase 6) - Runs during RTH every 30 min
                 if is_market_hours and self.options_flow_checker and (self.last_options_flow_check is None or (now - self.last_options_flow_check).seconds >= self.options_flow_interval):
                     alerts = self.options_flow_checker.check()
                     for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert_type="options_flow", source="options_flow_checker", symbol=alert.fields.get("Symbol", ""))
+                        self.send_discord(alert.embed, alert.content, alert_type="options_flow", source="options_flow_checker", symbol=alert.symbol or "")
                     self.last_options_flow_check = now
+                
+                # News Intelligence Checker (Phase 6) - Runs during RTH every 15 min
+                if is_market_hours and self.news_intelligence_checker and (self.last_news_intelligence_check is None or (now - self.last_news_intelligence_check).seconds >= self.news_intelligence_interval):
+                    alerts = self.news_intelligence_checker.check()
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert_type="news_intelligence", source="news_intelligence_checker", symbol=alert.symbol or "")
+                    self.last_news_intelligence_check = now
                 
                 # 🚨 MOMENTUM: Selloff/Rally Detection (every minute during RTH)
                 if is_market_hours and (self.last_dp_check is None or (now - self.last_dp_check).seconds >= 60):

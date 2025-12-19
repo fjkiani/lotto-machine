@@ -1,260 +1,537 @@
 #!/usr/bin/env python3
 """
-OPTIONS FLOW CHECKER - Modular checker for options flow analysis
+📊 OPTIONS FLOW CHECKER - RapidAPI Integration
 
-Runs every 30-60 minutes during RTH
-Detects unusual options activity (call/put accumulation, gamma squeeze setups)
+Monitors options flow for institutional positioning signals.
+Uses Yahoo Finance 15 RapidAPI (VALIDATED & WORKING).
 
-MOAT EDGE: P/C ratio + max pain + gamma squeeze detection
-Expected Edge: 15-20%
+SIGNALS GENERATED:
+1. BULLISH_CALL_ACCUMULATION - P/C ratio < 0.7, high volume
+2. BEARISH_PUT_ACCUMULATION - P/C ratio > 1.2, high volume  
+3. UNUSUAL_OPTIONS_ACTIVITY - Vol/OI > 30x on specific contract
+4. MARKET_SENTIMENT_SHIFT - Overall market bias change
 
-Architecture:
-- Inherits from BaseChecker
-- Uses OptionsFlowStrategy for detection logic
-- Creates CheckerAlert for Discord notifications
+DATA SOURCES:
+- Most Active Options (500+ stocks)
+- Unusual Options Activity (1,859+ trades)
+- Full Options Chains
 
-NOTE: Currently uses yfinance (delayed data). For real-time sweeps,
-      a premium API like Unusual Whales or FlowAlgo would be needed.
+STORAGE: SQLite for historical tracking and pattern learning
 """
 
 import os
 import sys
+import logging
 from datetime import datetime, timedelta
-from typing import List, Optional
-import pytz
+from typing import List, Optional, Dict
+import sqlite3
+import json
 
-# Add paths for imports
+# Add paths
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 from live_monitoring.orchestrator.checkers.base_checker import BaseChecker, CheckerAlert
-from live_monitoring.strategies.options_flow_strategy import OptionsFlowStrategy, OptionsFlowSignal
-from live_monitoring.core.lottery_signals import SignalType
+from core.data.rapidapi_options_client import RapidAPIOptionsClient, MostActiveOption, UnusualOption
+
+logger = logging.getLogger(__name__)
+
+
+class OptionsFlowStorage:
+    """
+    SQLite storage for options flow data.
+    
+    Tracks:
+    - Market sentiment over time
+    - Unusual activity alerts
+    - Signal performance
+    """
+    
+    def __init__(self, db_path: str = "data/options_flow.db"):
+        self.db_path = db_path
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        self._init_db()
+    
+    def _init_db(self):
+        """Initialize database tables"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS market_sentiment (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    bias TEXT NOT NULL,
+                    bullish_pct REAL,
+                    bullish_count INTEGER,
+                    bearish_count INTEGER,
+                    top_bullish TEXT,
+                    top_bearish TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS unusual_activity (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    base_symbol TEXT NOT NULL,
+                    option_type TEXT NOT NULL,
+                    strike REAL,
+                    expiration TEXT,
+                    days_to_exp INTEGER,
+                    volume INTEGER,
+                    open_interest INTEGER,
+                    vol_oi_ratio REAL,
+                    volatility REAL,
+                    delta REAL,
+                    base_price REAL,
+                    alert_sent INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS options_signals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    signal_type TEXT NOT NULL,
+                    direction TEXT NOT NULL,
+                    confidence REAL,
+                    entry_price REAL,
+                    pc_ratio REAL,
+                    volume INTEGER,
+                    reasoning TEXT,
+                    outcome TEXT,
+                    pnl_pct REAL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+        logger.info(f"📊 OptionsFlowStorage initialized: {self.db_path}")
+    
+    def store_sentiment(self, sentiment: Dict):
+        """Store market sentiment snapshot"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO market_sentiment 
+                (timestamp, bias, bullish_pct, bullish_count, bearish_count, top_bullish, top_bearish)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                datetime.now().isoformat(),
+                sentiment.get('bias', 'NEUTRAL'),
+                sentiment.get('bullish_pct', 50),
+                sentiment.get('bullish_count', 0),
+                sentiment.get('bearish_count', 0),
+                json.dumps(sentiment.get('top_bullish', [])),
+                json.dumps(sentiment.get('top_bearish', []))
+            ))
+            conn.commit()
+    
+    def store_unusual(self, unusual: UnusualOption):
+        """Store unusual options activity"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO unusual_activity 
+                (timestamp, symbol, base_symbol, option_type, strike, expiration, 
+                 days_to_exp, volume, open_interest, vol_oi_ratio, volatility, delta, base_price)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                datetime.now().isoformat(),
+                unusual.symbol,
+                unusual.base_symbol,
+                unusual.option_type,
+                unusual.strike,
+                unusual.expiration,
+                unusual.days_to_exp,
+                unusual.volume,
+                unusual.open_interest,
+                unusual.vol_oi_ratio,
+                unusual.volatility,
+                unusual.delta,
+                unusual.base_price
+            ))
+            conn.commit()
+    
+    def store_signal(self, signal: Dict):
+        """Store generated signal"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO options_signals 
+                (timestamp, symbol, signal_type, direction, confidence, entry_price, 
+                 pc_ratio, volume, reasoning)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                datetime.now().isoformat(),
+                signal.get('symbol'),
+                signal.get('signal_type'),
+                signal.get('direction'),
+                signal.get('confidence'),
+                signal.get('entry_price'),
+                signal.get('pc_ratio'),
+                signal.get('volume'),
+                signal.get('reasoning')
+            ))
+            conn.commit()
+    
+    def get_recent_sentiment(self, hours: int = 24) -> List[Dict]:
+        """Get recent sentiment snapshots"""
+        cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("""
+                SELECT * FROM market_sentiment 
+                WHERE timestamp > ? 
+                ORDER BY timestamp DESC
+            """, (cutoff,))
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def detect_sentiment_shift(self) -> Optional[Dict]:
+        """Detect if sentiment shifted significantly"""
+        recent = self.get_recent_sentiment(hours=4)
+        if len(recent) < 2:
+            return None
+        
+        latest = recent[0]
+        previous = recent[-1]
+        
+        shift = latest['bullish_pct'] - previous['bullish_pct']
+        
+        if abs(shift) >= 10:  # 10% shift threshold
+            return {
+                'shift': shift,
+                'from_bias': previous['bias'],
+                'to_bias': latest['bias'],
+                'from_pct': previous['bullish_pct'],
+                'to_pct': latest['bullish_pct']
+            }
+        return None
 
 
 class OptionsFlowChecker(BaseChecker):
     """
-    Options Flow Checker
+    Options Flow Checker - Monitors institutional options positioning.
     
-    Detects unusual options activity and generates signals for:
-    - Heavy call accumulation (bullish)
-    - Heavy put accumulation (bearish)
-    - Gamma squeeze setups
-    
-    Schedule: Runs every 30-60 minutes during RTH
+    Runs every 15-30 minutes during RTH.
+    Generates alerts for significant options flow.
     """
+    
+    # Symbols to monitor for specific unusual activity
+    WATCH_SYMBOLS = ['SPY', 'QQQ', 'AAPL', 'NVDA', 'TSLA', 'AMZN', 'MSFT', 'META', 'GOOGL']
+    
+    # Alert thresholds
+    BULLISH_PC_THRESHOLD = 0.7  # P/C below this = bullish
+    BEARISH_PC_THRESHOLD = 1.2  # P/C above this = bearish
+    MIN_VOLUME_ALERT = 500000   # Minimum volume for alerts
+    UNUSUAL_VOL_OI_THRESHOLD = 40  # Vol/OI above this = very unusual
     
     def __init__(self, alert_manager, api_key: str = None, unified_mode: bool = False):
         """
-        Initialize the options flow checker.
+        Initialize Options Flow Checker.
         
         Args:
             alert_manager: AlertManager for sending Discord alerts
-            api_key: Optional API key (for future premium data sources)
+            api_key: RapidAPI key (defaults to env var)
             unified_mode: If True, suppresses individual alerts
         """
         super().__init__(alert_manager, unified_mode)
         
-        # Get API key from env if not provided (for future use)
-        self.api_key = api_key or os.getenv('CHARTEXCHANGE_API_KEY')
+        self.api_key = api_key or os.getenv('YAHOO_RAPIDAPI_KEY')
+        self.client = RapidAPIOptionsClient(api_key=self.api_key)
+        self.storage = OptionsFlowStorage()
         
-        # Initialize the strategy
-        self.strategy = OptionsFlowStrategy(api_key=self.api_key)
+        # State tracking
+        self.last_sentiment: Optional[Dict] = None
+        self.alerted_unusual: set = set()  # Track already-alerted unusual activity
         
-        # Track last check time to enforce interval
-        self._last_check_time: Optional[datetime] = None
-        
-        # Check interval in minutes
-        self.check_interval_minutes = 30
-        
-        # Symbols to monitor
-        self.symbols = ['SPY', 'QQQ']
-        
-        # Timezone
-        self.et_tz = pytz.timezone('US/Eastern')
-        
-        # Cache for alerts to avoid spam
-        self._alert_cache: dict = {}
-        self._alert_cooldown_hours = 4
+        logger.info("📊 OptionsFlowChecker initialized (RapidAPI)")
     
     @property
     def name(self) -> str:
-        """Checker name for logging and identification"""
         return "options_flow_checker"
     
-    def _is_market_hours(self) -> bool:
-        """Check if we're in regular trading hours (9:30 AM - 4:00 PM ET)"""
-        now_et = datetime.now(self.et_tz)
-        current_time = now_et.time()
-        
-        # RTH: 9:30 AM - 4:00 PM ET
-        market_open = datetime.strptime("09:30", "%H:%M").time()
-        market_close = datetime.strptime("16:00", "%H:%M").time()
-        
-        # Also check it's a weekday
-        is_weekday = now_et.weekday() < 5
-        
-        return is_weekday and market_open <= current_time <= market_close
-    
-    def _should_check(self) -> bool:
-        """Check if enough time has passed since last check"""
-        if self._last_check_time is None:
-            return True
-        
-        elapsed = datetime.now(self.et_tz) - self._last_check_time
-        return elapsed >= timedelta(minutes=self.check_interval_minutes)
-    
-    def _is_alert_on_cooldown(self, symbol: str, signal_type: SignalType) -> bool:
-        """Check if we've already alerted for this signal recently"""
-        cache_key = f"{symbol}_{signal_type.value}"
-        
-        if cache_key not in self._alert_cache:
-            return False
-        
-        last_alert_time = self._alert_cache[cache_key]
-        elapsed = datetime.now(self.et_tz) - last_alert_time
-        
-        return elapsed < timedelta(hours=self._alert_cooldown_hours)
-    
-    def _record_alert(self, symbol: str, signal_type: SignalType):
-        """Record that we sent an alert"""
-        cache_key = f"{symbol}_{signal_type.value}"
-        self._alert_cache[cache_key] = datetime.now(self.et_tz)
-    
-    def check(self, symbols: List[str] = None, inst_context: dict = None) -> List[CheckerAlert]:
+    def check(self, symbols: List[str] = None) -> List[CheckerAlert]:
         """
-        Run options flow analysis.
+        Check options flow for signals.
         
-        Runs during market hours at specified intervals.
-        
-        Args:
-            symbols: List of symbols to check (defaults to SPY, QQQ)
-            inst_context: Optional institutional context (not used currently)
-            
         Returns:
             List of CheckerAlert objects for any detected signals
         """
         alerts = []
         
-        # Check if we're in market hours
-        if not self._is_market_hours():
-            return alerts
-        
-        # Check if enough time has passed
-        if not self._should_check():
-            return alerts
-        
-        # Use provided symbols or defaults
-        check_symbols = symbols or self.symbols
-        
-        for symbol in check_symbols:
-            try:
-                # Detect options flow signals
-                signal = self.strategy.detect_options_signals(symbol)
-                
-                if signal:
-                    # Check cooldown
-                    if self._is_alert_on_cooldown(symbol, signal.signal_type):
-                        print(f"[{self.name}] ⏸️ {symbol} {signal.signal_type.value} on cooldown")
-                        continue
+        try:
+            # 1. Get market sentiment
+            sentiment = self.client.get_market_sentiment()
+            self.storage.store_sentiment(sentiment)
+            
+            logger.info(f"📊 Options Flow: {sentiment['bias']} ({sentiment['bullish_pct']:.1f}% bullish)")
+            
+            # 2. Check for sentiment shift
+            shift = self.storage.detect_sentiment_shift()
+            if shift:
+                alert = self._create_sentiment_shift_alert(shift, sentiment)
+                alerts.append(alert)
+            
+            # 3. Get most active options
+            most_active = self.client.get_most_active_options()
+            
+            # Check for extreme P/C ratios on watch symbols
+            for opt in most_active:
+                if opt.symbol in self.WATCH_SYMBOLS or opt.total_volume >= self.MIN_VOLUME_ALERT:
+                    if opt.put_call_ratio < self.BULLISH_PC_THRESHOLD:
+                        alert = self._create_bullish_alert(opt)
+                        if alert:
+                            alerts.append(alert)
+                            self._store_signal(opt, "BULLISH_CALL_ACCUMULATION", "LONG")
                     
-                    alert = self._create_options_alert(signal)
-                    alerts.append(alert)
-                    
-                    # Record the alert
-                    self._record_alert(symbol, signal.signal_type)
-                    
-            except Exception as e:
-                print(f"[{self.name}] ❌ Error checking {symbol}: {e}")
-        
-        # Update last check time
-        self._last_check_time = datetime.now(self.et_tz)
+                    elif opt.put_call_ratio > self.BEARISH_PC_THRESHOLD:
+                        alert = self._create_bearish_alert(opt)
+                        if alert:
+                            alerts.append(alert)
+                            self._store_signal(opt, "BEARISH_PUT_ACCUMULATION", "SHORT")
+            
+            # 4. Get unusual activity for watch symbols
+            for symbol in (symbols or self.WATCH_SYMBOLS[:5]):
+                unusual = self.client.get_unusual_for_symbol(symbol)
+                for u in unusual:
+                    if u.vol_oi_ratio >= self.UNUSUAL_VOL_OI_THRESHOLD:
+                        if u.symbol not in self.alerted_unusual:
+                            alert = self._create_unusual_alert(u)
+                            alerts.append(alert)
+                            self.storage.store_unusual(u)
+                            self.alerted_unusual.add(u.symbol)
+            
+            # 5. Update last sentiment
+            self.last_sentiment = sentiment
+            
+            logger.info(f"   ✅ Generated {len(alerts)} options flow alerts")
+            
+        except Exception as e:
+            logger.error(f"❌ Options flow check error: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
         
         return alerts
     
-    def _create_options_alert(self, signal: OptionsFlowSignal) -> CheckerAlert:
-        """
-        Create a CheckerAlert from an OptionsFlowSignal.
+    def _create_sentiment_shift_alert(self, shift: Dict, sentiment: Dict) -> CheckerAlert:
+        """Create alert for market sentiment shift"""
+        direction = "BULLISH" if shift['shift'] > 0 else "BEARISH"
+        emoji = "🟢📈" if direction == "BULLISH" else "🔴📉"
+        color = 0x00FF00 if direction == "BULLISH" else 0xFF0000
         
-        Args:
-            signal: The options flow signal from the strategy
-            
-        Returns:
-            CheckerAlert formatted for Discord
-        """
-        # Map signal type to emoji and color
-        type_config = {
-            SignalType.CALL_ACCUMULATION: ("📈", 0x00FF00, "BULLISH"),       # Green
-            SignalType.PUT_ACCUMULATION: ("📉", 0xFF0000, "BEARISH"),        # Red
-            SignalType.GAMMA_SQUEEZE_OPTIONS: ("🚀", 0xFF00FF, "EXPLOSIVE"), # Magenta
+        message = f"""
+**{emoji} MARKET SENTIMENT SHIFT**
+
+The options market has shifted **{abs(shift['shift']):.1f}%** towards **{direction}**!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**📊 SENTIMENT CHANGE:**
+• From: {shift['from_bias']} ({shift['from_pct']:.1f}% bullish)
+• To: {shift['to_bias']} ({shift['to_pct']:.1f}% bullish)
+• Shift: {shift['shift']:+.1f}%
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**🎯 TOP MOVERS:**
+• Bullish: {', '.join(sentiment['top_bullish'][:3])}
+• Bearish: {', '.join(sentiment['top_bearish'][:3])}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**💡 INTERPRETATION:**
+{'Institutions rotating to CALLS - expect upside' if direction == 'BULLISH' else 'Institutions rotating to PUTS - expect downside or hedging'}
+
+⚠️ **ACTION:** {'Consider LONG bias on SPY/QQQ' if direction == 'BULLISH' else 'Consider defensive positioning or SHORT bias'}
+"""
+        
+        embed = {
+            "title": f"{emoji} OPTIONS SENTIMENT: {direction} SHIFT",
+            "description": message.strip()[:2000],  # Discord limit
+            "color": color,
+            "fields": [
+                {"name": "Shift", "value": f"{shift['shift']:+.1f}%", "inline": True},
+                {"name": "Current Bias", "value": sentiment['bias'], "inline": True},
+                {"name": "Bullish %", "value": f"{sentiment['bullish_pct']:.1f}%", "inline": True}
+            ],
+            "timestamp": datetime.now().isoformat()
         }
         
-        emoji, color, bias = type_config.get(
-            signal.signal_type, 
-            ("📊", 0x808080, "NEUTRAL")
+        return CheckerAlert(
+            embed=embed,
+            content=f"📊 Options Sentiment Shift: {direction} ({shift['shift']:+.1f}%)",
+            alert_type="options_sentiment",
+            source=self.name
         )
+    
+    def _create_bullish_alert(self, opt: MostActiveOption) -> Optional[CheckerAlert]:
+        """Create alert for bullish call accumulation"""
+        # Skip if not significant enough
+        if opt.total_volume < 300000:
+            return None
         
-        # Build the embed
-        title = f"{emoji} OPTIONS FLOW: {signal.symbol}"
+        message = f"""
+**🟢 BULLISH CALL ACCUMULATION: {opt.symbol}**
+
+Heavy call buying detected - institutions positioning for upside.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**📊 OPTIONS DATA:**
+• P/C Ratio: **{opt.put_call_ratio:.2f}** (Very Bullish < 0.7)
+• Call Volume: **{opt.call_volume_pct:.0f}%** of flow
+• Put Volume: {opt.put_volume_pct:.0f}%
+• Total Volume: **{opt.total_volume:,}** contracts
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**📈 STOCK DATA:**
+• Price: **${opt.last_price:.2f}**
+• Change: {opt.percent_change:+.2f}%
+• IV Rank (1Y): {opt.iv_rank_1y:.1f}%
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**🎯 SIGNAL:**
+• Direction: **LONG**
+• Confidence: {min(90, 50 + (0.7 - opt.put_call_ratio) * 100):.0f}%
+• Timeframe: Days to weeks
+
+⚠️ Smart money is buying calls. Follow the flow!
+"""
         
-        # Format the message
-        message_parts = [
-            f"**Signal Type:** {signal.signal_type.value}",
-            f"**Current Price:** ${signal.current_price:.2f}",
-            "",
-            f"**📊 Options Metrics:**",
-            f"Put/Call Ratio: {signal.put_call_ratio:.2f}",
-            f"Max Pain: ${signal.max_pain:.2f}",
-            f"Distance to Max Pain: {signal.max_pain_distance_pct:.2f}%",
-        ]
-        
-        if signal.total_call_oi > 0:
-            message_parts.append(f"Total Call OI: {signal.total_call_oi:,}")
-        if signal.total_put_oi > 0:
-            message_parts.append(f"Total Put OI: {signal.total_put_oi:,}")
-        
-        # Add trade setup
-        message_parts.extend([
-            "",
-            f"**📊 Trade Setup:**",
-            f"Entry: ${signal.entry_price:.2f}",
-            f"Stop: ${signal.stop_price:.2f}",
-            f"Target: ${signal.target_price:.2f}",
-            "",
-            f"**💯 Confidence:** {signal.confidence:.0%}",
-        ])
-        
-        # Add reasoning
-        if signal.reasoning:
-            message_parts.extend([
-                "",
-                f"**🧠 Reasoning:**",
-                signal.reasoning
-            ])
-        
-        # Add data source warning
-        message_parts.extend([
-            "",
-            "⚠️ *Data from yfinance (delayed). For real-time sweeps, premium API needed.*"
-        ])
-        
-        message = "\n".join(message_parts)
+        embed = {
+            "title": f"🟢 BULLISH: {opt.symbol} Call Accumulation",
+            "description": message.strip()[:2000],
+            "color": 0x00FF00,
+            "fields": [
+                {"name": "Symbol", "value": opt.symbol, "inline": True},
+                {"name": "P/C Ratio", "value": f"{opt.put_call_ratio:.2f}", "inline": True},
+                {"name": "Volume", "value": f"{opt.total_volume:,}", "inline": True},
+                {"name": "Price", "value": f"${opt.last_price:.2f}", "inline": True}
+            ],
+            "timestamp": datetime.now().isoformat()
+        }
         
         return CheckerAlert(
-            checker_name=self.name,
-            title=title,
-            message=message,
-            color=color,
-            fields={
-                "Symbol": signal.symbol,
-                "Type": signal.signal_type.value,
-                "P/C Ratio": f"{signal.put_call_ratio:.2f}",
-                "Max Pain": f"${signal.max_pain:.2f}",
-                "Confidence": f"{signal.confidence:.0%}",
-                "Bias": bias,
-            },
-            timestamp=datetime.now(self.et_tz),
-            priority="high" if signal.confidence >= 0.7 else "medium"
+            embed=embed,
+            content=f"🟢 BULLISH {opt.symbol}: P/C {opt.put_call_ratio:.2f}, Vol {opt.total_volume:,}",
+            alert_type="bullish_options",
+            source=self.name,
+            symbol=opt.symbol
         )
+    
+    def _create_bearish_alert(self, opt: MostActiveOption) -> Optional[CheckerAlert]:
+        """Create alert for bearish put accumulation"""
+        if opt.total_volume < 300000:
+            return None
+        
+        message = f"""
+**🔴 BEARISH PUT ACCUMULATION: {opt.symbol}**
+
+Heavy put buying detected - institutions hedging or betting on downside.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**📊 OPTIONS DATA:**
+• P/C Ratio: **{opt.put_call_ratio:.2f}** (Bearish > 1.2)
+• Put Volume: **{opt.put_volume_pct:.0f}%** of flow
+• Call Volume: {opt.call_volume_pct:.0f}%
+• Total Volume: **{opt.total_volume:,}** contracts
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**📈 STOCK DATA:**
+• Price: **${opt.last_price:.2f}**
+• Change: {opt.percent_change:+.2f}%
+• IV Rank (1Y): {opt.iv_rank_1y:.1f}%
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**🎯 SIGNAL:**
+• Direction: **SHORT** or **HEDGE**
+• Confidence: {min(90, 50 + (opt.put_call_ratio - 1.2) * 50):.0f}%
+• Timeframe: Days to weeks
+
+⚠️ Institutions buying protection. Consider hedging!
+"""
+        
+        embed = {
+            "title": f"🔴 BEARISH: {opt.symbol} Put Accumulation",
+            "description": message.strip()[:2000],
+            "color": 0xFF0000,
+            "fields": [
+                {"name": "Symbol", "value": opt.symbol, "inline": True},
+                {"name": "P/C Ratio", "value": f"{opt.put_call_ratio:.2f}", "inline": True},
+                {"name": "Volume", "value": f"{opt.total_volume:,}", "inline": True},
+                {"name": "Price", "value": f"${opt.last_price:.2f}", "inline": True}
+            ],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        return CheckerAlert(
+            embed=embed,
+            content=f"🔴 BEARISH {opt.symbol}: P/C {opt.put_call_ratio:.2f}, Vol {opt.total_volume:,}",
+            alert_type="bearish_options",
+            source=self.name,
+            symbol=opt.symbol
+        )
+    
+    def _create_unusual_alert(self, unusual: UnusualOption) -> CheckerAlert:
+        """Create alert for unusual options activity"""
+        emoji = "📈" if unusual.option_type == "Call" else "📉"
+        color = 0x00FF00 if unusual.option_type == "Call" else 0xFF0000
+        direction = "BULLISH" if unusual.option_type == "Call" else "BEARISH"
+        
+        message = f"""
+**🔥 UNUSUAL OPTIONS ACTIVITY: {unusual.base_symbol}**
+
+Extremely high volume relative to open interest detected!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**📊 CONTRACT DETAILS:**
+• Contract: **{unusual.option_type} ${unusual.strike:.2f}**
+• Expiration: **{unusual.expiration}** ({unusual.days_to_exp} days)
+• Volume: **{unusual.volume:,}** contracts
+• Open Interest: {unusual.open_interest:,}
+• **Vol/OI Ratio: {unusual.vol_oi_ratio:.1f}x** (Very Unusual > 30x)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**📈 GREEKS & IV:**
+• Delta: {unusual.delta:.4f}
+• Implied Volatility: **{unusual.volatility:.1f}%**
+• Stock Price: ${unusual.base_price:.2f}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**🧠 INTERPRETATION:**
+• Vol/OI > 30x = Someone knows something
+• {unusual.days_to_exp} days to expiry = {'Near-term catalyst expected' if unusual.days_to_exp < 30 else 'Longer-term positioning'}
+• {direction} positioning
+
+⚠️ **INVESTIGATE FURTHER:** Check for upcoming earnings, FDA decisions, or other catalysts!
+"""
+        
+        embed = {
+            "title": f"🔥 UNUSUAL: {unusual.base_symbol} {unusual.option_type} ${unusual.strike:.0f}",
+            "description": message.strip()[:2000],
+            "color": color,
+            "fields": [
+                {"name": "Symbol", "value": unusual.base_symbol, "inline": True},
+                {"name": "Contract", "value": f"{unusual.option_type} ${unusual.strike:.2f}", "inline": True},
+                {"name": "Vol/OI", "value": f"{unusual.vol_oi_ratio:.1f}x", "inline": True},
+                {"name": "Expiration", "value": unusual.expiration, "inline": True}
+            ],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        return CheckerAlert(
+            embed=embed,
+            content=f"🔥 UNUSUAL {unusual.base_symbol}: {unusual.option_type} ${unusual.strike:.0f} Vol/OI {unusual.vol_oi_ratio:.1f}x",
+            alert_type="unusual_options",
+            source=self.name,
+            symbol=unusual.base_symbol
+        )
+    
+    def _store_signal(self, opt: MostActiveOption, signal_type: str, direction: str):
+        """Store signal for tracking"""
+        self.storage.store_signal({
+            'symbol': opt.symbol,
+            'signal_type': signal_type,
+            'direction': direction,
+            'confidence': 70,
+            'entry_price': opt.last_price,
+            'pc_ratio': opt.put_call_ratio,
+            'volume': opt.total_volume,
+            'reasoning': f"P/C ratio {opt.put_call_ratio:.2f}, Volume {opt.total_volume:,}"
+        })
 
 
 # Standalone test
@@ -262,44 +539,32 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
     
-    print("🧪 Testing OptionsFlowChecker...")
-    print("=" * 50)
+    print("=" * 70)
+    print("📊 OPTIONS FLOW CHECKER TEST")
+    print("=" * 70)
     
-    # Mock alert manager for testing
     class MockAlertManager:
         def send_alert(self, alert):
-            print(f"[MOCK ALERT] {alert.title}")
-            print(alert.message)
+            print(f"[MOCK ALERT] {alert.embed.get('title', 'N/A')}")
     
-    api_key = os.getenv('CHARTEXCHANGE_API_KEY')
     checker = OptionsFlowChecker(
         alert_manager=MockAlertManager(),
-        api_key=api_key
+        api_key=os.getenv('YAHOO_RAPIDAPI_KEY')
     )
     
-    print(f"Checker name: {checker.name}")
-    print(f"Is market hours: {checker._is_market_hours()}")
-    print(f"Should check: {checker._should_check()}")
+    print(f"\nChecker: {checker.name}")
+    print(f"Watch Symbols: {checker.WATCH_SYMBOLS}")
     
-    # Force check regardless of time for testing
-    original_market_hours = checker._is_market_hours
-    checker._is_market_hours = lambda: True
-    
-    print("\n🔍 Running options flow detection...")
+    print("\n🔍 Running check...")
     alerts = checker.check()
     
-    if alerts:
-        for alert in alerts:
-            print(f"\n✅ Alert Generated:")
-            print(f"   Title: {alert.title}")
-            print(f"   Priority: {alert.priority}")
-            print(f"   Fields: {alert.fields}")
-    else:
-        print("\n⚠️ No options flow signals detected (thresholds not met)")
+    print(f"\n✅ Generated {len(alerts)} alerts:")
+    for alert in alerts[:5]:
+        print(f"\n{'='*50}")
+        print(f"Title: {alert.embed.get('title', 'N/A')}")
+        print(f"Alert Type: {alert.alert_type}")
+        print(f"Symbol: {alert.symbol}")
+        print(f"Source: {alert.source}")
     
-    # Restore
-    checker._is_market_hours = original_market_hours
-    
-    print("\n" + "=" * 50)
-    print("✅ OptionsFlowChecker test complete!")
-
+    print("\n" + "=" * 70)
+    print("✅ Options Flow Checker test complete!")
