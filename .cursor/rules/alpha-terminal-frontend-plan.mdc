@@ -49,13 +49,14 @@ Build a **REAL-TIME INSTITUTIONAL INTELLIGENCE DASHBOARD** that makes Bloomberg 
 ### Frontend
 | Component | Technology | Why |
 |-----------|------------|-----|
-| Framework | **Next.js 14** (App Router) | Server components, streaming, edge runtime |
+| Framework | **Vite.js** + **React 18** | Lightning-fast dev server, HMR, modern build |
 | UI Library | **Tailwind CSS** + **shadcn/ui** | Beautiful, fast, customizable |
 | Charts | **TradingView Lightweight Charts** + **Recharts** | Professional trading charts |
 | State | **Zustand** | Simple, fast, scalable |
-| Real-time | **Socket.io Client** | WebSocket with fallbacks |
+| Real-time | **Native WebSocket** + **Socket.io Client** | WebSocket with fallbacks |
 | Animations | **Framer Motion** | Smooth, cinematic transitions |
 | Icons | **Lucide React** | Clean, consistent iconography |
+| Routing | **React Router v6** | Client-side routing |
 
 ### Backend API Layer
 | Component | Technology | Why |
@@ -70,8 +71,8 @@ Build a **REAL-TIME INSTITUTIONAL INTELLIGENCE DASHBOARD** that makes Bloomberg 
 ### Infrastructure
 | Component | Technology | Why |
 |-----------|------------|-----|
-| Hosting | **Netlify** (Frontend) + **Render/Railway** (Backend) | Easy deployment |
-| CDN | **Vercel Edge** | Global, fast |
+| Hosting | **Vercel/Netlify** (Frontend) + **Render/Railway** (Backend) | Easy deployment |
+| CDN | **Vercel Edge** / **Cloudflare** | Global, fast |
 | Monitoring | **Sentry** + **Prometheus** | Error tracking, metrics |
 | Logging | **Loguru** + **Loki** | Structured logging |
 
@@ -1453,95 +1454,82 @@ CACHE_TTL = {
 
 ```
 frontend/
-├── app/
-│   ├── layout.tsx              # Root layout
-│   ├── page.tsx                # Dashboard home
-│   ├── globals.css             # Global styles
+├── src/
+│   ├── App.tsx                 # Root component
+│   ├── main.tsx               # Entry point
+│   ├── index.css              # Global styles
 │   │
-│   ├── (dashboard)/
-│   │   ├── layout.tsx          # Dashboard layout
-│   │   ├── page.tsx            # Main 360° view
-│   │   ├── signals/
-│   │   │   └── page.tsx        # Signals deep dive
-│   │   ├── darkpool/
-│   │   │   └── page.tsx        # Dark pool analysis
-│   │   ├── gamma/
-│   │   │   └── page.tsx        # Gamma analysis
-│   │   ├── squeeze/
-│   │   │   └── page.tsx        # Squeeze scanner
-│   │   ├── options/
-│   │   │   └── page.tsx        # Options flow
-│   │   ├── reddit/
-│   │   │   └── page.tsx        # Reddit sentiment
-│   │   └── macro/
-│   │       └── page.tsx        # Macro intelligence
+│   ├── pages/
+│   │   ├── Dashboard.tsx      # Main 360° view
+│   │   ├── SignalsPage.tsx    # Signals deep dive
+│   │   ├── DarkPoolPage.tsx   # Dark pool analysis
+│   │   ├── GammaPage.tsx      # Gamma analysis
+│   │   ├── SqueezePage.tsx    # Squeeze scanner
+│   │   ├── OptionsPage.tsx    # Options flow
+│   │   ├── RedditPage.tsx     # Reddit sentiment
+│   │   └── MacroPage.tsx      # Macro intelligence
+│
+│   ├── components/
+│   │   ├── ui/                 # shadcn/ui components
+│   │   │   ├── Button.tsx
+│   │   │   ├── Card.tsx
+│   │   │   ├── Badge.tsx
+│   │   │   └── ...
+│   │   │
+│   │   ├── widgets/
+│   │   │   ├── MarketOverview.tsx
+│   │   │   ├── SignalsCenter.tsx
+│   │   │   ├── DarkPoolFlow.tsx
+│   │   │   ├── GammaTracker.tsx
+│   │   │   ├── SqueezeScanner.tsx
+│   │   │   ├── OptionsFlow.tsx
+│   │   │   ├── RedditSentiment.tsx
+│   │   │   ├── MacroIntel.tsx
+│   │   │   └── NarrativeBrain.tsx
+│   │   │
+│   │   ├── charts/
+│   │   │   ├── TradingViewChart.tsx
+│   │   │   ├── GammaChart.tsx
+│   │   │   ├── HeatMap.tsx
+│   │   │   └── Sparkline.tsx
+│   │   │
+│   │   └── layout/
+│   │       ├── Header.tsx
+│   │       ├── Sidebar.tsx
+│   │       ├── WidgetGrid.tsx
+│   │       └── Footer.tsx
+│
+│   ├── hooks/
+│   │   ├── useWebSocket.ts     # WebSocket hook
+│   │   ├── useMarketData.ts    # Market data hook
+│   │   ├── useSignals.ts       # Signals hook
+│   │   └── useInterval.ts      # Polling hook
 │   │
-│   └── api/                    # Next.js API routes (proxy)
-│
-├── components/
-│   ├── ui/                     # shadcn/ui components
-│   │   ├── button.tsx
-│   │   ├── card.tsx
-│   │   ├── badge.tsx
-│   │   └── ...
+│   ├── lib/
+│   │   ├── api.ts              # API client
+│   │   ├── websocket.ts        # WebSocket client
+│   │   ├── utils.ts            # Utility functions
+│   │   └── formatters.ts       # Data formatters
 │   │
-│   ├── widgets/
-│   │   ├── MarketOverview.tsx
-│   │   ├── SignalsCenter.tsx
-│   │   ├── DarkPoolFlow.tsx
-│   │   ├── GammaTracker.tsx
-│   │   ├── SqueezeScanner.tsx
-│   │   ├── OptionsFlow.tsx
-│   │   ├── RedditSentiment.tsx
-│   │   ├── MacroIntel.tsx
-│   │   └── NarrativeBrain.tsx
+│   ├── stores/
+│   │   ├── marketStore.ts      # Market data store
+│   │   ├── signalStore.ts      # Signals store
+│   │   └── settingsStore.ts    # User settings store
 │   │
-│   ├── charts/
-│   │   ├── TradingViewChart.tsx
-│   │   ├── GammaChart.tsx
-│   │   ├── HeatMap.tsx
-│   │   └── Sparkline.tsx
-│   │
-│   └── layout/
-│       ├── Header.tsx
-│       ├── Sidebar.tsx
-│       ├── WidgetGrid.tsx
-│       └── Footer.tsx
-│
-├── hooks/
-│   ├── useWebSocket.ts         # WebSocket hook
-│   ├── useMarketData.ts        # Market data hook
-│   ├── useSignals.ts           # Signals hook
-│   └── useInterval.ts          # Polling hook
-│
-├── lib/
-│   ├── api.ts                  # API client
-│   ├── websocket.ts            # WebSocket client
-│   ├── utils.ts                # Utility functions
-│   └── formatters.ts           # Data formatters
-│
-├── stores/
-│   ├── marketStore.ts          # Market data store
-│   ├── signalStore.ts          # Signals store
-│   └── settingsStore.ts        # User settings store
-│
-├── types/
-│   ├── market.ts
-│   ├── signal.ts
-│   ├── darkpool.ts
-│   └── ...
-│
-├── styles/
-│   └── themes/
-│       └── dark.css
+│   └── types/
+│       ├── market.ts
+│       ├── signal.ts
+│       ├── darkpool.ts
+│       └── ...
 │
 ├── public/
 │   └── assets/
 │
 ├── package.json
+├── vite.config.ts
 ├── tailwind.config.js
-├── next.config.js
-└── tsconfig.json
+├── tsconfig.json
+└── index.html
 ```
 
 ---
@@ -1777,9 +1765,10 @@ DISCORD_WEBHOOK_URL=...
 ## 📋 IMPLEMENTATION PHASES
 
 ### Phase 1: Foundation (Week 1-2)
-- [ ] Set up Next.js 14 project with Tailwind + shadcn/ui
+- [ ] Set up Vite.js + React 18 project with Tailwind + shadcn/ui
 - [ ] Create design system (colors, typography, components)
 - [ ] Build basic layout (header, sidebar, widget grid)
+- [ ] Set up React Router for navigation
 - [ ] Set up FastAPI backend with basic endpoints
 - [ ] Implement Redis caching layer
 - [ ] Create PostgreSQL schema with TimescaleDB
@@ -1841,8 +1830,9 @@ DISCORD_WEBHOOK_URL=...
 # Frontend
 cd frontend
 npm install
-npm run dev           # Development server
-npm run build         # Production build
+npm run dev           # Vite dev server (lightning fast HMR)
+npm run build         # Production build (Vite)
+npm run preview       # Preview production build
 npm run lint          # Lint check
 npm run test          # Run tests
 
@@ -2060,6 +2050,7 @@ signals.map(signal => <SignalCard signal={signal} />);
 
 ---
 
-**Document Version:** 1.1
-**Last Updated:** December 19, 2025
+**Document Version:** 1.2
+**Last Updated:** January XX, 2025
 **Author:** Zo (Alpha's AI)
+**Changes:** Updated to use Vite.js + React 18 instead of Next.js 14
