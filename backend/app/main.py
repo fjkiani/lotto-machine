@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from backend.app.api.v1 import agents
+from backend.app.api.v1 import agents, websocket
 from backend.app.core.dependencies import set_monitor_bridge
 
 # Try to import and initialize monitor
@@ -45,6 +45,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(agents.router, prefix="/api/v1", tags=["agents"])
+app.include_router(websocket.router, prefix="/api/v1", tags=["websocket"])
 
 
 @app.on_event("startup")
