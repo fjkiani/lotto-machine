@@ -140,62 +140,126 @@ class PreMarketGapChecker(BaseChecker):
     
     def _create_gap_alert(self, signal: PreMarketGapSignal) -> CheckerAlert:
         """
-        Create a CheckerAlert from a PreMarketGapSignal.
+        Create a CheckerAlert from a PreMarketGapSignal with FULL CONTEXT.
         
         Args:
             signal: The gap signal from the strategy
             
         Returns:
-            CheckerAlert formatted for Discord
+            CheckerAlert formatted for Discord with actionable trade setup
         """
         # Map signal type to emoji and color
         type_config = {
-            SignalType.GAP_BREAKOUT: ("🚀", 0x00FF00, "BULLISH"),    # Green
-            SignalType.GAP_BREAKDOWN: ("📉", 0xFF0000, "BEARISH"),   # Red
-            SignalType.GAP_FILL: ("🔄", 0xFFAA00, "NEUTRAL"),        # Orange
-            SignalType.GAP_UP: ("⬆️", 0x00FF00, "BULLISH"),          # Green
-            SignalType.GAP_DOWN: ("⬇️", 0xFF0000, "BEARISH"),        # Red
+            SignalType.GAP_BREAKOUT: ("🚀", 0x00FF00, "BULLISH", "LONG"),
+            SignalType.GAP_BREAKDOWN: ("📉", 0xFF0000, "BEARISH", "SHORT"),
+            SignalType.GAP_FILL: ("🔄", 0xFFAA00, "NEUTRAL", "FADE"),
+            SignalType.GAP_UP: ("⬆️", 0x00FF00, "BULLISH", "LONG"),
+            SignalType.GAP_DOWN: ("⬇️", 0xFF0000, "BEARISH", "SHORT"),
         }
         
-        emoji, color, bias = type_config.get(
+        emoji, color, bias, action = type_config.get(
             signal.signal_type, 
-            ("📊", 0x808080, "NEUTRAL")
+            ("📊", 0x808080, "NEUTRAL", "WAIT")
         )
         
-        # Build the embed
-        title = f"{emoji} PRE-MARKET GAP: {signal.symbol}"
+        # Calculate risk/reward
+        risk = abs(signal.entry_price - signal.stop_price)
+        reward = abs(signal.target_price - signal.entry_price)
+        rr_ratio = reward / risk if risk > 0 else 0
         
-        # Format the message
+        # Build the embed title
+        title = f"{emoji} PRE-MARKET GAP: {signal.symbol} | {signal.signal_type.value}"
+        
+        # Format the FULL CONTEXT message
         message_parts = [
-            f"**Signal Type:** {signal.signal_type.value}",
-            f"**Gap Size:** {signal.gap_percent:.2f}%",
-            f"**Pre-Market Price:** ${signal.premarket_price:.2f}",
-            f"**Previous Close:** ${signal.prev_close:.2f}",
+            f"**🎯 ACTION: {action}**",
             "",
-            f"**📊 Trade Setup:**",
-            f"Entry: ${signal.entry_price:.2f}",
-            f"Stop: ${signal.stop_price:.2f}",
-            f"Target: ${signal.target_price:.2f}",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "**📊 GAP ANALYSIS:**",
+            f"• Gap Size: **{signal.gap_percent:+.2f}%**",
+            f"• Pre-Market: **${signal.premarket_price:.2f}**",
+            f"• Prev Close: ${signal.prev_close:.2f}",
+            f"• Direction: {bias}",
             "",
-            f"**💯 Confidence:** {signal.confidence:.0%}",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "**💰 TRADE SETUP:**",
+            f"• Entry: **${signal.entry_price:.2f}**",
+            f"• Stop Loss: **${signal.stop_price:.2f}** ({(abs(signal.entry_price - signal.stop_price) / signal.entry_price * 100):.2f}%)",
+            f"• Take Profit: **${signal.target_price:.2f}** ({(abs(signal.target_price - signal.entry_price) / signal.entry_price * 100):.2f}%)",
+            f"• Risk/Reward: **{rr_ratio:.1f}:1**",
+            "",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "**📈 HOW TO TRADE:**",
         ]
+        
+        # Add specific trading instructions based on signal type
+        if signal.signal_type == SignalType.GAP_BREAKOUT:
+            message_parts.extend([
+                "1️⃣ Wait for market open (9:30 AM ET)",
+                "2️⃣ Watch first 5-min candle close above pre-market high",
+                "3️⃣ Enter LONG on breakout confirmation",
+                "4️⃣ Stop below first hour low",
+                "5️⃣ Target: Gap extension (2:1 R/R)",
+            ])
+        elif signal.signal_type == SignalType.GAP_BREAKDOWN:
+            message_parts.extend([
+                "1️⃣ Wait for market open (9:30 AM ET)",
+                "2️⃣ Watch first 5-min candle close below pre-market low",
+                "3️⃣ Enter SHORT on breakdown confirmation",
+                "4️⃣ Stop above first hour high",
+                "5️⃣ Target: Gap extension (2:1 R/R)",
+            ])
+        elif signal.signal_type == SignalType.GAP_FILL:
+            message_parts.extend([
+                "1️⃣ Wait for initial move to stall",
+                "2️⃣ Look for reversal candle pattern",
+                "3️⃣ Enter FADE trade toward previous close",
+                "4️⃣ Stop above/below gap open",
+                "5️⃣ Target: 50-100% gap fill",
+            ])
+        else:  # GAP_UP or GAP_DOWN
+            message_parts.extend([
+                "1️⃣ Gap detected - wait for confirmation",
+                "2️⃣ Watch first 30-min price action",
+                "3️⃣ Follow gap direction if momentum continues",
+                "4️⃣ Fade if gap starts filling",
+            ])
         
         # Add DP context if available
         if signal.nearest_dp_level:
             message_parts.extend([
                 "",
-                f"**🏛️ DP Context:**",
-                f"Nearest DP Level: ${signal.nearest_dp_level:.2f}",
-                f"Distance to DP: {signal.dp_distance_pct:.2f}%",
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                "**🏛️ INSTITUTIONAL CONTEXT:**",
+                f"• Nearest DP Level: **${signal.nearest_dp_level:.2f}**",
+                f"• Distance: {signal.dp_distance_pct:.2f}%",
             ])
+            if abs(signal.dp_distance_pct) < 0.5:
+                message_parts.append("• ⚠️ **AT DP LEVEL** - High confluence!")
+            elif signal.dp_distance_pct > 0:
+                message_parts.append("• Price ABOVE DP support")
+            else:
+                message_parts.append("• Price BELOW DP resistance")
         
         # Add reasoning
         if signal.reasoning:
             message_parts.extend([
                 "",
-                f"**🧠 Reasoning:**",
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                "**🧠 SIGNAL REASONING:**",
                 signal.reasoning
             ])
+        
+        # Add confidence and risk warning
+        message_parts.extend([
+            "",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            f"**💯 Confidence:** {signal.confidence:.0%}",
+            "",
+            "⚠️ **RISK WARNING:** Gaps can be volatile.",
+            "Use proper position sizing (max 2% risk).",
+            "Paper trade this setup first!",
+        ])
         
         message = "\n".join(message_parts)
         

@@ -1,6 +1,39 @@
 # 🧠 NARRATIVE BRAIN - REALITY CHECK & INCREMENTAL PLAN
 
 **Status:** PARTIALLY BUILT - Code exists, integration needed
+**Updated:** 2025-12-19 - Added RapidAPI News Integration
+
+---
+
+## 🆕 RAPIDAPI NEWS INTEGRATION (NEW!)
+
+### ✅ VALIDATED & WORKING:
+
+**News Client Created:** `core/data/rapidapi_news_client.py`
+
+**Capabilities:**
+- 📰 Fetch 50 articles per request
+- 🎯 Filter by credibility (Reuters, Bloomberg, Seeking Alpha, etc.)
+- ⏰ Filter by recency (last N hours)
+- 📊 Credibility scoring (0-1 scale)
+- 🔄 Sentiment divergence detection
+
+**Test Results (Dec 19, 2025):**
+```
+SPY NEWS:
+- Total articles: 50
+- Credible (last 4h): 2
+- Top: "S&P 500: Butterfly Effect From Japan Rate Hike" (Seeking Alpha)
+- Credibility: 70%
+```
+
+**Integration Points:**
+1. Add news context to alerts
+2. Detect signal/narrative divergence
+3. Feed to Narrative Brain for storytelling
+4. Pre-market outlook enrichment
+
+**See:** [RapidAPI Exploitation Plan](mdc:.cursor/rules/rapidapi-exploitation-plan.mdc)
 
 ---
 
