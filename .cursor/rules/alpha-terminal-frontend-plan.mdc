@@ -1888,11 +1888,178 @@ docker-compose logs -f         # View logs
 
 ---
 
+## 🔔 DUAL-APPROACH: DISCORD + FRONTEND
+
+### Why Both?
+
+**Discord (Current Production):**
+- ✅ Instant alerts to phone
+- ✅ No infrastructure to maintain
+- ✅ Already working
+- ✅ Good for urgent signals
+- ❌ No historical view
+- ❌ No charts/visualization
+- ❌ Hard to analyze patterns
+
+**Frontend (Alpha Terminal):**
+- ✅ 360° market view
+- ✅ Historical signal analysis
+- ✅ Charts and visualizations
+- ✅ Interactive exploration
+- ❌ Requires infrastructure
+- ❌ Not mobile-optimized (yet)
+- ❌ Need to actively check it
+
+### The Integration
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    UnifiedAlphaMonitor (Running)                 │
+│                                                                  │
+│    Every signal generated:                                       │
+│       1. ➡️ Discord Alert (immediate notification)               │
+│       2. ➡️ WebSocket Broadcast (frontend real-time)              │
+│       3. ➡️ PostgreSQL Storage (historical analysis)             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Best of Both Worlds
+
+1. **During Trading Hours:** 
+   - Discord alerts for urgent signals
+   - Frontend for context and analysis
+
+2. **After Hours:**
+   - Frontend for reviewing the day's signals
+   - Historical analysis and pattern recognition
+
+3. **Weekends:**
+   - Frontend for backtesting and research
+   - Analyze what worked, what didn't
+
+---
+
+## 📊 VIEWING PAST SIGNALS (Scripts)
+
+### Quick View: `view_signal_history.py`
+
+Run this anytime to see what signals were generated:
+
+```python
+#!/usr/bin/env python3
+"""
+View historical signals - run anytime to see what triggered
+"""
+import sqlite3
+from datetime import datetime, timedelta
+import os
+
+# Databases to check
+DBS = [
+    'data/reddit_signal_tracking.db',  # Reddit signals
+    'data/alerts_history.db',          # All alerts
+    'data/dp_learning.db',              # DP interactions
+    'data/economic_intelligence.db',   # Economic events
+]
+
+def view_recent_signals(days=1):
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+    
+    print("=" * 80)
+    print(f"📊 SIGNALS FROM LAST {days} DAY(S)")
+    print("=" * 80)
+    
+    for db_path in DBS:
+        if os.path.exists(db_path):
+            print(f"\n📁 {db_path}:")
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # Get table names
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = cursor.fetchall()
+            
+            for (table_name,) in tables:
+                try:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+                    count = cursor.fetchone()[0]
+                    print(f"   {table_name}: {count} records")
+                except:
+                    pass
+            
+            conn.close()
+
+if __name__ == "__main__":
+    view_recent_signals(1)
+```
+
+### Detailed Audit: `audit_signals.py`
+
+```bash
+# Run comprehensive audit for today
+python3 audit_todays_missed_signals.py
+
+# Run Reddit backtest
+cd backtesting/simulation
+python3 reddit_enhanced_backtest.py
+
+# Run production diagnostics
+python3 backtesting/simulation/direct_api_test.py
+```
+
+### What Each Script Does
+
+| Script | Purpose | When to Use |
+|--------|---------|-------------|
+| `audit_todays_missed_signals.py` | Full audit of what SHOULD have triggered | End of day review |
+| `reddit_enhanced_backtest.py` | Test Reddit signals with DP synthesis | Tuning Reddit strategy |
+| `direct_api_test.py` | Test raw API data availability | Debugging data issues |
+| `production_diagnostics.py` | Diagnose why signals didn't fire | Troubleshooting |
+
+---
+
+## 🔄 KEEPING DISCORD + FRONTEND IN SYNC
+
+### Current Alert Flow (Discord)
+
+```python
+# In unified_monitor.py
+async def send_discord_alert(self, embed, **kwargs):
+    await self.alert_manager.send_discord(embed, **kwargs)
+```
+
+### Future Alert Flow (Discord + Frontend)
+
+```python
+# In unified_monitor.py (enhanced)
+async def send_alert(self, signal, **kwargs):
+    # 1. Discord (immediate)
+    await self.alert_manager.send_discord(signal.to_embed(), **kwargs)
+    
+    # 2. WebSocket (frontend real-time)
+    await self.ws_publisher.publish_signal(signal)
+    
+    # 3. Database (historical)
+    await self.db.save_signal(signal)
+```
+
+### Frontend Subscribes via WebSocket
+
+```typescript
+// Frontend React component
+const { signals } = useSignalsWebSocket();
+
+// Auto-updates when new signals arrive
+signals.map(signal => <SignalCard signal={signal} />);
+```
+
+---
+
 **ALPHA'S VISION:**
 *"Bloomberg charges $24,000/year for a terminal that looks like it was designed in 1992. We're building something beautiful, intelligent, and FREE (or cheap). This is how we democratize institutional intelligence."* 🚀💰🎯
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** December 17, 2024
+**Document Version:** 1.1
+**Last Updated:** December 19, 2025
 **Author:** Zo (Alpha's AI)

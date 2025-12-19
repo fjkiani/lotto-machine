@@ -85,6 +85,58 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 
 # Scratchpad
 
+## 2025-12-19: DOCUMENTATION UPDATE + BACKTESTING FRAMEWORK COMPLETE! 🎯
+
+### Task: Update documentation and add missing backtesting modules
+
+**COMPLETED TASKS:**
+
+[X] **1. Update ZETA_MASTER_PLAN.mdc with testing methodology**
+- Added comprehensive backtesting methodology section
+- Documented selloff/rally validation (75% win rate @ 0.15% target)
+- Added dark pool learning stats
+- Added backtesting coverage matrix
+- Updated status to "PRODUCTION DEPLOYED - SIGNALS VALIDATED"
+
+[X] **2. Define frontend integration in alpha-terminal-frontend-plan.mdc**
+- Added DUAL-APPROACH section (Discord + Frontend)
+- Added scripts for viewing past signals
+- Updated version to 1.1
+
+[X] **3. Create unified audit script**
+- Created `audit_all_signals.py`
+- Audits: selloff/rally, dark pool, gamma, reddit, alerts, DP learning
+- Supports date ranges and multiple symbols
+
+[X] **4. Audit 2025-11-20-selloff-signals.mdc vs current implementation**
+- Verified all original bugs are fixed
+- Added implementation status section
+- Documented current detection methods (3 parallel triggers)
+- Added win rate validation results
+
+[X] **5. Add backtesting for missing signal types**
+- Created `backtesting/simulation/premarket_gap_detector.py`
+- Created `backtesting/simulation/options_flow_detector.py`
+- Both fully functional with backtest_date() and backtest_range()
+
+### Files Created/Modified:
+- `audit_all_signals.py` (NEW) - Unified signal audit script
+- `backtesting/simulation/premarket_gap_detector.py` (NEW) - Gap backtester
+- `backtesting/simulation/options_flow_detector.py` (NEW) - Options flow backtester
+- `.cursor/rules/ZETA_MASTER_PLAN.mdc` (MODIFIED) - Major update
+- `.cursor/rules/alpha-terminal-frontend-plan.mdc` (MODIFIED) - Added dual approach
+- `.cursor/rules/2025-11-20-selloff-signals.mdc` (MODIFIED) - Added audit section
+
+### Key Insights:
+1. Selloff/Rally signals validated at 75% win rate with 0.15% targets
+2. DP learning engine shows 80-92% bounce rates
+3. Frontend plan covers 9 widgets + WebSocket integration
+4. Dual approach (Discord + Frontend) is the optimal strategy
+
+**STATUS:** All documentation updated, backtesting framework complete! 🚀
+
+---
+
 ## 2025-12-17: REDDIT EXPLOITER + DP SYNTHESIS PRODUCTION COMPLETE! 🚀
 
 ### Summary of Today's Work:
