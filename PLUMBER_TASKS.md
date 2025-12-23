@@ -2525,6 +2525,721 @@ python3 backtest_reddit_full.py --update --report
 
 ---
 
+## 🚨 PHASE 9: DYNAMIC STARTUP ALERTS & HEALTH MONITORING - CRITICAL! 🔧
+
+**Status:** ⏳ **HIGH PRIORITY - MUST FIX!**  
+**Date Created:** 2025-12-19  
+**Problem:** Startup alerts are HARDCODED and STALE! No way to know:
+- Which checkers are ACTUALLY working
+- What signals have fired today
+- Win rates per signal type
+- Last successful check time
+- Health status of each component
+
+**Goal:** Transform the startup alert from a static "everything is working" lie into a REAL-TIME HEALTH DASHBOARD.
+
+---
+
+### 📊 CURRENT STATE (BROKEN!)
+
+**Problem:** `unified_monitor.py::send_startup_alert()` is 100% hardcoded:
+
+```python
+# THIS IS ALL LIES - NO REAL-TIME CHECKS!
+{"name": "🌅 Pre-Market Gap", "value": "✅ Gap + DP Confluence\n20-25% edge", "inline": True},
+{"name": "📊 Options Flow", "value": "✅ P/C Ratio + Sweeps\n15-20% edge", "inline": True},
+```
+
+**Issues:**
+1. ❌ No way to know if checkers ACTUALLY ran
+2. ❌ No historical win rate tracking
+3. ❌ No last-check timestamps
+4. ❌ No signal count for today
+5. ❌ No error tracking per checker
+6. ❌ New checkers not reflected in startup alert
+
+---
+
+### 🎯 TARGET STATE
+
+**Dynamic Startup Alert:**
+```
+🎯 ALPHA INTELLIGENCE - ONLINE (MODULAR)
+
+📊 SYSTEM HEALTH - Last 24 Hours
+┌──────────────────┬────────┬────────┬──────────┐
+│ Checker          │ Status │ Fires  │ Last Run │
+├──────────────────┼────────┼────────┼──────────┤
+│ 🏦 Fed Watch     │ ✅     │ 2      │ 5m ago   │
+│ 🎯 Trump Intel   │ ✅     │ 5      │ 3m ago   │
+│ 🚨 Selloff/Rally │ ✅     │ 17     │ 1m ago   │
+│ 🔒 Dark Pool     │ ✅     │ 8      │ 2m ago   │
+│ 📱 Reddit        │ ⚠️     │ 0      │ 4h ago   │
+│ 🔥 Squeeze       │ ✅     │ 3      │ 1h ago   │
+│ 📊 Gamma         │ ✅     │ 4      │ 30m ago  │
+│ 🌅 Pre-Market Gap│ ⏸️     │ 0      │ N/A      │
+│ 📊 Options Flow  │ ✅     │ 12     │ 15m ago  │
+│ 🎲 Gamma Flip    │ ✅     │ 1      │ 2h ago   │
+│ 📰 News Intel    │ ✅     │ 7      │ 10m ago  │
+└──────────────────┴────────┴────────┴──────────┘
+
+📈 WIN RATES (Last 7 Days)
+• Selloff/Rally: 57.1% (17 trades)
+• Options Flow: 37.5% (24 trades)
+• Gap: 50.0% (2 trades)
+• Squeeze: 55.0% (40 trades)
+• Gamma: 57.1% (7 trades)
+
+⚠️ ALERTS:
+• Reddit checker hasn't fired in 4h - check API
+• Pre-Market Gap only runs 8:00-9:30 ET
+```
+
+---
+
+### 🔧 TASK 9.1: Create Checker Health Registry ⏳ HIGH PRIORITY
+
+**File:** `live_monitoring/orchestrator/checker_health.py` (NEW)
+
+**Implementation:**
+```python
+"""
+🩺 CHECKER HEALTH REGISTRY
+Tracks health, status, and metrics for all checkers.
+"""
+
+import sqlite3
+from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
+from enum import Enum
+
+class CheckerStatus(Enum):
+    HEALTHY = "healthy"        # Working normally
+    WARNING = "warning"        # Hasn't run in expected interval
+    ERROR = "error"            # Last run failed
+    DISABLED = "disabled"      # Intentionally disabled
+    NOT_APPLICABLE = "n/a"     # Only runs at specific times
+
+@dataclass
+class CheckerHealth:
+    """Health status for a single checker."""
+    name: str
+    display_name: str
+    emoji: str
+    status: CheckerStatus
+    last_run: Optional[datetime] = None
+    last_success: Optional[datetime] = None
+    last_error: Optional[str] = None
+    alerts_today: int = 0
+    alerts_24h: int = 0
+    win_rate_7d: Optional[float] = None
+    total_trades_7d: int = 0
+    expected_interval: int = 3600  # seconds
+    run_conditions: str = "RTH"  # When it should run
+
+class CheckerHealthRegistry:
+    """
+    Central registry for all checker health metrics.
+    Uses SQLite for persistence.
+    """
+    
+    def __init__(self, db_path: str = "data/checker_health.db"):
+        self.db_path = db_path
+        self._init_db()
+        self._register_all_checkers()
+    
+    def _init_db(self):
+        """Initialize SQLite database."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Checker runs table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS checker_runs (
+                id INTEGER PRIMARY KEY,
+                checker_name TEXT NOT NULL,
+                run_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                success BOOLEAN,
+                alerts_generated INT DEFAULT 0,
+                error_message TEXT
+            )
+        """)
+        
+        # Alert tracking table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS checker_alerts (
+                id INTEGER PRIMARY KEY,
+                checker_name TEXT NOT NULL,
+                alert_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                alert_type TEXT,
+                symbol TEXT,
+                direction TEXT,
+                entry_price REAL,
+                outcome TEXT,  -- WIN, LOSS, PENDING
+                pnl_pct REAL
+            )
+        """)
+        
+        conn.commit()
+        conn.close()
+    
+    def _register_all_checkers(self):
+        """Register all checkers with their configs."""
+        self.checkers = {
+            'fed': CheckerHealth(
+                name='fed', display_name='Fed Watch', emoji='🏦',
+                status=CheckerStatus.HEALTHY, expected_interval=300,
+                run_conditions="24/7"
+            ),
+            'trump': CheckerHealth(
+                name='trump', display_name='Trump Intel', emoji='🎯',
+                status=CheckerStatus.HEALTHY, expected_interval=180,
+                run_conditions="24/7"
+            ),
+            'economic': CheckerHealth(
+                name='economic', display_name='Economic AI', emoji='📊',
+                status=CheckerStatus.HEALTHY, expected_interval=3600,
+                run_conditions="24/7"
+            ),
+            'selloff_rally': CheckerHealth(
+                name='selloff_rally', display_name='Selloff/Rally', emoji='🚨',
+                status=CheckerStatus.HEALTHY, expected_interval=60,
+                run_conditions="RTH only"
+            ),
+            'dark_pool': CheckerHealth(
+                name='dark_pool', display_name='Dark Pool', emoji='🔒',
+                status=CheckerStatus.HEALTHY, expected_interval=60,
+                run_conditions="RTH only"
+            ),
+            'reddit': CheckerHealth(
+                name='reddit', display_name='Reddit Exploiter', emoji='📱',
+                status=CheckerStatus.HEALTHY, expected_interval=3600,
+                run_conditions="RTH only"
+            ),
+            'squeeze': CheckerHealth(
+                name='squeeze', display_name='Squeeze Detector', emoji='🔥',
+                status=CheckerStatus.HEALTHY, expected_interval=3600,
+                run_conditions="RTH only"
+            ),
+            'gamma': CheckerHealth(
+                name='gamma', display_name='Gamma Tracker', emoji='📊',
+                status=CheckerStatus.HEALTHY, expected_interval=1800,
+                run_conditions="RTH only"
+            ),
+            'premarket_gap': CheckerHealth(
+                name='premarket_gap', display_name='Pre-Market Gap', emoji='🌅',
+                status=CheckerStatus.NOT_APPLICABLE, expected_interval=300,
+                run_conditions="Pre-market 8:00-9:30 ET"
+            ),
+            'options_flow': CheckerHealth(
+                name='options_flow', display_name='Options Flow', emoji='📊',
+                status=CheckerStatus.HEALTHY, expected_interval=1800,
+                run_conditions="RTH only"
+            ),
+            'gamma_flip': CheckerHealth(
+                name='gamma_flip', display_name='Gamma Flip', emoji='🎲',
+                status=CheckerStatus.HEALTHY, expected_interval=1800,
+                run_conditions="RTH only"
+            ),
+            'news_intelligence': CheckerHealth(
+                name='news_intelligence', display_name='News Intel', emoji='📰',
+                status=CheckerStatus.HEALTHY, expected_interval=900,
+                run_conditions="RTH only"
+            ),
+            'synthesis': CheckerHealth(
+                name='synthesis', display_name='Signal Brain', emoji='🧠',
+                status=CheckerStatus.HEALTHY, expected_interval=60,
+                run_conditions="RTH only"
+            ),
+            'ftd': CheckerHealth(
+                name='ftd', display_name='FTD Analyzer', emoji='📈',
+                status=CheckerStatus.HEALTHY, expected_interval=3600,
+                run_conditions="RTH only"
+            ),
+        }
+    
+    def record_run(self, checker_name: str, success: bool, alerts_generated: int = 0, error: str = None):
+        """Record a checker run."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO checker_runs (checker_name, success, alerts_generated, error_message)
+            VALUES (?, ?, ?, ?)
+        """, (checker_name, success, alerts_generated, error))
+        conn.commit()
+        conn.close()
+        
+        # Update in-memory status
+        if checker_name in self.checkers:
+            self.checkers[checker_name].last_run = datetime.now()
+            if success:
+                self.checkers[checker_name].last_success = datetime.now()
+                self.checkers[checker_name].status = CheckerStatus.HEALTHY
+            else:
+                self.checkers[checker_name].last_error = error
+                self.checkers[checker_name].status = CheckerStatus.ERROR
+    
+    def record_alert(self, checker_name: str, alert_type: str, symbol: str = None,
+                     direction: str = None, entry_price: float = None):
+        """Record an alert generated by a checker."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO checker_alerts (checker_name, alert_type, symbol, direction, entry_price)
+            VALUES (?, ?, ?, ?, ?)
+        """, (checker_name, alert_type, symbol, direction, entry_price))
+        conn.commit()
+        conn.close()
+    
+    def get_alerts_count(self, checker_name: str, hours: int = 24) -> int:
+        """Get count of alerts in last N hours."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cutoff = datetime.now() - timedelta(hours=hours)
+        cursor.execute("""
+            SELECT COUNT(*) FROM checker_alerts
+            WHERE checker_name = ? AND alert_time > ?
+        """, (checker_name, cutoff))
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count
+    
+    def get_last_run(self, checker_name: str) -> Optional[datetime]:
+        """Get last run time for a checker."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT run_time FROM checker_runs
+            WHERE checker_name = ? ORDER BY run_time DESC LIMIT 1
+        """, (checker_name,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return datetime.fromisoformat(row[0])
+        return None
+    
+    def get_health_summary(self) -> Dict[str, CheckerHealth]:
+        """Get health summary for all checkers."""
+        # Update from database
+        for name, health in self.checkers.items():
+            health.last_run = self.get_last_run(name)
+            health.alerts_24h = self.get_alerts_count(name, hours=24)
+            health.alerts_today = self.get_alerts_count(name, hours=self._hours_since_midnight())
+            
+            # Determine status based on last run
+            if health.last_run:
+                time_since_run = (datetime.now() - health.last_run).total_seconds()
+                if time_since_run > health.expected_interval * 2:
+                    health.status = CheckerStatus.WARNING
+        
+        return self.checkers
+    
+    def _hours_since_midnight(self) -> int:
+        """Get hours since midnight."""
+        now = datetime.now()
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return int((now - midnight).total_seconds() / 3600)
+    
+    def format_time_ago(self, dt: Optional[datetime]) -> str:
+        """Format datetime as 'X ago' string."""
+        if not dt:
+            return "Never"
+        
+        delta = datetime.now() - dt
+        seconds = delta.total_seconds()
+        
+        if seconds < 60:
+            return f"{int(seconds)}s ago"
+        elif seconds < 3600:
+            return f"{int(seconds / 60)}m ago"
+        elif seconds < 86400:
+            return f"{int(seconds / 3600)}h ago"
+        else:
+            return f"{int(seconds / 86400)}d ago"
+    
+    def generate_health_embed(self) -> dict:
+        """Generate Discord embed for health status."""
+        health = self.get_health_summary()
+        
+        # Build status table
+        fields = []
+        
+        for name, h in health.items():
+            # Status emoji
+            status_emoji = {
+                CheckerStatus.HEALTHY: "✅",
+                CheckerStatus.WARNING: "⚠️",
+                CheckerStatus.ERROR: "❌",
+                CheckerStatus.DISABLED: "⏸️",
+                CheckerStatus.NOT_APPLICABLE: "⏸️"
+            }.get(h.status, "❓")
+            
+            # Format value
+            time_ago = self.format_time_ago(h.last_run)
+            alerts = h.alerts_24h
+            win_rate = f"{h.win_rate_7d:.1f}%" if h.win_rate_7d else "N/A"
+            
+            value = f"{status_emoji} {alerts} alerts | {time_ago}"
+            if h.win_rate_7d:
+                value += f"\nWR: {win_rate} ({h.total_trades_7d} trades)"
+            
+            fields.append({
+                "name": f"{h.emoji} {h.display_name}",
+                "value": value,
+                "inline": True
+            })
+        
+        # Add warnings section
+        warnings = []
+        for name, h in health.items():
+            if h.status == CheckerStatus.WARNING:
+                warnings.append(f"• {h.display_name}: Hasn't run in {self.format_time_ago(h.last_run)}")
+            elif h.status == CheckerStatus.ERROR:
+                warnings.append(f"• {h.display_name}: ERROR - {h.last_error}")
+        
+        if warnings:
+            fields.append({
+                "name": "⚠️ HEALTH ALERTS",
+                "value": "\n".join(warnings[:5]),
+                "inline": False
+            })
+        
+        embed = {
+            "title": "🎯 ALPHA INTELLIGENCE - LIVE HEALTH",
+            "color": 3066993 if not warnings else 16776960,  # Green or Yellow
+            "description": f"**Real-time system status** | Updated: {datetime.now().strftime('%H:%M:%S ET')}",
+            "fields": fields,
+            "footer": {"text": "Dynamic Health v1.0 | Auto-refreshed every cycle"},
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        return embed
+```
+
+**Acceptance Criteria:**
+- [ ] SQLite database for checker health tracking
+- [ ] `record_run()` called after each checker execution
+- [ ] `record_alert()` called when alerts are sent
+- [ ] `get_health_summary()` returns real-time status
+- [ ] `generate_health_embed()` creates dynamic Discord embed
+
+---
+
+### 🔧 TASK 9.2: Integrate Health Registry into Unified Monitor ⏳ HIGH PRIORITY
+
+**File:** `live_monitoring/orchestrator/unified_monitor.py`
+
+**Changes Required:**
+
+1. **Import and initialize:**
+```python
+from .checker_health import CheckerHealthRegistry
+
+class UnifiedAlphaMonitor:
+    def __init__(self):
+        # ... existing code ...
+        self.health_registry = CheckerHealthRegistry()
+```
+
+2. **Wrap each checker call:**
+```python
+# BEFORE (current):
+alerts = self.fed_checker.check()
+for alert in alerts:
+    self.send_discord(...)
+
+# AFTER (with health tracking):
+try:
+    alerts = self.fed_checker.check()
+    self.health_registry.record_run('fed', success=True, alerts_generated=len(alerts))
+    for alert in alerts:
+        self.health_registry.record_alert('fed', alert.alert_type, alert.symbol)
+        self.send_discord(...)
+except Exception as e:
+    self.health_registry.record_run('fed', success=False, error=str(e))
+    logger.error(f"Fed checker failed: {e}")
+```
+
+3. **Update startup alert:**
+```python
+def send_startup_alert(self):
+    """Send DYNAMIC startup notification."""
+    embed = self.health_registry.generate_health_embed()
+    self.send_discord(embed, alert_type="startup", source="monitor")
+```
+
+**Acceptance Criteria:**
+- [ ] All 14 checkers wrapped with health tracking
+- [ ] Startup alert uses dynamic health embed
+- [ ] Errors logged and tracked in database
+- [ ] No performance impact (< 10ms overhead)
+
+---
+
+### 🔧 TASK 9.3: Add Win Rate Tracking to Health Registry ⏳ HIGH PRIORITY
+
+**File:** `live_monitoring/orchestrator/checker_health.py`
+
+**Implementation:**
+```python
+def calculate_win_rates(self):
+    """Calculate win rates from backtest results."""
+    # Pull from the backtesting framework
+    from backtesting.simulation.unified_backtest_runner import UnifiedBacktestRunner
+    
+    # Or pull from stored signals
+    # This is where we connect the backtesting results to health display
+    pass
+
+def update_win_rate(self, checker_name: str, win_rate: float, total_trades: int):
+    """Update win rate for a checker."""
+    if checker_name in self.checkers:
+        self.checkers[checker_name].win_rate_7d = win_rate
+        self.checkers[checker_name].total_trades_7d = total_trades
+```
+
+**Connect to existing backtest results:**
+- `selloff_rally`: 57.1% (from `SelloffRallyDetector`)
+- `options_flow`: 37.5% (from `RapidAPIOptionsDetector`)
+- `gap`: 50.0% (from `GapDetector`)
+- `squeeze`: 55.0% (from Phase 1 results)
+- `gamma`: 57.1% (from Phase 2 results)
+
+**Acceptance Criteria:**
+- [ ] Win rates pulled from backtest results
+- [ ] Displayed in health embed
+- [ ] Updated after each backtest run
+- [ ] Historical tracking in SQLite
+
+---
+
+### 🔧 TASK 9.4: Create Health Check CLI Tool ⏳ MEDIUM PRIORITY
+
+**File:** `check_system_health.py` (NEW)
+
+**Usage:**
+```bash
+# Quick health check
+python3 check_system_health.py
+
+# Detailed health report
+python3 check_system_health.py --detailed
+
+# Check specific checker
+python3 check_system_health.py --checker selloff_rally
+
+# Force re-run backtest for win rates
+python3 check_system_health.py --update-winrates
+```
+
+**Output:**
+```
+🩺 ALPHA INTELLIGENCE HEALTH CHECK
+══════════════════════════════════════════════════════════════════════
+
+CHECKER STATUS (Last 24 Hours)
+┌───────────────────┬────────┬─────────┬──────────┬─────────────────┐
+│ Checker           │ Status │ Alerts  │ Last Run │ Win Rate        │
+├───────────────────┼────────┼─────────┼──────────┼─────────────────┤
+│ 🏦 Fed Watch      │ ✅     │ 2       │ 5m ago   │ N/A             │
+│ 🎯 Trump Intel    │ ✅     │ 5       │ 3m ago   │ N/A             │
+│ 🚨 Selloff/Rally  │ ✅     │ 17      │ 1m ago   │ 57.1% (17)      │
+│ 🔒 Dark Pool      │ ✅     │ 8       │ 2m ago   │ 81.2% bounce    │
+│ 📱 Reddit         │ ⚠️     │ 0       │ 4h ago   │ Tracking...     │
+│ 🔥 Squeeze        │ ✅     │ 3       │ 1h ago   │ 55.0% (40)      │
+│ 📊 Gamma          │ ✅     │ 4       │ 30m ago  │ 57.1% (7)       │
+│ 🌅 Pre-Market Gap │ ⏸️     │ 0       │ N/A      │ 50.0% (2)       │
+│ 📊 Options Flow   │ ✅     │ 12      │ 15m ago  │ 37.5% (24)      │
+│ 🎲 Gamma Flip     │ ✅     │ 1       │ 2h ago   │ Tracking...     │
+│ 📰 News Intel     │ ✅     │ 7       │ 10m ago  │ N/A             │
+│ 🧠 Signal Brain   │ ✅     │ 5       │ 1m ago   │ N/A             │
+│ 📈 FTD Analyzer   │ ✅     │ 2       │ 1h ago   │ N/A             │
+└───────────────────┴────────┴─────────┴──────────┴─────────────────┘
+
+OVERALL SYSTEM STATUS: ✅ HEALTHY (1 warning)
+
+⚠️ WARNINGS:
+• Reddit checker hasn't run in 4 hours - check ChartExchange API rate limits
+
+📊 AGGREGATE METRICS (Last 7 Days):
+• Total Signals: 112
+• Total Trades: 90
+• Overall Win Rate: 52.3%
+• Total P&L: -0.57%
+• Best Performer: Selloff/Rally (57.1%)
+• Needs Improvement: Options Flow (37.5%)
+```
+
+**Acceptance Criteria:**
+- [ ] CLI tool created and working
+- [ ] Table formatting with colors
+- [ ] Warnings highlighted
+- [ ] --detailed flag shows full history
+- [ ] --update-winrates runs backtest
+
+---
+
+### 🔧 TASK 9.5: Add DP Learning Stats to Health ⏳ MEDIUM PRIORITY
+
+**The DP Learning Engine has AMAZING stats (81.2% bounce rate) but they're not shown!**
+
+**Current DP Learning Stats (from startup logs):**
+```
+vol_500k: 71.4% bounce (49 samples)
+vol_1m: 80.4% bounce (112 samples)
+vol_2m_plus: 89.7% bounce (29 samples)
+morning: 71.0% bounce (69 samples)
+midday: 75.5% bounce (49 samples)
+afternoon: 90.5% bounce (63 samples)
+resistance: 92.4% bounce (132 samples)
+```
+
+**Task:** Add these to health display and startup alert.
+
+**Implementation:**
+```python
+def get_dp_learning_stats(self) -> Dict:
+    """Pull stats from DP learning database."""
+    db_path = 'data/dp_learning.db'
+    if not os.path.exists(db_path):
+        return {}
+    
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Get overall bounce rate
+    cursor.execute("""
+        SELECT outcome, COUNT(*) 
+        FROM dp_interactions 
+        WHERE outcome IS NOT NULL 
+        GROUP BY outcome
+    """)
+    outcomes = dict(cursor.fetchall())
+    bounces = outcomes.get('BOUNCE', 0)
+    breaks = outcomes.get('BREAK', 0) + outcomes.get('BREAKDOWN', 0)
+    total = bounces + breaks
+    
+    bounce_rate = bounces / total * 100 if total > 0 else 0
+    
+    conn.close()
+    return {
+        'bounce_rate': bounce_rate,
+        'total_interactions': total,
+        'bounces': bounces,
+        'breaks': breaks
+    }
+```
+
+**Acceptance Criteria:**
+- [ ] DP learning stats pulled from SQLite
+- [ ] Displayed in health check
+- [ ] Added to startup alert
+- [ ] Historical trend tracking
+
+---
+
+### 🔧 TASK 9.6: Integrate CompositeSignalFilter for 75%+ Win Rate ⏳ HIGH PRIORITY
+
+**Problem:** We have all the pieces but they're siloed! Current win rate: 47.1%
+
+**Solution:** The `CompositeSignalFilter` exists but isn't integrated!
+
+**File:** `backtesting/simulation/composite_signal_filter.py` (EXISTS)
+
+**Required Integration:**
+
+1. **Add DP confluence to SelloffRallyDetector:**
+```python
+# In selloff_rally_detector.py
+
+def detect_signals(self, symbols, date_str):
+    signals = []  # Current logic
+    
+    # ADD: Check DP confluence before generating signal
+    for signal in raw_signals:
+        dp_levels = self._get_dp_levels(signal.symbol, date_str)
+        if self._has_dp_confluence(signal, dp_levels):
+            signal.confidence += 15  # Boost confidence
+            signals.append(signal)
+        else:
+            # Only add if high base confidence
+            if signal.confidence >= 70:
+                signals.append(signal)
+```
+
+2. **Add DP confluence to RapidAPIOptionsDetector:**
+```python
+# Same pattern - check DP levels before generating options signals
+```
+
+3. **Run signals through CompositeSignalFilter:**
+```python
+# In unified_backtest_runner.py
+
+def run_all(self, date):
+    raw_results = {}
+    
+    # Collect raw signals from all detectors
+    for name, detector in self.detectors.items():
+        result = detector.backtest_date(...)
+        raw_results[name] = result
+    
+    # Filter through composite filter
+    from backtesting.simulation.composite_signal_filter import CompositeSignalFilter
+    composite = CompositeSignalFilter()
+    filtered_results = composite.filter_all(raw_results, self.market_context)
+    
+    return filtered_results
+```
+
+**Expected Improvement:**
+| Detector | Current WR | With DP | With Composite |
+|----------|-----------|---------|----------------|
+| selloff_rally | 57.1% | ~70% | ~80% |
+| gap | 50.0% | 60% | ~75% |
+| options_flow | 37.5% | ~55% | ~70% |
+| **OVERALL** | **47.1%** | **~62%** | **~75%** |
+
+**Acceptance Criteria:**
+- [ ] DP confluence added to selloff_rally detector
+- [ ] DP confluence added to options_flow detector
+- [ ] CompositeSignalFilter integrated into runner
+- [ ] Backtest shows 70%+ win rate
+- [ ] Only "MASTER" signals (75%+) generate alerts
+
+---
+
+### 📋 PHASE 9 TASK SUMMARY
+
+| Task | Priority | Effort | Status |
+|------|----------|--------|--------|
+| 9.1: CheckerHealthRegistry | HIGH | 3h | ⏳ |
+| 9.2: Integrate into UnifiedMonitor | HIGH | 2h | ⏳ |
+| 9.3: Win Rate Tracking | HIGH | 2h | ⏳ |
+| 9.4: Health Check CLI | MEDIUM | 2h | ⏳ |
+| 9.5: DP Learning Stats | MEDIUM | 1h | ⏳ |
+| 9.6: CompositeSignalFilter Integration | HIGH | 4h | ⏳ |
+
+**Total Effort:** ~14 hours
+
+---
+
+### ✅ PHASE 9 DEFINITION OF DONE
+
+**Plumber is DONE with Phase 9 when:**
+
+1. ✅ `CheckerHealthRegistry` class created
+2. ✅ All 14 checkers wrapped with health tracking
+3. ✅ Startup alert is DYNAMIC (not hardcoded)
+4. ✅ Health shows: status, last run, alerts count, win rate
+5. ✅ CLI tool for health checking
+6. ✅ DP learning stats visible
+7. ✅ CompositeSignalFilter integrated
+8. ✅ Overall win rate > 60%
+
+---
+
 ## 🔧 PHASE 8: CONTINUOUS IMPROVEMENT TASKS
 
 **Status:** 🔄 **ONGOING** - These are enhancement tasks to improve the system over time.

@@ -226,34 +226,6 @@ def run_discord_bot():
 
 class HealthHandler(BaseHTTPRequestHandler):
     """HTTP handler for health checks and status."""
-    
-    def do_GET(self):
-        global monitor
-        
-        if self.path == '/health' or self.path == '/':
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            
-            status = {
-                "status": "running",
-                "service": "alpha-intelligence-monitor",
-                "timestamp": datetime.now().isoformat(),
-                "monitor_running": monitor is not None and monitor.running if monitor else False,
-            }
-            
-            # Add monitor stats if available
-            if monitor:
-                try:
-                    status["fed_enabled"] = getattr(monitor, 'fed_enabled', False)
-                    status["trump_enabled"] = getattr(monitor, 'trump_enabled', False)
-                    status["econ_enabled"] = getattr(monitor, 'econ_enabled', False)
-                    status["last_fed_check"] = str(monitor.last_fed_check) if monitor.last_fed_check else None
-                    status["last_econ_check"] = str(monitor.last_econ_check) if monitor.last_econ_check else None
-                except:
-                    pass
-            
-            self.wfile.write(json.dumps(status, indent=2).encode())
 
     def do_POST(self):
         """Handle POST requests (webhooks)"""
@@ -508,31 +480,33 @@ class HealthHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         global monitor
-
-        if self.path == '/tradytics-forward':
-            # Tradytics forwarding endpoint info - GET request
+        
+        # CRITICAL: Handle /health and / FIRST for Render health checks and self-ping
+        if self.path == '/health' or self.path == '/':
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-
-            info = {
-                "endpoint": "POST /tradytics-forward",
-                "description": "Forward Discord webhooks to autonomous analysis",
-                "webhook_url": f"https://{self.headers.get('Host', 'lotto-machine.onrender.com')}/tradytics-forward",
-                "purpose": "Use this URL in place of Discord webhook URLs to get autonomous analysis",
-                "how_it_works": [
-                    "Discord webhook sends message to THIS URL instead of Discord",
-                    "We analyze the message with savage LLM",
-                    "We forward the analyzed message to your Discord channel",
-                    "Result: Every alert gets instant institutional analysis"
-                ],
-                "discord_webhook_format": "Compatible with standard Discord webhook payloads",
-                "status": "active",
-                "note": "This endpoint accepts POST requests. Use POST method for webhook forwarding."
+            
+            status = {
+                "status": "running",
+                "service": "alpha-intelligence-monitor",
+                "timestamp": datetime.now().isoformat(),
+                "monitor_running": monitor is not None and getattr(monitor, 'running', False),
             }
-            self.wfile.write(json.dumps(info, indent=2).encode())
+            
+            # Add monitor stats if available
+            if monitor:
+                try:
+                    status["fed_enabled"] = getattr(monitor, 'fed_enabled', False)
+                    status["trump_enabled"] = getattr(monitor, 'trump_enabled', False)
+                    status["econ_enabled"] = getattr(monitor, 'econ_enabled', False)
+                except:
+                    pass
+            
+            self.wfile.write(json.dumps(status, indent=2).encode())
+            return
 
-        elif self.path == '/tradytics-webhook':
+        elif self.path == '/tradytics-forward':
             # Tradytics webhook endpoint info - GET request
             self.send_response(200)
             self.send_header('Content-type', 'application/json')

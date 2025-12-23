@@ -23,6 +23,7 @@ from .alert_manager import AlertManager
 from .regime_detector import RegimeDetector
 from .momentum_detector import MomentumDetector
 from .monitor_initializer import MonitorInitializer
+from .checker_health import CheckerHealthRegistry
 from .checkers import (
     FedChecker,
     TrumpChecker,
@@ -86,6 +87,7 @@ class UnifiedAlphaMonitor:
         # Initialize modular components
         self.alert_manager = AlertManager()
         self.regime_detector = RegimeDetector()
+        self.health_registry = CheckerHealthRegistry()
         
         # State tracking (MUST BE BEFORE _init_monitors and _init_exploitation_modules)
         self.prev_fed_status = None
@@ -498,83 +500,103 @@ class UnifiedAlphaMonitor:
     
     def _check_selloffs(self):
         """Check for selloffs (delegates to MomentumDetector)."""
-        selloff_signals = self.momentum_detector.check_selloffs(self.symbols)
-        
-        for item in selloff_signals:
-            symbol = item['symbol']
-            signal = item['signal']
-            current_price = item['current_price']
+        try:
+            selloff_signals = self.momentum_detector.check_selloffs(self.symbols)
+            alert_count = 0
             
-            embed = {
-                "title": f"🚨 **REAL-TIME SELLOFF** - {symbol}",
-                "description": signal.rationale or "Rapid price drop with volume spike detected",
-                "color": 0xff0000,
-                "fields": [{
-                    "name": "🎯 Trade Setup",
-                    "value": f"**Action:** {signal.action.value}\n"
-                            f"**Entry:** ${signal.entry_price:.2f}\n"
-                            f"**Stop:** ${signal.stop_price:.2f}\n"
-                            f"**Target:** ${signal.target_price:.2f}\n"
-                            f"**Confidence:** {signal.confidence:.0%}",
-                    "inline": False
-                }],
-                "footer": {"text": "Real-time momentum detection"},
-                "timestamp": datetime.now().isoformat()
-            }
+            for item in selloff_signals:
+                symbol = item['symbol']
+                signal = item['signal']
+                current_price = item['current_price']
+                
+                embed = {
+                    "title": f"🚨 **REAL-TIME SELLOFF** - {symbol}",
+                    "description": signal.rationale or "Rapid price drop with volume spike detected",
+                    "color": 0xff0000,
+                    "fields": [{
+                        "name": "🎯 Trade Setup",
+                        "value": f"**Action:** {signal.action.value}\n"
+                                f"**Entry:** ${signal.entry_price:.2f}\n"
+                                f"**Stop:** ${signal.stop_price:.2f}\n"
+                                f"**Target:** ${signal.target_price:.2f}\n"
+                                f"**Confidence:** {signal.confidence:.0%}",
+                        "inline": False
+                    }],
+                    "footer": {"text": "Real-time momentum detection"},
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                content = f"🚨 **REAL-TIME SELLOFF** | {symbol} | {signal.action.value} @ ${current_price:.2f}"
+                
+                # Check regime before sending
+                market_regime = self._detect_market_regime(current_price)
+                signal_direction = signal.action.value
+                
+                if market_regime in ["DOWNTREND", "STRONG_DOWNTREND"] and signal_direction == "LONG":
+                    logger.warning(f"   ⛔ REGIME FILTER: Blocking LONG selloff signal in {market_regime}")
+                    continue
+                
+                self.send_discord(embed, content=content, alert_type="selloff", source="selloff_detector", symbol=symbol)
+                alert_count += 1
+                self.health_registry.record_alert('selloff_rally', 'selloff', symbol, signal.action.value, signal.entry_price)
             
-            content = f"🚨 **REAL-TIME SELLOFF** | {symbol} | {signal.action.value} @ ${current_price:.2f}"
-            
-            # Check regime before sending
-            market_regime = self._detect_market_regime(current_price)
-            signal_direction = signal.action.value
-            
-            if market_regime in ["DOWNTREND", "STRONG_DOWNTREND"] and signal_direction == "LONG":
-                logger.warning(f"   ⛔ REGIME FILTER: Blocking LONG selloff signal in {market_regime}")
-                continue
-            
-            self.send_discord(embed, content=content, alert_type="selloff", source="selloff_detector", symbol=symbol)
+            # Record run once after processing all signals
+            self.health_registry.record_run('selloff_rally', success=True, alerts_generated=alert_count)
+        except Exception as e:
+            logger.error(f"❌ selloff detection failed: {e}")
+            self.health_registry.record_run('selloff_rally', success=False, error=str(e))
     
     def _check_rallies(self):
         """Check for rallies (delegates to MomentumDetector)."""
-        rally_signals = self.momentum_detector.check_rallies(self.symbols)
-        
-        for item in rally_signals:
-            symbol = item['symbol']
-            signal = item['signal']
-            current_price = item['current_price']
+        try:
+            rally_signals = self.momentum_detector.check_rallies(self.symbols)
+            alert_count = 0
             
-            embed = {
-                "title": f"🚀 **REAL-TIME RALLY** - {symbol}",
-                "description": signal.rationale or "Rapid price rise with volume spike detected",
-                "color": 0x00ff00,
-                "fields": [{
-                    "name": "🎯 Trade Setup",
-                    "value": f"**Action:** {signal.action.value}\n"
-                            f"**Entry:** ${signal.entry_price:.2f}\n"
-                            f"**Stop:** ${signal.stop_price:.2f}\n"
-                            f"**Target:** ${signal.target_price:.2f}\n"
-                            f"**Confidence:** {signal.confidence:.0%}",
-                    "inline": False
-                }],
-                "footer": {"text": "Real-time momentum detection"},
-                "timestamp": datetime.now().isoformat()
-            }
+            for item in rally_signals:
+                symbol = item['symbol']
+                signal = item['signal']
+                current_price = item['current_price']
+                
+                embed = {
+                    "title": f"🚀 **REAL-TIME RALLY** - {symbol}",
+                    "description": signal.rationale or "Rapid price rise with volume spike detected",
+                    "color": 0x00ff00,
+                    "fields": [{
+                        "name": "🎯 Trade Setup",
+                        "value": f"**Action:** {signal.action.value}\n"
+                                f"**Entry:** ${signal.entry_price:.2f}\n"
+                                f"**Stop:** ${signal.stop_price:.2f}\n"
+                                f"**Target:** ${signal.target_price:.2f}\n"
+                                f"**Confidence:** {signal.confidence:.0%}",
+                        "inline": False
+                    }],
+                    "footer": {"text": "Real-time momentum detection"},
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                content = f"🚀 **REAL-TIME RALLY** | {symbol} | {signal.action.value} @ ${current_price:.2f}"
+                
+                # Check regime before sending
+                market_regime = self._detect_market_regime(current_price)
+                signal_direction = signal.action.value
+                
+                if market_regime in ["UPTREND", "STRONG_UPTREND"] and signal_direction == "SELL":
+                    logger.warning(f"   ⛔ REGIME FILTER: Blocking SHORT rally signal in {market_regime}")
+                    continue
+                
+                if market_regime == "STRONG_DOWNTREND" and signal_direction == "BUY":
+                    logger.warning(f"   ⛔ REGIME FILTER: Blocking BUY rally signal in {market_regime} (don't chase)")
+                    continue
+                
+                self.send_discord(embed, content=content, alert_type="rally", source="rally_detector", symbol=symbol)
+                alert_count += 1
+                self.health_registry.record_alert('selloff_rally', 'rally', symbol, signal.action.value, signal.entry_price)
             
-            content = f"🚀 **REAL-TIME RALLY** | {symbol} | {signal.action.value} @ ${current_price:.2f}"
-            
-            # Check regime before sending
-            market_regime = self._detect_market_regime(current_price)
-            signal_direction = signal.action.value
-            
-            if market_regime in ["UPTREND", "STRONG_UPTREND"] and signal_direction == "SELL":
-                logger.warning(f"   ⛔ REGIME FILTER: Blocking SHORT rally signal in {market_regime}")
-                continue
-            
-            if market_regime == "STRONG_DOWNTREND" and signal_direction == "BUY":
-                logger.warning(f"   ⛔ REGIME FILTER: Blocking BUY rally signal in {market_regime} (don't chase)")
-                continue
-            
-            self.send_discord(embed, content=content, alert_type="rally", source="rally_detector", symbol=symbol)
+            # Record run once after processing all signals
+            self.health_registry.record_run('selloff_rally', success=True, alerts_generated=alert_count)
+        except Exception as e:
+            logger.error(f"❌ rally detection failed: {e}")
+            self.health_registry.record_run('selloff_rally', success=False, error=str(e))
     
     # ═══════════════════════════════════════════════════════════════
     # HELPER METHODS (kept for compatibility)
@@ -642,47 +664,73 @@ class UnifiedAlphaMonitor:
         # Simplified - would populate from all monitors
         return snapshot
     
+    def _run_checker_with_health(self, checker_name: str, checker_func: Callable) -> List:
+        """
+        Helper method to run a checker with health tracking.
+        
+        Args:
+            checker_name: Name of the checker (e.g., 'fed', 'trump', 'dark_pool')
+            checker_func: Function that returns list of alerts
+        
+        Returns:
+            List of alerts generated
+        """
+        alerts = []
+        try:
+            alerts = checker_func()
+            self.health_registry.record_run(checker_name, success=True, alerts_generated=len(alerts))
+            
+            # Record each alert
+            for alert in alerts:
+                symbol = getattr(alert, 'symbol', None)
+                alert_type = getattr(alert, 'alert_type', None)
+                direction = None
+                entry_price = None
+                
+                # Try to extract direction and entry_price from embed if available
+                if hasattr(alert, 'embed') and alert.embed:
+                    embed = alert.embed
+                    if 'fields' in embed:
+                        for field in embed['fields']:
+                            if 'Entry' in field.get('name', ''):
+                                # Try to parse entry price from field value
+                                value = field.get('value', '')
+                                try:
+                                    # Look for price pattern like "$665.20"
+                                    import re
+                                    match = re.search(r'\$?([\d,]+\.?\d*)', value)
+                                    if match:
+                                        entry_price = float(match.group(1).replace(',', ''))
+                                except:
+                                    pass
+                            if 'Direction' in field.get('name', '') or 'Action' in field.get('name', ''):
+                                value = field.get('value', '')
+                                if 'LONG' in value.upper() or 'BUY' in value.upper():
+                                    direction = 'LONG'
+                                elif 'SHORT' in value.upper() or 'SELL' in value.upper():
+                                    direction = 'SHORT'
+                
+                self.health_registry.record_alert(checker_name, alert_type or 'unknown', symbol, direction, entry_price)
+        except Exception as e:
+            logger.error(f"❌ {checker_name} checker failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            self.health_registry.record_run(checker_name, success=False, error=str(e))
+        
+        return alerts
+    
     def send_startup_alert(self):
-        """Send startup notification."""
+        """Send DYNAMIC startup notification using health registry."""
         logger.info("   📤 send_startup_alert() called")
         
         if self.startup_alert_sent:
             logger.info("   ⏭️ Startup alert already sent, skipping")
             return
         
-        logger.info("   📝 Building startup embed...")
-        embed = {
-            "title": "🎯 ALPHA INTELLIGENCE - ONLINE (MODULAR)",
-            "color": 3066993,
-            "description": "Complete institutional intelligence system activated\n**All signals operational and tested**",
-            "fields": [
-                # === MACRO INTELLIGENCE ===
-                {"name": "🏦 Fed Watch", "value": "✅ FOMC + Officials" if self.fed_enabled else "❌ Disabled", "inline": True},
-                {"name": "🎯 Trump Intel", "value": "✅ Real-time Tweets" if self.trump_enabled else "❌ Disabled", "inline": True},
-                {"name": "📊 Economic AI", "value": "✅ Calendar Events" if self.econ_enabled else "❌ Disabled", "inline": True},
-                
-                # === PRICE ACTION SIGNALS ===
-                {"name": "🚨 Selloff/Rally", "value": "✅ FIXED & ACTIVE\n-0.25% threshold", "inline": True},
-                {"name": "🔒 Dark Pool", "value": f"✅ {', '.join(self.symbols)}\nBattlegrounds" if self.dp_enabled else "❌ Disabled", "inline": True},
-                {"name": "📱 Reddit Exploiter", "value": "✅ Contrarian Logic\nDP Synthesis", "inline": True},
-                
-                # === INSTITUTIONAL SIGNALS ===
-                {"name": "🔥 Squeeze Detector", "value": "✅ Short Interest\nBorrow Fees", "inline": True},
-                {"name": "📊 Gamma Tracker", "value": "✅ Max Pain\nDealer Flow", "inline": True},
-                {"name": "📈 Short Interest", "value": "✅ Live Tracking\nDaily Updates", "inline": True},
-                
-                # === PHASE 6: NEW STRATEGIES ===
-                {"name": "🌅 Pre-Market Gap", "value": "✅ Gap + DP Confluence\n20-25% edge", "inline": True},
-                {"name": "📊 Options Flow", "value": "✅ P/C Ratio + Sweeps\n15-20% edge", "inline": True},
-                {"name": "🎲 Gamma Flip", "value": "✅ Flip Level Retest\nDealer Hedging", "inline": True},
-                
-                # === SYNTHESIS ===
-                {"name": "🧠 Signal Brain", "value": "✅ Multi-Factor\n75%+ Threshold" if self.brain_enabled else "❌ Disabled", "inline": False},
-                {"name": "⚡ Status", "value": "**ALL SYSTEMS GO**\nReady for RTH 9:30-4:00 ET\n12 Active Strategies", "inline": False},
-            ],
-            "footer": {"text": "Modular v2.1 | Phase 6 Strategies Dec 17"},
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        logger.info("   📝 Generating dynamic health embed...")
+        
+        # Use health registry to generate dynamic embed
+        embed = self.health_registry.generate_health_embed()
         
         logger.info("   📤 Calling send_discord for startup alert...")
         result = self.send_discord(embed, alert_type="startup", source="monitor")
@@ -1352,7 +1400,7 @@ class UnifiedAlphaMonitor:
                 if self.fed_checker and (self.last_fed_check is None or (now - self.last_fed_check).seconds >= self.fed_interval):
                     # Update prev_fed_status in checker before checking
                     self.fed_checker.prev_fed_status = self.prev_fed_status
-                    alerts = self.fed_checker.check()
+                    alerts = self._run_checker_with_health('fed', self.fed_checker.check)
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     # Update prev_fed_status from checker after checking
@@ -1362,14 +1410,14 @@ class UnifiedAlphaMonitor:
                 
                 # Trump Checker
                 if self.trump_checker and (self.last_trump_check is None or (now - self.last_trump_check).seconds >= self.trump_interval):
-                    alerts = self.trump_checker.check()
+                    alerts = self._run_checker_with_health('trump', self.trump_checker.check)
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_trump_check = now
                 
                 # Economic Checker
                 if self.economic_checker and (self.last_econ_check is None or (now - self.last_econ_check).seconds >= self.econ_interval):
-                    alerts = self.economic_checker.check()
+                    alerts = self._run_checker_with_health('economic', self.economic_checker.check)
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_econ_check = now
@@ -1395,7 +1443,7 @@ class UnifiedAlphaMonitor:
                 
                 # Dark Pool Checker
                 if is_market_hours and self.dp_checker and (self.last_dp_check is None or (now - self.last_dp_check).seconds >= self.dp_interval):
-                    alerts = self.dp_checker.check()
+                    alerts = self._run_checker_with_health('dark_pool', self.dp_checker.check)
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     # Get recent_dp_alerts from checker for synthesis/narrative
@@ -1405,11 +1453,19 @@ class UnifiedAlphaMonitor:
                 # Synthesis Checker (returns alerts + result for narrative checker)
                 synthesis_result = None
                 if is_market_hours and self.synthesis_checker and (self.last_synthesis_check is None or (now - self.last_synthesis_check).seconds >= self.synthesis_interval):
-                    alerts, synthesis_result = self.synthesis_checker.check(
-                        recent_dp_alerts=self.recent_dp_alerts,
-                        spy_price=spy_price,
-                        qqq_price=qqq_price
-                    )
+                    try:
+                        alerts, synthesis_result = self.synthesis_checker.check(
+                            recent_dp_alerts=self.recent_dp_alerts,
+                            spy_price=spy_price,
+                            qqq_price=qqq_price
+                        )
+                        self.health_registry.record_run('synthesis', success=True, alerts_generated=len(alerts))
+                        for alert in alerts:
+                            self.health_registry.record_alert('synthesis', getattr(alert, 'alert_type', None), getattr(alert, 'symbol', None))
+                    except Exception as e:
+                        logger.error(f"❌ synthesis checker failed: {e}")
+                        self.health_registry.record_run('synthesis', success=False, error=str(e))
+                        alerts, synthesis_result = [], None
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_synthesis_check = now
@@ -1429,56 +1485,56 @@ class UnifiedAlphaMonitor:
                 
                 # Squeeze Checker
                 if is_market_hours and self.squeeze_checker and (self.last_squeeze_check is None or (now - self.last_squeeze_check).seconds >= self.squeeze_interval):
-                    alerts = self.squeeze_checker.check()
+                    alerts = self._run_checker_with_health('squeeze', self.squeeze_checker.check)
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_squeeze_check = now
                 
                 # Gamma Checker
                 if is_market_hours and self.gamma_checker and (self.last_gamma_check is None or (now - self.last_gamma_check).seconds >= self.gamma_interval):
-                    alerts = self.gamma_checker.check()
+                    alerts = self._run_checker_with_health('gamma', self.gamma_checker.check)
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_gamma_check = now
                 
                 # Scanner Checker
                 if is_market_hours and self.scanner_checker and (self.last_scanner_check is None or (now - self.last_scanner_check).seconds >= self.scanner_interval):
-                    alerts = self.scanner_checker.check()
+                    alerts = self._run_checker_with_health('scanner', self.scanner_checker.check)
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_scanner_check = now
                 
                 # FTD Checker
                 if is_market_hours and self.ftd_checker and (self.last_ftd_check is None or (now - self.last_ftd_check).seconds >= self.ftd_interval):
-                    alerts = self.ftd_checker.check()
+                    alerts = self._run_checker_with_health('ftd', self.ftd_checker.check)
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_ftd_check = now
                 
                 # Reddit Checker (Phase 5)
                 if is_market_hours and self.reddit_checker and (self.last_reddit_check is None or (now - self.last_reddit_check).seconds >= self.reddit_interval):
-                    alerts = self.reddit_checker.check()
+                    alerts = self._run_checker_with_health('reddit', self.reddit_checker.check)
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_reddit_check = now
                 
                 # Pre-Market Gap Checker (Phase 6) - Runs ONCE per day before market open
                 if self.premarket_gap_checker and (self.last_premarket_gap_check is None or (now - self.last_premarket_gap_check).seconds >= self.premarket_gap_interval):
-                    alerts = self.premarket_gap_checker.check()
+                    alerts = self._run_checker_with_health('premarket_gap', self.premarket_gap_checker.check)
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert_type="premarket_gap", source="premarket_gap_checker", symbol=alert.symbol or "")
                     self.last_premarket_gap_check = now
                 
                 # Options Flow Checker (Phase 6) - Runs during RTH every 30 min
                 if is_market_hours and self.options_flow_checker and (self.last_options_flow_check is None or (now - self.last_options_flow_check).seconds >= self.options_flow_interval):
-                    alerts = self.options_flow_checker.check()
+                    alerts = self._run_checker_with_health('options_flow', self.options_flow_checker.check)
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert_type="options_flow", source="options_flow_checker", symbol=alert.symbol or "")
                     self.last_options_flow_check = now
                 
                 # News Intelligence Checker (Phase 6) - Runs during RTH every 15 min
                 if is_market_hours and self.news_intelligence_checker and (self.last_news_intelligence_check is None or (now - self.last_news_intelligence_check).seconds >= self.news_intelligence_interval):
-                    alerts = self.news_intelligence_checker.check()
+                    alerts = self._run_checker_with_health('news_intelligence', self.news_intelligence_checker.check)
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert_type="news_intelligence", source="news_intelligence_checker", symbol=alert.symbol or "")
                     self.last_news_intelligence_check = now

@@ -1,0 +1,704 @@
+{
+  "date": "2025-12-18",
+  "timestamp": "2025-12-18T21:14:59.907702",
+  "options_signals": [],
+  "options_results": [],
+  "selloff_rally_signals": [
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 10:01:00-05:00",
+      "bar_idx": 31,
+      "entry_price": 678.0599975585938,
+      "from_open_pct": 0.06788990395970095,
+      "rolling_pct": 0.23356450086651737,
+      "consecutive_green": 1,
+      "triggers": [
+        "ROLLING"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 10:11:00-05:00",
+      "bar_idx": 41,
+      "entry_price": 676.9500122070312,
+      "from_open_pct": -0.09592139939854788,
+      "rolling_pct": 0.05912710387704738,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 10:32:00-05:00",
+      "bar_idx": 62,
+      "entry_price": 679.239990234375,
+      "from_open_pct": 0.24203286710855304,
+      "rolling_pct": 0.36793354035833026,
+      "consecutive_green": 2,
+      "triggers": [
+        "ROLLING"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 10:48:00-05:00",
+      "bar_idx": 78,
+      "entry_price": 680.0399780273438,
+      "from_open_pct": 0.3600948242798148,
+      "rolling_pct": 0.14136197698967118,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 11:03:00-05:00",
+      "bar_idx": 93,
+      "entry_price": 680.00048828125,
+      "from_open_pct": 0.3542669394633194,
+      "rolling_pct": -0.04990718770261057,
+      "consecutive_green": 2,
+      "triggers": [
+        "FROM_OPEN"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 11:21:00-05:00",
+      "bar_idx": 111,
+      "entry_price": 680.3200073242188,
+      "from_open_pct": 0.40142146344222795,
+      "rolling_pct": 0.0426419444511261,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 11:34:00-05:00",
+      "bar_idx": 124,
+      "entry_price": 680.0399780273438,
+      "from_open_pct": 0.3600948242798148,
+      "rolling_pct": 0.015439780144712032,
+      "consecutive_green": 0,
+      "triggers": [
+        "FROM_OPEN"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 11:57:00-05:00",
+      "bar_idx": 147,
+      "entry_price": 679.4500732421875,
+      "from_open_pct": 0.27303685403031114,
+      "rolling_pct": -0.15941868458732983,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 12:28:00-05:00",
+      "bar_idx": 178,
+      "entry_price": 675.8400268554688,
+      "from_open_pct": -0.2597327027567967,
+      "rolling_pct": -0.21334391671999361,
+      "consecutive_red": 0,
+      "triggers": [
+        "FROM_OPEN",
+        "ROLLING"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 12:37:00-05:00",
+      "bar_idx": 187,
+      "entry_price": 676.6900024414062,
+      "from_open_pct": -0.13429356217794633,
+      "rolling_pct": 0.20732195939768713,
+      "consecutive_green": 1,
+      "triggers": [
+        "ROLLING"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 13:03:00-05:00",
+      "bar_idx": 213,
+      "entry_price": 677.6599731445312,
+      "from_open_pct": 0.00885442159909593,
+      "rolling_pct": -0.05162705801567014,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 13:08:00-05:00",
+      "bar_idx": 218,
+      "entry_price": 678.280029296875,
+      "from_open_pct": 0.10036212152301817,
+      "rolling_pct": 0.07450921981804765,
+      "consecutive_green": 3,
+      "triggers": [
+        "MOMENTUM"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 13:39:00-05:00",
+      "bar_idx": 249,
+      "entry_price": 679.4299926757812,
+      "from_open_pct": 0.27007337009734816,
+      "rolling_pct": 0.13558870125940162,
+      "consecutive_green": 1,
+      "triggers": [
+        "FROM_OPEN"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 13:45:00-05:00",
+      "bar_idx": 255,
+      "entry_price": 678.8699951171875,
+      "from_open_pct": 0.1874290993224701,
+      "rolling_pct": 0.029471202803694363,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 14:16:00-05:00",
+      "bar_idx": 286,
+      "entry_price": 676.969970703125,
+      "from_open_pct": -0.09297593056548138,
+      "rolling_pct": -0.20197188697456334,
+      "consecutive_red": 1,
+      "triggers": [
+        "ROLLING"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 14:30:00-05:00",
+      "bar_idx": 300,
+      "entry_price": 677.22998046875,
+      "from_open_pct": -0.05460376778608294,
+      "rolling_pct": -0.11357220224926254,
+      "consecutive_green": 3,
+      "triggers": [
+        "MOMENTUM"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 14:55:00-05:00",
+      "bar_idx": 325,
+      "entry_price": 675.8800048828125,
+      "from_open_pct": -0.25383275754071544,
+      "rolling_pct": -0.10641009889211174,
+      "consecutive_red": 1,
+      "triggers": [
+        "FROM_OPEN"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 15:01:00-05:00",
+      "bar_idx": 331,
+      "entry_price": 676.2000122070312,
+      "from_open_pct": -0.20660617316222113,
+      "rolling_pct": -0.11595133740279462,
+      "consecutive_green": 3,
+      "triggers": [
+        "MOMENTUM"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 15:35:00-05:00",
+      "bar_idx": 365,
+      "entry_price": 678.02001953125,
+      "from_open_pct": 0.061989958743619726,
+      "rolling_pct": 0.07379855732468699,
+      "consecutive_green": 3,
+      "triggers": [
+        "MOMENTUM"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 15:53:00-05:00",
+      "bar_idx": 383,
+      "entry_price": 677.3599853515625,
+      "from_open_pct": -0.03541768639638372,
+      "rolling_pct": -0.10176276879705966,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ]
+    }
+  ],
+  "selloff_rally_results": [
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 10:01:00-05:00",
+      "bar_idx": 31,
+      "entry_price": 678.0599975585938,
+      "from_open_pct": 0.06788990395970095,
+      "rolling_pct": 0.23356450086651737,
+      "consecutive_green": 1,
+      "triggers": [
+        "ROLLING"
+      ],
+      "outcome": "LOSS",
+      "exit_price": 676.7038775634766,
+      "pnl_pct": -0.2,
+      "bars_held": 11,
+      "exit_time": "2025-12-18 10:12:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 10:11:00-05:00",
+      "bar_idx": 41,
+      "entry_price": 676.9500122070312,
+      "from_open_pct": -0.09592139939854788,
+      "rolling_pct": 0.05912710387704738,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ],
+      "outcome": "LOSS",
+      "exit_price": 678.3039122314453,
+      "pnl_pct": -0.2,
+      "bars_held": 13,
+      "exit_time": "2025-12-18 10:24:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 10:32:00-05:00",
+      "bar_idx": 62,
+      "entry_price": 679.239990234375,
+      "from_open_pct": 0.24203286710855304,
+      "rolling_pct": 0.36793354035833026,
+      "consecutive_green": 2,
+      "triggers": [
+        "ROLLING"
+      ],
+      "outcome": "WIN",
+      "exit_price": 680.2588502197266,
+      "pnl_pct": 0.15,
+      "bars_held": 6,
+      "exit_time": "2025-12-18 10:38:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 10:48:00-05:00",
+      "bar_idx": 78,
+      "entry_price": 680.0399780273438,
+      "from_open_pct": 0.3600948242798148,
+      "rolling_pct": 0.14136197698967118,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ],
+      "outcome": "LOSS",
+      "exit_price": 680.1099853515625,
+      "pnl_pct": -0.010294589506609135,
+      "bars_held": 30,
+      "exit_time": "MAX_BARS"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 11:03:00-05:00",
+      "bar_idx": 93,
+      "entry_price": 680.00048828125,
+      "from_open_pct": 0.3542669394633194,
+      "rolling_pct": -0.04990718770261057,
+      "consecutive_green": 2,
+      "triggers": [
+        "FROM_OPEN"
+      ],
+      "outcome": "WIN",
+      "exit_price": 680.0449829101562,
+      "pnl_pct": 0.0065433230818279795,
+      "bars_held": 30,
+      "exit_time": "MAX_BARS"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 11:21:00-05:00",
+      "bar_idx": 111,
+      "entry_price": 680.3200073242188,
+      "from_open_pct": 0.40142146344222795,
+      "rolling_pct": 0.0426419444511261,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ],
+      "outcome": "WIN",
+      "exit_price": 679.8900146484375,
+      "pnl_pct": 0.06320447306444264,
+      "bars_held": 30,
+      "exit_time": "MAX_BARS"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 11:34:00-05:00",
+      "bar_idx": 124,
+      "entry_price": 680.0399780273438,
+      "from_open_pct": 0.3600948242798148,
+      "rolling_pct": 0.015439780144712032,
+      "consecutive_green": 0,
+      "triggers": [
+        "FROM_OPEN"
+      ],
+      "outcome": "LOSS",
+      "exit_price": 678.8400268554688,
+      "pnl_pct": -0.17645303374013566,
+      "bars_held": 30,
+      "exit_time": "MAX_BARS"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 11:57:00-05:00",
+      "bar_idx": 147,
+      "entry_price": 679.4500732421875,
+      "from_open_pct": 0.27303685403031114,
+      "rolling_pct": -0.15941868458732983,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ],
+      "outcome": "WIN",
+      "exit_price": 678.4308981323243,
+      "pnl_pct": 0.15,
+      "bars_held": 9,
+      "exit_time": "2025-12-18 12:06:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 12:28:00-05:00",
+      "bar_idx": 178,
+      "entry_price": 675.8400268554688,
+      "from_open_pct": -0.2597327027567967,
+      "rolling_pct": -0.21334391671999361,
+      "consecutive_red": 0,
+      "triggers": [
+        "FROM_OPEN",
+        "ROLLING"
+      ],
+      "outcome": "LOSS",
+      "exit_price": 677.1917069091797,
+      "pnl_pct": -0.2,
+      "bars_held": 11,
+      "exit_time": "2025-12-18 12:39:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 12:37:00-05:00",
+      "bar_idx": 187,
+      "entry_price": 676.6900024414062,
+      "from_open_pct": -0.13429356217794633,
+      "rolling_pct": 0.20732195939768713,
+      "consecutive_green": 1,
+      "triggers": [
+        "ROLLING"
+      ],
+      "outcome": "WIN",
+      "exit_price": 677.7050374450683,
+      "pnl_pct": 0.15,
+      "bars_held": 4,
+      "exit_time": "2025-12-18 12:41:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 13:03:00-05:00",
+      "bar_idx": 213,
+      "entry_price": 677.6599731445312,
+      "from_open_pct": 0.00885442159909593,
+      "rolling_pct": -0.05162705801567014,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ],
+      "outcome": "LOSS",
+      "exit_price": 679.0152930908204,
+      "pnl_pct": -0.2,
+      "bars_held": 25,
+      "exit_time": "2025-12-18 13:28:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 13:08:00-05:00",
+      "bar_idx": 218,
+      "entry_price": 678.280029296875,
+      "from_open_pct": 0.10036212152301817,
+      "rolling_pct": 0.07450921981804765,
+      "consecutive_green": 3,
+      "triggers": [
+        "MOMENTUM"
+      ],
+      "outcome": "WIN",
+      "exit_price": 679.2974493408203,
+      "pnl_pct": 0.15,
+      "bars_held": 24,
+      "exit_time": "2025-12-18 13:32:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 13:39:00-05:00",
+      "bar_idx": 249,
+      "entry_price": 679.4299926757812,
+      "from_open_pct": 0.27007337009734816,
+      "rolling_pct": 0.13558870125940162,
+      "consecutive_green": 1,
+      "triggers": [
+        "FROM_OPEN"
+      ],
+      "outcome": "LOSS",
+      "exit_price": 678.0711326904296,
+      "pnl_pct": -0.2,
+      "bars_held": 14,
+      "exit_time": "2025-12-18 13:53:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 13:45:00-05:00",
+      "bar_idx": 255,
+      "entry_price": 678.8699951171875,
+      "from_open_pct": 0.1874290993224701,
+      "rolling_pct": 0.029471202803694363,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ],
+      "outcome": "WIN",
+      "exit_price": 677.8516901245117,
+      "pnl_pct": 0.15,
+      "bars_held": 16,
+      "exit_time": "2025-12-18 14:01:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 14:16:00-05:00",
+      "bar_idx": 286,
+      "entry_price": 676.969970703125,
+      "from_open_pct": -0.09297593056548138,
+      "rolling_pct": -0.20197188697456334,
+      "consecutive_red": 1,
+      "triggers": [
+        "ROLLING"
+      ],
+      "outcome": "WIN",
+      "exit_price": 676.27001953125,
+      "pnl_pct": 0.10339471500456748,
+      "bars_held": 30,
+      "exit_time": "MAX_BARS"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 14:30:00-05:00",
+      "bar_idx": 300,
+      "entry_price": 677.22998046875,
+      "from_open_pct": -0.05460376778608294,
+      "rolling_pct": -0.11357220224926254,
+      "consecutive_green": 3,
+      "triggers": [
+        "MOMENTUM"
+      ],
+      "outcome": "LOSS",
+      "exit_price": 675.8755205078126,
+      "pnl_pct": -0.2,
+      "bars_held": 25,
+      "exit_time": "2025-12-18 14:55:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 14:55:00-05:00",
+      "bar_idx": 325,
+      "entry_price": 675.8800048828125,
+      "from_open_pct": -0.25383275754071544,
+      "rolling_pct": -0.10641009889211174,
+      "consecutive_red": 1,
+      "triggers": [
+        "FROM_OPEN"
+      ],
+      "outcome": "LOSS",
+      "exit_price": 677.2317648925781,
+      "pnl_pct": -0.2,
+      "bars_held": 18,
+      "exit_time": "2025-12-18 15:13:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 15:01:00-05:00",
+      "bar_idx": 331,
+      "entry_price": 676.2000122070312,
+      "from_open_pct": -0.20660617316222113,
+      "rolling_pct": -0.11595133740279462,
+      "consecutive_green": 3,
+      "triggers": [
+        "MOMENTUM"
+      ],
+      "outcome": "WIN",
+      "exit_price": 677.2143122253418,
+      "pnl_pct": 0.15,
+      "bars_held": 12,
+      "exit_time": "2025-12-18 15:13:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "RALLY",
+      "time": "2025-12-18 15:35:00-05:00",
+      "bar_idx": 365,
+      "entry_price": 678.02001953125,
+      "from_open_pct": 0.061989958743619726,
+      "rolling_pct": 0.07379855732468699,
+      "consecutive_green": 3,
+      "triggers": [
+        "MOMENTUM"
+      ],
+      "outcome": "LOSS",
+      "exit_price": 676.6639794921875,
+      "pnl_pct": -0.2,
+      "bars_held": 23,
+      "exit_time": "2025-12-18 15:58:00-05:00"
+    },
+    {
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "signal_type": "SELLOFF",
+      "time": "2025-12-18 15:53:00-05:00",
+      "bar_idx": 383,
+      "entry_price": 677.3599853515625,
+      "from_open_pct": -0.03541768639638372,
+      "rolling_pct": -0.10176276879705966,
+      "consecutive_red": 3,
+      "triggers": [
+        "MOMENTUM"
+      ],
+      "outcome": "WIN",
+      "exit_price": 676.47998046875,
+      "pnl_pct": 0.12991686870250552,
+      "bars_held": 30,
+      "exit_time": "MAX_BARS"
+    }
+  ],
+  "gamma_signals": [],
+  "dp_signals": [],
+  "news_signals": [],
+  "gap_signals": [
+    {
+      "symbol": "SPY",
+      "direction": "LONG",
+      "signal_type": "GAP_UP",
+      "yesterday_close": 671.4000244140625,
+      "today_open": 677.5999755859375,
+      "gap_pct": 0.9234362446271519,
+      "confidence": 68.46872489254304
+    },
+    {
+      "symbol": "QQQ",
+      "direction": "LONG",
+      "signal_type": "GAP_UP",
+      "yesterday_close": 600.4099731445312,
+      "today_open": 609.760009765625,
+      "gap_pct": 1.5572753683828302,
+      "confidence": 81.1455073676566
+    }
+  ],
+  "summary": [
+    {
+      "signal_type": "Selloff/Rally",
+      "total": 20,
+      "wins": 10,
+      "win_rate": 50.0,
+      "avg_pnl": -0.029184412169670056
+    }
+  ]
+}

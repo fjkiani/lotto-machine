@@ -1,6 +1,53 @@
 # 🎯 BACKTESTING FRAMEWORK
 
-**Modular, reusable backtesting system for DP alerts**
+**Modular, reusable backtesting system for ALL signal types**
+
+---
+
+## 🚀 QUICK START (NEW!)
+
+```python
+from backtesting import UnifiedBacktestRunner
+
+# Initialize with desired detectors
+runner = UnifiedBacktestRunner(
+    symbols=['SPY', 'QQQ'],
+    enable_options=True,
+    enable_selloff=True,
+    enable_gap=True
+)
+
+# Run backtest
+results = runner.run_all()
+
+# Generate report
+print(runner.generate_report(results))
+
+# Save results
+runner.save_results(results)
+```
+
+### Run from command line:
+```bash
+python3 backtesting/simulation/unified_backtest_runner.py
+```
+
+---
+
+## 📊 DETECTORS (Updated 2025-12-19)
+
+| Detector | Win Rate | Avg P&L | Best For |
+|----------|----------|---------|----------|
+| **SelloffRallyDetector** | 52.9% | -0.02% | Trending markets, momentum |
+| **GapDetector** | 50.0% | -0.04% | Pre-market gaps |
+| **RapidAPIOptionsDetector** | 37.5% | -0.30% | Options flow (needs tuning) |
+
+### Signal Types Generated:
+- `SELLOFF` / `RALLY` - Momentum signals (2+ triggers required)
+- `GAP_UP_CONTINUATION` / `GAP_DOWN_CONTINUATION` - Large gaps
+- `GAP_FILL_LONG` / `GAP_FILL_SHORT` - Small gap fades
+- `OPTIONS_BULLISH` / `OPTIONS_BEARISH` - P/C ratio signals
+- `UNUSUAL_CALL` / `UNUSUAL_PUT` - High vol/OI activity
 
 ---
 
@@ -15,10 +62,16 @@ backtesting/
 │   ├── loader.py                  # Load DP alerts from database
 │   └── alerts_loader.py           # Load production signals
 ├── simulation/
+│   ├── base_detector.py           # 🆕 Abstract base for all detectors
+│   ├── selloff_rally_detector.py  # 🆕 Momentum signals
+│   ├── gap_detector.py            # 🆕 Pre-market gaps
+│   ├── rapidapi_options_detector.py # 🆕 Options flow (RapidAPI)
+│   ├── unified_backtest_runner.py # 🆕 Run all detectors
 │   ├── trade_simulator.py         # Simulate individual trades
 │   ├── current_system.py          # Current system logic
 │   ├── narrative_brain.py         # Narrative Brain logic
-│   └── squeeze_detector.py        # 🔥 Squeeze detector simulator (NEW)
+│   ├── squeeze_detector.py        # Squeeze detector simulator
+│   └── gamma_detector.py          # Gamma exposure detector
 ├── analysis/
 │   ├── performance.py             # Calculate metrics
 │   ├── signal_analyzer.py         # Analyze production signals
@@ -29,7 +82,7 @@ backtesting/
     ├── signal_report.py           # Signal analysis reports
     ├── diagnostic_report.py       # Diagnostic reports
     ├── health_report.py           # Health reports
-    └── squeeze_report.py          # 🔥 Squeeze backtest reports (NEW)
+    └── squeeze_report.py          # Squeeze backtest reports
 ```
 
 ---

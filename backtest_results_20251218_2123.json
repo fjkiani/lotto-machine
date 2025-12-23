@@ -1,0 +1,539 @@
+{
+  "timestamp": "2025-12-18T21:23:23.456052",
+  "symbols": [
+    "SPY",
+    "QQQ"
+  ],
+  "detectors": [
+    "selloff_rally",
+    "gap",
+    "options_flow"
+  ],
+  "results": {
+    "selloff_rally": {
+      "date": "2025-12-18",
+      "signals_count": 17,
+      "trades_count": 17,
+      "win_rate": 52.94117647058824,
+      "avg_pnl": -0.020609931769029276,
+      "total_pnl": -0.35036884007349767,
+      "profit_factor": 0.7679184100164748,
+      "sharpe_ratio": -0.12676067063733748,
+      "max_drawdown": 0.8906892480887602,
+      "signals": [
+        {
+          "symbol": "SPY",
+          "type": "RALLY",
+          "direction": "LONG",
+          "entry": 679.010009765625,
+          "confidence": 80,
+          "reasoning": "Rally detected: ROLLING+MOMENTUM"
+        },
+        {
+          "symbol": "SPY",
+          "type": "RALLY",
+          "direction": "LONG",
+          "entry": 680.02587890625,
+          "confidence": 80,
+          "reasoning": "Rally detected: FROM_OPEN+MOMENTUM"
+        },
+        {
+          "symbol": "SPY",
+          "type": "SELLOFF",
+          "direction": "SHORT",
+          "entry": 677.8200073242188,
+          "confidence": 80,
+          "reasoning": "Selloff detected: ROLLING+MOMENTUM"
+        },
+        {
+          "symbol": "SPY",
+          "type": "RALLY",
+          "direction": "LONG",
+          "entry": 677.6500244140625,
+          "confidence": 80,
+          "reasoning": "Rally detected: ROLLING+MOMENTUM"
+        },
+        {
+          "symbol": "SPY",
+          "type": "RALLY",
+          "direction": "LONG",
+          "entry": 679.3499755859375,
+          "confidence": 80,
+          "reasoning": "Rally detected: FROM_OPEN+MOMENTUM"
+        },
+        {
+          "symbol": "SPY",
+          "type": "SELLOFF",
+          "direction": "SHORT",
+          "entry": 677.030029296875,
+          "confidence": 80,
+          "reasoning": "Selloff detected: ROLLING+MOMENTUM"
+        },
+        {
+          "symbol": "SPY",
+          "type": "SELLOFF",
+          "direction": "SHORT",
+          "entry": 675.4000244140625,
+          "confidence": 80,
+          "reasoning": "Selloff detected: FROM_OPEN+MOMENTUM"
+        },
+        {
+          "symbol": "QQQ",
+          "type": "SELLOFF",
+          "direction": "SHORT",
+          "entry": 607.4299926757812,
+          "confidence": 80,
+          "reasoning": "Selloff detected: FROM_OPEN+ROLLING"
+        },
+        {
+          "symbol": "QQQ",
+          "type": "SELLOFF",
+          "direction": "SHORT",
+          "entry": 607.6400146484375,
+          "confidence": 80,
+          "reasoning": "Selloff detected: FROM_OPEN+ROLLING"
+        },
+        {
+          "symbol": "QQQ",
+          "type": "RALLY",
+          "direction": "LONG",
+          "entry": 612.4500122070312,
+          "confidence": 80,
+          "reasoning": "Rally detected: FROM_OPEN+MOMENTUM"
+        },
+        {
+          "symbol": "QQQ",
+          "type": "RALLY",
+          "direction": "LONG",
+          "entry": 612.6400146484375,
+          "confidence": 80,
+          "reasoning": "Rally detected: FROM_OPEN+MOMENTUM"
+        },
+        {
+          "symbol": "QQQ",
+          "type": "SELLOFF",
+          "direction": "SHORT",
+          "entry": 610.3300170898438,
+          "confidence": 80,
+          "reasoning": "Selloff detected: ROLLING+MOMENTUM"
+        },
+        {
+          "symbol": "QQQ",
+          "type": "RALLY",
+          "direction": "LONG",
+          "entry": 610.2100219726562,
+          "confidence": 80,
+          "reasoning": "Rally detected: ROLLING+MOMENTUM"
+        },
+        {
+          "symbol": "QQQ",
+          "type": "RALLY",
+          "direction": "LONG",
+          "entry": 611.510009765625,
+          "confidence": 80,
+          "reasoning": "Rally detected: FROM_OPEN+MOMENTUM"
+        },
+        {
+          "symbol": "QQQ",
+          "type": "RALLY",
+          "direction": "LONG",
+          "entry": 612.4299926757812,
+          "confidence": 80,
+          "reasoning": "Rally detected: FROM_OPEN+MOMENTUM"
+        },
+        {
+          "symbol": "QQQ",
+          "type": "SELLOFF",
+          "direction": "SHORT",
+          "entry": 609.8599853515625,
+          "confidence": 80,
+          "reasoning": "Selloff detected: ROLLING+MOMENTUM"
+        },
+        {
+          "symbol": "QQQ",
+          "type": "SELLOFF",
+          "direction": "SHORT",
+          "entry": 608.0900268554688,
+          "confidence": 80,
+          "reasoning": "Selloff detected: FROM_OPEN+ROLLING"
+        }
+      ],
+      "trades": [
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry": 679.010009765625,
+          "exit": 680.0285247802735,
+          "pnl": 0.15,
+          "outcome": "WIN"
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry": 680.02587890625,
+          "exit": 679.280029296875,
+          "pnl": -0.10967959198473749,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry": 677.8200073242188,
+          "exit": 676.8032773132325,
+          "pnl": 0.15,
+          "outcome": "WIN"
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry": 677.6500244140625,
+          "exit": 678.6664994506837,
+          "pnl": 0.15,
+          "outcome": "WIN"
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry": 679.3499755859375,
+          "exit": 677.9912756347657,
+          "pnl": -0.2,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry": 677.030029296875,
+          "exit": 676.5,
+          "pnl": 0.07828741325188462,
+          "outcome": "WIN"
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry": 675.4000244140625,
+          "exit": 676.7508244628906,
+          "pnl": -0.2,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "QQQ",
+          "direction": "SHORT",
+          "entry": 607.4299926757812,
+          "exit": 608.6448526611329,
+          "pnl": -0.2,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "QQQ",
+          "direction": "SHORT",
+          "entry": 607.6400146484375,
+          "exit": 608.8552946777344,
+          "pnl": -0.2,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "QQQ",
+          "direction": "LONG",
+          "entry": 612.4500122070312,
+          "exit": 612.6400146484375,
+          "pnl": 0.031023338659355273,
+          "outcome": "WIN"
+        },
+        {
+          "symbol": "QQQ",
+          "direction": "LONG",
+          "entry": 612.6400146484375,
+          "exit": 611.4147346191406,
+          "pnl": -0.2,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "QQQ",
+          "direction": "SHORT",
+          "entry": 610.3300170898438,
+          "exit": 609.414522064209,
+          "pnl": 0.15,
+          "outcome": "WIN"
+        },
+        {
+          "symbol": "QQQ",
+          "direction": "LONG",
+          "entry": 610.2100219726562,
+          "exit": 611.1253370056153,
+          "pnl": 0.15,
+          "outcome": "WIN"
+        },
+        {
+          "symbol": "QQQ",
+          "direction": "LONG",
+          "entry": 611.510009765625,
+          "exit": 612.4272747802735,
+          "pnl": 0.15,
+          "outcome": "WIN"
+        },
+        {
+          "symbol": "QQQ",
+          "direction": "LONG",
+          "entry": 612.4299926757812,
+          "exit": 611.2051326904297,
+          "pnl": -0.2,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "QQQ",
+          "direction": "SHORT",
+          "entry": 609.8599853515625,
+          "exit": 608.9451953735352,
+          "pnl": 0.15,
+          "outcome": "WIN"
+        },
+        {
+          "symbol": "QQQ",
+          "direction": "SHORT",
+          "entry": 608.0900268554688,
+          "exit": 609.3062069091797,
+          "pnl": -0.2,
+          "outcome": "LOSS"
+        }
+      ]
+    },
+    "gap": {
+      "date": "2025-12-18",
+      "signals_count": 2,
+      "trades_count": 2,
+      "win_rate": 50.0,
+      "avg_pnl": -0.03931522623632677,
+      "total_pnl": -0.07863045247265354,
+      "profit_factor": 0.7378984917578215,
+      "sharpe_ratio": -0.15081519978596236,
+      "max_drawdown": 0.3,
+      "signals": [
+        {
+          "symbol": "SPY",
+          "type": "GAP_UP_CONTINUATION",
+          "direction": "LONG",
+          "entry": 677.5999755859375,
+          "confidence": 63.85154366940728,
+          "reasoning": "Large gap up +0.92% - continuation expected"
+        },
+        {
+          "symbol": "QQQ",
+          "type": "GAP_UP_CONTINUATION",
+          "direction": "LONG",
+          "entry": 609.760009765625,
+          "confidence": 73.35913052574246,
+          "reasoning": "Large gap up +1.56% - continuation expected"
+        }
+      ],
+      "trades": [
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry": 677.5999755859375,
+          "exit": 679.0999755859375,
+          "pnl": 0.22136954752734644,
+          "outcome": "WIN"
+        },
+        {
+          "symbol": "QQQ",
+          "direction": "LONG",
+          "entry": 609.760009765625,
+          "exit": 607.9307297363281,
+          "pnl": -0.3,
+          "outcome": "LOSS"
+        }
+      ]
+    },
+    "options_flow": {
+      "date": "2025-12-18",
+      "signals_count": 11,
+      "trades_count": 11,
+      "win_rate": 18.181818181818183,
+      "avg_pnl": -0.6818181818181818,
+      "total_pnl": -7.5,
+      "profit_factor": 0.16666666666666666,
+      "sharpe_ratio": -1.0101525445522106,
+      "max_drawdown": 8.25,
+      "signals": [
+        {
+          "symbol": "TSLA",
+          "type": "OPTIONS_BULLISH",
+          "direction": "LONG",
+          "entry": 483.37,
+          "confidence": 52.99999999999999,
+          "reasoning": "Bullish options flow: P/C 0.67, Call% 60%"
+        },
+        {
+          "symbol": "PLTR",
+          "type": "OPTIONS_BULLISH",
+          "direction": "LONG",
+          "entry": 185.69,
+          "confidence": 59.0,
+          "reasoning": "Bullish options flow: P/C 0.61, Call% 62%"
+        },
+        {
+          "symbol": "MSTR",
+          "type": "OPTIONS_BEARISH",
+          "direction": "SHORT",
+          "entry": 158.24,
+          "confidence": 57.8,
+          "reasoning": "Bearish options flow: P/C 1.56, Put% 61%"
+        },
+        {
+          "symbol": "AMZN",
+          "type": "OPTIONS_BULLISH",
+          "direction": "LONG",
+          "entry": 226.76,
+          "confidence": 75.0,
+          "reasoning": "Bullish options flow: P/C 0.45, Call% 69%"
+        },
+        {
+          "symbol": "NFLX",
+          "type": "OPTIONS_BEARISH",
+          "direction": "SHORT",
+          "entry": 94.0,
+          "confidence": 58.7,
+          "reasoning": "Bearish options flow: P/C 1.59, Put% 62%"
+        },
+        {
+          "symbol": "ORCL",
+          "type": "OPTIONS_BEARISH",
+          "direction": "SHORT",
+          "entry": 180.03,
+          "confidence": 62.9,
+          "reasoning": "Bearish options flow: P/C 1.73, Put% 63%"
+        },
+        {
+          "symbol": "RIVN",
+          "type": "OPTIONS_BULLISH",
+          "direction": "LONG",
+          "entry": 20.28,
+          "confidence": 81.0,
+          "reasoning": "Bullish options flow: P/C 0.39, Call% 72%"
+        },
+        {
+          "symbol": "CGC",
+          "type": "OPTIONS_BULLISH",
+          "direction": "LONG",
+          "entry": 1.69,
+          "confidence": 90,
+          "reasoning": "Bullish options flow: P/C 0.24, Call% 81%"
+        },
+        {
+          "symbol": "DJT",
+          "type": "OPTIONS_BULLISH",
+          "direction": "LONG",
+          "entry": 14.86,
+          "confidence": 74.0,
+          "reasoning": "Bullish options flow: P/C 0.46, Call% 68%"
+        },
+        {
+          "symbol": "CRWV",
+          "type": "OPTIONS_BEARISH",
+          "direction": "SHORT",
+          "entry": 67.68,
+          "confidence": 67.69999999999999,
+          "reasoning": "Bearish options flow: P/C 1.89, Put% 65%"
+        },
+        {
+          "symbol": "INTC",
+          "type": "OPTIONS_BULLISH",
+          "direction": "LONG",
+          "entry": 36.28,
+          "confidence": 69.0,
+          "reasoning": "Bullish options flow: P/C 0.51, Call% 66%"
+        }
+      ],
+      "trades": [
+        {
+          "symbol": "TSLA",
+          "direction": "LONG",
+          "entry": 483.37,
+          "exit": 478.5363,
+          "pnl": -1.0,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "PLTR",
+          "direction": "LONG",
+          "entry": 185.69,
+          "exit": 183.8331,
+          "pnl": -1.0,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "MSTR",
+          "direction": "SHORT",
+          "entry": 158.24,
+          "exit": 159.82240000000002,
+          "pnl": -1.0,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "AMZN",
+          "direction": "LONG",
+          "entry": 226.76,
+          "exit": 224.49239999999998,
+          "pnl": -1.0,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "NFLX",
+          "direction": "SHORT",
+          "entry": 94.0,
+          "exit": 94.94,
+          "pnl": -1.0,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "ORCL",
+          "direction": "SHORT",
+          "entry": 180.03,
+          "exit": 181.8303,
+          "pnl": -1.0,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "RIVN",
+          "direction": "LONG",
+          "entry": 20.28,
+          "exit": 20.0772,
+          "pnl": -1.0,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "CGC",
+          "direction": "LONG",
+          "entry": 1.69,
+          "exit": 1.7026750000000002,
+          "pnl": 0.75,
+          "outcome": "WIN"
+        },
+        {
+          "symbol": "DJT",
+          "direction": "LONG",
+          "entry": 14.86,
+          "exit": 14.7114,
+          "pnl": -1.0,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "CRWV",
+          "direction": "SHORT",
+          "entry": 67.68,
+          "exit": 68.3568,
+          "pnl": -1.0,
+          "outcome": "LOSS"
+        },
+        {
+          "symbol": "INTC",
+          "direction": "LONG",
+          "entry": 36.28,
+          "exit": 36.5521,
+          "pnl": 0.75,
+          "outcome": "WIN"
+        }
+      ]
+    }
+  }
+}

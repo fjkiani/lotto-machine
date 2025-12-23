@@ -1,0 +1,1859 @@
+# 🚀 ALPHA INTELLIGENCE - SaaS Platform Architecture
+
+> **Version 1.0** | Created: December 19, 2025 | Author: Zo (Alpha's AI)
+> 
+> **Mission:** Turn Alpha Hedge Fund into a fully autonomous SaaS platform that scales without AWS complexity.
+
+---
+
+## 📋 TABLE OF CONTENTS
+
+| Section | Description | Priority |
+|---------|-------------|----------|
+| [Executive Summary](#-executive-summary) | What we're building | 🔴 Read First |
+| [Architecture Overview](#-architecture-overview) | System design | 🔴 High |
+| [Authentication & Access](#-authentication--access-control) | Auth, RBAC, sessions | 🔴 High |
+| [Subscription & Billing](#-subscription--billing) | Stripe, tiers, limits | 🔴 High |
+| [Multi-Tenancy](#-multi-tenancy-architecture) | Tenant isolation | 🔴 High |
+| [Infrastructure](#-infrastructure-on-render) | Render deployment | 🔴 High |
+| [Database Schema](#-database-schema) | PostgreSQL design | 🟡 Medium |
+| [API Design](#-api-design) | REST + WebSocket | 🟡 Medium |
+| [Agent Autonomy](#-agent-autonomy-nice-to-have) | AI agents managing platform | 🟢 Nice to Have |
+| [Implementation Phases](#-implementation-phases) | Build order | 🔴 High |
+| [Security Checklist](#-security-checklist) | Must-haves | 🔴 High |
+
+---
+
+## 📊 EXECUTIVE SUMMARY
+
+### What We're Building
+
+Transform the Alpha Hedge Fund intelligence system into a **multi-tenant SaaS platform** where:
+
+1. **Users** sign up, subscribe, and get personalized market intelligence
+2. **Subscriptions** control feature access (Free, Starter, Pro, Enterprise)
+3. **Real-time signals** stream to authenticated users via WebSocket
+4. **Billing** handled by Stripe (subscriptions, usage-based, one-time)
+5. **Scaling** happens automatically on Render (not AWS complexity)
+6. **Agents** (future) autonomously manage user onboarding, support, billing issues
+
+### Target Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           ALPHA INTELLIGENCE SaaS                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │   LANDING   │  │    AUTH     │  │  DASHBOARD  │  │   ADMIN     │        │
+│  │    PAGE     │  │   (Clerk)   │  │  (React)    │  │   PANEL     │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
+│         │                │                │                │                │
+│         └────────────────┴────────────────┴────────────────┘                │
+│                                    │                                         │
+│                                    ▼                                         │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                         API GATEWAY (FastAPI)                          │  │
+│  │  • Auth Middleware (JWT validation)                                    │  │
+│  │  • Rate Limiting (by tier)                                            │  │
+│  │  • Usage Tracking                                                      │  │
+│  │  • Tenant Isolation                                                    │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                    │                                         │
+│         ┌──────────────────────────┼──────────────────────────┐             │
+│         ▼                          ▼                          ▼             │
+│  ┌─────────────┐          ┌─────────────┐          ┌─────────────┐         │
+│  │   SIGNALS   │          │   BILLING   │          │    DATA     │         │
+│  │   SERVICE   │          │   SERVICE   │          │   SERVICE   │         │
+│  │  (Monitor)  │          │  (Stripe)   │          │ (ChartExch) │         │
+│  └─────────────┘          └─────────────┘          └─────────────┘         │
+│         │                          │                          │             │
+│         └──────────────────────────┼──────────────────────────┘             │
+│                                    ▼                                         │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                         DATA LAYER                                     │  │
+│  │  • PostgreSQL (users, subscriptions, signals)                         │  │
+│  │  • Redis (sessions, cache, pub/sub)                                   │  │
+│  │  • SQLite (local caches per service)                                  │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🏗️ ARCHITECTURE OVERVIEW
+
+### Services Breakdown
+
+| Service | Technology | Render Service | Purpose |
+|---------|------------|----------------|---------|
+| **Frontend** | Vite + React | Static Site | User dashboard |
+| **Landing** | Vite + React | Static Site | Marketing, signup |
+| **API Gateway** | FastAPI | Web Service | Auth, routing, rate limiting |
+| **Signal Service** | Python | Background Worker | UnifiedAlphaMonitor |
+| **Billing Service** | FastAPI | Web Service | Stripe webhooks |
+| **Database** | PostgreSQL | Managed DB | Persistent storage |
+| **Cache** | Redis (Upstash) | External | Sessions, pub/sub |
+
+### Communication Patterns
+
+```
+Frontend ──HTTP/WS──▶ API Gateway ──HTTP──▶ Signal Service
+                           │
+                           ├──HTTP──▶ Billing Service
+                           │
+                           └──SQL──▶ PostgreSQL
+                           
+Signal Service ──Pub/Sub──▶ Redis ──Pub/Sub──▶ API Gateway ──WS──▶ Frontend
+```
+
+---
+
+## 🔐 AUTHENTICATION & ACCESS CONTROL
+
+### Option 1: Clerk (Recommended - Fastest)
+
+**Why Clerk:**
+- Drop-in React components
+- Handles OAuth (Google, GitHub, etc.)
+- Session management built-in
+- Webhook for user events
+- $0 for first 10K MAU
+
+**Integration:**
+
+```typescript
+// Frontend: src/main.tsx
+import { ClerkProvider } from '@clerk/clerk-react';
+
+<ClerkProvider publishableKey={CLERK_KEY}>
+  <App />
+</ClerkProvider>
+
+// Protected route
+import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
+
+<SignedIn>
+  <Dashboard />
+</SignedIn>
+<SignedOut>
+  <RedirectToSignIn />
+</SignedOut>
+```
+
+```python
+# Backend: Verify Clerk JWT
+from clerk_backend_api import Clerk
+
+clerk = Clerk(bearer_auth=CLERK_SECRET_KEY)
+
+async def verify_token(token: str) -> dict:
+    """Verify Clerk JWT and return user data"""
+    try:
+        session = clerk.sessions.verify_session(token)
+        return {
+            "user_id": session.user_id,
+            "email": session.user.email_addresses[0].email,
+            "metadata": session.user.public_metadata
+        }
+    except Exception as e:
+        raise HTTPException(401, "Invalid token")
+```
+
+### Option 2: Custom Auth (More Control)
+
+```python
+# backend/app/auth/jwt.py
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+
+SECRET_KEY = os.getenv("JWT_SECRET")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def create_access_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire, "type": "access"})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def create_refresh_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire, "type": "refresh"})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def verify_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except JWTError:
+        raise HTTPException(401, "Invalid token")
+```
+
+### Session Management
+
+```python
+# backend/app/auth/sessions.py
+import redis
+from uuid import uuid4
+
+redis_client = redis.from_url(os.getenv("REDIS_URL"))
+
+class SessionManager:
+    PREFIX = "session:"
+    EXPIRE_SECONDS = 86400  # 24 hours
+    
+    def create_session(self, user_id: str, metadata: dict = None) -> str:
+        """Create a new session"""
+        session_id = str(uuid4())
+        session_data = {
+            "user_id": user_id,
+            "created_at": datetime.utcnow().isoformat(),
+            "metadata": metadata or {}
+        }
+        redis_client.setex(
+            f"{self.PREFIX}{session_id}",
+            self.EXPIRE_SECONDS,
+            json.dumps(session_data)
+        )
+        return session_id
+    
+    def get_session(self, session_id: str) -> dict | None:
+        """Get session data"""
+        data = redis_client.get(f"{self.PREFIX}{session_id}")
+        return json.loads(data) if data else None
+    
+    def destroy_session(self, session_id: str):
+        """Destroy a session (logout)"""
+        redis_client.delete(f"{self.PREFIX}{session_id}")
+    
+    def destroy_all_user_sessions(self, user_id: str):
+        """Logout from all devices"""
+        # Scan and delete all sessions for this user
+        for key in redis_client.scan_iter(f"{self.PREFIX}*"):
+            data = redis_client.get(key)
+            if data:
+                session = json.loads(data)
+                if session.get("user_id") == user_id:
+                    redis_client.delete(key)
+```
+
+### Role-Based Access Control (RBAC)
+
+```python
+# backend/app/auth/rbac.py
+from enum import Enum
+from functools import wraps
+
+class Role(str, Enum):
+    FREE = "free"
+    STARTER = "starter"
+    PRO = "pro"
+    ENTERPRISE = "enterprise"
+    ADMIN = "admin"
+
+class Permission(str, Enum):
+    # Signals
+    VIEW_BASIC_SIGNALS = "view_basic_signals"
+    VIEW_MASTER_SIGNALS = "view_master_signals"
+    VIEW_ALL_SIGNALS = "view_all_signals"
+    
+    # Data
+    VIEW_DP_LEVELS = "view_dp_levels"
+    VIEW_DP_PRINTS = "view_dp_prints"
+    VIEW_GAMMA = "view_gamma"
+    VIEW_OPTIONS_FLOW = "view_options_flow"
+    
+    # Features
+    USE_BACKTESTING = "use_backtesting"
+    USE_ALERTS = "use_alerts"
+    USE_API = "use_api"
+    USE_NARRATIVE_BRAIN = "use_narrative_brain"
+    
+    # Admin
+    MANAGE_USERS = "manage_users"
+    VIEW_ANALYTICS = "view_analytics"
+
+# Role -> Permissions mapping
+ROLE_PERMISSIONS = {
+    Role.FREE: [
+        Permission.VIEW_BASIC_SIGNALS,
+    ],
+    Role.STARTER: [
+        Permission.VIEW_BASIC_SIGNALS,
+        Permission.VIEW_MASTER_SIGNALS,
+        Permission.VIEW_DP_LEVELS,
+        Permission.USE_ALERTS,
+    ],
+    Role.PRO: [
+        Permission.VIEW_BASIC_SIGNALS,
+        Permission.VIEW_MASTER_SIGNALS,
+        Permission.VIEW_ALL_SIGNALS,
+        Permission.VIEW_DP_LEVELS,
+        Permission.VIEW_DP_PRINTS,
+        Permission.VIEW_GAMMA,
+        Permission.VIEW_OPTIONS_FLOW,
+        Permission.USE_BACKTESTING,
+        Permission.USE_ALERTS,
+        Permission.USE_NARRATIVE_BRAIN,
+    ],
+    Role.ENTERPRISE: [
+        # All permissions
+        *Permission,
+    ],
+    Role.ADMIN: [
+        *Permission,
+    ],
+}
+
+def has_permission(user_role: Role, permission: Permission) -> bool:
+    """Check if a role has a specific permission"""
+    return permission in ROLE_PERMISSIONS.get(user_role, [])
+
+def require_permission(permission: Permission):
+    """Decorator to require a permission for an endpoint"""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, current_user=None, **kwargs):
+            if not current_user:
+                raise HTTPException(401, "Not authenticated")
+            
+            user_role = Role(current_user.get("role", "free"))
+            if not has_permission(user_role, permission):
+                raise HTTPException(403, f"Permission denied: {permission.value}")
+            
+            return await func(*args, current_user=current_user, **kwargs)
+        return wrapper
+    return decorator
+
+# Usage in FastAPI endpoint
+@router.get("/signals/master")
+@require_permission(Permission.VIEW_MASTER_SIGNALS)
+async def get_master_signals(current_user: dict = Depends(get_current_user)):
+    return await signal_service.get_master_signals()
+```
+
+---
+
+## 💳 SUBSCRIPTION & BILLING
+
+### Pricing Tiers
+
+| Tier | Price | Features | Limits |
+|------|-------|----------|--------|
+| **Free** | $0 | Basic signals, 1 symbol | 10 signals/day, no alerts |
+| **Starter** | $29/mo | Master signals, 5 symbols, alerts | 100 signals/day |
+| **Pro** | $99/mo | All signals, all symbols, backtesting | Unlimited |
+| **Enterprise** | Custom | API access, custom integrations | Unlimited + support |
+
+### Stripe Integration
+
+```python
+# backend/app/billing/stripe_service.py
+import stripe
+from datetime import datetime
+
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
+class StripeService:
+    # Product IDs (create these in Stripe Dashboard)
+    PRODUCTS = {
+        "starter": "price_xxx_starter_monthly",
+        "pro": "price_xxx_pro_monthly",
+    }
+    
+    def create_customer(self, user_id: str, email: str) -> str:
+        """Create a Stripe customer for a new user"""
+        customer = stripe.Customer.create(
+            email=email,
+            metadata={"user_id": user_id}
+        )
+        return customer.id
+    
+    def create_checkout_session(
+        self, 
+        customer_id: str, 
+        price_id: str,
+        success_url: str,
+        cancel_url: str
+    ) -> str:
+        """Create a Stripe Checkout session for subscription"""
+        session = stripe.checkout.Session.create(
+            customer=customer_id,
+            payment_method_types=["card"],
+            line_items=[{"price": price_id, "quantity": 1}],
+            mode="subscription",
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={"customer_id": customer_id}
+        )
+        return session.url
+    
+    def create_portal_session(self, customer_id: str, return_url: str) -> str:
+        """Create a Stripe Customer Portal session for managing subscription"""
+        session = stripe.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=return_url
+        )
+        return session.url
+    
+    def get_subscription(self, subscription_id: str) -> dict:
+        """Get subscription details"""
+        sub = stripe.Subscription.retrieve(subscription_id)
+        return {
+            "id": sub.id,
+            "status": sub.status,
+            "current_period_end": datetime.fromtimestamp(sub.current_period_end),
+            "plan": sub.items.data[0].price.id,
+            "cancel_at_period_end": sub.cancel_at_period_end
+        }
+    
+    def cancel_subscription(self, subscription_id: str, at_period_end: bool = True):
+        """Cancel a subscription"""
+        if at_period_end:
+            stripe.Subscription.modify(
+                subscription_id,
+                cancel_at_period_end=True
+            )
+        else:
+            stripe.Subscription.delete(subscription_id)
+```
+
+### Stripe Webhook Handler
+
+```python
+# backend/app/billing/webhooks.py
+from fastapi import APIRouter, Request, HTTPException
+
+router = APIRouter()
+
+@router.post("/webhooks/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events"""
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, os.getenv("STRIPE_WEBHOOK_SECRET")
+        )
+    except ValueError:
+        raise HTTPException(400, "Invalid payload")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(400, "Invalid signature")
+    
+    # Handle the event
+    if event.type == "checkout.session.completed":
+        session = event.data.object
+        await handle_checkout_completed(session)
+    
+    elif event.type == "customer.subscription.updated":
+        subscription = event.data.object
+        await handle_subscription_updated(subscription)
+    
+    elif event.type == "customer.subscription.deleted":
+        subscription = event.data.object
+        await handle_subscription_deleted(subscription)
+    
+    elif event.type == "invoice.payment_failed":
+        invoice = event.data.object
+        await handle_payment_failed(invoice)
+    
+    return {"status": "success"}
+
+async def handle_checkout_completed(session):
+    """Handle successful checkout"""
+    customer_id = session.customer
+    subscription_id = session.subscription
+    
+    # Get user from customer_id
+    user = await db.get_user_by_stripe_id(customer_id)
+    
+    # Update user's subscription
+    await db.update_user_subscription(
+        user_id=user.id,
+        subscription_id=subscription_id,
+        tier=get_tier_from_price(session.line_items.data[0].price.id),
+        status="active"
+    )
+    
+    # Send welcome email
+    await email_service.send_subscription_welcome(user.email)
+
+async def handle_subscription_updated(subscription):
+    """Handle subscription changes"""
+    customer_id = subscription.customer
+    user = await db.get_user_by_stripe_id(customer_id)
+    
+    await db.update_user_subscription(
+        user_id=user.id,
+        status=subscription.status,
+        tier=get_tier_from_price(subscription.items.data[0].price.id),
+        current_period_end=datetime.fromtimestamp(subscription.current_period_end)
+    )
+
+async def handle_payment_failed(invoice):
+    """Handle failed payments"""
+    customer_id = invoice.customer
+    user = await db.get_user_by_stripe_id(customer_id)
+    
+    # Notify user
+    await email_service.send_payment_failed(user.email, invoice.id)
+    
+    # Optionally: downgrade after X failed attempts
+```
+
+### Usage Tracking & Limits
+
+```python
+# backend/app/billing/usage.py
+from datetime import datetime, timedelta
+
+class UsageTracker:
+    """Track and enforce usage limits by tier"""
+    
+    LIMITS = {
+        "free": {
+            "signals_per_day": 10,
+            "symbols": 1,
+            "api_calls_per_hour": 10,
+            "websocket_connections": 1,
+        },
+        "starter": {
+            "signals_per_day": 100,
+            "symbols": 5,
+            "api_calls_per_hour": 100,
+            "websocket_connections": 3,
+        },
+        "pro": {
+            "signals_per_day": -1,  # Unlimited
+            "symbols": -1,
+            "api_calls_per_hour": 1000,
+            "websocket_connections": 10,
+        },
+        "enterprise": {
+            "signals_per_day": -1,
+            "symbols": -1,
+            "api_calls_per_hour": -1,
+            "websocket_connections": -1,
+        },
+    }
+    
+    def __init__(self, redis_client):
+        self.redis = redis_client
+    
+    async def track_usage(self, user_id: str, metric: str, amount: int = 1):
+        """Track usage of a metric"""
+        key = f"usage:{user_id}:{metric}:{datetime.utcnow().strftime('%Y-%m-%d')}"
+        await self.redis.incrby(key, amount)
+        await self.redis.expire(key, 86400 * 2)  # Keep for 2 days
+    
+    async def get_usage(self, user_id: str, metric: str) -> int:
+        """Get current usage for a metric"""
+        key = f"usage:{user_id}:{metric}:{datetime.utcnow().strftime('%Y-%m-%d')}"
+        usage = await self.redis.get(key)
+        return int(usage) if usage else 0
+    
+    async def check_limit(self, user_id: str, tier: str, metric: str) -> tuple[bool, int]:
+        """Check if user is within limit. Returns (allowed, remaining)"""
+        limit = self.LIMITS.get(tier, {}).get(metric, 0)
+        
+        if limit == -1:  # Unlimited
+            return True, -1
+        
+        current = await self.get_usage(user_id, metric)
+        remaining = limit - current
+        
+        return remaining > 0, remaining
+    
+    async def enforce_limit(self, user_id: str, tier: str, metric: str):
+        """Raise exception if limit exceeded"""
+        allowed, remaining = await self.check_limit(user_id, tier, metric)
+        
+        if not allowed:
+            raise HTTPException(
+                429, 
+                f"Rate limit exceeded for {metric}. Upgrade your plan for higher limits."
+            )
+
+# Middleware for API rate limiting
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    user = request.state.user
+    if user:
+        tracker = UsageTracker(redis_client)
+        await tracker.enforce_limit(
+            user["id"], 
+            user["tier"], 
+            "api_calls_per_hour"
+        )
+        await tracker.track_usage(user["id"], "api_calls_per_hour")
+    
+    return await call_next(request)
+```
+
+---
+
+## 🏢 MULTI-TENANCY ARCHITECTURE
+
+### Tenant Isolation Strategy
+
+We use **shared database with tenant_id** (most cost-effective for our scale):
+
+```python
+# Every model includes tenant_id
+class Signal(Base):
+    __tablename__ = "signals"
+    
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(UUID, ForeignKey("tenants.id"), nullable=False, index=True)
+    symbol = Column(String(10))
+    signal_type = Column(String(50))
+    # ... rest of fields
+
+# All queries filter by tenant_id
+async def get_user_signals(db: Session, tenant_id: str, user_id: str):
+    return db.query(Signal).filter(
+        Signal.tenant_id == tenant_id,
+        Signal.user_id == user_id
+    ).all()
+```
+
+### Tenant Model
+
+```python
+# backend/app/models/tenant.py
+from sqlalchemy import Column, String, Boolean, DateTime, JSON
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
+
+class Tenant(Base):
+    __tablename__ = "tenants"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(100), unique=True, nullable=False)  # For subdomain
+    
+    # Billing
+    stripe_customer_id = Column(String(255))
+    subscription_tier = Column(String(50), default="free")
+    subscription_status = Column(String(50), default="active")
+    
+    # Settings
+    settings = Column(JSON, default={})
+    
+    # Limits (can override defaults)
+    custom_limits = Column(JSON, default={})
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    users = relationship("User", back_populates="tenant")
+    signals = relationship("Signal", back_populates="tenant")
+```
+
+### User Model
+
+```python
+# backend/app/models/user.py
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    
+    # Auth
+    email = Column(String(255), unique=True, nullable=False)
+    password_hash = Column(String(255))  # Null if using OAuth
+    
+    # Profile
+    name = Column(String(255))
+    avatar_url = Column(String(500))
+    
+    # Role within tenant
+    role = Column(String(50), default="member")  # owner, admin, member
+    
+    # Preferences
+    preferences = Column(JSON, default={
+        "symbols": ["SPY", "QQQ"],
+        "alerts_enabled": True,
+        "email_notifications": True,
+        "timezone": "America/New_York"
+    })
+    
+    # OAuth
+    oauth_provider = Column(String(50))  # google, github
+    oauth_id = Column(String(255))
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    email_verified = Column(Boolean, default=False)
+    last_login = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    tenant = relationship("Tenant", back_populates="users")
+```
+
+### Tenant Context Middleware
+
+```python
+# backend/app/middleware/tenant.py
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class TenantMiddleware(BaseHTTPMiddleware):
+    """Extract and validate tenant from request"""
+    
+    async def dispatch(self, request: Request, call_next):
+        # Extract tenant from:
+        # 1. Subdomain (tenant.alpha-intel.com)
+        # 2. Header (X-Tenant-ID)
+        # 3. JWT token
+        
+        tenant_id = None
+        
+        # Check subdomain
+        host = request.headers.get("host", "")
+        if ".alpha-intel.com" in host:
+            subdomain = host.split(".")[0]
+            if subdomain not in ["www", "api", "app"]:
+                tenant = await get_tenant_by_slug(subdomain)
+                if tenant:
+                    tenant_id = tenant.id
+        
+        # Check header
+        if not tenant_id:
+            tenant_id = request.headers.get("X-Tenant-ID")
+        
+        # Check JWT
+        if not tenant_id and hasattr(request.state, "user"):
+            tenant_id = request.state.user.get("tenant_id")
+        
+        # Attach to request
+        request.state.tenant_id = tenant_id
+        
+        return await call_next(request)
+```
+
+---
+
+## 🖥️ INFRASTRUCTURE ON RENDER
+
+### Services Configuration
+
+```yaml
+# render.yaml
+services:
+  # Frontend (Static Site)
+  - type: web
+    name: alpha-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://api.alpha-intel.com
+      - key: VITE_CLERK_KEY
+        fromValue: CLERK_PUBLISHABLE_KEY
+
+  # Landing Page (Static Site)
+  - type: web
+    name: alpha-landing
+    env: static
+    buildCommand: cd landing && npm install && npm run build
+    staticPublishPath: landing/dist
+
+  # API Gateway (Web Service)
+  - type: web
+    name: alpha-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alpha-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: alpha-redis
+          property: connectionString
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+    autoDeploy: true
+    scaling:
+      minInstances: 1
+      maxInstances: 5
+      targetMemoryPercent: 80
+      targetCPUPercent: 80
+
+  # Signal Service (Background Worker)
+  - type: worker
+    name: alpha-signals
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run_all_monitors_web.py
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alpha-db
+          property: connectionString
+      - key: CHARTEXCHANGE_API_KEY
+        sync: false
+      - key: DISCORD_WEBHOOK_URL
+        sync: false
+
+  # Billing Webhook Handler (Web Service)
+  - type: web
+    name: alpha-billing
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app.billing.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+databases:
+  - name: alpha-db
+    plan: starter  # $7/mo, 1GB, auto-backups
+    databaseName: alpha_intelligence
+    user: alpha
+
+# Redis via Upstash (external, free tier available)
+# Configure REDIS_URL manually in Render dashboard
+```
+
+### Scaling Strategy
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    RENDER SCALING STRATEGY                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  FRONTEND (Static Site)                                          │
+│  └── Render CDN auto-scales globally                            │
+│      Cost: $0 (included)                                         │
+│                                                                  │
+│  API GATEWAY                                                     │
+│  └── Auto-scale 1-5 instances                                   │
+│      Trigger: 80% CPU or 80% memory                             │
+│      Cost: $7/instance/mo (Starter) or $25 (Standard)           │
+│                                                                  │
+│  SIGNAL SERVICE                                                  │
+│  └── Single instance (stateful)                                 │
+│      If overloaded: Split by symbol groups                      │
+│      Cost: $7/mo (Starter)                                      │
+│                                                                  │
+│  DATABASE                                                        │
+│  └── Render Managed PostgreSQL                                  │
+│      Starter: $7/mo (1GB, 97 connections)                       │
+│      Standard: $25/mo (16GB, 100 connections)                   │
+│                                                                  │
+│  REDIS (Upstash)                                                │
+│  └── Free tier: 10K commands/day                                │
+│      Pay-as-you-go: $0.2 per 100K commands                      │
+│                                                                  │
+│  ESTIMATED MONTHLY COST:                                         │
+│  └── MVP: $21/mo (API + Signals + DB)                           │
+│  └── Growth: $60-100/mo (scaled API + Standard DB)              │
+│  └── Scale: $200-500/mo (multiple API instances)                │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Environment Variables (Render Dashboard)
+
+```bash
+# API Gateway
+DATABASE_URL=postgresql://...        # Auto from Render DB
+REDIS_URL=redis://...                # From Upstash
+STRIPE_SECRET_KEY=sk_live_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+CLERK_SECRET_KEY=sk_xxx
+JWT_SECRET=xxx                       # Generate: openssl rand -hex 32
+
+# Signal Service
+DATABASE_URL=postgresql://...
+CHARTEXCHANGE_API_KEY=xxx
+YAHOO_RAPIDAPI_KEY=xxx
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/xxx
+
+# Frontend
+VITE_API_URL=https://api.alpha-intel.com
+VITE_WS_URL=wss://api.alpha-intel.com/ws
+VITE_CLERK_PUBLISHABLE_KEY=pk_xxx
+VITE_STRIPE_PUBLISHABLE_KEY=pk_xxx
+```
+
+---
+
+## 💾 DATABASE SCHEMA
+
+### Complete PostgreSQL Schema
+
+```sql
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Tenants table
+CREATE TABLE tenants (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    
+    -- Billing
+    stripe_customer_id VARCHAR(255),
+    subscription_tier VARCHAR(50) DEFAULT 'free',
+    subscription_status VARCHAR(50) DEFAULT 'active',
+    subscription_id VARCHAR(255),
+    current_period_end TIMESTAMPTZ,
+    
+    -- Settings & Limits
+    settings JSONB DEFAULT '{}',
+    custom_limits JSONB DEFAULT '{}',
+    
+    -- Status
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Users table
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    
+    -- Auth
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255),
+    
+    -- Profile
+    name VARCHAR(255),
+    avatar_url VARCHAR(500),
+    
+    -- Role within tenant
+    role VARCHAR(50) DEFAULT 'member',
+    
+    -- Preferences
+    preferences JSONB DEFAULT '{
+        "symbols": ["SPY", "QQQ"],
+        "alerts_enabled": true,
+        "email_notifications": true,
+        "timezone": "America/New_York"
+    }',
+    
+    -- OAuth
+    oauth_provider VARCHAR(50),
+    oauth_id VARCHAR(255),
+    
+    -- Status
+    is_active BOOLEAN DEFAULT TRUE,
+    email_verified BOOLEAN DEFAULT FALSE,
+    last_login TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Signals table (per-user signal history)
+CREATE TABLE signals (
+    id SERIAL,
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    
+    -- Signal data
+    symbol VARCHAR(10) NOT NULL,
+    signal_type VARCHAR(50) NOT NULL,
+    direction VARCHAR(10) NOT NULL,
+    confidence DECIMAL(5,2) NOT NULL,
+    entry_price DECIMAL(10,2),
+    stop_price DECIMAL(10,2),
+    target_price DECIMAL(10,2),
+    reasoning JSONB,
+    metadata JSONB,
+    
+    -- Source
+    source VARCHAR(50),
+    is_master BOOLEAN DEFAULT FALSE,
+    
+    -- Outcome tracking
+    status VARCHAR(20) DEFAULT 'active',
+    outcome VARCHAR(20),  -- WIN, LOSS, EXPIRED
+    actual_exit_price DECIMAL(10,2),
+    actual_pnl DECIMAL(10,4),
+    
+    -- Timestamps
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    closed_at TIMESTAMPTZ,
+    
+    PRIMARY KEY (id, created_at)
+);
+
+-- Create hypertable for signals (TimescaleDB)
+SELECT create_hypertable('signals', 'created_at', if_not_exists => TRUE);
+
+-- User watchlists
+CREATE TABLE watchlists (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    symbols JSONB DEFAULT '[]',
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Alert preferences
+CREATE TABLE alert_preferences (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    
+    -- Channels
+    discord_webhook VARCHAR(500),
+    email_enabled BOOLEAN DEFAULT TRUE,
+    push_enabled BOOLEAN DEFAULT FALSE,
+    
+    -- Filters
+    min_confidence INTEGER DEFAULT 0,
+    signal_types JSONB DEFAULT '[]',  -- Empty = all
+    symbols JSONB DEFAULT '[]',       -- Empty = all from watchlist
+    
+    -- Quiet hours
+    quiet_start TIME,
+    quiet_end TIME,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- API keys for enterprise users
+CREATE TABLE api_keys (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    
+    key_hash VARCHAR(255) NOT NULL,  -- Hashed, never store plaintext
+    name VARCHAR(100),
+    permissions JSONB DEFAULT '[]',
+    
+    -- Rate limits
+    rate_limit INTEGER DEFAULT 1000,  -- Per hour
+    
+    -- Status
+    is_active BOOLEAN DEFAULT TRUE,
+    last_used TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Audit log
+CREATE TABLE audit_log (
+    id SERIAL PRIMARY KEY,
+    tenant_id UUID REFERENCES tenants(id),
+    user_id UUID REFERENCES users(id),
+    
+    action VARCHAR(100) NOT NULL,
+    resource_type VARCHAR(50),
+    resource_id VARCHAR(255),
+    details JSONB,
+    ip_address INET,
+    user_agent TEXT,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_users_tenant ON users(tenant_id);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_signals_tenant ON signals(tenant_id, created_at DESC);
+CREATE INDEX idx_signals_user ON signals(user_id, created_at DESC);
+CREATE INDEX idx_signals_symbol ON signals(symbol, created_at DESC);
+CREATE INDEX idx_audit_tenant ON audit_log(tenant_id, created_at DESC);
+
+-- Row-level security for multi-tenancy
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE signals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE watchlists ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies (tenant isolation)
+CREATE POLICY tenant_isolation_users ON users
+    USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+
+CREATE POLICY tenant_isolation_signals ON signals
+    USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+```
+
+---
+
+## 🔌 API DESIGN
+
+### REST Endpoints
+
+```python
+# backend/app/api/v1/router.py
+
+# Auth
+POST   /api/v1/auth/register           # Create account
+POST   /api/v1/auth/login              # Login
+POST   /api/v1/auth/logout             # Logout
+POST   /api/v1/auth/refresh            # Refresh token
+POST   /api/v1/auth/forgot-password    # Request reset
+POST   /api/v1/auth/reset-password     # Reset password
+GET    /api/v1/auth/me                 # Current user
+
+# Users
+GET    /api/v1/users/me                # Get profile
+PATCH  /api/v1/users/me                # Update profile
+PATCH  /api/v1/users/me/preferences    # Update preferences
+DELETE /api/v1/users/me                # Delete account
+
+# Billing
+GET    /api/v1/billing/subscription    # Get subscription
+POST   /api/v1/billing/checkout        # Create checkout session
+POST   /api/v1/billing/portal          # Create portal session
+GET    /api/v1/billing/usage           # Get usage stats
+GET    /api/v1/billing/invoices        # Get invoices
+
+# Signals
+GET    /api/v1/signals                 # List signals
+GET    /api/v1/signals/master          # Master signals only
+GET    /api/v1/signals/{id}            # Get signal
+POST   /api/v1/signals/{id}/ack        # Acknowledge signal
+
+# Market Data
+GET    /api/v1/market/{symbol}/quote   # Real-time quote
+GET    /api/v1/market/{symbol}/dp      # Dark pool levels
+GET    /api/v1/market/{symbol}/gamma   # Gamma exposure
+GET    /api/v1/market/{symbol}/options # Options flow
+GET    /api/v1/market/context          # Market regime
+
+# Watchlists
+GET    /api/v1/watchlists              # List watchlists
+POST   /api/v1/watchlists              # Create watchlist
+PATCH  /api/v1/watchlists/{id}         # Update watchlist
+DELETE /api/v1/watchlists/{id}         # Delete watchlist
+
+# Alerts
+GET    /api/v1/alerts/preferences      # Get preferences
+PATCH  /api/v1/alerts/preferences      # Update preferences
+GET    /api/v1/alerts/history          # Alert history
+
+# Backtest (Pro only)
+POST   /api/v1/backtest/run            # Run backtest
+GET    /api/v1/backtest/results        # Get results
+GET    /api/v1/backtest/history        # Historical results
+
+# Admin (Admin only)
+GET    /api/v1/admin/users             # List all users
+GET    /api/v1/admin/tenants           # List all tenants
+GET    /api/v1/admin/analytics         # Platform analytics
+POST   /api/v1/admin/impersonate/{id}  # Impersonate user
+
+# Health
+GET    /health                          # Health check
+GET    /api/v1/health/checkers         # Checker health
+```
+
+### WebSocket Channels
+
+```python
+# backend/app/api/websocket/router.py
+
+@app.websocket("/ws/signals")
+async def signals_websocket(websocket: WebSocket, token: str):
+    """
+    Real-time signal stream
+    
+    Auth: JWT token required
+    Filters: Based on user preferences (symbols, signal types)
+    
+    Messages:
+    - SIGNAL_NEW: New signal generated
+    - SIGNAL_UPDATE: Signal status changed
+    - SIGNAL_CLOSED: Signal closed (win/loss)
+    """
+    user = await verify_ws_token(token)
+    await manager.connect(websocket, f"user:{user['id']}")
+    
+    try:
+        while True:
+            # Receive any client messages (ping, filter updates)
+            data = await websocket.receive_json()
+            if data.get("type") == "PING":
+                await websocket.send_json({"type": "PONG"})
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, f"user:{user['id']}")
+
+@app.websocket("/ws/market/{symbol}")
+async def market_websocket(websocket: WebSocket, symbol: str, token: str):
+    """
+    Real-time market data stream for a symbol
+    
+    Messages:
+    - QUOTE: Price update
+    - DP_PRINT: Dark pool print
+    - GAMMA_UPDATE: Gamma change
+    """
+    user = await verify_ws_token(token)
+    await check_tier_limit(user, "websocket_connections")
+    
+    await manager.connect(websocket, f"market:{symbol}")
+    # ...
+```
+
+---
+
+## 🤖 AGENT AUTONOMY (Nice to Have)
+
+### Vision: Fully Autonomous Platform
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AGENT MANAGEMENT LAYER                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │  ONBOARDING │  │   SUPPORT   │  │   BILLING   │             │
+│  │    AGENT    │  │    AGENT    │  │    AGENT    │             │
+│  │             │  │             │  │             │             │
+│  │ • Welcome   │  │ • Chat bot  │  │ • Dunning   │             │
+│  │ • Tutorial  │  │ • FAQ       │  │ • Upsell    │             │
+│  │ • First sig │  │ • Escalate  │  │ • Recovery  │             │
+│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│                                                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │  RETENTION  │  │   CONTENT   │  │   MONITOR   │             │
+│  │    AGENT    │  │    AGENT    │  │    AGENT    │             │
+│  │             │  │             │  │             │             │
+│  │ • Churn     │  │ • Market    │  │ • Health    │             │
+│  │   predict   │  │   recaps    │  │ • Alerts    │             │
+│  │ • Win-back  │  │ • Reports   │  │ • Scaling   │             │
+│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Agent: Onboarding
+
+```python
+# backend/app/agents/onboarding_agent.py
+
+class OnboardingAgent:
+    """
+    Handles new user onboarding autonomously
+    
+    Triggers:
+    - New user signup
+    - Subscription upgrade
+    - First login after inactivity
+    """
+    
+    async def on_new_user(self, user: User):
+        """Handle new user signup"""
+        
+        # 1. Send welcome email with getting started guide
+        await self.send_welcome_email(user)
+        
+        # 2. Create default watchlist (SPY, QQQ)
+        await self.create_default_watchlist(user)
+        
+        # 3. Enable default alerts
+        await self.setup_default_alerts(user)
+        
+        # 4. Queue first signal notification (if any active)
+        active_signals = await self.get_active_master_signals()
+        if active_signals:
+            await self.send_first_signal_email(user, active_signals[0])
+        
+        # 5. Schedule day 3 check-in
+        await self.schedule_checkin(user, days=3)
+    
+    async def on_day3_checkin(self, user: User):
+        """Check engagement after 3 days"""
+        
+        # Check if user has:
+        # - Logged in
+        # - Viewed signals
+        # - Set up alerts
+        
+        engagement = await self.get_user_engagement(user)
+        
+        if engagement.logins < 2:
+            # Low engagement - send re-engagement email
+            await self.send_reengagement_email(user)
+        
+        elif not engagement.alerts_configured:
+            # Suggest alerts
+            await self.send_alerts_suggestion(user)
+        
+        elif engagement.is_engaged:
+            # Engaged user - suggest upgrade if on free tier
+            if user.tier == "free":
+                await self.send_upgrade_suggestion(user)
+```
+
+### Agent: Billing Recovery
+
+```python
+# backend/app/agents/billing_agent.py
+
+class BillingAgent:
+    """
+    Handles billing issues autonomously
+    
+    Triggers:
+    - Payment failed
+    - Subscription about to expire
+    - Usage approaching limit
+    """
+    
+    async def on_payment_failed(self, user: User, invoice):
+        """Handle failed payment"""
+        
+        attempt = invoice.attempt_count
+        
+        if attempt == 1:
+            # First failure - polite reminder
+            await self.send_payment_reminder(user, invoice, tone="friendly")
+            
+        elif attempt == 2:
+            # Second failure - more urgent
+            await self.send_payment_reminder(user, invoice, tone="urgent")
+            
+        elif attempt == 3:
+            # Third failure - warn of downgrade
+            await self.send_downgrade_warning(user)
+            
+        elif attempt >= 4:
+            # Downgrade to free
+            await self.downgrade_to_free(user)
+            await self.send_downgrade_notification(user)
+    
+    async def on_usage_approaching_limit(self, user: User, usage: dict):
+        """Notify when approaching tier limits"""
+        
+        percent_used = usage["signals_used"] / usage["signals_limit"]
+        
+        if percent_used >= 0.8:
+            await self.send_usage_warning(user, usage)
+            await self.send_upgrade_suggestion(user)
+```
+
+### Agent: Support Chat
+
+```python
+# backend/app/agents/support_agent.py
+
+class SupportAgent:
+    """
+    AI-powered support chat
+    
+    Uses: RAG on documentation + LLM for responses
+    Escalates: Complex issues to human
+    """
+    
+    async def handle_message(self, user: User, message: str) -> str:
+        """Handle a support message"""
+        
+        # 1. Classify intent
+        intent = await self.classify_intent(message)
+        
+        # 2. Handle based on intent
+        if intent == "billing":
+            return await self.handle_billing_query(user, message)
+        
+        elif intent == "technical":
+            return await self.handle_technical_query(user, message)
+        
+        elif intent == "signals":
+            return await self.handle_signals_query(user, message)
+        
+        elif intent == "cancel":
+            # Escalate cancellation requests
+            await self.escalate_to_human(user, message, reason="cancellation")
+            return "I'll connect you with our team to help with your account."
+        
+        else:
+            # General query - use RAG
+            return await self.answer_with_rag(message)
+    
+    async def answer_with_rag(self, query: str) -> str:
+        """Answer using RAG on documentation"""
+        
+        # Search docs
+        relevant_docs = await self.search_docs(query)
+        
+        # Generate response with LLM
+        response = await self.llm.generate(
+            prompt=f"""
+            You are a helpful support agent for Alpha Intelligence.
+            
+            User question: {query}
+            
+            Relevant documentation:
+            {relevant_docs}
+            
+            Provide a helpful, concise answer.
+            """,
+            model="gpt-4o-mini"
+        )
+        
+        return response
+```
+
+### Scaffold for Agents
+
+```python
+# backend/app/agents/base.py
+
+from abc import ABC, abstractmethod
+from datetime import datetime
+import asyncio
+
+class BaseAgent(ABC):
+    """Base class for autonomous agents"""
+    
+    def __init__(self, db, redis, llm=None):
+        self.db = db
+        self.redis = redis
+        self.llm = llm
+        self.running = False
+    
+    @abstractmethod
+    async def run(self):
+        """Main agent loop"""
+        pass
+    
+    async def start(self):
+        """Start the agent"""
+        self.running = True
+        await self.run()
+    
+    async def stop(self):
+        """Stop the agent"""
+        self.running = False
+    
+    async def log_action(self, action: str, details: dict):
+        """Log agent action for audit"""
+        await self.db.execute(
+            """
+            INSERT INTO agent_log (agent_name, action, details, created_at)
+            VALUES ($1, $2, $3, $4)
+            """,
+            self.__class__.__name__, action, details, datetime.utcnow()
+        )
+
+# Agent runner (runs all agents)
+class AgentRunner:
+    def __init__(self):
+        self.agents = []
+    
+    def register(self, agent: BaseAgent):
+        self.agents.append(agent)
+    
+    async def start_all(self):
+        """Start all agents concurrently"""
+        tasks = [agent.start() for agent in self.agents]
+        await asyncio.gather(*tasks)
+
+# Usage
+runner = AgentRunner()
+runner.register(OnboardingAgent(db, redis))
+runner.register(BillingAgent(db, redis))
+runner.register(SupportAgent(db, redis, llm))
+runner.register(RetentionAgent(db, redis))
+await runner.start_all()
+```
+
+---
+
+## 📋 IMPLEMENTATION PHASES
+
+### Phase 1: Foundation (Week 1-2) 🔴 CRITICAL
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  WEEK 1-2: FOUNDATION                                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  [ ] Set up Render services                                      │
+│      • PostgreSQL database                                       │
+│      • API Gateway (FastAPI)                                     │
+│      • Signal Worker (existing monitor)                          │
+│                                                                  │
+│  [ ] Implement authentication                                    │
+│      • Clerk integration OR custom JWT                           │
+│      • Session management (Redis)                                │
+│      • Protected routes                                          │
+│                                                                  │
+│  [ ] Create user/tenant models                                   │
+│      • Database schema                                           │
+│      • SQLAlchemy models                                         │
+│      • Basic CRUD endpoints                                      │
+│                                                                  │
+│  [ ] Basic frontend                                              │
+│      • Login/Register pages                                      │
+│      • Dashboard shell                                           │
+│      • Protected routes                                          │
+│                                                                  │
+│  DELIVERABLE: Users can register, login, see empty dashboard    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Phase 2: Billing (Week 3-4) 🔴 CRITICAL
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  WEEK 3-4: BILLING                                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  [ ] Stripe integration                                          │
+│      • Create products/prices in Stripe                          │
+│      • Checkout sessions                                         │
+│      • Customer portal                                           │
+│      • Webhook handler                                           │
+│                                                                  │
+│  [ ] Subscription management                                     │
+│      • Track subscription status                                 │
+│      • Handle upgrades/downgrades                                │
+│      • Handle cancellations                                      │
+│                                                                  │
+│  [ ] Usage tracking                                              │
+│      • Track API calls                                           │
+│      • Track signal views                                        │
+│      • Enforce tier limits                                       │
+│                                                                  │
+│  [ ] Frontend billing UI                                         │
+│      • Pricing page                                              │
+│      • Upgrade modal                                             │
+│      • Usage dashboard                                           │
+│      • Billing settings                                          │
+│                                                                  │
+│  DELIVERABLE: Users can subscribe, upgrade, view usage          │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Phase 3: Core Features (Week 5-7) 🟡 HIGH
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  WEEK 5-7: CORE FEATURES                                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  [ ] Signal streaming                                            │
+│      • Connect to existing monitor                               │
+│      • WebSocket to frontend                                     │
+│      • Filter by tier permissions                                │
+│                                                                  │
+│  [ ] Market data                                                 │
+│      • Wire up existing data clients                             │
+│      • Caching layer                                             │
+│      • API endpoints                                             │
+│                                                                  │
+│  [ ] Dashboard widgets                                           │
+│      • Signal center                                             │
+│      • Market overview                                           │
+│      • Health status                                             │
+│                                                                  │
+│  [ ] User preferences                                            │
+│      • Watchlists                                                │
+│      • Alert preferences                                         │
+│      • Display settings                                          │
+│                                                                  │
+│  DELIVERABLE: Functional trading dashboard with real signals    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Phase 4: Polish & Launch (Week 8-10) 🟡 MEDIUM
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  WEEK 8-10: POLISH & LAUNCH                                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  [ ] Landing page                                                │
+│      • Marketing copy                                            │
+│      • Pricing section                                           │
+│      • Demo/screenshots                                          │
+│      • SEO optimization                                          │
+│                                                                  │
+│  [ ] Email flows                                                 │
+│      • Welcome series                                            │
+│      • Payment notifications                                     │
+│      • Signal digests                                            │
+│                                                                  │
+│  [ ] Mobile responsiveness                                       │
+│      • Tablet layout                                             │
+│      • Mobile layout                                             │
+│                                                                  │
+│  [ ] Performance                                                 │
+│      • Load testing                                              │
+│      • Caching optimization                                      │
+│      • Error handling                                            │
+│                                                                  │
+│  [ ] Launch checklist                                            │
+│      • Security audit                                            │
+│      • Terms of service                                          │
+│      • Privacy policy                                            │
+│      • Analytics (Posthog)                                       │
+│                                                                  │
+│  DELIVERABLE: Production-ready SaaS                             │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Phase 5: Agents (Week 11+) 🟢 NICE TO HAVE
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  WEEK 11+: AGENT AUTONOMY                                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  [ ] Onboarding agent                                            │
+│  [ ] Billing recovery agent                                      │
+│  [ ] Support chat agent                                          │
+│  [ ] Retention agent                                             │
+│  [ ] Content agent (market recaps)                               │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🔒 SECURITY CHECKLIST
+
+### Must-Haves Before Launch
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  🔒 SECURITY CHECKLIST                                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  AUTHENTICATION                                                  │
+│  [ ] Password hashing (bcrypt, 12+ rounds)                       │
+│  [ ] JWT with short expiry (30 min access, 7 day refresh)        │
+│  [ ] Secure cookie settings (httpOnly, secure, sameSite)         │
+│  [ ] Rate limit login attempts (5/min)                           │
+│  [ ] Email verification required                                 │
+│                                                                  │
+│  API SECURITY                                                    │
+│  [ ] CORS configured (whitelist origins)                         │
+│  [ ] Rate limiting (by IP and user)                              │
+│  [ ] Input validation (Pydantic)                                 │
+│  [ ] SQL injection protection (parameterized queries)            │
+│  [ ] XSS protection (escape output)                              │
+│                                                                  │
+│  DATA PROTECTION                                                 │
+│  [ ] All traffic over HTTPS                                      │
+│  [ ] Sensitive data encrypted at rest                            │
+│  [ ] PII minimization                                            │
+│  [ ] Database backups (daily)                                    │
+│  [ ] Row-level security for multi-tenancy                        │
+│                                                                  │
+│  BILLING                                                         │
+│  [ ] Stripe webhook signature verification                       │
+│  [ ] Never store card details                                    │
+│  [ ] PCI compliance (via Stripe)                                 │
+│                                                                  │
+│  INFRASTRUCTURE                                                  │
+│  [ ] Environment variables (never commit secrets)                │
+│  [ ] Separate staging/production                                 │
+│  [ ] Audit logging                                               │
+│  [ ] Error tracking (Sentry)                                     │
+│  [ ] Uptime monitoring                                           │
+│                                                                  │
+│  LEGAL                                                           │
+│  [ ] Terms of Service                                            │
+│  [ ] Privacy Policy                                              │
+│  [ ] Cookie consent                                              │
+│  [ ] GDPR compliance (if EU users)                               │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 PROJECT STRUCTURE
+
+```
+alpha-saas/
+├── backend/
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py                 # FastAPI entry
+│   │   ├── config.py               # Settings
+│   │   │
+│   │   ├── api/
+│   │   │   ├── v1/
+│   │   │   │   ├── auth.py
+│   │   │   │   ├── users.py
+│   │   │   │   ├── billing.py
+│   │   │   │   ├── signals.py
+│   │   │   │   ├── market.py
+│   │   │   │   └── admin.py
+│   │   │   └── websocket/
+│   │   │       ├── signals_ws.py
+│   │   │       └── market_ws.py
+│   │   │
+│   │   ├── auth/
+│   │   │   ├── jwt.py
+│   │   │   ├── sessions.py
+│   │   │   ├── rbac.py
+│   │   │   └── clerk.py            # If using Clerk
+│   │   │
+│   │   ├── billing/
+│   │   │   ├── stripe_service.py
+│   │   │   ├── webhooks.py
+│   │   │   └── usage.py
+│   │   │
+│   │   ├── models/
+│   │   │   ├── tenant.py
+│   │   │   ├── user.py
+│   │   │   ├── signal.py
+│   │   │   └── subscription.py
+│   │   │
+│   │   ├── services/
+│   │   │   ├── signal_service.py
+│   │   │   ├── user_service.py
+│   │   │   └── email_service.py
+│   │   │
+│   │   ├── integrations/
+│   │   │   ├── monitor_bridge.py   # Bridge to UnifiedAlphaMonitor
+│   │   │   ├── data_bridge.py      # Bridge to data clients
+│   │   │   └── health_bridge.py    # Bridge to health registry
+│   │   │
+│   │   ├── agents/                 # Nice to have
+│   │   │   ├── base.py
+│   │   │   ├── onboarding.py
+│   │   │   ├── billing.py
+│   │   │   └── support.py
+│   │   │
+│   │   └── middleware/
+│   │       ├── auth.py
+│   │       ├── tenant.py
+│   │       └── rate_limit.py
+│   │
+│   ├── migrations/                 # Alembic
+│   ├── tests/
+│   ├── requirements.txt
+│   └── Dockerfile
+│
+├── frontend/
+│   ├── src/
+│   │   ├── main.tsx
+│   │   ├── App.tsx
+│   │   │
+│   │   ├── pages/
+│   │   │   ├── Landing.tsx
+│   │   │   ├── Login.tsx
+│   │   │   ├── Register.tsx
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Billing.tsx
+│   │   │   ├── Settings.tsx
+│   │   │   └── Admin.tsx
+│   │   │
+│   │   ├── components/
+│   │   │   ├── widgets/
+│   │   │   ├── auth/
+│   │   │   ├── billing/
+│   │   │   └── layout/
+│   │   │
+│   │   ├── hooks/
+│   │   │   ├── useAuth.ts
+│   │   │   ├── useSubscription.ts
+│   │   │   └── useWebSocket.ts
+│   │   │
+│   │   ├── stores/
+│   │   │   ├── authStore.ts
+│   │   │   └── signalStore.ts
+│   │   │
+│   │   └── lib/
+│   │       ├── api.ts
+│   │       └── stripe.ts
+│   │
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── landing/                        # Marketing site
+│   ├── src/
+│   └── package.json
+│
+├── render.yaml                     # Render deployment
+├── docker-compose.yml              # Local development
+└── README.md
+```
+
+---
+
+## 💰 COST ESTIMATION
+
+### Monthly Costs by Stage
+
+| Stage | Users | Render | Stripe | Upstash | Total |
+|-------|-------|--------|--------|---------|-------|
+| MVP | 1-100 | $21 | $0 | $0 | ~$21/mo |
+| Growth | 100-1K | $60 | ~$50 | $10 | ~$120/mo |
+| Scale | 1K-10K | $200 | ~$500 | $50 | ~$750/mo |
+| Enterprise | 10K+ | $500+ | ~$5K | $100 | ~$6K+/mo |
+
+### Revenue Potential
+
+| Users | Free | Starter ($29) | Pro ($99) | MRR |
+|-------|------|---------------|-----------|-----|
+| 100 | 80 | 15 | 5 | $930 |
+| 500 | 350 | 100 | 50 | $7,850 |
+| 1,000 | 700 | 200 | 100 | $15,700 |
+| 5,000 | 3,500 | 1,000 | 500 | $78,500 |
+
+---
+
+## 🚀 GETTING STARTED
+
+### For Plumbers
+
+1. **Read this entire document**
+2. **Set up local development:**
+   ```bash
+   docker-compose up -d  # PostgreSQL, Redis
+   cd backend && pip install -r requirements.txt
+   cd frontend && npm install
+   ```
+3. **Start with Phase 1** - Auth first!
+4. **Test everything** - Write tests as you go
+5. **Ask Zo** if stuck
+
+### Key Files to Reference
+
+| What | Where |
+|------|-------|
+| Existing monitor | `live_monitoring/orchestrator/unified_monitor.py` |
+| Health registry | `live_monitoring/orchestrator/checker_health.py` |
+| Data clients | `core/data/` |
+| Signal generation | `live_monitoring/core/signal_generator.py` |
+| Frontend plan | `.cursor/rules/alpha-terminal-frontend-plan.mdc` |
+
+---
+
+**ALPHA'S VISION:**
+*"We're not just building a SaaS. We're democratizing institutional intelligence. Every retail trader deserves the same edge as the big boys. Build it right, build it scalable, build it autonomous."* 🚀💰🎯
+
+---
+
+**Document Version:** 1.0
+**Created:** December 19, 2025
+**Author:** Zo (Alpha's AI)

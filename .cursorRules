@@ -85,6 +85,89 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 
 # Scratchpad
 
+## 2025-12-19: MODULAR BACKTESTING FRAMEWORK REBUILT! 🎯💰
+
+### Task: Build proper modular backtesting infrastructure
+
+**PROBLEM:**
+- Old `backtest_all_signals_today.py` was 700+ lines of hardcoded crap
+- No reusability, no modularity, no context awareness
+- Made assumptions about market direction without checking
+
+**SOLUTION:**
+Built a complete modular backtesting framework:
+
+[X] **1. BaseDetector** - Abstract base class for all detectors
+   - `backtesting/simulation/base_detector.py`
+   - Standardized Signal, TradeResult, BacktestResult dataclasses
+   - Automatic trade simulation with stop/target
+   - Built-in metrics calculation (win rate, P&L, Sharpe, etc.)
+
+[X] **2. SelloffRallyDetector** - Momentum signals
+   - `backtesting/simulation/selloff_rally_detector.py`
+   - 3 triggers: FROM_OPEN, ROLLING, MOMENTUM
+   - Requires 2+ triggers for signal (reduces false positives)
+   - Win rate: 52.9% → 55.6% with context filtering
+
+[X] **3. GapDetector** - Pre-market gap signals
+   - `backtesting/simulation/gap_detector.py`
+   - Large gaps (>0.5%): Continuation strategy
+   - Small gaps (0.3-0.5%): Fade/fill strategy
+   - Win rate: 50%
+
+[X] **4. RapidAPIOptionsDetector** - Options flow signals
+   - `backtesting/simulation/rapidapi_options_detector.py`
+   - Uses RapidAPI for most active + unusual options
+   - Generates BULLISH/BEARISH/UNUSUAL signals
+   - Fixed: Stock symbol extraction from options symbols
+
+[X] **5. MarketContextDetector** - THE BRAIN 🧠
+   - `backtesting/simulation/market_context_detector.py`
+   - Analyzes market direction (UP/DOWN/CHOP)
+   - Uses news API for sentiment analysis
+   - Determines regime (TRENDING_UP, TRENDING_DOWN, CHOPPY)
+   - Provides trading recommendations (favor longs/shorts)
+
+[X] **6. UnifiedBacktestRunner** - Run all detectors
+   - `backtesting/simulation/unified_backtest_runner.py`
+   - Context-aware filtering (filters out wrong-direction trades)
+   - Consolidated reporting
+   - JSON result saving
+
+**RESULTS (Dec 18, 2025 - RALLY DAY):**
+```
+Before Context Filtering:
+   Total P&L: -7.68%
+
+After Context Filtering (keeping LONGs in UP market):
+   Total P&L: -2.91%
+   
+   SAVED: +4.77% by filtering out shorts on a rally day! 🔥
+```
+
+**KEY LESSONS:**
+1. NEVER assume market direction - CHECK IT with real data
+2. Use news API to understand WHY market moved
+3. Context filtering dramatically improves performance
+4. Modular architecture = easy to test, debug, extend
+
+**FILES CREATED:**
+- `backtesting/simulation/base_detector.py` - Base class
+- `backtesting/simulation/selloff_rally_detector.py` - Momentum
+- `backtesting/simulation/gap_detector.py` - Gaps
+- `backtesting/simulation/rapidapi_options_detector.py` - Options
+- `backtesting/simulation/market_context_detector.py` - Context
+- `backtesting/simulation/unified_backtest_runner.py` - Runner
+- Updated `backtesting/__init__.py` with all exports
+- Updated `backtesting/simulation/__init__.py`
+
+**DELETED:**
+- `backtest_all_signals_today.py` - Hardcoded garbage
+
+**STATUS:** MODULAR BACKTESTING FRAMEWORK COMPLETE! 🚀
+
+---
+
 ## 2025-12-19: RAPIDAPI INTEGRATION + PRODUCTION DEPLOYMENT COMPLETE! 🚀💰
 
 ### Task: Integrate RapidAPI options & news into production
