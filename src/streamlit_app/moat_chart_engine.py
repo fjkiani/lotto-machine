@@ -763,3 +763,4 @@ def create_moat_chart(
     engine = MOATChartEngine(api_key=api_key)
     return engine.create_moat_chart(ticker, candlestick_data, signals=signals)
 
+

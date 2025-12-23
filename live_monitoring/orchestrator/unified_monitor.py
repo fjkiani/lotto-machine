@@ -62,15 +62,18 @@ class UnifiedAlphaMonitor:
         self.symbols = ['SPY', 'QQQ']
         
         # Intervals (in seconds)
-        self.fed_interval = 300      # 5 minutes
-        self.trump_interval = 180    # 3 minutes
-        self.econ_interval = 3600    # 1 hour
-        self.dp_interval = 60        # 1 minute
-        self.synthesis_interval = 60  # 1 minute
-        self.squeeze_interval = 3600  # 1 hour - squeeze detection
-        self.reddit_interval = 3600   # 1 hour - Reddit sentiment (Phase 5)
-        self.premarket_gap_interval = 300  # 5 minutes - only runs pre-market
-        self.options_flow_interval = 1800  # 30 minutes - options flow analysis
+        # REDUCED INTERVALS FOR RENDER FREE TIER
+        # Render suspends services with "uncommonly high volume of traffic"
+        # See: https://render.com/docs/free#service-initiated-traffic-threshold
+        self.fed_interval = 900       # 15 minutes (was 5) - Fed data doesn't change that fast
+        self.trump_interval = 600     # 10 minutes (was 3) - Trump news can wait
+        self.econ_interval = 3600     # 1 hour - already reasonable
+        self.dp_interval = 300        # 5 minutes (was 1) - DP levels don't change that fast
+        self.synthesis_interval = 300 # 5 minutes (was 1) - synthesis can wait
+        self.squeeze_interval = 3600  # 1 hour - already reasonable
+        self.reddit_interval = 3600   # 1 hour - already reasonable
+        self.premarket_gap_interval = 600  # 10 minutes (was 5)
+        self.options_flow_interval = 1800  # 30 minutes - already reasonable
         
         # Track last run times
         self.last_fed_check = None
@@ -1374,8 +1377,8 @@ class UnifiedAlphaMonitor:
         self.last_premarket_gap_check = None  # Run immediately on first check
         self.last_options_flow_check = None  # Run immediately on first check
         self.last_news_intelligence_check = None  # Run immediately on first check
-        self.gamma_interval = 1800  # Check gamma every 30 min (was hourly)
-        self.news_intelligence_interval = 900  # Check news every 15 min
+        self.gamma_interval = 3600  # Check gamma every 60 min (reduced for Render free tier)
+        self.news_intelligence_interval = 1800  # Check news every 30 min (was 15)
         
         # Heartbeat tracking
         last_heartbeat = datetime.now()

@@ -186,3 +186,4 @@ events = client.get_calendar_events(
 
 **Alpha, the MCP is fixed and operational. The only real limitation is the API's guest access restriction (3 events). Everything else works perfectly.** 💪🔥
 
+

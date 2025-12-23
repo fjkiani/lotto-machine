@@ -148,12 +148,13 @@ class NarrativeChecker(BaseChecker):
             # CRITICAL FIX: Recalculate trade setup with CURRENT price!
             # The cached trade setup may have stale entry prices from minutes ago
             current_price = spy_price if bg.symbol == 'SPY' else qqq_price
-            if self.dp_monitor_engine:
-                ts = self.dp_monitor_engine.trade_calculator.calculate_setup(bg, current_price=current_price)
+            trade_calc = getattr(self.dp_monitor_engine, 'trade_calculator', None) if self.dp_monitor_engine else None
+            if trade_calc:
+                ts = trade_calc.calculate_setup(bg, current_price=current_price)
                 logger.debug(f"   📊 Recalculated trade setup: Entry ${ts.entry:.2f} (current price: ${current_price:.2f})")
             else:
                 ts = best_alert.trade_setup  # Fallback to cached
-                logger.warning(f"   ⚠️ Using cached trade setup (no trade_calculator available)")
+                logger.debug(f"   📊 Using cached trade setup (no trade_calculator available)")
             
             # Regime-aware filtering
             market_regime = self._detect_market_regime(spy_price)

@@ -194,3 +194,4 @@ VITE_WS_URL=ws://localhost:8000/api/v1
 
 **Next:** Enhance widgets with real data and charts
 
+

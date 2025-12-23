@@ -105,3 +105,4 @@ def publish_alert_to_websocket_sync(
     except Exception as e:
         logger.error(f"Error in sync WebSocket publish: {e}", exc_info=True)
 
+
