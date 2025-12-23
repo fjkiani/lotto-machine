@@ -1654,32 +1654,47 @@ class UnifiedAlphaMonitor:
                     self._check_selloffs()
                     self._check_rallies()
                 
-                # Tradytics Checker
-                if self.tradytics_checker and (self.last_tradytics_analysis is None or (now - self.last_tradytics_analysis).seconds >= self.tradytics_analysis_interval):
-                    alerts = self.tradytics_checker.check()
-                    for alert in alerts:
+                # Tradytics Checker (with timeout protection)
+                try:
+                    if self.tradytics_checker and (self.last_tradytics_analysis is None or (now - self.last_tradytics_analysis).seconds >= self.tradytics_analysis_interval):
+                        alerts = self.tradytics_checker.check()
+                        for alert in alerts:
+                            self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+                        self.last_tradytics_analysis = now
+                        logger.info("   ✅ Tradytics check complete")
+                except Exception as e:
+                    logger.error(f"   ❌ Tradytics checker error: {e}")
+                    self.last_tradytics_analysis = now  # Mark as done to prevent infinite retries
+                
+                # Narrative Brain scheduled updates (with error handling)
+                try:
+                    if self.narrative_enabled and self.narrative_scheduler:
+                        self.narrative_scheduler.check_and_run_scheduled_updates()
+                        if self.narrative_scheduler.can_run_intra_day_update():
+                            intelligence_data = self._get_current_intelligence_snapshot()
+                            update = self.narrative_brain.process_intelligence_update("intelligence_snapshot", intelligence_data)
+                            if update:
+                                self.narrative_scheduler.mark_intra_day_update_sent()
+                                logger.info(f"🧠 Narrative update sent: {update.alert_type.value}")
+                except Exception as e:
+                    logger.error(f"   ❌ Narrative scheduler error: {e}")
+                
+                # Daily Recap Checker (with error handling)
+                try:
+                    recap_alerts = self.daily_recap_checker.check(now)
+                    for alert in recap_alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    self.last_tradytics_analysis = now
-                
-                # Narrative Brain scheduled updates
-                if self.narrative_enabled and self.narrative_scheduler:
-                    self.narrative_scheduler.check_and_run_scheduled_updates()
-                    if self.narrative_scheduler.can_run_intra_day_update():
-                        intelligence_data = self._get_current_intelligence_snapshot()
-                        update = self.narrative_brain.process_intelligence_update("intelligence_snapshot", intelligence_data)
-                        if update:
-                            self.narrative_scheduler.mark_intra_day_update_sent()
-                            logger.info(f"🧠 Narrative update sent: {update.alert_type.value}")
-                
-                # Daily Recap Checker
-                recap_alerts = self.daily_recap_checker.check(now)
-                for alert in recap_alerts:
-                    self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+                except Exception as e:
+                    logger.error(f"   ❌ Daily recap error: {e}")
                 
                 # OVERNIGHT/POST-MARKET CHECK (every 2 hours when market closed)
                 if not is_market_hours and (self.last_overnight_check is None or (now - self.last_overnight_check).seconds >= self.overnight_interval):
                     self._run_overnight_check(now)
                     self.last_overnight_check = now
+                
+                # Log every 10 loops to confirm system is alive
+                if loop_count % 10 == 0:
+                    logger.info(f"✅ Loop #{loop_count} complete | Sleeping 30s...")
                 
                 time.sleep(30)
                 
