@@ -87,6 +87,7 @@ except Exception as e:
 
 # Global instances
 monitor = None
+monitor_thread = None
 discord_bot = None
 
 
@@ -161,25 +162,41 @@ def watchdog():
     Watchdog thread to monitor the health of the monitor thread.
     If monitor.run() stops, this will detect it and log warnings.
     """
-    global monitor
+    global monitor, monitor_thread
     
     # Wait for monitor to initialize
     time.sleep(60)
     
+    watchdog_count = 0
     while True:
         try:
             time.sleep(300)  # Check every 5 minutes
+            watchdog_count += 1
+            
+            import pytz
+            import psutil
+            et = pytz.timezone('America/New_York')
+            now_et = datetime.now(pytz.UTC).astimezone(et)
+            
+            # Get memory usage
+            try:
+                process = psutil.Process()
+                mem_mb = process.memory_info().rss / 1024 / 1024
+                mem_str = f"{mem_mb:.1f}MB"
+            except:
+                mem_str = "N/A"
+            
+            # Check thread status
+            thread_alive = monitor_thread.is_alive() if monitor_thread else False
             
             if monitor is None:
-                logger.warning("⚠️ WATCHDOG: Monitor object is None!")
+                logger.warning(f"⚠️ WATCHDOG #{watchdog_count}: Monitor object is None!")
             elif not getattr(monitor, 'running', False):
-                logger.warning("⚠️ WATCHDOG: Monitor.running is False!")
+                logger.warning(f"⚠️ WATCHDOG #{watchdog_count}: Monitor.running is False!")
+            elif not thread_alive:
+                logger.warning(f"⚠️ WATCHDOG #{watchdog_count}: Monitor THREAD is dead!")
             else:
-                # Check last heartbeat
-                import pytz
-                et = pytz.timezone('America/New_York')
-                now_et = datetime.now(pytz.UTC).astimezone(et)
-                logger.info(f"🐕 WATCHDOG: Monitor alive | ET: {now_et.strftime('%Y-%m-%d %H:%M:%S')} | running={monitor.running}")
+                logger.info(f"🐕 WATCHDOG #{watchdog_count}: OK | ET: {now_et.strftime('%H:%M:%S')} | Mem: {mem_str}")
                 
         except Exception as e:
             logger.error(f"❌ WATCHDOG error: {e}")
@@ -736,6 +753,7 @@ def main():
         logger.error(f"   ❌ Test Discord error: {e}")
     
     # Start monitor in background thread
+    global monitor_thread
     monitor_thread = threading.Thread(target=run_monitors, daemon=True)
     monitor_thread.start()
     logger.info("   ✅ Monitor thread started")
