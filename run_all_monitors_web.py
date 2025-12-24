@@ -21,6 +21,15 @@ Environment Variables:
     PORT - Port for web server (Render sets automatically)
 """
 
+# ============================================================
+# IMMEDIATE STARTUP LOG - This MUST appear in Render logs!
+# If you don't see this, Render is using cached old code
+# ============================================================
+print("=" * 60)
+print("🚀 STARTUP VERSION CHECK: 2025-12-24-v5")
+print("   If you see this, Render has the LATEST code!")
+print("=" * 60)
+
 import os
 import sys
 import time
