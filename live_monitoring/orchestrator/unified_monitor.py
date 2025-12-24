@@ -1497,13 +1497,23 @@ class UnifiedAlphaMonitor:
                 now = datetime.now()
                 loop_count += 1
                 
-                # Heartbeat logging (every 5 minutes)
+                # Heartbeat logging (every 5 minutes) - WITH MEMORY TRACKING
                 if (now - last_heartbeat).seconds >= heartbeat_interval:
                     import pytz
                     et = pytz.timezone('America/New_York')
                     now_et = now.astimezone(et) if now.tzinfo else pytz.UTC.localize(now).astimezone(et)
                     is_mkt = self._is_market_hours()
-                    logger.info(f"💓 HEARTBEAT | Loop #{loop_count} | ET: {now_et.strftime('%H:%M:%S')} | Market: {'OPEN' if is_mkt else 'CLOSED'}")
+                    
+                    # Get memory usage
+                    try:
+                        import psutil
+                        process = psutil.Process()
+                        mem_mb = process.memory_info().rss / 1024 / 1024
+                        mem_str = f"{mem_mb:.1f}MB"
+                    except:
+                        mem_str = "N/A"
+                    
+                    logger.info(f"💓 HEARTBEAT | Loop #{loop_count} | ET: {now_et.strftime('%H:%M:%S')} | Market: {'OPEN' if is_mkt else 'CLOSED'} | Mem: {mem_str}")
                     last_heartbeat = now
                 
                 # Fed Checker

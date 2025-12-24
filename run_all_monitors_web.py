@@ -697,8 +697,12 @@ def main():
     """Main entry point."""
     global monitor
     
+    # VERSION MARKER - Update this when making changes to verify Render deployment
+    VERSION = "2025-12-23-v4"  # Date + version number
+    
     print("=" * 80)
     print("🎯 ALPHA INTELLIGENCE - UNIFIED MONITOR (WEB SERVICE)")
+    print(f"   📌 VERSION: {VERSION}")
     print("=" * 80)
     print("✅ This is run_all_monitors_web.py - Unified monitor with:")
     print("   🏦 Fed Watch Monitor")
