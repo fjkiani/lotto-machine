@@ -1,0 +1,77 @@
+{
+  "timestamp": "2025-12-24T22:21:38.762129",
+  "start_date": "2025-12-23",
+  "end_date": "2025-12-24",
+  "trading_days": 2,
+  "symbols": [
+    "SPY",
+    "QQQ"
+  ],
+  "summary": {
+    "total_signals": 12,
+    "total_trades": 12,
+    "win_rate": 33.33333333333333,
+    "total_pnl": 0.10071616645110014,
+    "avg_daily_pnl": 0.05035808322555007,
+    "max_drawdown": 0,
+    "sharpe_ratio": 0,
+    "profit_factor": Infinity
+  },
+  "by_signal_type": {
+    "selloff_rally": {
+      "signals": 12,
+      "win_rate": 33.33333333333333,
+      "pnl": 0.10071616645110014
+    },
+    "options_flow": {
+      "signals": 0,
+      "win_rate": 0,
+      "pnl": 0.0
+    },
+    "dark_pool_alerts": 11,
+    "squeeze_candidates": 0
+  },
+  "daily_results": [
+    {
+      "date": "2025-12-23",
+      "market_direction": "UP",
+      "market_strength": 59.664741354482814,
+      "vix": 13.470000267028809,
+      "total_signals": 6,
+      "total_trades": 6,
+      "win_rate": 33.33333333333333,
+      "total_pnl": 0.05035808322555007,
+      "selloff_rally": {
+        "signals": 6,
+        "trades": 6,
+        "win_rate": 33.33333333333333,
+        "pnl": 0.05035808322555007
+      }
+    },
+    {
+      "date": "2025-12-24",
+      "market_direction": "UP",
+      "market_strength": 59.664741354482814,
+      "vix": 13.470000267028809,
+      "total_signals": 6,
+      "total_trades": 6,
+      "win_rate": 33.33333333333333,
+      "total_pnl": 0.05035808322555007,
+      "selloff_rally": {
+        "signals": 6,
+        "trades": 6,
+        "win_rate": 33.33333333333333,
+        "pnl": 0.05035808322555007
+      }
+    }
+  ],
+  "validation": {
+    "passed": false,
+    "notes": [
+      "\u2705 12 trades (meets minimum)",
+      "\u274c Win rate 33.3% < 50.0%",
+      "\u2705 Max DD 0.00% (within limits)",
+      "\u2705 Profitable: +0.10%"
+    ]
+  }
+}

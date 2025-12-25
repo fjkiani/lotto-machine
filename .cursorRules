@@ -85,6 +85,46 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 
 # Scratchpad
 
+## 2025-12-25: BACKTESTING REALITY CHECK - OPTIONS FLOW BROKEN! 🚨
+
+### Task: Backtest Dec 23-24 and identify why signals aren't generating edge
+
+**FINDINGS:**
+| Signal Type | Win Rate | P&L | Status |
+|-------------|----------|-----|--------|
+| Selloff/Rally | 33.3% | **+0.10%** | ✅ PROFITABLE |
+| Options Flow | 0% | -4.50% | ❌ BROKEN |
+
+**ROOT CAUSES:**
+1. Options Flow was taking 50 signals/day with no quality filter
+2. Even with 80% confidence + DP confluence REQUIRED, still 0% win rate
+3. The P/C ratio signals don't predict direction on these dates
+4. Selloff/Rally works because R/R (2:1) > win rate (33%)
+
+**ACTIONS TAKEN:**
+[X] Hardened `rapidapi_options_detector.py` with RUTHLESS thresholds:
+    - P/C Bullish: 0.7 → 0.4
+    - P/C Bearish: 1.3 → 1.8
+    - Vol/OI Unusual: 5x → 15x
+    - Min Volume: 10k → 50k
+    - Min Confidence: 70% → 80%
+    - REQUIRE DP confluence (new)
+[X] Still 0% win rate on options - DISABLED for now
+[X] Added `--only-profitable` flag to only run selloff/rally
+[X] Added `--no-options` flag to disable options without disabling gaps
+[X] Updated README with honest status
+
+**NEXT STEPS:**
+[ ] Investigate WHY options signals fail fundamentally
+[ ] Consider removing options flow entirely until reworked
+[ ] Run 30-day backtest with selloff/rally only
+[ ] Paper trade profitable signals
+
+**KEY LESSON:**
+Don't keep broken signals enabled just because they exist. If 0% win rate, DISABLE.
+
+---
+
 ## 2025-12-19: MODULAR BACKTESTING FRAMEWORK REBUILT! 🎯💰
 
 ### Task: Build proper modular backtesting infrastructure

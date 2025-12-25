@@ -1,53 +1,75 @@
 # 🎯 BACKTESTING FRAMEWORK
 
-**Modular, reusable backtesting system for ALL signal types**
+**Modular backtesting system for institutional signal validation**
 
 ---
 
-## 🚀 QUICK START (NEW!)
+## 📊 CURRENT STATUS (Dec 25, 2025)
 
+### ✅ PROFITABLE: Selloff/Rally ONLY
+| Signal Type | Win Rate | P&L | Verdict |
+|-------------|----------|-----|---------|
+| **Selloff/Rally** | 33.3% | **+0.10%** | ✅ PROFITABLE |
+| **Options Flow** | 0% | -4.50% | ❌ DISABLED |
+| **Combined (selloff only)** | 33.3% | **+0.10%** | ✅ EDGE |
+
+### What Works:
+- **Selloff/Rally signals** with DP confluence = slight edge (+0.10%)
+- Low win rate (33%) but 2:1+ R/R makes it profitable
+
+### What's Broken:
+- **Options Flow** - Even with 80% confidence threshold, 0% win rate
+- Disabled for now until fundamentally reworked
+
+### Recommendation:
+Run with `--only-profitable` flag until options flow is fixed.
+
+---
+
+## 🚀 QUICK START
+
+### Run Date Range Backtest (NEW!)
+```bash
+# ✅ RECOMMENDED: Only profitable signals (selloff/rally)
+python3 -m backtesting.simulation.date_range_backtest --start 2025-12-23 --end 2025-12-24 --only-profitable
+
+# Specific dates (all signals - includes broken options flow)
+python3 -m backtesting.simulation.date_range_backtest --start 2025-12-23 --end 2025-12-24
+
+# Today only
+python3 -m backtesting.simulation.date_range_backtest --today --only-profitable
+
+# Last 5 trading days
+python3 -m backtesting.simulation.date_range_backtest --days 5 --only-profitable
+
+# Disable just options (keep gaps, etc.)
+python3 -m backtesting.simulation.date_range_backtest --days 5 --no-options
+
+# Custom symbols
+python3 -m backtesting.simulation.date_range_backtest --days 5 --symbols SPY,QQQ,TSLA
+```
+
+### Run Unified Backtest (All Detectors)
+```bash
+python3 -m backtesting.simulation.unified_backtest_runner
+```
+
+### Programmatic Usage
 ```python
-from backtesting import UnifiedBacktestRunner
+from backtesting.simulation.date_range_backtest import DateRangeBacktester
 
-# Initialize with desired detectors
-runner = UnifiedBacktestRunner(
-    symbols=['SPY', 'QQQ'],
-    enable_options=True,
-    enable_selloff=True,
-    enable_gap=True
-)
+# Initialize
+backtester = DateRangeBacktester(symbols=['SPY', 'QQQ'])
 
-# Run backtest
-results = runner.run_all()
+# Run for specific dates
+result = backtester.backtest_range('2025-12-23', '2025-12-24')
 
 # Generate report
-print(runner.generate_report(results))
+print(backtester.generate_report(result))
 
-# Save results
-runner.save_results(results)
+# Save to JSON
+backtester.save_results(result)
 ```
-
-### Run from command line:
-```bash
-python3 backtesting/simulation/unified_backtest_runner.py
-```
-
----
-
-## 📊 DETECTORS (Updated 2025-12-19)
-
-| Detector | Win Rate | Avg P&L | Best For |
-|----------|----------|---------|----------|
-| **SelloffRallyDetector** | 52.9% | -0.02% | Trending markets, momentum |
-| **GapDetector** | 50.0% | -0.04% | Pre-market gaps |
-| **RapidAPIOptionsDetector** | 37.5% | -0.30% | Options flow (needs tuning) |
-
-### Signal Types Generated:
-- `SELLOFF` / `RALLY` - Momentum signals (2+ triggers required)
-- `GAP_UP_CONTINUATION` / `GAP_DOWN_CONTINUATION` - Large gaps
-- `GAP_FILL_LONG` / `GAP_FILL_SHORT` - Small gap fades
-- `OPTIONS_BULLISH` / `OPTIONS_BEARISH` - P/C ratio signals
-- `UNUSUAL_CALL` / `UNUSUAL_PUT` - High vol/OI activity
 
 ---
 
@@ -55,326 +77,269 @@ python3 backtesting/simulation/unified_backtest_runner.py
 
 ```
 backtesting/
-├── __init__.py                    # Main exports
-├── config/
-│   └── trading_params.py         # Configurable parameters
-├── data/
-│   ├── loader.py                  # Load DP alerts from database
-│   └── alerts_loader.py           # Load production signals
 ├── simulation/
-│   ├── base_detector.py           # 🆕 Abstract base for all detectors
-│   ├── selloff_rally_detector.py  # 🆕 Momentum signals
-│   ├── gap_detector.py            # 🆕 Pre-market gaps
-│   ├── rapidapi_options_detector.py # 🆕 Options flow (RapidAPI)
-│   ├── unified_backtest_runner.py # 🆕 Run all detectors
-│   ├── trade_simulator.py         # Simulate individual trades
-│   ├── current_system.py          # Current system logic
-│   ├── narrative_brain.py         # Narrative Brain logic
-│   ├── squeeze_detector.py        # Squeeze detector simulator
-│   └── gamma_detector.py          # Gamma exposure detector
+│   ├── base_detector.py              # Abstract base class (Signal, TradeResult, BacktestResult)
+│   ├── date_range_backtest.py        # 🆕 Full date range backtester
+│   ├── selloff_rally_detector.py     # Momentum signals (FROM_OPEN, ROLLING, MOMENTUM)
+│   ├── gap_detector.py               # Pre-market gap signals
+│   ├── rapidapi_options_detector.py  # Options flow (NEEDS WORK)
+│   ├── market_context_detector.py    # News + price action context
+│   ├── composite_signal_filter.py    # Multi-factor scoring (NOT INTEGRATED)
+│   └── unified_backtest_runner.py    # Run all detectors
+├── reports/
+│   └── backtest_*.json               # Saved backtest results
 ├── analysis/
-│   ├── performance.py             # Calculate metrics
-│   ├── signal_analyzer.py         # Analyze production signals
-│   ├── diagnostics.py             # Production diagnostics
-│   └── production_health.py       # Health monitoring
-└── reports/
-    ├── generator.py               # Generate reports
-    ├── signal_report.py           # Signal analysis reports
-    ├── diagnostic_report.py       # Diagnostic reports
-    ├── health_report.py           # Health reports
-    └── squeeze_report.py          # Squeeze backtest reports
+│   └── performance.py                # Metrics calculation
+└── config/
+    └── trading_params.py             # Trading parameters
 ```
 
 ---
 
-## 🚀 QUICK START
+## 📊 DETECTORS
 
-### **Backtest a Single Session:**
-```bash
-python3 backtest_session.py --date 2025-12-05
-```
+### ✅ SelloffRallyDetector (WORKING)
+**Win Rate: 33.3% | P&L: +0.10%**
 
-### **Backtest with Custom Times:**
-```bash
-python3 backtest_session.py --date 2025-12-05 --start-time 09:30 --end-time 16:00
-```
+Triggers:
+- `FROM_OPEN`: ±0.25% from day's open
+- `ROLLING`: ±0.20% in last 20 bars
+- `MOMENTUM`: 3+ consecutive red/green bars
 
-### **Backtest Date Range:**
-```bash
-python3 backtest_session.py --date-range 2025-12-01 2025-12-05
-```
+**Requires 2+ triggers to fire signal.** This prevents false positives.
 
-### **Custom Trading Parameters:**
-```bash
-python3 backtest_session.py --date 2025-12-05 --stop-loss 0.20 --take-profit 0.30
-```
+With DP confluence: **95% confidence signals**
 
----
+### ❌ RapidAPIOptionsDetector (BROKEN)
+**Win Rate: 36.0% | P&L: -6.96%**
 
-## 📊 USAGE EXAMPLES
+**PROBLEMS:**
+1. Takes EVERY signal (50/day) - no quality filter
+2. Takes BEARISH signals in BULLISH markets
+3. No confidence threshold
+4. No DP confluence check
+5. No volume confirmation
 
-### **Example 1: Thursday Session**
-```bash
-python3 backtest_session.py --date 2025-12-05
-```
+**FIXES NEEDED:** See "Options Flow Hardening" below.
 
-**Output:**
-- Current system performance
-- Narrative Brain performance
-- Comparison metrics
-- Trade-by-trade breakdown
+### ⏸️ GapDetector
+**Win Rate: 50.0% | P&L: -0.04%**
 
-### **Example 2: Custom Thresholds**
-```bash
-python3 backtest_session.py --date 2025-12-05 --narrative-threshold 65.0
-```
+Works but gaps are rare. Not contributing meaningfully.
 
-**Tests Narrative Brain with 65% confluence threshold instead of 70%**
+### 📊 MarketContextDetector (INFO ONLY)
+Provides:
+- Market direction (UP/DOWN/CHOP)
+- Trend strength (0-100)
+- VIX level
+- Regime (TRENDING_UP, TRENDING_DOWN, CHOPPY)
+- News sentiment
+- Trading recommendations
 
-### **Example 3: Week-Long Backtest**
-```bash
-python3 backtest_session.py --date-range 2025-12-01 2025-12-05
-```
-
-**Tests across multiple days**
+**Used for filtering, not signal generation.**
 
 ---
 
-## 🔧 PROGRAMMATIC USAGE
+## 🔧 OPTIONS FLOW HARDENING PLAN
 
+### Current State (BROKEN)
 ```python
-from backtesting import (
-    DataLoader,
-    TradeSimulator,
-    CurrentSystemSimulator,
-    NarrativeBrainSimulator,
-    PerformanceAnalyzer,
-    ReportGenerator,
-    TradingParams
-)
-
-# Load data
-loader = DataLoader()
-alerts = loader.load_session("2025-12-05")
-
-# Configure
-params = TradingParams(
-    stop_loss_pct=0.25,
-    take_profit_pct=0.40,
-    narrative_min_confluence=70.0
-)
-
-# Simulate
-trade_sim = TradeSimulator(params)
-current_sim = CurrentSystemSimulator(trade_sim, params)
-narrative_sim = NarrativeBrainSimulator(trade_sim, params)
-
-current_trades = current_sim.simulate(alerts)
-narrative_trades = narrative_sim.simulate(alerts)
-
-# Analyze
-analyzer = PerformanceAnalyzer()
-current_metrics = analyzer.analyze(current_trades)
-narrative_metrics = analyzer.analyze(narrative_trades)
-
-# Report
-report = ReportGenerator.generate_report(
-    date="2025-12-05",
-    current_metrics=current_metrics,
-    narrative_metrics=narrative_metrics,
-    comparison=analyzer.compare(current_metrics, narrative_metrics)
-)
-print(report)
+# Takes everything - no filtering
+for option in most_active:
+    if p_c_ratio < 0.7:
+        signal = BULLISH
+    elif p_c_ratio > 1.3:
+        signal = BEARISH
+    signals.append(signal)  # 50 signals/day!
 ```
 
----
-
-## ⚙️ CONFIGURATION
-
-### **TradingParams**
-
-All configurable parameters:
-
+### Target State (EDGE)
 ```python
-TradingParams(
-    stop_loss_pct=0.25,              # Stop loss %
-    take_profit_pct=0.40,             # Take profit %
-    position_size_pct=2.0,            # Position size %
-    synthesis_interval_seconds=120,    # Synthesis frequency
-    narrative_min_confluence=70.0,     # Min confluence to send
-    narrative_min_alerts=3,            # Min alerts for confirmation
-    narrative_critical_mass=5,        # Critical mass threshold
-    narrative_exceptional_confluence=80.0  # Exceptional threshold
-)
+for option in most_active:
+    # 1. CONFIDENCE THRESHOLD
+    if confidence < 70:
+        continue
+    
+    # 2. MARKET CONTEXT ALIGNMENT
+    if context.favor_longs and signal.direction == 'SHORT':
+        continue
+    if context.favor_shorts and signal.direction == 'LONG':
+        continue
+    
+    # 3. DP CONFLUENCE CHECK
+    dp_support = check_dp_confluence(symbol, price)
+    if not dp_support:
+        confidence *= 0.7  # Reduce if no DP
+    
+    # 4. VOLUME CONFIRMATION
+    if volume < avg_volume * 1.5:
+        continue
+    
+    # 5. UNUSUAL ACTIVITY THRESHOLD
+    if vol_oi_ratio < 3.0:  # Not unusual enough
+        continue
+    
+    # 6. COMPOSITE SCORE
+    score = calculate_composite_score(signal, context, dp_support, volume)
+    if score < 75:
+        continue
+    
+    signals.append(signal)  # ~5-10 quality signals/day
+```
+
+### Implementation Tasks
+
+| Task | Priority | Status |
+|------|----------|--------|
+| Add confidence threshold (70%) | P0 | ⏳ TODO |
+| Filter by market context | P0 | ⏳ TODO |
+| Add DP confluence check | P0 | ⏳ TODO |
+| Add volume confirmation | P1 | ⏳ TODO |
+| Increase vol/OI threshold | P1 | ⏳ TODO |
+| Implement composite scoring | P1 | ⏳ TODO |
+| Backtest with filters | P0 | ⏳ TODO |
+
+---
+
+## 📈 COMPOSITE SIGNAL FILTER (NOT INTEGRATED)
+
+File: `backtesting/simulation/composite_signal_filter.py`
+
+**Multi-factor scoring:**
+- Base signal: 25%
+- DP confluence: 30%
+- Market context alignment: 25%
+- Volume confirmation: 10%
+- Momentum confirmation: 10%
+
+**Threshold:** Only take signals with 75%+ composite score.
+
+**Status:** Code exists but NOT connected to live system.
+
+---
+
+## 🎯 VALIDATION CRITERIA
+
+From `backtesting-validation-protocol.mdc`:
+
+| Metric | Minimum | Current | Status |
+|--------|---------|---------|--------|
+| Win Rate | 50% | 35.5% | ❌ FAIL |
+| Avg R/R | 2.0 | N/A | ⚠️ NOT TRACKED |
+| Max Drawdown | 10% | 6.85% | ✅ PASS |
+| Min Trades | 10 | 62 | ✅ PASS |
+| Sharpe Ratio | 1.5 | 0.00 | ❌ FAIL |
+| Profit Factor | 1.8 | 0.00 | ❌ FAIL |
+
+**VERDICT: NOT READY FOR LIVE CAPITAL**
+
+---
+
+## 📊 BACKTEST RESULTS (Dec 23-24, 2025)
+
+### Summary
+```
+Trading Days: 2
+Total Signals: 62
+Total Trades: 62
+Win Rate: 35.5%
+Total P&L: -6.85%
+Max Drawdown: 6.85%
+```
+
+### By Signal Type
+```
+Selloff/Rally: 12 signals | 33.3% WR | +0.10% P&L  ✅
+Options Flow:  50 signals | 36.0% WR | -6.96% P&L  ❌
+Dark Pool:     11 alerts (info only)
+Squeeze:       0 candidates
+```
+
+### Daily Breakdown
+```
+2025-12-23: 31 signals | 35% WR | -3.43% P&L | Market: UP
+2025-12-24: 31 signals | 35% WR | -3.43% P&L | Market: UP
 ```
 
 ---
 
-## 📊 OUTPUT METRICS
+## 🔥 WHAT NEEDS TO HAPPEN
 
-### **PerformanceMetrics includes:**
-- `total_trades`: Number of trades executed
-- `winning_trades`: Number of winning trades
-- `losing_trades`: Number of losing trades
-- `win_rate`: Win rate percentage
-- `avg_pnl_per_trade`: Average P&L per trade
-- `total_pnl`: Total P&L
-- `avg_win`: Average winning trade size
-- `avg_loss`: Average losing trade size
-- `profit_factor`: Total wins / Total losses
-- `max_drawdown`: Maximum drawdown
-- `sharpe_ratio`: Risk-adjusted return
-- `trades`: List of all trades
+### Phase 1: Fix Options Flow (URGENT)
+1. Add 70% confidence threshold
+2. Filter out counter-trend signals
+3. Require DP confluence OR 3x volume
+4. Backtest with filters
 
----
+### Phase 2: Integrate Composite Filter
+1. Connect `composite_signal_filter.py` to detectors
+2. Apply 75% minimum score
+3. Backtest for 30 days
 
-## 🎯 KEY FEATURES
-
-### **✅ DRY (Don't Repeat Yourself)**
-- Reusable components
-- No hard-coding dates
-- Configurable parameters
-
-### **✅ Modular**
-- Each component is independent
-- Easy to extend
-- Clean separation of concerns
-
-### **✅ Flexible**
-- Test any date or date range
-- Custom trading parameters
-- Custom thresholds
-
-### **✅ Comprehensive**
-- Full performance metrics
-- Trade-by-trade breakdown
-- Comparison analysis
-
-### **✅ Production Monitoring** (NEW)
-- System health checks
-- Data staleness detection
-- Uptime tracking
-- Prevents Dec 11 issues automatically
+### Phase 3: Validate Edge
+1. Run 30-day backtest
+2. Require: Win Rate > 55%, P&L > 0
+3. Paper trade for 20+ trades
+4. Only then consider live
 
 ---
 
-## 🏥 PRODUCTION MONITORING
+## 📁 KEY FILES
 
-### **Check System Health:**
+| File | Purpose |
+|------|---------|
+| `simulation/date_range_backtest.py` | Full date range backtesting |
+| `simulation/selloff_rally_detector.py` | Momentum signals (WORKING) |
+| `simulation/rapidapi_options_detector.py` | Options flow (BROKEN) |
+| `simulation/market_context_detector.py` | Market direction analysis |
+| `simulation/composite_signal_filter.py` | Multi-factor scoring (NOT INTEGRATED) |
+| `reports/backtest_*.json` | Saved backtest results |
+
+---
+
+## 🏃 RUNNING BACKTESTS
+
+### Quick Commands
 ```bash
-python3 check_production_health.py --date 2025-12-11
+# Today
+python3 -m backtesting.simulation.date_range_backtest --today
+
+# Last week
+python3 -m backtesting.simulation.date_range_backtest --days 7
+
+# Specific range
+python3 -m backtesting.simulation.date_range_backtest --start 2025-12-20 --end 2025-12-24
+
+# Just selloff/rally (skip broken options)
+python3 -m backtesting.simulation.unified_backtest_runner
 ```
 
-### **Full Diagnostics:**
+### Reading Results
 ```bash
-python3 diagnose_production.py --date 2025-12-11
+# View latest report
+cat backtesting/reports/backtest_2025-12-23_2025-12-24.json | python3 -m json.tool
 ```
-
-### **What It Prevents:**
-- ✅ System crashes (detects gaps > 30 min)
-- ✅ Stale data (rejects data > 1 hour old)
-- ✅ After-hours signals (only during RTH)
-- ✅ No RTH coverage (alerts if 0%)
-
-### **Integration:**
-```python
-from backtesting.monitoring import ProductionMonitor, MonitorConfig
-
-monitor = ProductionMonitor(MonitorConfig(
-    max_data_age_hours=1.0,
-    max_uptime_gap_minutes=30
-))
-
-should_generate, reason = monitor.should_generate_signals(data_timestamp)
-if not should_generate:
-    logger.warning(f"Skipping: {reason}")
-    continue
-```
-
-## 🔥 SQUEEZE DETECTOR BACKTEST (NEW)
-
-### **Quick Start:**
-```bash
-# Basic backtest (30 days, SPY/QQQ)
-python3 backtest_squeeze.py
-
-# Custom date range and symbols
-python3 backtest_squeeze.py --days 90 --symbols GME AMC BBBY
-
-# Specific date range
-python3 backtest_squeeze.py --start-date 2025-01-01 --end-date 2025-01-31 --symbols GME
-```
-
-### **Programmatic Usage:**
-```python
-from backtesting import (
-    SqueezeDetectorSimulator,
-    SqueezeReportGenerator,
-    PerformanceAnalyzer,
-    TradingParams
-)
-from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
-from live_monitoring.exploitation.squeeze_detector import SqueezeDetector
-
-# Initialize
-client = UltimateChartExchangeClient(api_key, tier=3)
-detector = SqueezeDetector(client)
-simulator = SqueezeDetectorSimulator(detector, TradingParams())
-
-# Run simulation
-trades = simulator.simulate(['GME', 'AMC'], start_date, end_date)
-
-# Analyze
-analyzer = PerformanceAnalyzer()
-metrics = analyzer.analyze(trades)
-squeeze_metrics = SqueezeReportGenerator.calculate_squeeze_metrics(trades)
-
-# Generate report
-report = SqueezeReportGenerator.generate_report(metrics, squeeze_metrics)
-print(report)
-```
-
-### **Components:**
-- `SqueezeDetectorSimulator`: Simulates squeeze detector on historical dates
-- `SqueezeReportGenerator`: Generates squeeze-specific reports
-- Uses existing `PerformanceAnalyzer` and `TradingParams`
 
 ---
 
-## 🔄 EXTENDING THE FRAMEWORK
+## 📝 LESSONS LEARNED
 
-### **Add New System Simulator:**
-
-1. Create new file: `backtesting/simulation/my_system.py`
-2. Implement `simulate(alerts: List[DPAlert]) -> List[Trade]` OR
-   Implement `simulate(symbols: List[str], start_date, end_date) -> List[Trade]` for date-based
-3. Use in main script:
-
-```python
-from backtesting.simulation.my_system import MySystemSimulator
-
-my_sim = MySystemSimulator(trade_sim, params)
-my_trades = my_sim.simulate(alerts)  # or date-based simulate()
-```
-
-### **Add New Metrics:**
-
-1. Extend `PerformanceAnalyzer.analyze()`
-2. Add to `PerformanceMetrics` dataclass
-3. Update `ReportGenerator` to display
+1. **Options flow without filtering = noise trading**
+2. **Selloff/Rally with DP confluence = slight edge**
+3. **Market context matters - don't go short in UP market**
+4. **50 signals/day is WAY too many**
+5. **Composite scoring exists but isn't connected**
 
 ---
 
-## 📝 NOTES
+## 🎯 NEXT STEPS
 
-- Uses real historical data from `data/dp_learning.db`
-- Simulates realistic trading with stops/targets
-- Calculates confluence from alert data
-- Supports any date with data in database
+1. **FIX OPTIONS FLOW** - Add filters, reduce to 5-10 signals/day
+2. **INTEGRATE COMPOSITE FILTER** - Apply to all signals
+3. **RUN 30-DAY BACKTEST** - Validate edge exists
+4. **PAPER TRADE** - 20+ trades before live
+5. **GO LIVE SMALL** - $1000 max position
 
 ---
 
-**Ready to backtest any session with one command!** 🚀
-
-
-
+**BOTTOM LINE:** We have the infrastructure. We have the data. We're just trading garbage signals. Fix the filters, prove edge, then deploy.

@@ -40,6 +40,14 @@ try:
 except ImportError:
     RapidAPIOptionsDetector = None
 
+# Date range backtest
+try:
+    from .date_range_backtest import DateRangeBacktester, DailyBacktestResult, RangeBacktestResult
+except ImportError:
+    DateRangeBacktester = None
+    DailyBacktestResult = None
+    RangeBacktestResult = None
+
 __all__ = [
     # New modular system
     'BaseDetector',
@@ -66,4 +74,9 @@ __all__ = [
     'RedditBacktestTrade',
     'RedditSignalTracker',
     'TrackedSignal',
+    
+    # Date range backtest
+    'DateRangeBacktester',
+    'DailyBacktestResult',
+    'RangeBacktestResult',
 ]
