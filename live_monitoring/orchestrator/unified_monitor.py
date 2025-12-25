@@ -75,6 +75,10 @@ class UnifiedAlphaMonitor:
         self.premarket_gap_interval = 600  # 10 minutes (was 5)
         self.options_flow_interval = 1800  # 30 minutes - already reasonable
         
+        # POST-MARKET / OVERNIGHT intervals (every 2 hours when market closed)
+        self.overnight_interval = 7200  # 2 hours - check overnight news/developments
+        self.last_overnight_check = None
+        
         # Track last run times
         self.last_fed_check = None
         self.last_trump_check = None
@@ -496,6 +500,109 @@ class UnifiedAlphaMonitor:
         details = self.regime_detector.get_regime_details(current_price)
         self._last_regime_details = details
         return regime
+    
+    # ═══════════════════════════════════════════════════════════════
+    # OVERNIGHT / POST-MARKET MONITORING
+    # ═══════════════════════════════════════════════════════════════
+    
+    def _run_overnight_check(self, now: datetime):
+        """
+        Run checks when market is CLOSED (post-market and overnight).
+        Runs every 2 hours to keep service alive and monitor overnight developments.
+        """
+        import pytz
+        et = pytz.timezone('America/New_York')
+        now_et = now.astimezone(et) if now.tzinfo else pytz.UTC.localize(now).astimezone(et)
+        
+        logger.info("=" * 60)
+        logger.info(f"🌙 OVERNIGHT CHECK | {now_et.strftime('%I:%M %p ET')}")
+        logger.info("=" * 60)
+        
+        try:
+            # 1. Check Trump news (can happen anytime)
+            trump_alerts = []
+            if self.trump_checker:
+                trump_alerts = self._run_checker_with_health('trump_overnight', self.trump_checker.check)
+                for alert in trump_alerts:
+                    self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+            
+            # 2. Check news for major symbols
+            if self.news_intelligence_checker:
+                news_alerts = self._run_checker_with_health('news_overnight', self.news_intelligence_checker.check)
+                for alert in news_alerts:
+                    self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+            
+            # 3. Get overnight futures/crypto sentiment
+            overnight_narrative = self._generate_overnight_narrative(now_et)
+            
+            if overnight_narrative:
+                embed = {
+                    "title": f"🌙 OVERNIGHT INTEL | {now_et.strftime('%I:%M %p ET')}",
+                    "description": overnight_narrative,
+                    "color": 0x3498db,  # Blue
+                    "fields": [
+                        {
+                            "name": "📊 Status",
+                            "value": f"• Market: CLOSED\n• Next open: 9:30 AM ET\n• Trump alerts: {len(trump_alerts)}",
+                            "inline": True
+                        }
+                    ],
+                    "footer": {"text": "Alpha Intelligence | Overnight Watch"},
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                
+                self.send_discord(embed, "", "overnight_intel", "overnight_monitor", "SPY,QQQ")
+            
+            logger.info(f"   ✅ Overnight check complete | Trump: {len(trump_alerts)} alerts")
+            
+        except Exception as e:
+            logger.error(f"   ❌ Overnight check error: {e}")
+    
+    def _generate_overnight_narrative(self, now_et: datetime) -> str:
+        """Generate a brief overnight market narrative."""
+        try:
+            import yfinance as yf
+            
+            # Get futures/overnight data
+            spy = yf.Ticker('SPY')
+            btc = yf.Ticker('BTC-USD')
+            
+            spy_info = spy.info
+            btc_hist = btc.history(period='1d')
+            
+            # Build narrative
+            parts = []
+            
+            # SPY after-hours
+            if 'regularMarketPrice' in spy_info and 'previousClose' in spy_info:
+                spy_close = spy_info.get('regularMarketPrice', 0)
+                spy_prev = spy_info.get('previousClose', 0)
+                if spy_prev > 0:
+                    spy_change = ((spy_close - spy_prev) / spy_prev) * 100
+                    direction = "📈" if spy_change > 0 else "📉" if spy_change < 0 else "➡️"
+                    parts.append(f"{direction} SPY closed at ${spy_close:.2f} ({spy_change:+.2f}%)")
+            
+            # BTC sentiment
+            if not btc_hist.empty:
+                btc_price = btc_hist['Close'].iloc[-1]
+                parts.append(f"₿ BTC at ${btc_price:,.0f}")
+            
+            # Time context
+            hour = now_et.hour
+            if hour < 6:
+                parts.append("🌃 Asia markets active")
+            elif hour < 12:
+                parts.append("🌅 Pre-market prep time")
+            elif hour < 17:
+                parts.append("🌆 After-hours trading")
+            else:
+                parts.append("🌙 Overnight watch")
+            
+            return " | ".join(parts) if parts else "Market closed - monitoring overnight developments"
+            
+        except Exception as e:
+            logger.debug(f"Overnight narrative error: {e}")
+            return "Market closed - monitoring overnight developments"
     
     # ═══════════════════════════════════════════════════════════════
     # MOMENTUM DETECTION (delegate to MomentumDetector)
@@ -1390,13 +1497,23 @@ class UnifiedAlphaMonitor:
                 now = datetime.now()
                 loop_count += 1
                 
-                # Heartbeat logging (every 5 minutes)
+                # Heartbeat logging (every 5 minutes) - WITH MEMORY TRACKING
                 if (now - last_heartbeat).seconds >= heartbeat_interval:
                     import pytz
                     et = pytz.timezone('America/New_York')
                     now_et = now.astimezone(et) if now.tzinfo else pytz.UTC.localize(now).astimezone(et)
                     is_mkt = self._is_market_hours()
-                    logger.info(f"💓 HEARTBEAT | Loop #{loop_count} | ET: {now_et.strftime('%H:%M:%S')} | Market: {'OPEN' if is_mkt else 'CLOSED'}")
+                    
+                    # Get memory usage
+                    try:
+                        import psutil
+                        process = psutil.Process()
+                        mem_mb = process.memory_info().rss / 1024 / 1024
+                        mem_str = f"{mem_mb:.1f}MB"
+                    except:
+                        mem_str = "N/A"
+                    
+                    logger.info(f"💓 HEARTBEAT | Loop #{loop_count} | ET: {now_et.strftime('%H:%M:%S')} | Market: {'OPEN' if is_mkt else 'CLOSED'} | Mem: {mem_str}")
                     last_heartbeat = now
                 
                 # Fed Checker
@@ -1547,27 +1664,47 @@ class UnifiedAlphaMonitor:
                     self._check_selloffs()
                     self._check_rallies()
                 
-                # Tradytics Checker
-                if self.tradytics_checker and (self.last_tradytics_analysis is None or (now - self.last_tradytics_analysis).seconds >= self.tradytics_analysis_interval):
-                    alerts = self.tradytics_checker.check()
-                    for alert in alerts:
+                # Tradytics Checker (with timeout protection)
+                try:
+                    if self.tradytics_checker and (self.last_tradytics_analysis is None or (now - self.last_tradytics_analysis).seconds >= self.tradytics_analysis_interval):
+                        alerts = self.tradytics_checker.check()
+                        for alert in alerts:
+                            self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+                        self.last_tradytics_analysis = now
+                        logger.info("   ✅ Tradytics check complete")
+                except Exception as e:
+                    logger.error(f"   ❌ Tradytics checker error: {e}")
+                    self.last_tradytics_analysis = now  # Mark as done to prevent infinite retries
+                
+                # Narrative Brain scheduled updates (with error handling)
+                try:
+                    if self.narrative_enabled and self.narrative_scheduler:
+                        self.narrative_scheduler.check_and_run_scheduled_updates()
+                        if self.narrative_scheduler.can_run_intra_day_update():
+                            intelligence_data = self._get_current_intelligence_snapshot()
+                            update = self.narrative_brain.process_intelligence_update("intelligence_snapshot", intelligence_data)
+                            if update:
+                                self.narrative_scheduler.mark_intra_day_update_sent()
+                                logger.info(f"🧠 Narrative update sent: {update.alert_type.value}")
+                except Exception as e:
+                    logger.error(f"   ❌ Narrative scheduler error: {e}")
+                
+                # Daily Recap Checker (with error handling)
+                try:
+                    recap_alerts = self.daily_recap_checker.check(now)
+                    for alert in recap_alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    self.last_tradytics_analysis = now
+                except Exception as e:
+                    logger.error(f"   ❌ Daily recap error: {e}")
                 
-                # Narrative Brain scheduled updates
-                if self.narrative_enabled and self.narrative_scheduler:
-                    self.narrative_scheduler.check_and_run_scheduled_updates()
-                    if self.narrative_scheduler.can_run_intra_day_update():
-                        intelligence_data = self._get_current_intelligence_snapshot()
-                        update = self.narrative_brain.process_intelligence_update("intelligence_snapshot", intelligence_data)
-                        if update:
-                            self.narrative_scheduler.mark_intra_day_update_sent()
-                            logger.info(f"🧠 Narrative update sent: {update.alert_type.value}")
+                # OVERNIGHT/POST-MARKET CHECK (every 2 hours when market closed)
+                if not is_market_hours and (self.last_overnight_check is None or (now - self.last_overnight_check).seconds >= self.overnight_interval):
+                    self._run_overnight_check(now)
+                    self.last_overnight_check = now
                 
-                # Daily Recap Checker
-                recap_alerts = self.daily_recap_checker.check(now)
-                for alert in recap_alerts:
-                    self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+                # Log every 10 loops to confirm system is alive
+                if loop_count % 10 == 0:
+                    logger.info(f"✅ Loop #{loop_count} complete | Sleeping 30s...")
                 
                 time.sleep(30)
                 
