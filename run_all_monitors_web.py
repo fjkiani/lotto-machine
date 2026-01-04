@@ -98,6 +98,7 @@ except Exception as e:
 monitor = None
 monitor_thread = None
 discord_bot = None
+ping_thread = None  # Self-ping thread (watched by ping_watchdog)
 
 
 def run_monitors():
@@ -149,21 +150,112 @@ def self_ping():
     """
     Self-ping to keep Render free tier awake.
 
-    Pings the health endpoint every 10 minutes to prevent sleep.
+    Pings the health endpoint every 5 minutes to prevent sleep.
+    Uses RENDER_SERVICE_URL if set, otherwise falls back to localhost.
+    More aggressive than before (5 min vs 10 min) to prevent spin-down.
     """
+    # Get service URL from environment (Render provides this)
+    service_url = os.getenv('RENDER_SERVICE_URL')
     port = int(os.getenv('PORT', 8000))
-    url = f"http://localhost:{port}/health"
+    
+    if service_url:
+        # Use actual Render service URL (external ping)
+        url = f"{service_url.rstrip('/')}/health"
+        logger.info(f"🌐 Self-ping using Render service URL: {url}")
+    else:
+        # Fallback to localhost (for local testing)
+        url = f"http://localhost:{port}/health"
+        logger.info(f"🏠 Self-ping using localhost: {url}")
 
+    ping_count = 0
+    consecutive_failures = 0
+    max_failures = 3  # Alert after 3 consecutive failures
+    
     while True:
         try:
-            time.sleep(600)  # Every 10 minutes
-            response = requests.get(url, timeout=5)
+            # Ping immediately on first run, then every 5 minutes
+            if ping_count > 0:
+                time.sleep(300)  # Every 5 minutes (more aggressive)
+            
+            ping_count += 1
+            response = requests.get(url, timeout=10)
+            
             if response.status_code == 200:
-                logger.debug("✅ Self-ping successful (keeping service awake)")
+                consecutive_failures = 0  # Reset failure counter
+                logger.info(f"✅ Self-ping #{ping_count} successful (keeping service awake)")
             else:
-                logger.warning(f"⚠️ Self-ping returned {response.status_code}")
+                consecutive_failures += 1
+                logger.warning(f"⚠️ Self-ping #{ping_count} returned {response.status_code} (failures: {consecutive_failures})")
+                
+                if consecutive_failures >= max_failures:
+                    logger.error(f"🚨 CRITICAL: {consecutive_failures} consecutive ping failures! Service may spin down!")
+                    
         except Exception as e:
-            logger.debug(f"Self-ping error: {e}")
+            consecutive_failures += 1
+            logger.error(f"❌ Self-ping #{ping_count} error: {e} - Service may spin down! (failures: {consecutive_failures})")
+            import traceback
+            logger.error(f"Self-ping traceback: {traceback.format_exc()}")
+            
+            if consecutive_failures >= max_failures:
+                logger.error(f"🚨 CRITICAL: {consecutive_failures} consecutive ping failures! Attempting to notify...")
+                # Try to send Discord alert about ping failure
+                try:
+                    webhook = os.getenv('DISCORD_WEBHOOK_URL')
+                    if webhook:
+                        alert_embed = {
+                            "title": "🚨 SELF-PING FAILING - SERVICE MAY SPIN DOWN",
+                            "color": 0xFF0000,
+                            "description": f"**Consecutive Failures:** {consecutive_failures}\n**Error:** {str(e)[:200]}\n**URL:** {url}",
+                            "footer": {"text": "Check Render logs immediately"}
+                        }
+                        requests.post(webhook, json={"embeds": [alert_embed]}, timeout=5)
+                except:
+                    pass
+            
+            # Don't sleep on error - retry immediately (but cap retry rate)
+            time.sleep(60)  # Wait 1 minute before retry on error
+
+
+def ping_watchdog():
+    """
+    Watchdog to monitor and restart the self-ping thread if it dies.
+    Critical for keeping Render service awake.
+    """
+    global ping_thread
+    
+    while True:
+        try:
+            time.sleep(120)  # Check every 2 minutes
+            
+            # Check if ping thread is alive
+            if ping_thread and not ping_thread.is_alive():
+                logger.error("🚨 CRITICAL: Self-ping thread DIED! Restarting immediately...")
+                
+                # Restart ping thread
+                ping_thread = threading.Thread(target=self_ping, daemon=True)
+                ping_thread.start()
+                logger.info("✅ Self-ping thread RESTARTED by watchdog")
+                
+                # Alert Discord
+                try:
+                    webhook = os.getenv('DISCORD_WEBHOOK_URL')
+                    if webhook:
+                        alert_embed = {
+                            "title": "🔄 SELF-PING THREAD RESTARTED",
+                            "color": 0xFFA500,
+                            "description": "Self-ping thread died and was automatically restarted by watchdog.",
+                            "footer": {"text": "Monitoring will continue"}
+                        }
+                        requests.post(webhook, json={"embeds": [alert_embed]}, timeout=5)
+                except:
+                    pass
+            else:
+                logger.debug("🐕 Ping watchdog: ping thread alive")
+                
+        except Exception as e:
+            logger.error(f"❌ PING WATCHDOG error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 
 
 def watchdog():
@@ -707,7 +799,7 @@ def main():
     global monitor
     
     # VERSION MARKER - Update this when making changes to verify Render deployment
-    VERSION = "2025-12-23-v4"  # Date + version number
+    VERSION = "2025-12-25-v6"  # Date + version number - Enhanced self-ping with watchdog
     
     print("=" * 80)
     print("🎯 ALPHA INTELLIGENCE - UNIFIED MONITOR (WEB SERVICE)")
@@ -772,9 +864,15 @@ def main():
     logger.info("   ✅ Monitor thread started")
     
     # Start self-ping thread (keeps service awake on free tier)
+    global ping_thread
     ping_thread = threading.Thread(target=self_ping, daemon=True)
     ping_thread.start()
-    logger.info("   ✅ Self-ping thread started (pings every 10 min)")
+    logger.info("   ✅ Self-ping thread started (pings every 5 min, immediate first ping)")
+    
+    # Start ping watchdog (monitors and restarts ping thread if it dies)
+    ping_watchdog_thread = threading.Thread(target=ping_watchdog, daemon=True)
+    ping_watchdog_thread.start()
+    logger.info("   ✅ Ping watchdog started (monitors ping thread every 2 min)")
     
     # Start watchdog thread (monitors monitor health)
     watchdog_thread = threading.Thread(target=watchdog, daemon=True)
