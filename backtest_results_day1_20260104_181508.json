@@ -1,0 +1,15 @@
+{
+  "passed": [
+    "Unified Backtest: 38 signals from 3 detectors"
+  ],
+  "failed": [],
+  "warnings": [
+    "Data Availability: Some sources unavailable",
+    "Data Availability: No DP data (T+1)",
+    "Direct API: No signals generated",
+    "Production Diagnostics: No RTH signals",
+    "Production Health: Issues detected",
+    "DP Data Loader: No alerts"
+  ],
+  "timestamp": "2026-01-04T18:14:45.792517"
+}

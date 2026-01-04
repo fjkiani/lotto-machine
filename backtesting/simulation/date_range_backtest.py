@@ -53,6 +53,7 @@ class DailyBacktestResult:
     reddit: Optional[Dict] = None
     options_flow: Optional[BacktestResult] = None
     premarket_gap: Optional[Dict] = None
+    ftd: Optional[Dict] = None
     
     # Aggregated metrics
     total_signals: int = 0
@@ -153,10 +154,14 @@ class DateRangeBacktester:
         self._init_detectors()
     
     def _init_detectors(self):
-        """Initialize all available detectors"""
+        """Initialize ALL available detectors - the full fucking arsenal"""
         self.detectors = {}
         
-        # Selloff/Rally
+        # ========================
+        # CORE MOMENTUM SIGNALS
+        # ========================
+        
+        # Selloff/Rally - PROFITABLE ✅
         try:
             from backtesting.simulation.selloff_rally_detector import SelloffRallyDetector
             self.detectors['selloff_rally'] = SelloffRallyDetector()
@@ -164,7 +169,7 @@ class DateRangeBacktester:
         except Exception as e:
             print(f"❌ SelloffRallyDetector: {e}")
         
-        # Gap
+        # Gap Detector
         try:
             from backtesting.simulation.gap_detector import GapDetector
             self.detectors['gap'] = GapDetector()
@@ -172,13 +177,72 @@ class DateRangeBacktester:
         except Exception as e:
             print(f"❌ GapDetector: {e}")
         
-        # Options Flow
+        # ========================
+        # OPTIONS & FLOW SIGNALS
+        # ========================
+        
+        # Options Flow - CURRENTLY BROKEN ❌
         try:
             from backtesting.simulation.rapidapi_options_detector import RapidAPIOptionsDetector
             self.detectors['options_flow'] = RapidAPIOptionsDetector()
-            print("✅ OptionsFlowDetector loaded")
+            print("✅ OptionsFlowDetector loaded (⚠️ 0% WR - use --no-options)")
         except Exception as e:
             print(f"❌ OptionsFlowDetector: {e}")
+        
+        # ========================
+        # EXPLOITATION SIGNALS
+        # ========================
+        
+        # Squeeze Detector
+        try:
+            from live_monitoring.exploitation.squeeze_detector import SqueezeDetector
+            if self.api_key:
+                from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
+                ce_client = UltimateChartExchangeClient(api_key=self.api_key)
+                self.detectors['squeeze'] = SqueezeDetector(ce_client)
+                print("✅ SqueezeDetector loaded")
+            else:
+                print("⚠️ SqueezeDetector: needs API key")
+        except Exception as e:
+            print(f"❌ SqueezeDetector: {e}")
+        
+        # Gamma Tracker (uses yfinance, no API key needed)
+        try:
+            from live_monitoring.exploitation.gamma_tracker import GammaTracker
+            self.detectors['gamma'] = GammaTracker()  # No args needed
+            print("✅ GammaTracker loaded")
+        except Exception as e:
+            print(f"❌ GammaTracker: {e}")
+        
+        # FTD Analyzer
+        try:
+            from live_monitoring.exploitation.ftd_analyzer import FTDAnalyzer
+            if self.api_key:
+                from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
+                ce_client = UltimateChartExchangeClient(api_key=self.api_key)
+                self.detectors['ftd'] = FTDAnalyzer(ce_client)
+                print("✅ FTDAnalyzer loaded")
+            else:
+                print("⚠️ FTDAnalyzer: needs API key")
+        except Exception as e:
+            print(f"❌ FTDAnalyzer: {e}")
+        
+        # Reddit Exploiter
+        try:
+            from live_monitoring.exploitation.reddit_exploiter import RedditExploiter
+            if self.api_key:
+                from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
+                ce_client = UltimateChartExchangeClient(api_key=self.api_key)
+                self.detectors['reddit'] = RedditExploiter(ce_client)
+                print("✅ RedditExploiter loaded")
+            else:
+                print("⚠️ RedditExploiter: needs API key")
+        except Exception as e:
+            print(f"❌ RedditExploiter: {e}")
+        
+        # ========================
+        # CONTEXT & INTELLIGENCE
+        # ========================
         
         # Market Context
         try:
@@ -201,6 +265,8 @@ class DateRangeBacktester:
         else:
             self.ce_client = None
             print("⚠️ No ChartExchange API key")
+        
+        print(f"\n📊 LOADED {len(self.detectors)} DETECTORS: {', '.join(self.detectors.keys())}")
     
     def _get_historical_data(self, symbol: str, date_str: str) -> pd.DataFrame:
         """Fetch intraday data for a specific date"""
@@ -311,6 +377,125 @@ class DateRangeBacktester:
         except Exception as e:
             return {'candidates': 0, 'stocks': [], 'error': str(e)}
     
+    def _run_squeeze_detector(self, date_str: str) -> Dict:
+        """Run squeeze detector on all symbols"""
+        if 'squeeze' not in self.detectors:
+            return {'signals': 0, 'details': []}
+        
+        try:
+            detector = self.detectors['squeeze']
+            signals = []
+            
+            # Extended universe for squeeze hunting
+            universe = list(set(self.symbols + ['GME', 'AMC', 'TSLA', 'NVDA', 'AAPL', 'BBBY']))
+            
+            for symbol in universe:
+                try:
+                    result = detector.analyze(symbol)
+                    if result and hasattr(result, 'score') and result.score >= 70:
+                        signals.append({
+                            'symbol': symbol,
+                            'score': result.score,
+                            'short_interest_pct': getattr(result, 'short_interest_pct', 0),
+                            'action': getattr(result, 'action', 'LONG'),
+                            'entry': getattr(result, 'entry_price', 0),
+                        })
+                except Exception as e:
+                    continue
+            
+            return {
+                'signals': len(signals),
+                'details': signals,
+                'candidates': len(signals)
+            }
+        except Exception as e:
+            return {'signals': 0, 'details': [], 'error': str(e)}
+    
+    def _run_gamma_tracker(self, date_str: str) -> Dict:
+        """Run gamma tracker on symbols"""
+        if 'gamma' not in self.detectors:
+            return {'signals': 0, 'details': []}
+        
+        try:
+            detector = self.detectors['gamma']
+            signals = []
+            
+            for symbol in self.symbols:
+                try:
+                    result = detector.analyze(symbol)
+                    if result and hasattr(result, 'score') and result.score >= 60:
+                        signals.append({
+                            'symbol': symbol,
+                            'score': result.score,
+                            'direction': getattr(result, 'direction', 'UNKNOWN'),
+                            'put_call_ratio': getattr(result, 'put_call_ratio', 0),
+                            'max_pain': getattr(result, 'max_pain', 0),
+                        })
+                except Exception as e:
+                    continue
+            
+            return {'signals': len(signals), 'details': signals}
+        except Exception as e:
+            return {'signals': 0, 'details': [], 'error': str(e)}
+    
+    def _run_ftd_analyzer(self, date_str: str) -> Dict:
+        """Run FTD analyzer on symbols"""
+        if 'ftd' not in self.detectors:
+            return {'signals': 0, 'details': []}
+        
+        try:
+            detector = self.detectors['ftd']
+            signals = []
+            
+            universe = list(set(self.symbols + ['GME', 'AMC', 'TSLA']))
+            
+            for symbol in universe:
+                try:
+                    result = detector.analyze(symbol)
+                    if result and hasattr(result, 'spike_ratio') and result.spike_ratio >= 2.0:
+                        signals.append({
+                            'symbol': symbol,
+                            'spike_ratio': result.spike_ratio,
+                            'score': getattr(result, 'score', 0),
+                            'action': getattr(result, 'action', 'LONG'),
+                        })
+                except Exception as e:
+                    continue
+            
+            return {'signals': len(signals), 'details': signals}
+        except Exception as e:
+            return {'signals': 0, 'details': [], 'error': str(e)}
+    
+    def _run_reddit_exploiter(self, date_str: str) -> Dict:
+        """Run Reddit exploiter on symbols"""
+        if 'reddit' not in self.detectors:
+            return {'signals': 0, 'details': []}
+        
+        try:
+            detector = self.detectors['reddit']
+            signals = []
+            
+            # Check high-profile Reddit stocks
+            universe = ['GME', 'AMC', 'TSLA', 'NVDA', 'PLTR', 'SOFI', 'RIVN']
+            
+            for symbol in universe:
+                try:
+                    result = detector.analyze_ticker(symbol)
+                    if result and hasattr(result, 'signal_type') and result.signal_type:
+                        signals.append({
+                            'symbol': symbol,
+                            'signal_type': result.signal_type,
+                            'action': getattr(result, 'action', 'UNKNOWN'),
+                            'sentiment': getattr(result, 'sentiment', 0),
+                            'mentions': getattr(result, 'total_mentions', 0),
+                        })
+                except Exception as e:
+                    continue
+            
+            return {'signals': len(signals), 'details': signals}
+        except Exception as e:
+            return {'signals': 0, 'details': [], 'error': str(e)}
+    
     def backtest_date(self, date_str: str) -> DailyBacktestResult:
         """Run full backtest for a single date"""
         print(f"\n{'='*60}")
@@ -389,15 +574,62 @@ class DateRangeBacktester:
         else:
             print(f"   ⚠️ No significant DP activity")
         
-        # Check squeeze
+        # Check squeeze using exploitation module
         print("\n🔥 SQUEEZE:")
-        result.squeeze = self._check_squeeze(date_str)
-        if result.squeeze['candidates'] > 0:
-            print(f"   ✅ {result.squeeze['candidates']} squeeze candidates")
-            for stock in result.squeeze['stocks']:
-                print(f"      🔥 {stock['symbol']}: {stock['si_pct']:.1f}% SI")
+        if 'squeeze' in self.detectors:
+            result.squeeze = self._run_squeeze_detector(date_str)
+        else:
+            result.squeeze = self._check_squeeze(date_str)
+        
+        if result.squeeze.get('candidates', 0) > 0 or result.squeeze.get('signals', 0) > 0:
+            sig_count = result.squeeze.get('signals', result.squeeze.get('candidates', 0))
+            print(f"   ✅ {sig_count} squeeze candidates/signals")
+            for stock in result.squeeze.get('stocks', result.squeeze.get('details', []))[:5]:
+                symbol = stock.get('symbol', stock.get('ticker', 'N/A'))
+                si_pct = stock.get('si_pct', stock.get('short_interest_pct', 0))
+                score = stock.get('score', 0)
+                print(f"      🔥 {symbol}: {si_pct:.1f}% SI | Score: {score:.0f}")
         else:
             print(f"   ⚠️ No squeeze candidates")
+        
+        # Run Gamma Tracker
+        print("\n🎲 GAMMA:")
+        if 'gamma' in self.detectors:
+            result.gamma = self._run_gamma_tracker(date_str)
+            if result.gamma.get('signals', 0) > 0:
+                print(f"   ✅ {result.gamma['signals']} gamma signals")
+                for sig in result.gamma.get('details', [])[:3]:
+                    print(f"      🎲 {sig.get('symbol')}: {sig.get('direction')} | Score: {sig.get('score', 0):.0f}")
+            else:
+                print(f"   ⚠️ No gamma signals")
+        else:
+            print(f"   ⚠️ GammaTracker not loaded")
+        
+        # Run FTD Analyzer
+        print("\n📈 FTD:")
+        if 'ftd' in self.detectors:
+            result.ftd = self._run_ftd_analyzer(date_str)
+            if result.ftd.get('signals', 0) > 0:
+                print(f"   ✅ {result.ftd['signals']} FTD signals")
+                for sig in result.ftd.get('details', [])[:3]:
+                    print(f"      📈 {sig.get('symbol')}: Spike {sig.get('spike_ratio', 0):.1f}x")
+            else:
+                print(f"   ⚠️ No FTD spikes")
+        else:
+            print(f"   ⚠️ FTDAnalyzer not loaded")
+        
+        # Run Reddit Exploiter
+        print("\n📱 REDDIT:")
+        if 'reddit' in self.detectors:
+            result.reddit = self._run_reddit_exploiter(date_str)
+            if result.reddit.get('signals', 0) > 0:
+                print(f"   ✅ {result.reddit['signals']} Reddit signals")
+                for sig in result.reddit.get('details', [])[:3]:
+                    print(f"      📱 {sig.get('symbol')}: {sig.get('signal_type')} | {sig.get('action')}")
+            else:
+                print(f"   ⚠️ No Reddit signals")
+        else:
+            print(f"   ⚠️ RedditExploiter not loaded")
         
         # Aggregate metrics
         if result.selloff_rally:

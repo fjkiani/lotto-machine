@@ -135,7 +135,7 @@ If DP volume is low BUT imbalance is buy-heavy = stealth accumulation (bullish)
 
 Expected Impact: +10-15% signal accuracy by catching divergences
 
-**Status:** ✅ COMPLETE - Uses dark pool prints as proxy for institutional flow (can be enhanced when intraday trades endpoint available)
+**Status:** ⚠️ **PARTIALLY COMPLETE** - Method exists in `volume_profile.py` (line 260) but **NOT INTEGRATED** into `signal_generator.py` (grep found no usage). Calculated but not used for signal filtering/confidence adjustment.
 
 3. ADD PRICE ACTION CONFIRMATION (CRITICAL) ✅ COMPLETE
 Current Gap: Signals fire based on context, but no confirmation that price is actually AT the entry level.
@@ -244,7 +244,7 @@ class RegimeDetector:
 
 Expected Impact: +15-20% win rate by trading WITH regime, not against it
 
-**Status:** ⚠️ PARTIALLY COMPLETE - Basic detection done, ADX-based enhancement pending
+**Status:** ⚠️ **PARTIALLY COMPLETE** - `RegimeDetector` class exists (`live_monitoring/orchestrator/regime_detector.py`) with multi-factor detection (NOT ADX-based as planned). **MISSING:** `adjust_strategy_for_regime()` method - no confidence adjustment based on regime in `signal_generator.py`.
 
 5. ADD TIME-OF-DAY FILTERS (LOW PRIORITY BUT HIGH ROI) ⚠️ PARTIALLY COMPLETE
 Current Gap: You trade 9:30 AM the same as 3:30 PM.
@@ -305,7 +305,7 @@ def adjust_for_time_of_day(self, signal, current_time):
 
 Expected Impact: +10-12% win rate by trading during optimal windows
 
-**Status:** ⚠️ PARTIALLY COMPLETE - Detection done, confidence adjustment pending
+**Status:** ⚠️ **PARTIALLY COMPLETE** - Time-based regime detection exists in `PriceActionFilter._detect_regime()` and `RegimeDetector.detect()`. **MISSING:** `adjust_for_time_of_day()` method in `signal_generator.py` - no confidence adjustment applied to signals based on time of day.
 
 🎯 UPDATED IMPLEMENTATION PRIORITY
 
@@ -405,10 +405,10 @@ Expected Win Rate Boost: +5-10% (validation, not new features)
 - ✅ Realistic slippage/commission model
 
 ### ⏳ **Next Enhancements (Cycles 7-9)**
-- ⏳ Gamma exposure tracking
-- ⏳ Order flow imbalance
-- ⏳ Full regime detection (ADX-based)
-- ⏳ Time-of-day confidence adjustments
+- ✅ Gamma exposure tracking (COMPLETE - integrated in signal_generator.py lines 265-289)
+- ⚠️ Order flow imbalance (CALCULATED but NOT USED in signal generation)
+- ⚠️ Full regime detection (EXISTS but different algo, MISSING confidence adjustment)
+- ⚠️ Time-of-day confidence adjustments (DETECTION exists, ADJUSTMENT missing)
 - ⏳ Statistical backtest rigor (90+ days, Monte Carlo)
 
 
@@ -464,9 +464,9 @@ Create a **"LOTTO MACHINE"** that exploits every market opportunity by:
 
 #### **Backtesting & Validation**
 - ✅ `backtest_30d_validation.py` - Backtest script exists (448 lines)
-- ❌ `populate_historical_data.py` - **MISSING** - Need to create
+- ✅ `populate_historical_data.py` - **EXISTS** (316 lines) - Ready to run
 
-**Status:** BACKTEST READY - Script exists but needs historical data
+**Status:** BACKTEST READY - Script exists, historical data population ready
 
 #### **Paper Trading**
 - ✅ `live_monitoring/trading/paper_trader.py` - Alpaca integration (350 lines)

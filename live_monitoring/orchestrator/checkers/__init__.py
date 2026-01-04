@@ -18,6 +18,7 @@ Each checker handles a single responsibility:
 - PreMarketGapChecker: Pre-market gap analysis (Phase 6)
 - OptionsFlowChecker: Options flow analysis (Phase 6 - RapidAPI)
 - NewsIntelligenceChecker: News intelligence (Phase 6 - RapidAPI)
+- DPDivergenceChecker: DP Divergence exploitation (89.8% WR proven!) - Phase 7
 """
 
 from .base_checker import BaseChecker, CheckerAlert
@@ -37,6 +38,7 @@ from .reddit_checker import RedditChecker
 from .premarket_gap_checker import PreMarketGapChecker
 from .options_flow_checker import OptionsFlowChecker
 from .news_intelligence_checker import NewsIntelligenceChecker
+from .dp_divergence_checker import DPDivergenceChecker
 
 __all__ = [
     'BaseChecker',
@@ -57,5 +59,6 @@ __all__ = [
     'PreMarketGapChecker',
     'OptionsFlowChecker',
     'NewsIntelligenceChecker',
+    'DPDivergenceChecker',
 ]
 

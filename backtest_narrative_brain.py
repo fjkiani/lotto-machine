@@ -133,7 +133,7 @@ class NarrativeBrainBacktest:
         """Record that an alert was sent"""
         self.last_alert_time = timestamp
 
-def load_historical_alerts(days_back: int = 7) -> List[DPAlert]:
+def load_historical_alerts(days_back: int = 30) -> List[DPAlert]:
     """Load real historical DP alerts from database"""
     conn = sqlite3.connect('data/dp_learning.db')
     cursor = conn.cursor()
@@ -260,8 +260,8 @@ def main():
 
     # Load real historical data
     print("📊 Loading real historical DP alerts...")
-    alerts = load_historical_alerts(days_back=7)
-    print(f"✅ Loaded {len(alerts)} real DP alerts from last 7 days")
+    alerts = load_historical_alerts(days_back=30)
+    print(f"✅ Loaded {len(alerts)} real DP alerts from last 30 days")
 
     if not alerts:
         print("❌ No historical data found!")

@@ -124,23 +124,49 @@ class BaseDetector(ABC):
         self, 
         symbol: str, 
         period: str = "1d", 
-        interval: str = "1m"
+        interval: str = "1m",
+        date: str = None
     ) -> pd.DataFrame:
         """
         Fetch intraday data from yfinance.
         
         Args:
             symbol: Stock symbol
-            period: Data period (1d, 5d, etc.)
+            period: Data period (1d, 5d, etc.) - used if date not provided
             interval: Bar interval (1m, 5m, etc.)
+            date: Specific date to fetch (YYYY-MM-DD) - if provided, fetches that date's data
             
         Returns:
-            OHLCV DataFrame
+            OHLCV DataFrame filtered to the requested date
         """
         try:
             ticker = yf.Ticker(symbol)
-            data = ticker.history(period=period, interval=interval)
-            return data
+            
+            # If specific date provided, use start/end instead of period
+            if date:
+                from datetime import timedelta
+                date_obj = datetime.strptime(date, '%Y-%m-%d')
+                start_date = date_obj.strftime('%Y-%m-%d')
+                end_date = (date_obj + timedelta(days=1)).strftime('%Y-%m-%d')
+                
+                # Fetch data for the date range
+                data = ticker.history(start=start_date, end=end_date, interval=interval)
+                
+                # Filter to the specific date (handle timezone-aware indexes)
+                if not data.empty:
+                    # Convert index to date for filtering
+                    data_dates = pd.to_datetime(data.index).date
+                    target_date = date_obj.date()
+                    
+                    # Filter rows that match the target date
+                    mask = pd.Series([d == target_date for d in data_dates], index=data.index)
+                    data = data[mask]
+                
+                return data
+            else:
+                # Use period for latest data (backward compatibility)
+                data = ticker.history(period=period, interval=interval)
+                return data
         except Exception as e:
             print(f"   ⚠️ Error fetching {symbol}: {e}")
             return pd.DataFrame()
@@ -284,8 +310,8 @@ class BaseDetector(ABC):
         all_trades = []
         
         for symbol in symbols:
-            # Get data
-            data = self.get_intraday_data(symbol, period="1d", interval="1m")
+            # Get data for the specific date
+            data = self.get_intraday_data(symbol, period="1d", interval="1m", date=date)
             if data.empty:
                 continue
             

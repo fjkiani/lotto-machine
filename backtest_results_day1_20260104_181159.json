@@ -1,0 +1,21 @@
+{
+  "passed": [
+    "Health Registry: All checkers recent",
+    "Market Context: Using today's date",
+    "Market Context: SPY change verified",
+    "Market Context: Price data available",
+    "Monitor Bridge: Market data works"
+  ],
+  "failed": [],
+  "warnings": [
+    "DP Edge Stats: No recent interactions",
+    "DP Edge Stats: API server not running",
+    "DP Recent Interactions: No interactions today",
+    "Market Context: Data from 2026-01-02",
+    "Market Quote: Data 50.2h old",
+    "Signals: API server not running",
+    "WebSocket: Connection failed",
+    "Data Freshness: DP data 270.2h old (T+1)"
+  ],
+  "timestamp": "2026-01-04T18:11:52.771645"
+}

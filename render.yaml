@@ -24,4 +24,14 @@ services:
         value: 1  # Disable voice features to avoid audioop dependency
       - key: PYTHON_VERSION
         value: 3.9
+      - key: RENDER_SERVICE_URL
+        sync: false  # Set this in Render dashboard to: https://lotto-machine.onrender.com
+      # Optional: Set DATA_DIR to external storage path for persistent databases
+      # - key: DATA_DIR
+      #   value: /opt/render/project/src/data  # Render persistent disk (paid tier)
     plan: free  # FREE tier - Web Service is free!
+    # NOTE: For persistent storage, upgrade to paid tier and uncomment:
+    # disk:
+    #   name: persistent-data
+    #   mountPath: /opt/render/project/src/data
+    #   sizeGB: 1

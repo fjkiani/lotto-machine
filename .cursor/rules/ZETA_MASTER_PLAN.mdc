@@ -253,6 +253,29 @@ python3 backtesting/simulation/unified_backtest_runner.py
 | Trump Intel | N/A | N/A | N/A | N/A |
 | Short Squeeze | ✅ Integrated | ⏳ TODO | ⏳ TODO | 55.0% |
 
+### **Code Audit Results (2025-12-25)**
+
+**VERIFIED COMPLETE:**
+- ✅ Gamma Exposure: Integrated in `signal_generator.py` lines 265-289
+- ✅ Price Action Filter: Complete, integrated in `run_lotto_machine.py` line 288
+- ✅ Historical Data: `populate_historical_data.py` EXISTS (316 lines) - line 467 was wrong
+- ✅ Short Squeeze: `squeeze_detector.py` exists and integrated
+
+**CRITICAL GAPS (Code Verified):**
+1. **Order Flow Imbalance** - Method exists in `volume_profile.py:260` but **NOT USED** in `signal_generator.py` (grep found zero usage). Only displayed in `run_lotto_machine.py:188` morning report.
+2. **Regime Confidence Adjustment** - `RegimeDetector` class exists but **NO** `adjust_strategy_for_regime()` method. No confidence adjustment based on regime in signal generation.
+3. **Time-of-Day Adjustment** - Detection exists in `PriceActionFilter` and `RegimeDetector` but **NO** `adjust_for_time_of_day()` method in `signal_generator.py`.
+
+**PARTIAL IMPLEMENTATIONS (Work but Differ from Plan):**
+- Gamma: Uses `yfinance` (not ChartExchange) - ChartExchange only has summary, not full chain
+- Regime: Uses multi-factor algorithm (not ADX-based) - works but different approach
+- Order Flow: Uses DP prints as proxy (not intraday trades) - endpoint not available yet
+
+**FIXES REQUIRED:**
+1. Add order flow check in `signal_generator._apply_master_filters()` before returning signals
+2. Add `adjust_strategy_for_regime()` method to `signal_generator.py`
+3. Add `adjust_for_time_of_day()` method to `signal_generator.py`
+
 ### **Path to 75%+ Win Rate**
 
 **Current State:** 49.2% overall win rate
@@ -692,6 +715,11 @@ ALPACA_SECRET_KEY=xxx
 **Impact:** LLM may reference wrong dates
 **Mitigation:** EventLoader provides structured, validated dates
 **Status:** Fixed
+
+### Issue 5: Render Free Tier Service Spin-Down (Self-Ping Failure)
+**Impact:** Monitor service becomes inactive, chat history may be lost due to ephemeral storage.
+**Mitigation:** Increased self-ping frequency, explicit logging of RENDER_SERVICE_URL, considering Render paid tier or external database for persistent storage.
+**Status:** Under investigation/Mitigation
 
 ---
 

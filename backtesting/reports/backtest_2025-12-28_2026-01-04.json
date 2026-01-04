@@ -1,0 +1,125 @@
+{
+  "timestamp": "2026-01-04T18:35:42.563698",
+  "start_date": "2025-12-28",
+  "end_date": "2026-01-04",
+  "trading_days": 5,
+  "symbols": [
+    "SPY",
+    "QQQ"
+  ],
+  "summary": {
+    "total_signals": 105,
+    "total_trades": 105,
+    "win_rate": 57.14285714285714,
+    "total_pnl": 5.251701936010046,
+    "avg_daily_pnl": 1.0503403872020092,
+    "max_drawdown": 0,
+    "sharpe_ratio": 0,
+    "profit_factor": Infinity
+  },
+  "by_signal_type": {
+    "selloff_rally": {
+      "signals": 105,
+      "win_rate": 57.14285714285714,
+      "pnl": 5.251701936010046
+    },
+    "options_flow": {
+      "signals": 0,
+      "win_rate": 0,
+      "pnl": 0.0
+    },
+    "dark_pool_alerts": 12,
+    "squeeze_candidates": 0
+  },
+  "daily_results": [
+    {
+      "date": "2025-12-29",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 21,
+      "total_trades": 21,
+      "win_rate": 57.14285714285714,
+      "total_pnl": 1.0503403872020092,
+      "selloff_rally": {
+        "signals": 21,
+        "trades": 21,
+        "win_rate": 57.14285714285714,
+        "pnl": 1.0503403872020092
+      }
+    },
+    {
+      "date": "2025-12-30",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 21,
+      "total_trades": 21,
+      "win_rate": 57.14285714285714,
+      "total_pnl": 1.0503403872020092,
+      "selloff_rally": {
+        "signals": 21,
+        "trades": 21,
+        "win_rate": 57.14285714285714,
+        "pnl": 1.0503403872020092
+      }
+    },
+    {
+      "date": "2025-12-31",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 21,
+      "total_trades": 21,
+      "win_rate": 57.14285714285714,
+      "total_pnl": 1.0503403872020092,
+      "selloff_rally": {
+        "signals": 21,
+        "trades": 21,
+        "win_rate": 57.14285714285714,
+        "pnl": 1.0503403872020092
+      }
+    },
+    {
+      "date": "2026-01-01",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 21,
+      "total_trades": 21,
+      "win_rate": 57.14285714285714,
+      "total_pnl": 1.0503403872020092,
+      "selloff_rally": {
+        "signals": 21,
+        "trades": 21,
+        "win_rate": 57.14285714285714,
+        "pnl": 1.0503403872020092
+      }
+    },
+    {
+      "date": "2026-01-02",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 21,
+      "total_trades": 21,
+      "win_rate": 57.14285714285714,
+      "total_pnl": 1.0503403872020092,
+      "selloff_rally": {
+        "signals": 21,
+        "trades": 21,
+        "win_rate": 57.14285714285714,
+        "pnl": 1.0503403872020092
+      }
+    }
+  ],
+  "validation": {
+    "passed": true,
+    "notes": [
+      "\u2705 105 trades (meets minimum)",
+      "\u2705 Win rate 57.1% (meets minimum)",
+      "\u2705 Max DD 0.00% (within limits)",
+      "\u2705 Profitable: +5.25%"
+    ]
+  }
+}

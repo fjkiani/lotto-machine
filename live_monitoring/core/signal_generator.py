@@ -120,6 +120,7 @@ class SignalGenerator:
     def generate_signals(self, symbol: str, current_price: float,
                         inst_context: InstitutionalContext,
                         minute_bars=None,
+                        order_flow_imbalance: Optional[OrderFlowImbalance] = None, # New parameter
                         account_value: float = 100000.0) -> List[Union[LiveSignal, LotterySignal]]:
         """
         Generate signals from institutional context + real-time momentum + lottery opportunities
@@ -991,7 +992,8 @@ class SignalGenerator:
         return filtered
     
     def _calculate_confidence_score(self, context: InstitutionalContext, 
-                                    signal_type: str, price: float) -> float:
+                                    signal_type: str, price: float,
+                                    order_flow: Optional[OrderFlowImbalance] = None) -> float:
         """
         EXACT CONFIDENCE CALCULATION FORMULA
         

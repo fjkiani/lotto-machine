@@ -1,0 +1,14 @@
+{
+  "passed": [],
+  "failed": [],
+  "warnings": [
+    "Data Availability: Some sources unavailable",
+    "Data Availability: No DP data (T+1)",
+    "Direct API: No signals generated",
+    "Unified Backtest: No results",
+    "Production Diagnostics: No RTH signals",
+    "Production Health: Issues detected",
+    "DP Data Loader: No alerts"
+  ],
+  "timestamp": "2026-01-04T18:14:12.917348"
+}

@@ -14,13 +14,27 @@ from .models import DPInteraction, DPOutcome, DPPattern, Outcome, LevelType, App
 
 logger = logging.getLogger(__name__)
 
+# Import persistent storage utility for Render deployment
+try:
+    from core.utils.persistent_storage import get_database_path
+    PERSISTENT_STORAGE_AVAILABLE = True
+except ImportError:
+    # Fallback if utility not available
+    PERSISTENT_STORAGE_AVAILABLE = False
+    logger.warning("⚠️  Persistent storage utility not available, using default path")
+
 
 class DPDatabase:
     """SQLite database for dark pool learning."""
     
     def __init__(self, db_path: str = None):
         if db_path is None:
-            db_path = Path(__file__).parent.parent.parent.parent / "data" / "dp_learning.db"
+            # Use persistent storage utility if available (for Render deployment)
+            if PERSISTENT_STORAGE_AVAILABLE:
+                db_path = get_database_path("dp_learning.db")
+            else:
+                # Fallback to default path
+                db_path = Path(__file__).parent.parent.parent.parent / "data" / "dp_learning.db"
         
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)

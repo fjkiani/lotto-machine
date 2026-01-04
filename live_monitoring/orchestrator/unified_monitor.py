@@ -41,6 +41,7 @@ from .checkers import (
     PreMarketGapChecker,
     OptionsFlowChecker,
     NewsIntelligenceChecker,
+    DPDivergenceChecker,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,7 @@ class UnifiedAlphaMonitor:
         self.last_reddit_check = None
         self.last_premarket_gap_check = None
         self.last_options_flow_check = None
+        self.last_dp_divergence_check = None
         
         # Initialize modular components
         self.alert_manager = AlertManager()
@@ -475,7 +477,26 @@ class UnifiedAlphaMonitor:
             unified_mode=self.unified_mode
         )
         
-        logger.info("   ✅ All checkers initialized (including Phase 6: PreMarketGap, OptionsFlow, NewsIntelligence)")
+        # DP Divergence Checker (Phase 7 - 89.8% WR Proven!)
+        from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
+        from core.data.rapidapi_options_client import RapidAPIOptionsClient
+        
+        chartexchange_client = UltimateChartExchangeClient(api_key=api_key) if api_key else None
+        options_client = RapidAPIOptionsClient(
+            api_key=rapidapi_key,
+            api_host=os.getenv('YAHOO_RAPIDAPI_HOST')
+        ) if rapidapi_key else None
+        
+        self.dp_divergence_checker = DPDivergenceChecker(
+            alert_manager=self.alert_manager,
+            chartexchange_client=chartexchange_client,
+            options_client=options_client,
+            health_registry=self.health_registry,
+            symbols=self.symbols,
+            unified_mode=self.unified_mode
+        ) if (api_key and rapidapi_key) else None
+        
+        logger.info("   ✅ All checkers initialized (including Phase 7: DPDivergenceChecker - 89.8% WR!)")
     
     # ═══════════════════════════════════════════════════════════════
     # ALERT METHODS (delegate to AlertManager)
@@ -1484,6 +1505,7 @@ class UnifiedAlphaMonitor:
         self.last_premarket_gap_check = None  # Run immediately on first check
         self.last_options_flow_check = None  # Run immediately on first check
         self.last_news_intelligence_check = None  # Run immediately on first check
+        self.last_dp_divergence_check = None  # Run immediately on first check
         self.gamma_interval = 3600  # Check gamma every 60 min (reduced for Render free tier)
         self.news_intelligence_interval = 1800  # Check news every 30 min (was 15)
         
@@ -1616,6 +1638,13 @@ class UnifiedAlphaMonitor:
                     for alert in alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                     self.last_gamma_check = now
+                
+                # DP Divergence Checker (89.8% WR Proven!)
+                if is_market_hours and self.dp_divergence_checker and (self.last_dp_divergence_check is None or (now - self.last_dp_divergence_check).seconds >= self.dp_divergence_interval):
+                    alerts = self._run_checker_with_health('dp_divergence', self.dp_divergence_checker.check)
+                    for alert in alerts:
+                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+                    self.last_dp_divergence_check = now
                 
                 # Scanner Checker
                 if is_market_hours and self.scanner_checker and (self.last_scanner_check is None or (now - self.last_scanner_check).seconds >= self.scanner_interval):
