@@ -150,30 +150,38 @@ def self_ping():
     """
     Self-ping to keep Render free tier awake.
 
-    Pings the health endpoint every 5 minutes to prevent sleep.
+    CRITICAL: Render free tier spins down after 15 minutes of inactivity.
+    We ping every 2-3 minutes to ensure service stays awake.
     Uses RENDER_SERVICE_URL if set, otherwise falls back to localhost.
-    More aggressive than before (5 min vs 10 min) to prevent spin-down.
     """
     # Get service URL from environment (Render provides this)
     service_url = os.getenv('RENDER_SERVICE_URL')
     port = int(os.getenv('PORT', 8000))
     
+    # Log startup immediately
+    logger.info("=" * 70)
+    logger.info("🔄 SELF-PING THREAD STARTING")
+    logger.info("=" * 70)
+    
     if service_url:
         # Use actual Render service URL (external ping)
         url = f"{service_url.rstrip('/')}/health"
         logger.info(f"🌐 Self-ping using Render service URL: {url}")
+        logger.info(f"   ⚠️ CRITICAL: RENDER_SERVICE_URL must be set in Render dashboard!")
     else:
         # Fallback to localhost (for local testing)
         url = f"http://localhost:{port}/health"
-        logger.info(f"🏠 Self-ping using localhost: {url}")
+        logger.warning(f"🏠 Self-ping using localhost: {url}")
+        logger.warning(f"   ⚠️ WARNING: RENDER_SERVICE_URL not set! Self-ping may not work on Render!")
+        logger.warning(f"   ⚠️ Set RENDER_SERVICE_URL=https://lotto-machine.onrender.com in Render dashboard")
 
     ping_count = 0
     consecutive_failures = 0
     consecutive_rate_limits = 0
     max_failures = 3  # Alert after 3 consecutive failures (excluding rate limits)
-    base_interval = 300  # 5 minutes base interval
+    base_interval = 120  # 2 minutes base interval (MORE AGGRESSIVE - Render spins down after 15 min)
     current_interval = base_interval
-    rate_limit_backoff = 600  # 10 minutes when rate limited
+    rate_limit_backoff = 300  # 5 minutes when rate limited
     
     while True:
         try:
@@ -188,7 +196,8 @@ def self_ping():
                 consecutive_failures = 0  # Reset failure counter
                 consecutive_rate_limits = 0  # Reset rate limit counter
                 current_interval = base_interval  # Reset to base interval
-                logger.info(f"✅ Self-ping #{ping_count} successful (keeping service awake, interval: {current_interval}s)")
+                # Log every ping to ensure we see activity
+                logger.info(f"✅ Self-ping #{ping_count} successful (keeping service awake, interval: {current_interval}s, next ping in {current_interval}s)")
             
             elif response.status_code == 429:
                 # Rate limited - this is expected, don't count as failure
@@ -269,16 +278,20 @@ def ping_watchdog():
     """
     global ping_thread
     
+    logger.info("🐕 Ping watchdog starting (checks every 2 min)")
+    check_count = 0
+    
     while True:
         try:
             time.sleep(120)  # Check every 2 minutes
+            check_count += 1
             
             # Check if ping thread is alive
             if ping_thread and not ping_thread.is_alive():
-                logger.error("🚨 CRITICAL: Self-ping thread DIED! Restarting immediately...")
+                logger.error(f"🚨 CRITICAL: Self-ping thread DIED! (check #{check_count}) Restarting immediately...")
                 
                 # Restart ping thread
-                ping_thread = threading.Thread(target=self_ping, daemon=True)
+                ping_thread = threading.Thread(target=self_ping, daemon=True, name="SelfPingThread")
                 ping_thread.start()
                 logger.info("✅ Self-ping thread RESTARTED by watchdog")
                 
@@ -289,14 +302,16 @@ def ping_watchdog():
                         alert_embed = {
                             "title": "🔄 SELF-PING THREAD RESTARTED",
                             "color": 0xFFA500,
-                            "description": "Self-ping thread died and was automatically restarted by watchdog.",
+                            "description": f"Self-ping thread died (check #{check_count}) and was automatically restarted by watchdog.",
                             "footer": {"text": "Monitoring will continue"}
                         }
                         requests.post(webhook, json={"embeds": [alert_embed]}, timeout=5)
                 except:
                     pass
             else:
-                logger.debug("🐕 Ping watchdog: ping thread alive")
+                # Log periodically to show watchdog is active
+                if check_count % 5 == 0:  # Every 10 minutes (5 checks * 2 min)
+                    logger.info(f"🐕 Ping watchdog check #{check_count}: ping thread alive ✅")
                 
         except Exception as e:
             logger.error(f"❌ PING WATCHDOG error: {e}")
@@ -647,15 +662,23 @@ class HealthHandler(BaseHTTPRequestHandler):
         
         # CRITICAL: Handle /health and / FIRST for Render health checks and self-ping
         if self.path == '/health' or self.path == '/':
+            # Log health check to show activity
+            logger.info(f"💚 Health check received from {self.client_address[0]}")
+            
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
+            
+            # Check ping thread status
+            ping_thread_alive = ping_thread.is_alive() if ping_thread else False
             
             status = {
                 "status": "running",
                 "service": "alpha-intelligence-monitor",
                 "timestamp": datetime.now().isoformat(),
                 "monitor_running": monitor is not None and getattr(monitor, 'running', False),
+                "ping_thread_alive": ping_thread_alive,
+                "render_service_url_set": bool(os.getenv('RENDER_SERVICE_URL')),
             }
             
             # Add monitor stats if available
@@ -845,7 +868,7 @@ def main():
     global monitor
     
     # VERSION MARKER - Update this when making changes to verify Render deployment
-    VERSION = "2026-01-05-v7"  # Date + version number - Rate limit handling for self-ping
+    VERSION = "2026-01-05-v8"  # Date + version number - More aggressive self-ping (2 min intervals)
     
     print("=" * 80)
     print("🎯 ALPHA INTELLIGENCE - UNIFIED MONITOR (WEB SERVICE)")
@@ -910,10 +933,13 @@ def main():
     logger.info("   ✅ Monitor thread started")
     
     # Start self-ping thread (keeps service awake on free tier)
+    # CRITICAL: Render free tier spins down after 15 min inactivity
+    # We ping every 2 minutes to ensure service stays awake
     global ping_thread
-    ping_thread = threading.Thread(target=self_ping, daemon=True)
+    ping_thread = threading.Thread(target=self_ping, daemon=True, name="SelfPingThread")
     ping_thread.start()
-    logger.info("   ✅ Self-ping thread started (pings every 5 min, immediate first ping)")
+    logger.info("   ✅ Self-ping thread started (pings every 2 min, immediate first ping)")
+    logger.info("   ⚠️ CRITICAL: Ensure RENDER_SERVICE_URL is set in Render dashboard!")
     
     # Start ping watchdog (monitors and restarts ping thread if it dies)
     ping_watchdog_thread = threading.Thread(target=ping_watchdog, daemon=True)
