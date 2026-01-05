@@ -169,51 +169,97 @@ def self_ping():
 
     ping_count = 0
     consecutive_failures = 0
-    max_failures = 3  # Alert after 3 consecutive failures
+    consecutive_rate_limits = 0
+    max_failures = 3  # Alert after 3 consecutive failures (excluding rate limits)
+    base_interval = 300  # 5 minutes base interval
+    current_interval = base_interval
+    rate_limit_backoff = 600  # 10 minutes when rate limited
     
     while True:
         try:
-            # Ping immediately on first run, then every 5 minutes
+            # Ping immediately on first run, then at current interval
             if ping_count > 0:
-                time.sleep(300)  # Every 5 minutes (more aggressive)
+                time.sleep(current_interval)
             
             ping_count += 1
             response = requests.get(url, timeout=10)
             
             if response.status_code == 200:
                 consecutive_failures = 0  # Reset failure counter
-                logger.info(f"✅ Self-ping #{ping_count} successful (keeping service awake)")
+                consecutive_rate_limits = 0  # Reset rate limit counter
+                current_interval = base_interval  # Reset to base interval
+                logger.info(f"✅ Self-ping #{ping_count} successful (keeping service awake, interval: {current_interval}s)")
+            
+            elif response.status_code == 429:
+                # Rate limited - this is expected, don't count as failure
+                consecutive_rate_limits += 1
+                consecutive_failures = 0  # Don't count rate limits as failures
+                current_interval = rate_limit_backoff  # Increase interval when rate limited
+                
+                logger.info(f"⏸️ Self-ping #{ping_count} rate limited (429) - backing off to {current_interval}s interval (rate limits: {consecutive_rate_limits})")
+                
+                # If we get too many rate limits, increase interval even more
+                if consecutive_rate_limits >= 3:
+                    current_interval = 900  # 15 minutes if heavily rate limited
+                    logger.info(f"⏸️ Heavy rate limiting detected - increasing interval to {current_interval}s")
+            
             else:
+                # Real failure (not rate limit)
                 consecutive_failures += 1
+                consecutive_rate_limits = 0  # Reset rate limit counter on real failure
                 logger.warning(f"⚠️ Self-ping #{ping_count} returned {response.status_code} (failures: {consecutive_failures})")
                 
                 if consecutive_failures >= max_failures:
                     logger.error(f"🚨 CRITICAL: {consecutive_failures} consecutive ping failures! Service may spin down!")
+                    # Try to send Discord alert about ping failure
+                    try:
+                        webhook = os.getenv('DISCORD_WEBHOOK_URL')
+                        if webhook:
+                            alert_embed = {
+                                "title": "🚨 SELF-PING FAILING - SERVICE MAY SPIN DOWN",
+                                "color": 0xFF0000,
+                                "description": f"**Consecutive Failures:** {consecutive_failures}\n**Status Code:** {response.status_code}\n**URL:** {url}",
+                                "footer": {"text": "Check Render logs immediately"}
+                            }
+                            requests.post(webhook, json={"embeds": [alert_embed]}, timeout=5)
+                    except:
+                        pass
                     
         except Exception as e:
-            consecutive_failures += 1
-            logger.error(f"❌ Self-ping #{ping_count} error: {e} - Service may spin down! (failures: {consecutive_failures})")
-            import traceback
-            logger.error(f"Self-ping traceback: {traceback.format_exc()}")
-            
-            if consecutive_failures >= max_failures:
-                logger.error(f"🚨 CRITICAL: {consecutive_failures} consecutive ping failures! Attempting to notify...")
-                # Try to send Discord alert about ping failure
-                try:
-                    webhook = os.getenv('DISCORD_WEBHOOK_URL')
-                    if webhook:
-                        alert_embed = {
-                            "title": "🚨 SELF-PING FAILING - SERVICE MAY SPIN DOWN",
-                            "color": 0xFF0000,
-                            "description": f"**Consecutive Failures:** {consecutive_failures}\n**Error:** {str(e)[:200]}\n**URL:** {url}",
-                            "footer": {"text": "Check Render logs immediately"}
-                        }
-                        requests.post(webhook, json={"embeds": [alert_embed]}, timeout=5)
-                except:
-                    pass
-            
-            # Don't sleep on error - retry immediately (but cap retry rate)
-            time.sleep(60)  # Wait 1 minute before retry on error
+            # Check if it's a connection error (might be rate limit related)
+            error_str = str(e).lower()
+            if '429' in error_str or 'rate limit' in error_str or 'too many requests' in error_str:
+                # Treat as rate limit
+                consecutive_rate_limits += 1
+                consecutive_failures = 0
+                current_interval = rate_limit_backoff
+                logger.info(f"⏸️ Self-ping #{ping_count} rate limited (exception) - backing off to {current_interval}s")
+            else:
+                # Real error
+                consecutive_failures += 1
+                consecutive_rate_limits = 0
+                logger.error(f"❌ Self-ping #{ping_count} error: {e} - Service may spin down! (failures: {consecutive_failures})")
+                import traceback
+                logger.error(f"Self-ping traceback: {traceback.format_exc()}")
+                
+                if consecutive_failures >= max_failures:
+                    logger.error(f"🚨 CRITICAL: {consecutive_failures} consecutive ping failures! Attempting to notify...")
+                    # Try to send Discord alert about ping failure
+                    try:
+                        webhook = os.getenv('DISCORD_WEBHOOK_URL')
+                        if webhook:
+                            alert_embed = {
+                                "title": "🚨 SELF-PING FAILING - SERVICE MAY SPIN DOWN",
+                                "color": 0xFF0000,
+                                "description": f"**Consecutive Failures:** {consecutive_failures}\n**Error:** {str(e)[:200]}\n**URL:** {url}",
+                                "footer": {"text": "Check Render logs immediately"}
+                            }
+                            requests.post(webhook, json={"embeds": [alert_embed]}, timeout=5)
+                    except:
+                        pass
+                
+                # Wait before retry on real error
+                time.sleep(60)  # Wait 1 minute before retry on error
 
 
 def ping_watchdog():
@@ -799,7 +845,7 @@ def main():
     global monitor
     
     # VERSION MARKER - Update this when making changes to verify Render deployment
-    VERSION = "2025-12-25-v6"  # Date + version number - Enhanced self-ping with watchdog
+    VERSION = "2026-01-05-v7"  # Date + version number - Rate limit handling for self-ping
     
     print("=" * 80)
     print("🎯 ALPHA INTELLIGENCE - UNIFIED MONITOR (WEB SERVICE)")
