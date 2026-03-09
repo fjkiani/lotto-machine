@@ -6,7 +6,7 @@ Structure:
 logs/narratives/{DATE}/
 ├── {symbol}_event_schedule.json        # Economic calendar
 ├── {symbol}_mainstream.json            # Perplexity output
-├── {symbol}_institutional.json         # ChartExchange stats
+├── {symbol}_institutional.json         # Stockgrid dark pool stats
 ├── {symbol}_divergences.json           # Detected conflicts
 ├── {symbol}_final_narrative.json       # Synthesis output
 └── {symbol}_signal_impact.json         # How narrative affected signals
@@ -108,7 +108,7 @@ class NarrativeLogger:
     
     def log_institutional_stats(self, symbol: str, stats: Dict, date: str = None):
         """
-        Log institutional data from ChartExchange.
+        Log institutional data from Stockgrid.
         
         Args:
             symbol: Ticker symbol
@@ -122,7 +122,7 @@ class NarrativeLogger:
             log_data = {
                 "timestamp": datetime.now().isoformat(),
                 "symbol": symbol,
-                "source": "chartexchange",
+                "source": "stockgrid",
                 **stats
             }
             

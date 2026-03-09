@@ -1,0 +1,130 @@
+{
+  "timestamp": "2026-01-04T19:43:38.381402",
+  "windows_tested": 4,
+  "aggregated": {
+    "original": {
+      "total_trades": 522,
+      "win_rate": 46.934865900383144,
+      "total_pnl": -2.5925151678849234
+    },
+    "filtered": {
+      "total_trades": 183,
+      "win_rate": 50.81967213114754,
+      "total_pnl": 3.4370101723939435
+    },
+    "improvement": {
+      "win_rate_change": 3.884806230764397,
+      "pnl_change": 6.029525340278867,
+      "trade_reduction": 339,
+      "trade_reduction_pct": 64.9425287356322
+    }
+  },
+  "windows": [
+    {
+      "start_date": "2025-12-05",
+      "end_date": "2026-01-04",
+      "trading_days": 21,
+      "original_trades": 238,
+      "filtered_trades": 80,
+      "original_metrics": {
+        "total_trades": 238,
+        "wins": 112,
+        "losses": 123,
+        "timeouts": 0,
+        "win_rate": 47.05882352941176,
+        "total_pnl": -1.4826778348689325,
+        "avg_pnl": -0.006229738801970305,
+        "avg_win": 0.1268050428610111,
+        "avg_loss": -0.12751904581546472,
+        "profit_factor": 0.9054706591998681
+      },
+      "filtered_metrics": {
+        "total_trades": 80,
+        "wins": 41,
+        "losses": 38,
+        "timeouts": 0,
+        "win_rate": 51.24999999999999,
+        "total_pnl": 1.3603813919810404,
+        "avg_pnl": 0.017004767399763004,
+        "avg_win": 0.12664214870207713,
+        "avg_loss": -0.10084070275800323,
+        "profit_factor": 1.35501051992073
+      },
+      "name": "Most Recent 30 Days"
+    },
+    {
+      "start_date": "2025-11-05",
+      "end_date": "2025-12-05",
+      "trading_days": 23,
+      "original_trades": 0,
+      "filtered_trades": 0,
+      "original_metrics": null,
+      "filtered_metrics": null,
+      "name": "Previous 30 Days"
+    },
+    {
+      "start_date": "2025-12-05",
+      "end_date": "2026-01-04",
+      "trading_days": 21,
+      "original_trades": 238,
+      "filtered_trades": 80,
+      "original_metrics": {
+        "total_trades": 238,
+        "wins": 112,
+        "losses": 123,
+        "timeouts": 0,
+        "win_rate": 47.05882352941176,
+        "total_pnl": -1.4826778348689325,
+        "avg_pnl": -0.006229738801970305,
+        "avg_win": 0.1268050428610111,
+        "avg_loss": -0.12751904581546472,
+        "profit_factor": 0.9054706591998681
+      },
+      "filtered_metrics": {
+        "total_trades": 80,
+        "wins": 41,
+        "losses": 38,
+        "timeouts": 0,
+        "win_rate": 51.24999999999999,
+        "total_pnl": 1.3603813919810404,
+        "avg_pnl": 0.017004767399763004,
+        "avg_win": 0.12664214870207713,
+        "avg_loss": -0.10084070275800323,
+        "profit_factor": 1.35501051992073
+      },
+      "name": "Dec 5 - Jan 4 (30 days)"
+    },
+    {
+      "start_date": "2025-12-29",
+      "end_date": "2026-01-02",
+      "trading_days": 5,
+      "original_trades": 46,
+      "filtered_trades": 23,
+      "original_metrics": {
+        "total_trades": 46,
+        "wins": 21,
+        "losses": 25,
+        "timeouts": 0,
+        "win_rate": 45.65217391304348,
+        "total_pnl": 0.37284050185294165,
+        "avg_pnl": 0.008105228301150905,
+        "avg_win": 0.13836504429816093,
+        "avg_loss": -0.1013130171363375,
+        "profit_factor": 1.1472033949403395
+      },
+      "filtered_metrics": {
+        "total_trades": 23,
+        "wins": 11,
+        "losses": 12,
+        "timeouts": 0,
+        "win_rate": 47.82608695652174,
+        "total_pnl": 0.7162473884318626,
+        "avg_pnl": 0.031141190801385332,
+        "avg_win": 0.14096303687219905,
+        "avg_loss": -0.06952883476352724,
+        "profit_factor": 1.8584536555563285
+      },
+      "name": "Dec 29 - Jan 2 (5 days)"
+    }
+  ]
+}

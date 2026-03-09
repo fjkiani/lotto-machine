@@ -5,7 +5,7 @@ Provides health status for all checkers in the system.
 """
 
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -26,16 +26,16 @@ class CheckerHealthResponse(BaseModel):
     display_name: str
     emoji: str
     status: str
-    last_run: str | None
-    last_success: str | None
-    last_error: str | None
+    last_run: Optional[str]
+    last_success: Optional[str]
+    last_error: Optional[str]
     alerts_today: int
     alerts_24h: int
-    win_rate_7d: float | None
+    win_rate_7d: Optional[float]
     total_trades_7d: int
     expected_interval: int
     run_conditions: str
-    time_since_last_run: str | None
+    time_since_last_run: Optional[str]
 
 
 class HealthSummaryResponse(BaseModel):

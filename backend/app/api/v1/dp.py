@@ -167,80 +167,6 @@ async def get_recent_interactions(
         return {"interactions": []}
 
 
-@router.get("/signals/divergence")
-async def get_divergence_signals(
-    monitor_bridge: MonitorBridge = Depends(get_monitor_bridge)
-):
-    """
-    Get active DP divergence signals from DPDivergenceChecker.
-    """
-    try:
-        if not monitor_bridge or not monitor_bridge.monitor:
-            return {"signals": [], "count": 0}
-        
-        monitor = monitor_bridge.monitor
-        
-        # Check if dp_divergence_checker exists
-        if not hasattr(monitor, 'dp_divergence_checker') or not monitor.dp_divergence_checker:
-            logger.warning("DPDivergenceChecker not available in monitor")
-            return {"signals": [], "count": 0}
-        
-        checker = monitor.dp_divergence_checker
-        
-        # Run check to get current signals
-        alerts = checker.check()
-        
-        signals = []
-        for alert in alerts:
-            # Extract signal data from alert embed
-            embed = alert.embed
-            fields = embed.get('fields', [])
-            
-            # Parse fields
-            entry_price = 0
-            stop_pct = 0
-            target_pct = 0
-            confidence = 0
-            dp_bias = "NEUTRAL"
-            options_bias = None
-            
-            for field in fields:
-                name = field.get('name', '')
-                value = field.get('value', '')
-                
-                if 'Entry' in name:
-                    entry_price = float(value.replace('$', ''))
-                elif 'Stop' in name:
-                    stop_pct = abs(float(value.replace('%', '').replace('-', '')))
-                elif 'Target' in name:
-                    target_pct = float(value.replace('%', '').replace('+', ''))
-                elif 'Confidence' in name:
-                    confidence = float(value.replace('%', ''))
-                elif 'DP Bias' in name:
-                    dp_bias = value.split('(')[0].strip()
-                elif 'Options Bias' in name:
-                    options_bias = value
-            
-            # Determine signal type from title
-            title = embed.get('title', '')
-            signal_type = 'DP_CONFLUENCE' if 'CONFLUENCE' in title else 'OPTIONS_DIVERGENCE'
-            
-            signals.append(DPDivergenceSignal(
-                symbol=alert.symbol or "UNKNOWN",
-                direction="LONG" if "LONG" in title else "SHORT" if "SHORT" in title else "UNKNOWN",
-                signal_type=signal_type,
-                confidence=confidence,
-                entry_price=entry_price,
-                stop_pct=stop_pct,
-                target_pct=target_pct,
-                reasoning=embed.get('description', ''),
-                dp_bias=dp_bias,
-                options_bias=options_bias,
-                dp_strength=0.0,  # Would need to extract from embed
-                has_divergence=signal_type == 'OPTIONS_DIVERGENCE',
-                timestamp=embed.get('timestamp', datetime.utcnow().isoformat())
-            ))
-        
         return {
             "signals": [s.dict() for s in signals],
             "count": len(signals),
@@ -248,6 +174,6 @@ async def get_divergence_signals(
         }
     
     except Exception as e:
-        logger.error(f"Error fetching divergence signals: {e}", exc_info=True)
-        return {"signals": [], "count": 0, "error": str(e)}
+        logger.error(f"Error fetching recent interactions: {e}", exc_info=True)
+        return {"interactions": []}
 

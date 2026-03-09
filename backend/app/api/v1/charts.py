@@ -1,17 +1,20 @@
 """
-🏰 MOAT CHART API ENDPOINTS
+🪤 TRAP MATRIX CHART API
 
-Generate 12-layer intelligence charts using the MOAT Chart Engine.
+Thin API layer serving the orchestrator's current state.
+Does NOT compute — reads the cached state from TrapMatrixOrchestrator.
+
+Endpoints:
+  GET /charts/{symbol}/matrix  → Full Trap Matrix state (levels, traps, conviction, staleness)
+  GET /charts/{symbol}/ohlc    → yfinance OHLC candle data for chart base layer
 """
 
-import os
 import logging
 import sys
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
-import yfinance as yf
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent.parent.parent
@@ -21,105 +24,93 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Try to import MOAT Chart Engine
-try:
-    from src.streamlit_app.moat_chart_engine import MOATChartEngine
-    MOAT_ENGINE_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"MOAT Chart Engine not available: {e}")
-    MOAT_ENGINE_AVAILABLE = False
-    MOATChartEngine = None
+# ── Lazy singleton orchestrator ──────────────────────────────────────────────
+
+_orchestrator = None
 
 
-@router.get("/charts/moat/{symbol}")
-async def get_moat_chart(
-    symbol: str,
-    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format (defaults to today)"),
-    timeframe: str = Query("1d", description="Timeframe: 1d, 5d, 1mo"),
-    interval: str = Query("1m", description="Interval: 1m, 5m, 15m, 1h, 1d")
-):
-    """Generate MOAT chart with all 12 intelligence layers."""
-    if not MOAT_ENGINE_AVAILABLE:
-        raise HTTPException(
-            status_code=503,
-            detail="MOAT Chart Engine not available. Check backend logs for import errors."
-        )
-    
+def _get_orchestrator():
+    global _orchestrator
+    if _orchestrator is None:
+        try:
+            from live_monitoring.enrichment.apis.trap_matrix_orchestrator import TrapMatrixOrchestrator
+            _orchestrator = TrapMatrixOrchestrator()
+            logger.info("🪤 TrapMatrixOrchestrator initialized")
+        except Exception as e:
+            logger.error(f"Failed to init TrapMatrixOrchestrator: {e}")
+            raise HTTPException(status_code=503, detail=f"Orchestrator unavailable: {e}")
+    return _orchestrator
+
+
+# ── Endpoints ────────────────────────────────────────────────────────────────
+
+@router.get("/charts/{symbol}/matrix")
+async def get_trap_matrix(symbol: str):
+    """
+    Get the full Trap Matrix state for a symbol.
+
+    Returns unified MarketState with:
+    - Current price and timestamp
+    - All levels: dark pool, GEX walls, gamma flip, max pain, pivots, MAs
+    - Classified traps with conviction scores (1-5)
+    - Market context: COT, VIX regime, gamma regime
+    - Staleness tracking per data source
+    - Rebuild decision from state diffing
+
+    Each data layer uses its own cache TTL — this endpoint never blocks on stale data.
+    """
+    orch = _get_orchestrator()
     try:
-        api_key = os.getenv('CHARTEXCHANGE_API_KEY')
-        if not api_key:
-            logger.warning("CHARTEXCHANGE_API_KEY not set - chart will have limited functionality")
-        
-        engine = MOATChartEngine(api_key=api_key)
-        
-        # Get candlestick data
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(period=timeframe, interval=interval)
-        
-        if df.empty:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No price data available for {symbol}"
-            )
-        
-        # Ensure proper column names
-        df.columns = [col.lower() for col in df.columns]
-        current_price = float(df['close'].iloc[-1])
-        date = date or datetime.now().strftime('%Y-%m-%d')
-        
-        # Gather intelligence
-        logger.info(f"Gathering intelligence for {symbol} on {date}")
-        intelligence = engine.gather_all_intelligence(
-            ticker=symbol,
-            date=date,
-            current_price=current_price,
-        )
-        
-        # Create MOAT chart
-        logger.info(f"Creating MOAT chart for {symbol}")
-        fig = engine.create_moat_chart(
-            ticker=symbol,
-            candlestick_data=df,
-            intelligence=intelligence,
-        )
-        
-        chart_json = fig.to_json()
-        
+        state = orch.get_current_state(symbol.upper())
+        return state.to_dict()
+    except Exception as e:
+        logger.error(f"Error fetching trap matrix for {symbol}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Trap matrix error: {str(e)}")
+
+
+@router.get("/charts/{symbol}/ohlc")
+async def get_ohlc(
+    symbol: str,
+    period: str = Query("3mo", description="Period: 1d, 5d, 1mo, 3mo, 6mo, 1y"),
+    interval: str = Query("1d", description="Interval: 1m, 5m, 15m, 1h, 1d, 1wk"),
+):
+    """
+    Get OHLC candle data for TradingView chart base layer.
+
+    Returns array of candles: [{time, open, high, low, close, volume}, ...]
+    """
+    try:
+        import yfinance as yf
+
+        ticker = yf.Ticker(symbol.upper())
+        df = ticker.history(period=period, interval=interval)
+
+        if df is None or df.empty:
+            raise HTTPException(status_code=404, detail=f"No price data for {symbol}")
+
+        # Format for lightweight-charts
+        candles = []
+        for idx, row in df.iterrows():
+            candles.append({
+                "time": int(idx.timestamp()),
+                "open": round(float(row["Open"]), 2),
+                "high": round(float(row["High"]), 2),
+                "low": round(float(row["Low"]), 2),
+                "close": round(float(row["Close"]), 2),
+                "volume": int(row["Volume"]),
+            })
+
         return {
-            "symbol": symbol,
-            "date": date,
-            "chart": chart_json,
-            "intelligence": {
-                "dp_levels_count": len(intelligence.dp_levels),
-                "gamma_flip_level": intelligence.gamma_flip_level,
-                "max_pain": intelligence.max_pain,
-                "regime": intelligence.regime,
-                "reddit_sentiment": intelligence.reddit_sentiment,
-                "signals_count": len(intelligence.signals),
-            },
-            "current_price": current_price,
+            "symbol": symbol.upper(),
+            "period": period,
+            "interval": interval,
+            "candles": candles,
+            "count": len(candles),
             "timestamp": datetime.utcnow().isoformat(),
-            "layers": {
-                "price_action": True,
-                "dark_pool": len(intelligence.dp_levels) > 0,
-                "gamma": intelligence.gamma_flip_level is not None,
-                "squeeze": len(intelligence.squeeze_zones) > 0,
-                "signals": len(intelligence.signals) > 0,
-                "institutional_context": intelligence.buying_pressure is not None,
-                "regime": intelligence.regime is not None,
-                "volume_profile": intelligence.volume_profile_data is not None,
-                "reddit_sentiment": intelligence.reddit_sentiment != 'NEUTRAL',
-                "options_flow": len(intelligence.options_flow_zones) > 0,
-                "news_events": len(intelligence.upcoming_events) > 0,
-                "historical_learning": len(intelligence.dp_bounce_rates) > 0,
-            }
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error generating MOAT chart for {symbol}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error generating chart: {str(e)}"
-        )
+        logger.error(f"Error fetching OHLC for {symbol}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"OHLC error: {str(e)}")

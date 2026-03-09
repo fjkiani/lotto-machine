@@ -1,11 +1,11 @@
 """
-Economic Calendar Event Loader (V2 - Baby-Pips API)
+Economic Calendar Event Loader (V2 - Yahoo Finance Calendar API)
 Fetches structured macro/earnings events with built-in importance filtering.
 
-API: economic-trading-forex-events-calendar.p.rapidapi.com/baby-pips
-- Has `impact` field (low/medium/high) - perfect for filtering!
-- Clean actual/forecast/previous data
-- US country filter built-in
+API: yahoo-finance-calendar.p.rapidapi.com/events
+- Provides a good range of economic events.
+- Clean actual/forecast/previous data.
+- US country filter built-in.
 
 Manager's Doctrine:
 "Only reference economic events from the provided event_schedule.
@@ -39,13 +39,13 @@ class EventLoader:
         if not self.rapidapi_key:
             logger.warning("⚠️  RAPIDAPI_KEY not set – EventLoader will fail")
         
-        self.base_url = "https://economic-trading-forex-events-calendar.p.rapidapi.com/baby-pips"
+        self.base_url = "https://yahoo-finance-calendar.p.rapidapi.com/events"
         self.headers = {
-            'x-rapidapi-host': 'economic-trading-forex-events-calendar.p.rapidapi.com',
+            'x-rapidapi-host': 'yahoo-finance-calendar.p.rapidapi.com',
             'x-rapidapi-key': self.rapidapi_key
         }
         
-        logger.info("📅 EventLoader initialized (Baby-Pips API)")
+        logger.info("📅 EventLoader initialized (Yahoo Finance Calendar API)")
     
     def load_events(self, date: str = None, min_impact: str = "medium") -> Dict:
         """
@@ -110,62 +110,83 @@ class EventLoader:
     
     def _fetch_macro_events(self, date_str: str, min_impact: str) -> List[Dict]:
         """
-        Fetch macro economic events from Baby-Pips API.
+        Fetch macro economic events from Yahoo Finance Calendar API.
         
         Returns:
             List of event dicts filtered by impact level
         """
         try:
+            params = {
+                'date': date_str,
+                'region': 'US' # Filter for US events
+            }
             response = requests.get(
                 self.base_url, 
                 headers=self.headers, 
+                params=params,
                 timeout=10
             )
             
             if response.status_code != 200:
-                logger.warning(f"⚠️  Baby-Pips API returned {response.status_code}")
+                logger.warning(f"⚠️  Yahoo Finance Calendar API returned {response.status_code}: {response.text}")
                 return []
             
             data = response.json()
-            all_events = data.get('events', [])
             
-            # Parse target date
-            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            # The Yahoo Finance Calendar API returns events under a 'data' key,
+            # which is a list of events for the requested date.
+            all_events = data.get('data', [])
             
-            # Filter events
             filtered_events = []
             impact_rank = {"low": 0, "medium": 1, "high": 2}
             min_rank = impact_rank.get(min_impact.lower(), 1)
             
             for event in all_events:
-                # Filter by country (US only for now)
-                if event.get('country') != 'US':
-                    continue
+                # Yahoo Finance Calendar API doesn't have a direct 'impact' field.
+                # We'll infer it based on common high-impact event names.
+                event_name = event.get('title', '').lower()
                 
-                # Filter by impact
-                event_impact = event.get('impact', 'low').lower()
+                # Default to medium impact, then upgrade if high-impact keywords are found
+                event_impact = 'medium' 
+                if any(keyword in event_name for keyword in ['nfp', 'nonfarm payrolls', 'cpi', 'fed', 'interest rate', 'gdp', 'unemployment rate']):
+                    event_impact = 'high'
+                elif any(keyword in event_name for keyword in ['retail sales', 'ppi', 'durable goods', 'housing starts', 'ism', 'consumer confidence']):
+                    event_impact = 'medium' # Explicitly set, though it's the default
+                else:
+                    event_impact = 'low' # For less significant events
+                
                 if impact_rank.get(event_impact, 0) < min_rank:
                     continue
                 
-                # Filter by date
-                starts_at = event.get('starts_at')
-                if not starts_at:
+                # Yahoo Finance Calendar API provides 'date' and 'time' separately
+                event_date_str = event.get('date')
+                event_time_str = event.get('time') # e.g., "08:30 AM"
+                
+                if not event_date_str or not event_time_str:
                     continue
                 
                 try:
-                    event_datetime = datetime.fromisoformat(starts_at.replace('Z', '+00:00'))
-                    event_date = event_datetime.date()
+                    # Combine date and time to create a datetime object
+                    # Handle potential AM/PM in time string
+                    if "AM" in event_time_str or "PM" in event_time_str:
+                        event_datetime = datetime.strptime(f"{event_date_str} {event_time_str}", '%Y-%m-%d %I:%M %p')
+                    else:
+                        event_datetime = datetime.strptime(f"{event_date_str} {event_time_str}", '%Y-%m-%d %H:%M')
                     
-                    if event_date != target_date:
+                    # Ensure the event is for the target date (already filtered by API params, but good to double check)
+                    if event_datetime.date() != datetime.strptime(date_str, '%Y-%m-%d').date():
                         continue
                     
                     # Process event
-                    processed = self._process_event(event, event_datetime)
+                    processed = self._process_event(event, event_datetime, event_impact)
                     if processed:
                         filtered_events.append(processed)
                         
+                except ValueError as ve:
+                    logger.debug(f"Error parsing event datetime for '{event.get('title')}': {ve} (Date: {event_date_str}, Time: {event_time_str})")
+                    continue
                 except Exception as e:
-                    logger.debug(f"Error parsing event datetime: {e}")
+                    logger.debug(f"Error processing event '{event.get('title')}': {e}")
                     continue
             
             return filtered_events
@@ -174,7 +195,7 @@ class EventLoader:
             logger.error(f"❌ Error fetching macro events: {e}")
             return []
     
-    def _process_event(self, raw_event: Dict, event_datetime: datetime) -> Optional[Dict]:
+    def _process_event(self, raw_event: Dict, event_datetime: datetime, inferred_impact: str) -> Optional[Dict]:
         """
         Process raw event data and calculate surprise scoring.
         
@@ -183,14 +204,14 @@ class EventLoader:
         - For jobs data: 1% miss = 1σ, 2% miss = 2σ, etc.
         """
         try:
-            name = raw_event.get('name', '').strip()
+            name = raw_event.get('title', '').strip()
             time = event_datetime.strftime('%H:%M')
             actual = raw_event.get('actual')
-            forecast = raw_event.get('forecast')
+            forecast = raw_event.get('consensus') # Yahoo uses 'consensus' for forecast
             previous = raw_event.get('previous')
-            impact = raw_event.get('impact', 'low').lower()
-            country = raw_event.get('country', 'US')
-            currency = raw_event.get('currency_code', 'USD')
+            impact = inferred_impact # Use the inferred impact
+            country = raw_event.get('country', 'US') # Yahoo API often returns 'US' for region=US
+            currency = raw_event.get('currency', 'USD') # Yahoo API might not always provide this, default to USD
             
             if not name:
                 return None
@@ -205,21 +226,30 @@ class EventLoader:
                     
                     if actual_val is not None and forecast_val is not None and forecast_val != 0:
                         # Calculate % surprise
-                        surprise_pct = abs((actual_val - forecast_val) / forecast_val)
-                        
-                        # Rough sigma estimation
-                        # >10% miss = 1σ, >20% = 2σ, >30% = 3σ
-                        if surprise_pct > 0.30:
-                            surprise_sigma = 3.0 if actual_val > forecast_val else -3.0
-                        elif surprise_pct > 0.20:
-                            surprise_sigma = 2.0 if actual_val > forecast_val else -2.0
-                        elif surprise_pct > 0.10:
-                            surprise_sigma = 1.0 if actual_val > forecast_val else -1.0
+                        # Avoid division by zero if forecast_val is 0
+                        if forecast_val == 0:
+                            if actual_val != 0: # If forecast is 0 but actual is not, it's a big surprise
+                                surprise_sigma = 3.0 if actual_val > 0 else -3.0
+                            else: # Both are 0, no surprise
+                                surprise_sigma = 0.0
                         else:
-                            surprise_sigma = round((actual_val - forecast_val) / abs(forecast_val) * 10, 2)
+                            surprise_pct = (actual_val - forecast_val) / forecast_val
+                            
+                            # Rough sigma estimation
+                            # >10% miss = 1σ, >20% = 2σ, >30% = 3σ
+                            # Adjusted for direction
+                            if abs(surprise_pct) > 0.30:
+                                surprise_sigma = 3.0 * (1 if surprise_pct > 0 else -1)
+                            elif abs(surprise_pct) > 0.20:
+                                surprise_sigma = 2.0 * (1 if surprise_pct > 0 else -1)
+                            elif abs(surprise_pct) > 0.10:
+                                surprise_sigma = 1.0 * (1 if surprise_pct > 0 else -1)
+                            else:
+                                # For smaller surprises, scale by 10 (e.g., 1% surprise = 0.1 sigma)
+                                surprise_sigma = round(surprise_pct * 10, 2)
                             
                 except Exception as e:
-                    logger.debug(f"Error calculating surprise: {e}")
+                    logger.debug(f"Error calculating surprise for '{name}': {e}")
             
             return {
                 "name": name,
@@ -246,7 +276,7 @@ class EventLoader:
         - "250.0k" -> 250000
         - "1.2M" -> 1200000
         """
-        if not value_str or value_str in ['-', 'N/A', 'None']:
+        if not value_str or value_str in ['-', 'N/A', 'None', '']:
             return None
         
         try:
@@ -260,7 +290,7 @@ class EventLoader:
                 return float(value_str.lower().replace('m', '')) * 1000000
             else:
                 return float(value_str)
-        except:
+        except ValueError:
             return None
     
     def _is_opex_day(self, date_str: str) -> bool:

@@ -192,11 +192,11 @@ class EnrichmentConfig:
     use_narrative: bool = False  # LLM narrative agent (expensive)
     use_crypto: bool = True  # Crypto correlation (cheap, high value)
     use_sentiment: bool = False  # Alt sentiment (Twitter API required)
-    use_options: bool = True  # Options flow (ChartExchange Tier 3)
+    use_options: bool = True  # Options flow (Stockgrid DP + GEX)
     use_catalysts: bool = True  # Economic calendar (cheap)
     
     # API keys
-    api_key: Optional[str] = None  # ChartExchange
+    api_key: Optional[str] = None  # Legacy (Stockgrid needs no key)
     twitter_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
     

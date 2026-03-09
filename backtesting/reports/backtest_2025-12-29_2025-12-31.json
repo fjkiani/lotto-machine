@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-01-04T20:13:59.314849",
+  "start_date": "2025-12-29",
+  "end_date": "2025-12-31",
+  "trading_days": 3,
+  "symbols": [
+    "SPY",
+    "QQQ"
+  ],
+  "summary": {
+    "total_signals": 25,
+    "total_trades": 25,
+    "win_rate": 36.0,
+    "total_pnl": -0.677499885349067,
+    "avg_daily_pnl": -0.22583329511635566,
+    "max_drawdown": 0.7938162249655867,
+    "sharpe_ratio": -0.7621099239736224,
+    "profit_factor": 0.14652804510459858
+  },
+  "by_signal_type": {
+    "selloff_rally": {
+      "signals": 25,
+      "win_rate": 36.0,
+      "pnl": -0.677499885349067
+    },
+    "options_flow": {
+      "signals": 0,
+      "win_rate": 0,
+      "pnl": 0.0
+    },
+    "dark_pool_alerts": 12,
+    "squeeze_candidates": 0
+  },
+  "daily_results": [
+    {
+      "date": "2025-12-29",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 4,
+      "total_trades": 4,
+      "win_rate": 0.0,
+      "total_pnl": -0.39381622496558666,
+      "selloff_rally": {
+        "signals": 4,
+        "trades": 4,
+        "win_rate": 0.0,
+        "pnl": -0.39381622496558666
+      }
+    },
+    {
+      "date": "2025-12-30",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 2,
+      "total_trades": 2,
+      "win_rate": 0.0,
+      "total_pnl": -0.4,
+      "selloff_rally": {
+        "signals": 2,
+        "trades": 2,
+        "win_rate": 0.0,
+        "pnl": -0.4
+      }
+    },
+    {
+      "date": "2025-12-31",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 19,
+      "total_trades": 19,
+      "win_rate": 47.368421052631575,
+      "total_pnl": 0.11631633961651966,
+      "selloff_rally": {
+        "signals": 19,
+        "trades": 19,
+        "win_rate": 47.368421052631575,
+        "pnl": 0.11631633961651966
+      }
+    }
+  ],
+  "validation": {
+    "passed": false,
+    "notes": [
+      "\u2705 25 trades (meets minimum)",
+      "\u274c Win rate 36.0% < 50.0%",
+      "\u2705 Max DD 0.79% (within limits)",
+      "\u274c Unprofitable: -0.68%"
+    ]
+  }
+}

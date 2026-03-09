@@ -1,119 +1,98 @@
 """
 🔒 DP Monitor - Battleground Analyzer
 =====================================
-Fetches and analyzes dark pool battlegrounds.
+Fetches and analyzes dark pool battlegrounds via StockgridClient.
+Legacy ChartExchange scrapers purged.
 """
 
 import logging
-import requests
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict
 import yfinance as yf
 
 from .models import Battleground, LevelType
+from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
 
 logger = logging.getLogger(__name__)
 
 
 class BattlegroundAnalyzer:
     """
-    Fetches and analyzes dark pool battlegrounds.
+    Fetches and analyzes dark pool battlegrounds using Stockgrid data.
     
     Responsibilities:
-    - Fetch battlegrounds from ChartExchange API
-    - Rank by volume significance
+    - Fetch net dark pool positions from Stockgrid
+    - Derives battleground levels from top positions
     - Calculate distance from current price
-    - Determine support/resistance
+    - Determine support/resistance based on short volume %
     """
     
     MIN_VOLUME = 500_000  # Minimum volume to consider
     
-    def __init__(self, api_key: str = None, dp_client = None):
+    def __init__(self, api_key: str = None, dp_client: Optional[StockgridClient] = None):
         """
         Args:
-            api_key: ChartExchange API key (used if dp_client not provided)
-            dp_client: Existing UltimateChartExchangeClient instance (preferred)
+            api_key: Legacy/Ignored (Stockgrid is free)
+            dp_client: StockgridClient instance
         """
-        self.api_key = api_key
-        self.dp_client = dp_client  # Use existing client if provided
-        self.base_url = "https://api.chartexchange.com/v1"
+        self.dp_client = dp_client or StockgridClient(cache_ttl=300)
         self._cache: Dict[str, dict] = {}  # symbol -> {date, battlegrounds}
     
     def get_battlegrounds(
         self, 
         symbol: str, 
         date: Optional[str] = None,
-        top_n: int = 10
+        top_n: int = 15
     ) -> List[Battleground]:
         """
-        Get top N battlegrounds for a symbol.
+        Get top N battlegrounds for a symbol from Stockgrid.
         
-        Args:
-            symbol: Stock symbol (e.g., 'SPY')
-            date: Date string (YYYY-MM-DD), defaults to yesterday
-            top_n: Number of top levels to return
-            
-        Returns:
-            List of Battleground objects, sorted by volume descending
+        Note: Stockgrid returns net positions. We map these to battleground levels.
         """
-        if date is None:
-            # Use yesterday's date (today's DP data not available until after market)
-            date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        symbol = symbol.upper()
         
         # Check cache
-        cache_key = f"{symbol}_{date}"
+        cache_key = f"{symbol}"
         if cache_key in self._cache:
             return self._cache[cache_key][:top_n]
         
         try:
-            # Use existing client if available (handles SSL properly)
-            if self.dp_client:
-                levels = self.dp_client.get_dark_pool_levels(symbol, date)
-            else:
-                # Fallback to direct API call
-                url = f"{self.base_url}/analyze/dark-pool-levels/{symbol}"
-                headers = {"Authorization": f"Bearer {self.api_key}"}
-                params = {"date": date}
-                
-                response = requests.get(url, headers=headers, params=params, timeout=10)
-                
-                if response.status_code != 200:
-                    logger.warning(f"⚠️ DP levels API returned {response.status_code} for {symbol}")
-                    return []
-                
-                data = response.json()
-                levels = data.get('data', [])
+            # Get ticker detail and top positions
+            detail = self.dp_client.get_ticker_detail(symbol)
+            top_positions = self.dp_client.get_top_positions(limit=50)
             
-            # Convert to Battleground objects
             battlegrounds = []
-            if not levels:
-                return []
-                
-            for level in levels:
-                # Handle different response formats
-                price = level.get('level', level.get('price', 0))
-                vol = level.get('total_vol', level.get('volume', 0))
-                
-                # Convert strings to numbers
-                if isinstance(price, str):
-                    try:
-                        price = float(price)
-                    except:
-                        continue
-                if isinstance(vol, str):
-                    try:
-                        vol = float(vol.replace(',', ''))
-                    except:
-                        vol = 0
+            
+            # 1. Add the ticker's own detail as a primary battleground
+            if detail and detail.dp_position_dollars and detail.dp_position_shares:
+                price = abs(detail.dp_position_dollars / detail.dp_position_shares)
+                vol = abs(int(detail.dp_position_shares))
                 
                 if vol >= self.MIN_VOLUME:
                     bg = Battleground(
                         symbol=symbol,
-                        price=float(price),
-                        volume=int(vol),
-                        date=date
+                        price=price,
+                        volume=vol,
+                        date=detail.date or datetime.now().strftime('%Y-%m-%d')
                     )
                     battlegrounds.append(bg)
+
+            # 2. Derive context levels from top overall DP positions
+            # This helps the UI show relative sentiment/levels
+            for pos in top_positions:
+                if not pos.dp_position_dollars or not pos.dp_position_shares:
+                    continue
+                
+                price = abs(pos.dp_position_dollars / pos.dp_position_shares)
+                vol = abs(int(pos.dp_position_shares))
+                
+                if vol >= self.MIN_VOLUME:
+                    battlegrounds.append(Battleground(
+                        symbol=pos.ticker,
+                        price=price,
+                        volume=vol,
+                        date=pos.date or datetime.now().strftime('%Y-%m-%d')
+                    ))
             
             # Sort by volume descending
             battlegrounds.sort(key=lambda x: x.volume, reverse=True)
@@ -121,11 +100,11 @@ class BattlegroundAnalyzer:
             # Cache
             self._cache[cache_key] = battlegrounds
             
-            logger.info(f"📊 Fetched {len(battlegrounds)} battlegrounds for {symbol} ({date})")
+            logger.info(f"📊 Stockgrid: Derived {len(battlegrounds)} battlegrounds for {symbol}")
             return battlegrounds[:top_n]
             
         except Exception as e:
-            logger.error(f"❌ Error fetching battlegrounds for {symbol}: {e}")
+            logger.error(f"❌ Stockgrid fetch failure for {symbol}: {e}")
             return []
     
     def analyze_proximity(
@@ -133,21 +112,7 @@ class BattlegroundAnalyzer:
         battlegrounds: List[Battleground], 
         current_price: float
     ) -> List[Battleground]:
-        """
-        Analyze battlegrounds relative to current price.
-        
-        Updates each battleground with:
-        - level_type (SUPPORT/RESISTANCE)
-        - distance_pct
-        - current_price
-        
-        Args:
-            battlegrounds: List of battlegrounds
-            current_price: Current market price
-            
-        Returns:
-            Updated battlegrounds, sorted by distance ascending
-        """
+        """Analyze battlegrounds relative to current price."""
         for bg in battlegrounds:
             bg.current_price = current_price
             bg.distance_pct = abs(current_price - bg.price) / bg.price * 100
@@ -160,18 +125,17 @@ class BattlegroundAnalyzer:
         
         # Sort by distance (closest first)
         battlegrounds.sort(key=lambda x: x.distance_pct)
-        
         return battlegrounds
     
     def get_current_price(self, symbol: str) -> Optional[float]:
-        """Get current market price for a symbol."""
+        """Get current market price via yfinance."""
         try:
             ticker = yf.Ticker(symbol)
             hist = ticker.history(period='1d', interval='1m')
             if not hist.empty:
                 return float(hist['Close'].iloc[-1])
         except Exception as e:
-            logger.debug(f"Price fetch error for {symbol}: {e}")
+            logger.debug(f"Price fetch error: {e}")
         return None
     
     def get_nearby_battlegrounds(
@@ -179,41 +143,20 @@ class BattlegroundAnalyzer:
         symbol: str, 
         max_distance_pct: float = 0.5
     ) -> List[Battleground]:
-        """
-        Get battlegrounds within a certain distance of current price.
-        
-        Args:
-            symbol: Stock symbol
-            max_distance_pct: Maximum distance in percent (default 0.5%)
-            
-        Returns:
-            List of nearby battlegrounds with analysis applied
-        """
-        # Get current price
+        """Get battlegrounds within a certain distance."""
         current_price = self.get_current_price(symbol)
         if current_price is None:
-            logger.warning(f"⚠️ Could not get current price for {symbol}")
             return []
         
-        # Get battlegrounds
         battlegrounds = self.get_battlegrounds(symbol)
         if not battlegrounds:
             return []
         
-        # Analyze proximity
         battlegrounds = self.analyze_proximity(battlegrounds, current_price)
-        
-        # Filter by distance
-        nearby = [bg for bg in battlegrounds if bg.distance_pct <= max_distance_pct]
-        
-        return nearby
+        return [bg for bg in battlegrounds if bg.distance_pct <= max_distance_pct]
     
     def clear_cache(self, symbol: Optional[str] = None):
-        """Clear cached battlegrounds."""
         if symbol:
-            keys_to_remove = [k for k in self._cache if k.startswith(symbol)]
-            for k in keys_to_remove:
-                del self._cache[k]
+            self._cache.pop(symbol, None)
         else:
             self._cache.clear()
-

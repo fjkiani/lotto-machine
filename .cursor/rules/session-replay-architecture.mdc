@@ -1,0 +1,64 @@
+---
+description: Session replay architecture — what data we need, what's missing, why, and exact build plan
+---
+
+# Session Replay Architecture
+
+## Core Problem
+The system has NO continuous data capture during RTH. Every session ends with zero replay fidelity unless the server was running.
+
+## Data We Can Always Reconstruct (yfinance)
+- 1m OHLC bars for any date within 7 days → `yf.Ticker("SPY").history(period="Nd", interval="1m")`
+- VIX per date → `yf.Ticker("^VIX").history(start=date, end=date+1d)`
+- BTC/ETH correlation → same approach
+
+## Data We Cannot Reconstruct (No Time-Series Capture)
+
+### DP Prints (CRITICAL GAP)
+- **What's needed:** Stockgrid DP short vol % and $volume at each 5-min interval during RTH
+- **Why missing:** Stockgrid only exposes current snapshot, no historical intraday
+- **Fix:** `live_monitoring/enrichment/apis/dp_snapshot_recorder.py` — Stockgrid scraper every 5 min during RTH, writes to `data/dp_timeseries.db`
+- **Urgency: START NOW** — cannot recover past data
+
+### Signal Log (CRITICAL GAP)
+- **What's needed:** Every signal evaluation timestamped to RTH bars
+- **Why missing:** Backend must be running; was killed at 10:22am today
+- **Fix:** Signal generator writes to `intelligence_alerts.db` on every call, not just alerts
+
+### Pre-Market Narrative (IMPORTANT)
+- **What's needed:** NarrativeAgent snapshot at 9:25am as morning brief
+- **Why missing:** `narrative_engine.py` only built today, never scheduled
+- **Fix:** Cron at 9:25am → `python3 -m live_monitoring.enrichment.narrative_engine SPY QQQ`
+
+## Known Bug: Stale VIX in Backtest
+- **File:** `backtesting/simulation/date_range_backtest.py`
+- **Bug:** `MarketContextDetector` returns current VIX regardless of date parameter
+- **Effect:** Mar 3-8 backtest all showed VIX=29.49 (today's value) — numbers are invalid
+- **Fix:** Per-date VIX fetch: `yf.Ticker("^VIX").history(start=date_str, end=next_day_str)`
+
+## Session Replay (What's Possible Today)
+
+```python
+# backtesting/simulation/session_replay.py
+# Usage:
+python3 -m backtesting.simulation.session_replay --date 2026-03-09 --symbol SPY
+```
+
+**What it does:** loads yfinance 1m bars → applies signal generator bar-by-bar → injects static DP snapshot + VIX + NarrativeAgent context → outputs JSON log of all would-be signals
+
+**What it can't do:** replay actual DP print timestamps, real options flow
+
+## Build Priority
+
+| Priority | Task | Time | File |
+|:---|:---|:---|:---|
+| 🔥 NOW | Start `dp_snapshot_recorder.py` (can't recover past) | 1h | `live_monitoring/enrichment/apis/dp_snapshot_recorder.py` |
+| 1 | Fix stale VIX bug | 30m | `backtesting/simulation/date_range_backtest.py` |
+| 2 | Build `session_replay.py` | 2-3h | `backtesting/simulation/session_replay.py` |
+| 3 | Pre-market narrative cron | 30m | cron + `narrative_engine.py` |
+
+## SQLite Databases (On Disk — Check Schema)
+- `intelligence_alerts.db` — signal/alert audit trail ✅
+- `narrative_memory.db` — past narrative outputs ✅
+- `data/news_intelligence.db` — headline cache ✅
+- `data/dp_timeseries.db` — **DOES NOT EXIST YET** — build Phase 1

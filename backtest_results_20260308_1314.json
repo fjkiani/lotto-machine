@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-03-08T13:14:26.676686",
+  "symbols": [
+    "SPY",
+    "QQQ"
+  ],
+  "detectors": [
+    "selloff_rally",
+    "gap",
+    "options_flow"
+  ],
+  "results": {
+    "selloff_rally": {
+      "date": "2026-03-08",
+      "signals_count": 0,
+      "trades_count": 0,
+      "win_rate": 0,
+      "avg_pnl": 0,
+      "total_pnl": 0,
+      "profit_factor": 0,
+      "sharpe_ratio": 0,
+      "max_drawdown": 0,
+      "signals": [],
+      "trades": []
+    },
+    "gap": {
+      "date": "2026-03-08",
+      "signals_count": 0,
+      "trades_count": 0,
+      "win_rate": 0,
+      "avg_pnl": 0,
+      "total_pnl": 0,
+      "profit_factor": 0,
+      "sharpe_ratio": 0,
+      "max_drawdown": 0,
+      "signals": [],
+      "trades": []
+    }
+  }
+}

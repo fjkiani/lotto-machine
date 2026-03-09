@@ -1,0 +1,417 @@
+---
+description: Trap Matrix — Agentic Architecture for Dynamic Chart Levels
+---
+
+# Trap Matrix — Agentic Architecture Plan
+
+## Core Principle: NO BRUTE FORCE
+
+A single `/charts/{symbol}/levels` endpoint that synchronously fetches from 5+ APIs will:
+- **Timeout** when any API is slow (COT takes ~3s, GEX takes ~2s)
+- **Spam rebuilds** when levels shift 2 points intraday
+- **Serve stale data** when one source fails but others are fine
+- **Miss cadence** — COT is weekly, DP is daily, pivots recalculate at open
+
+The solution is **separation of concerns** — specialized agents that own exactly one data domain each, feeding into an orchestrator that synthesizes and acts.
+
+---
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  ORCHESTRATOR AGENT                  │
+│   TrapMatrixOrchestrator                            │
+│   (decides when to rebuild, what changed, what to   │
+│    prioritize, when to alert you)                   │
+└──────┬──────────┬──────────┬──────────┬─────────────┘
+       │          │          │          │
+       ▼          ▼          ▼          ▼
+  [COT Agent] [Flow    ] [GEX     ] [Pivot  ] [Technical]
+              [Agent   ] [Agent   ] [Agent  ] [Agent    ]
+                                              │
+                                              ▼
+                                    GET /charts/{symbol}/matrix
+                                              │
+                                              ▼
+                                    TradingViewChart.tsx
+                                    (renders levels dynamically)
+```
+
+---
+
+## What We Already Have (Live Agents)
+
+| Agent Role | Client Class | File | Cache TTL | Cadence | Status |
+|-----------|-------------|------|-----------|---------|--------|
+| **COT Agent** | `COTClient` | `live_monitoring/enrichment/apis/cot_client.py` | 3600s (1h) | Weekly Fri 3:30pm | ✅ Live |
+| **Flow Agent** (Dark Pool) | `StockgridClient` | `live_monitoring/enrichment/apis/stockgrid_client.py` | 300s (5m) | Daily after close | ✅ Live |
+| **GEX Agent** | `GEXCalculator` | `live_monitoring/enrichment/apis/gex_calculator.py` | 300s (5m) | Every 5min | ✅ Live |
+| **FedWatch Agent** | `FedWatchDIY` | `live_monitoring/enrichment/apis/fedwatch_diy.py` | — | Weekly | ✅ Live |
+| **Orchestrator** | `KillChainEngine` | `live_monitoring/enrichment/apis/kill_chain_engine.py` | — | On demand | ✅ Live |
+| **Registry** | `LayerRegistry` | `live_monitoring/enrichment/apis/kc_layer_registry.py` | — | — | ✅ Live |
+
+---
+
+## What's Missing (Build These)
+
+| Agent Role | Gap | Priority |
+|-----------|-----|----------|
+| **Pivot Agent** | No pivot calculator (pure math from yfinance HLC) | P0 |
+| **Technical Agent** | No MA50/100/200 SMA/EMA calculator with signal classification | P0 |
+| **Trap Classifier** | No conviction scoring (1–5) based on multi-source confirmation | P0 |
+| **State Differ** | No `should_rebuild()` logic to avoid chart spam | P0 |
+| **Chart State API** | No endpoint that serves the current orchestrated state to the frontend | P0 |
+| **Cadence Controller** | Each agent runs synchronously; need background refresh with TTL-based staleness | P1 |
+
+---
+
+## FinRobot Assessment
+
+**Verdict: Does NOT help for Trap Matrix directly.** Reasons:
+- Its AutoGen layer adds an **OpenAI API key dependency** for something our KillChainEngine already does without LLM calls
+- Its charting is **static PNGs** (mplfinance) — we have interactive TradingView JS
+- It has **zero COT, zero dark pool, zero GEX, zero pivot** data
+- Its agent orchestration requires `pyautogen>=0.2.19` + heavy dependency chain
+
+**What we DO steal:** The `register_toolkits()` pattern concept — exposing our clients as callable tools. We implement this ourselves without AutoGen.
+
+**Proceed with our initial plan using the existing Kill Chain agent infrastructure.**
+
+---
+
+## Each Agent's Exact Job
+
+### 1. COT Agent — `COTClient` (EXISTING)
+- **Cadence:** Friday 3:30pm EST (CFTC releases) — runs once
+- **Source:** CFTC via `cot_reports` package
+- **Job:** Pull /ES non-commercial net position + open interest. Calculate week-over-week change. Flag if specs crossed threshold (net short > 100K, or flipped direction)
+- **Output:**
+```json
+{
+  "contract": "ES",
+  "net_spec": -168200,
+  "open_interest": 2085416,
+  "wow_change": -12400,
+  "signal": "SPEC_TRAP_LOADED",
+  "report_date": "2026-03-03"
+}
+```
+- **Failure mode:** CFTC down → use prior week's cached value, flag as stale
+
+### 2. Flow Agent — `StockgridClient` (EXISTING)
+- **Cadence:** Daily after close + every 60min during market hours
+- **Source:** Stockgrid.io (free, no auth)
+- **Job:** Track dark pool net positions and short volume by symbol. Identify levels with >$500M prints. Flag >$1B as HIGH CONVICTION.
+- **Output:**
+```json
+{
+  "dp_levels": [
+    {"price": 681.5, "volume": 1300000000, "type": "SUPPORT", "strength": "STRONG"},
+    {"price": 685.0, "volume": 800000000, "type": "RESISTANCE", "strength": "MODERATE"}
+  ],
+  "total_volume": 16800000,
+  "short_pct": 57.7,
+  "signal": "DARK_POOL_LOADED",
+  "conviction": "HIGH"
+}
+```
+- **Failure mode:** API down → use last known data, age prints, downgrade conviction
+
+### 3. GEX Agent — `GEXCalculator` (EXISTING)
+- **Cadence:** Every 5 minutes during market hours
+- **Source:** CBOE delayed options API (free, no auth)
+- **Job:** Compute gamma exposure by strike from live options chains. Return gamma walls (positive), negative zones, gamma flip point, max pain.
+- **Output:**
+```json
+{
+  "gamma_walls": [
+    {"strike": 590, "gex": 2500000000, "signal": "RESISTANCE"},
+    {"strike": 580, "gex": 1800000000, "signal": "SUPPORT"}
+  ],
+  "gamma_flip": 585.0,
+  "max_pain": 582.0,
+  "regime": "NEGATIVE",
+  "call_put_ratio": 0.85
+}
+```
+
+### 4. Pivot Agent — `PivotCalculator` (NEW — BUILD THIS)
+- **Cadence:** Daily at 9:25am EST (pre-open) + if price moves >1%
+- **Source:** yfinance prior day OHLC (zero API dependency — pure math)
+- **Job:** Calculate Classic, Fibonacci, and Camarilla pivots from prior day's HLC.
+- **Formulas:**
+```python
+# Classic
+pivot = (H + L + C) / 3
+R1 = 2*pivot - L;  S1 = 2*pivot - H
+R2 = pivot + (H-L);  S2 = pivot - (H-L)
+R3 = H + 2*(pivot-L);  S3 = L - 2*(H-pivot)
+
+# Fibonacci
+R1_fib = pivot + 0.382*(H-L);  S1_fib = pivot - 0.382*(H-L)
+R2_fib = pivot + 0.618*(H-L);  S2_fib = pivot - 0.618*(H-L)
+R3_fib = pivot + 1.000*(H-L);  S3_fib = pivot - 1.000*(H-L)
+
+# Camarilla
+R1_cam = C + 1.1*(H-L)/12;  S1_cam = C - 1.1*(H-L)/12
+R2_cam = C + 1.1*(H-L)/6;   S2_cam = C - 1.1*(H-L)/6
+R3_cam = C + 1.1*(H-L)/4;   S3_cam = C - 1.1*(H-L)/4
+R4_cam = C + 1.1*(H-L)/2;   S4_cam = C - 1.1*(H-L)/2
+```
+- **Output:** Dict with all 21 levels typed
+- **Failure mode:** If prior OHLC unavailable → yfinance fallback → if both fail, serve last known
+
+### 5. Technical Agent — `TechnicalAgent` (NEW — BUILD THIS)
+- **Cadence:** Daily at close + on-demand
+- **Source:** yfinance for MA values, VIX
+- **Job:** Pull MA50/100/200 SMA and EMA values. Compare to current price. Generate BUY/SELL/NEUTRAL signal per MA. Pull VIX, classify regime.
+- **Output:**
+```json
+{
+  "MA200_SMA": {"value": 6890.35, "signal": "SELL"},
+  "MA200_EMA": {"value": 6870.82, "signal": "SELL"},
+  "MA100_SMA": {"value": 6855.51, "signal": "SELL"},
+  "MA100_EMA": {"value": 6842.10, "signal": "SELL"},
+  "MA50_SMA":  {"value": 6780.00, "signal": "SELL"},
+  "MA50_EMA":  {"value": 6775.00, "signal": "SELL"},
+  "VIX": 29.48,
+  "regime": "FEAR"
+}
+```
+
+---
+
+## Orchestrator — `TrapMatrixOrchestrator` (NEW — BUILD THIS)
+
+### When It Wakes Up
+The orchestrator runs after **any sub-agent updates its output**.
+
+### What It Does
+1. **Merge** all agent outputs into one unified `MarketState` object
+2. **Detect changes** — did any trap level shift >10 points? Did COT flip? Did a new $1B+ DP print appear?
+3. **Score conviction** — rate each trap zone 1–5 based on multi-source confirmation
+4. **Classify traps** — Bull Trap, Bear Trap Coil, Ceiling Trap, Liquidity Trap, Death Cross Trap
+5. **Decide action** — rebuild only if HIGH CONVICTION change detected
+
+### Conviction Scoring System (per trap zone)
+
+| Signal | Points |
+|--------|--------|
+| Aligns with pivot level (within ±10 pts) | +1 |
+| COT specs net short > 100K contracts | +1 |
+| Dark pool position > $1B within zone | +1 |
+| Price within 0.5% of level | +1 |
+| MA cluster within 20 points | +1 |
+
+**Score 5/5** = Full conviction — rebuild NOW, alert fires, chart updates  
+**Score 3–4** = Monitor zone — queued for next scheduled rebuild  
+**Score 1–2** = Noise — stored in state but no action taken
+
+### State Diffing — `should_rebuild()`
+
+```python
+def should_rebuild(old_state, new_state):
+    level_shift = any(
+        abs(new_state[k] - old_state[k]) > 10
+        for k in trap_levels
+    )
+    cot_flip = sign(new_state["net_spec"]) != sign(old_state["net_spec"])
+    new_big_print = new_state["max_print_B"] > old_state["max_print_B"] + 0.5
+    gex_flip = new_state["gamma_regime"] != old_state["gamma_regime"]
+    return level_shift or cot_flip or new_big_print or gex_flip
+```
+
+---
+
+## Trap Classification Rules
+
+| Trap Type | Visual | Trigger Conditions |
+|-----------|--------|-------------------|
+| **Bull Trap** | Solid red line + red label | Price above resistance + DP dumps at level + conviction ≥ 3 |
+| **Bear Trap Coil** | Green filled box + green label | Price in zone + COT specs short >100K + DP buying pressure + conviction ≥ 3 |
+| **Ceiling Trap** | Double red lines (price and +5) | 3+ failed tests at resistance + COT specs short + conviction ≥ 4 |
+| **Liquidity Trap** | Yellow dashed line + yellow label | Stop hunt zone + DP off-exchange flip + conviction ≥ 2 |
+| **Death Cross Trap** | Solid red line width=3 | MA50 crossed below MA200 + COT commercials defending + conviction ≥ 4 |
+| **War/Headline Trap** | Purple floating label | VIX regime = FEAR + geopolitical event + conviction ≥ 3 |
+
+---
+
+## Visual Layer System (TradingViewChart.tsx)
+
+Apply in this exact order:
+
+### Layer 1 — MA Lines
+- MA200 SMA: solid red, width=2, label "(SELL)" or "(BUY)"
+- MA200 EMA: dashed red, width=2
+- MA100 SMA: solid orange, width=1
+- MA100 EMA: dashed orange, width=1
+- MA50 SMA: solid blue, width=1
+- MA50 EMA: dashed blue, width=1
+
+### Layer 2 — Pivot Lines
+- Main Pivot: white dotted
+- R1/S1: blue dashed, opacity 40%
+- R2/S2: blue dashed, opacity 60%
+- R3/S3: blue dashed, opacity 75%
+
+### Layer 3 — Trap Levels
+- Bull Trap: solid red line width=2 + red label
+- Bear Trap Coil: green filled zone + green label
+- Ceiling Trap: double red lines width=3 + red label
+- Liquidity Trap: yellow dashed line width=2 + yellow label
+- Death Cross: solid red line width=3 + large red label
+- War/Headline: purple floating label
+
+### Layer 4 — Current Price Marker
+- White label showing: price, trap zone name, COT net position, regime
+
+### Label Text Format
+```
+Line 1: emoji + trap name in caps
+Line 2: one-line institutional narrative
+Line 3: key data point (DP size, COT figure, failed test count)
+```
+
+---
+
+## API Contract
+
+### `GET /api/v1/charts/{symbol}/matrix`
+Returns the orchestrator's current state. Does NOT compute — reads the cached state.
+
+```json
+{
+  "symbol": "SPY",
+  "current_price": 672.38,
+  "timestamp": "2026-03-09T01:30:00Z",
+  "levels": {
+    "dp_levels": [...],
+    "gex_walls": [...],
+    "gamma_flip": 585.0,
+    "max_pain": 582.0,
+    "pivots": {
+      "classic": {"R3":..., "R2":..., "R1":..., "P":..., "S1":..., "S2":..., "S3":...},
+      "fibonacci": {...},
+      "camarilla": {...}
+    },
+    "moving_averages": {
+      "MA200_SMA": {"value": 6890.35, "signal": "SELL"},
+      ...
+    },
+    "vwap": 671.50
+  },
+  "traps": [
+    {
+      "type": "BEAR_TRAP_COIL",
+      "price_min": 670.0,
+      "price_max": 674.0,
+      "conviction": 4,
+      "narrative": "$1.3B dark pool loading | Snap-back incoming",
+      "data_point": "COT: -168K Short",
+      "supporting_sources": ["COT", "DP", "GEX", "PIVOT"]
+    }
+  ],
+  "context": {
+    "cot_net_spec": -168200,
+    "cot_signal": "SPEC_TRAP_LOADED",
+    "gamma_regime": "NEGATIVE",
+    "vix": 29.48,
+    "vix_regime": "FEAR",
+    "alert_level": "RED"
+  },
+  "staleness": {
+    "cot": {"age_hours": 48, "stale": false},
+    "dp": {"age_hours": 2, "stale": false},
+    "gex": {"age_minutes": 5, "stale": false},
+    "pivots": {"computed_for": "2026-03-08", "stale": false},
+    "technicals": {"age_hours": 1, "stale": false}
+  }
+}
+```
+
+### `GET /api/v1/charts/{symbol}/ohlc?timeframe=1d`
+Returns yfinance OHLC candle data for the chart base layer.
+
+---
+
+## Backend Modifications
+
+### [MODIFY] `backend/app/main.py`
+Import orphaned routers: darkpool, signals, gamma, options, squeeze, charts, notifications. Mount under `/api/v1`.
+
+### [MODIFY] `backend/app/api/v1/charts.py`
+Replace dead MOATChartEngine with thin API layer serving orchestrator state:
+- `GET /charts/{symbol}/matrix` → returns `MarketState`
+- `GET /charts/{symbol}/ohlc` → returns yfinance candles
+
+### [MODIFY] `backend/app/api/v1/killchain.py`
+Fix line 105: `calc.calculate()` → `calc.compute_gex()` (the method that exists on GEXCalculator). ✅ DONE
+
+---
+
+## New Files to Build
+
+### [NEW] `live_monitoring/enrichment/apis/pivot_calculator.py`
+Pure math. No external API dependency. Falls back to yfinance for prior day HLC.
+
+### [NEW] `live_monitoring/enrichment/apis/technical_agent.py`
+Calculates MAs + VIX regime from yfinance. No external API.
+
+### [NEW] `live_monitoring/enrichment/apis/trap_matrix_orchestrator.py`
+The brain. Merges all agent outputs, scores conviction, classifies traps, decides rebuild.
+
+---
+
+## Frontend Modifications
+
+### [MODIFY] `frontend/src/components/charts/TradingViewChart.tsx`
+Extend props to accept the full MarketState:
+- MA lines (colored by type, with BUY/SELL labels)
+- Pivot lines (white dotted, blue dashed S/R)
+- Trap zones (colored boxes + labels matching screenshot styling)
+- Conviction badges on each level
+- Current price marker with context (trap zone, COT net, regime)
+
+### [MODIFY] `frontend/src/lib/api.ts`
+Add `chartApi.getMatrix(symbol)` and `chartApi.getOHLC(symbol, timeframe)`
+
+### [MODIFY] `frontend/src/components/charts/ChartTest.tsx`
+Replace hardcoded fake data with real API calls to `/charts/{symbol}/matrix`
+
+---
+
+## Build Order
+
+1. `pivot_calculator.py` (pure math, zero deps, testable standalone)
+2. `technical_agent.py` (yfinance only, testable standalone)
+3. `trap_matrix_orchestrator.py` (merges all agents, conviction scoring, state diffing)
+4. `charts.py` rewrite (thin API serving orchestrator state)
+5. `TradingViewChart.tsx` extension (render traps, MAs, pivots)
+6. `api.ts` + `ChartTest.tsx` wiring
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Run each agent standalone: `python -m pivot_calculator`, `python -m technical_agent`
+- Run orchestrator standalone: `python -m trap_matrix_orchestrator` → verify conviction scoring
+- `curl /api/v1/charts/SPY/matrix` → verify all layers present with staleness flags
+- `curl /api/v1/charts/SPY/ohlc` → verify candle data
+
+### Manual Verification
+- `curl /api/v1/darkpool/SPY/levels` → verify from browser
+- `curl /api/v1/killchain/gex/SPY?as_levels=true` → verify no crash
+- Open frontend chart → confirm trap zones match screenshot visual style
+- Verify levels update when underlying data changes (not on every poll)
+
+---
+
+## Why This Doesn't Break Under Pressure
+
+1. **Each agent is stateless and cacheable** — if the dark pool API is down, you run on last known data with a staleness flag
+2. **Orchestrator owns the rebuild decision** — prevents chart spam when markets are choppy and levels are moving 5 points every hour
+3. **Conviction scoring is the filter** — the system ignores noise by design, only acts on multi-source confirmation
+4. **State diffing prevents unnecessary redraws** — `should_rebuild()` compares old vs new state
+5. **Each agent has its own cadence** — COT runs weekly, pivots daily, GEX every 5min — no single bottleneck

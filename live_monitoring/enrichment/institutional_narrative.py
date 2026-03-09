@@ -6,7 +6,7 @@ Implements the feedback from `.cursor/rules/feedback.mdc`:
 - Detect divergences between institutional flows and mainstream narrative
 - Build an institutional-first narrative with a causal chain and trade hint
 
-V1: Focus on SPY / QQQ using ChartExchange + CryptoCorrelationDetector + yfinance.
+V2: Focus on SPY / QQQ using Stockgrid (dark pool) + CryptoCorrelationDetector + yfinance.
 """
 
 from __future__ import annotations
@@ -56,99 +56,48 @@ def load_institutional_context(symbol: str, date: Optional[str] = None) -> Dict[
         "crypto_correlation": "NEUTRAL",
     }
 
-    # 1) ChartExchange institutional data (if API key present)
-    import os
-
-    api_key: Optional[str] = None
-
-    # Primary: use the same config file the rest of the system uses
+    # 1) Stockgrid institutional data (no API key needed)
     try:
-        from configs.chartexchange_config import CHARTEXCHANGE_API_KEY  # type: ignore
+        from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
 
-        if CHARTEXCHANGE_API_KEY and "your_api_key_here" not in CHARTEXCHANGE_API_KEY:
-            api_key = CHARTEXCHANGE_API_KEY
-            logger.info("Using CHARTEXCHANGE_API_KEY from configs.chartexchange_config.")
-    except Exception:
-        api_key = None
+        sg = StockgridClient()
+        detail = sg.get_ticker_detail(symbol)
 
-    # Fallback: environment variable (e.g. for deployment)
-    if not api_key:
-        env_key = os.getenv("CHARTEXCHANGE_API_KEY")
-        if env_key:
-            api_key = env_key
-            logger.info("Using CHARTEXCHANGE_API_KEY from environment.")
+        # Fallback: search top positions if detail fails
+        if not detail:
+            top = sg.get_top_positions(limit=100)
+            if top:
+                for pos in top:
+                    if pos.ticker == symbol:
+                        detail = pos
+                        break
 
-    if api_key:
-        try:
-            from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
+        if detail:
+            # Stockgrid returns short_volume_pct as 0-1 decimal (e.g. 0.577)
+            # Convert to 0-100 scale for consistency with divergence thresholds
+            raw_pct = detail.short_volume_pct or 0
+            short_vol_pct = raw_pct * 100.0 if raw_pct <= 1.0 else raw_pct
+            dp_dollars = abs(detail.dp_position_dollars or 0)
+            net_short = detail.net_short_dollars or 0
 
-            ce = UltimateChartExchangeClient(api_key=api_key, tier=3)
-            
-            # Dark pool data from LEVELS (aggregated by price level)
-            dp_levels = ce.get_dark_pool_levels(symbol, date)
-            dp_prints = ce.get_dark_pool_prints(symbol, date)
-            
-            # Calculate total DP volume from levels (dicts with 'volume' key)
-            dp_vol = 0
-            if dp_levels:
-                for level in dp_levels:
-                    if isinstance(level, dict) and 'volume' in level:
-                        dp_vol += int(level['volume'])
-            
-            # Calculate total DP volume from prints as backup
-            if dp_vol == 0 and dp_prints:
-                for print_obj in dp_prints:
-                    if isinstance(print_obj, dict) and 'size' in print_obj:
-                        dp_vol += int(print_obj['size'])
-            
-            # Get lit exchange volume (try multiple methods)
-            ex_vols = ce.get_exchange_volume(symbol, date)
-            lit_vol = sum(ev.volume for ev in ex_vols) if ex_vols else 0
-            
-            # If exchange volume API returns 0, estimate from yfinance total volume
-            if lit_vol == 0 and dp_vol > 0:
-                try:
-                    ticker = yf.Ticker(symbol)
-                    hist = ticker.history(period="2d", interval="1d")
-                    if not hist.empty:
-                        total_vol = int(hist["Volume"].iloc[-1])
-                        lit_vol = max(0, total_vol - dp_vol)
-                except Exception:
-                    pass
-            
-            total = dp_vol + lit_vol
-            if total > 0:
-                dp_pct = dp_vol / total * 100.0
-                lit_pct = lit_vol / total * 100.0
-                ctx["dark_pool"]["pct"] = dp_pct
-                ctx["dark_pool"]["volume"] = dp_vol
-                ctx["lit_exchange"]["pct"] = lit_pct
-                ctx["lit_exchange"]["volume"] = lit_vol
-                logger.info(
-                    "📊 DP data: %.1f%% DP (%s shares) vs %.1f%% lit (%s shares)",
-                    dp_pct, f"{dp_vol:,}", lit_pct, f"{lit_vol:,}"
-                )
-            else:
-                ctx["dark_pool"]["pct"] = None
-                ctx["lit_exchange"]["pct"] = None
-                logger.warning("No volume data available for %s on %s", symbol, date)
+            # Map to narrative context format
+            # short_vol_pct (0-100) = institutional dark pool proxy
+            ctx["dark_pool"]["pct"] = short_vol_pct
+            ctx["dark_pool"]["volume"] = dp_dollars
+            ctx["dark_pool"]["net_short_dollars"] = net_short
+            ctx["lit_exchange"]["pct"] = 100.0 - short_vol_pct if short_vol_pct else None
 
-            # Options max pain (currently returns 400, skip for now)
-            try:
-                opt_summary = ce.get_options_chain_summary(symbol, date)
-                if opt_summary:
-                    ctx["max_pain"] = float(opt_summary.max_pain)
-            except Exception as opt_e:
-                logger.debug("Options summary not available: %s", opt_e)
+            logger.info(
+                "📊 Stockgrid DP data: %.1f%% short vol, $%.1fM DP position, $%.1fM net short",
+                short_vol_pct, dp_dollars / 1e6, net_short / 1e6,
+            )
+        else:
+            logger.warning("No Stockgrid data for %s", symbol)
 
-        except Exception as e:
-            logger.error("Error loading ChartExchange context for %s: %s", symbol, e)
-
-    else:
-        logger.warning(
-            "CHARTEXCHANGE_API_KEY not found in configs.chartexchange_config or environment; "
-            "institutional context will be partial."
-        )
+    except ImportError:
+        logger.warning("StockgridClient not available; institutional context will be partial.")
+    except Exception as e:
+        logger.error("Error loading Stockgrid context for %s: %s", symbol, e)
 
     # 2) Price & pct_change (yfinance)
     try:
@@ -368,7 +317,7 @@ class InstitutionalNarrativeSynthesizer:
 def _demo() -> None:
     """
     Simple manual demo:
-        CHARTEXCHANGE_API_KEY=... python -m live_monitoring.enrichment.institutional_narrative
+        python -m live_monitoring.enrichment.institutional_narrative
     """
     import json
 

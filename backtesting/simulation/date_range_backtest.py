@@ -496,6 +496,67 @@ class DateRangeBacktester:
         except Exception as e:
             return {'signals': 0, 'details': [], 'error': str(e)}
     
+    def _convert_dict_signals_to_trades(self, signals: List[Dict], signal_type: str, date_str: str, simulator) -> List[TradeResult]:
+        """Convert detector signals (Dict format) to trades using BaseDetector simulation"""
+        trades = []
+        
+        for sig in signals:
+            symbol = sig.get('symbol')
+            if not symbol or symbol not in self.symbols:
+                continue
+            
+            # Get intraday data for the date
+            data = self._get_historical_data(symbol, date_str)
+            if data.empty:
+                continue
+            
+            # Determine direction
+            action = sig.get('action', 'LONG')
+            if action in ['WATCH_LONG', 'LONG']:
+                direction = 'LONG'
+            elif action in ['SHORT', 'WATCH_SHORT']:
+                direction = 'SHORT'
+            else:
+                continue  # Skip non-actionable signals
+            
+            # Get entry price
+            entry_price = sig.get('entry', sig.get('entry_price', data['Close'].iloc[0]))
+            if entry_price == 0:
+                entry_price = data['Close'].iloc[0]
+            
+            # Calculate stop/target (2% stop, 4% target = 2:1 R/R)
+            if direction == 'LONG':
+                stop_price = entry_price * 0.98
+                target_price = entry_price * 1.04
+            else:
+                stop_price = entry_price * 1.02
+                target_price = entry_price * 0.96
+            
+            # Create Signal object
+            from backtesting.simulation.base_detector import Signal
+            signal = Signal(
+                symbol=symbol,
+                timestamp=data.index[0],
+                signal_type=signal_type,
+                direction=direction,
+                entry_price=entry_price,
+                stop_price=stop_price,
+                target_price=target_price,
+                confidence=sig.get('score', 70),
+                reasoning=f"{signal_type}: {sig.get('signal_type', '')}",
+                metadata=sig
+            )
+            
+            # Simulate trade using BaseDetector
+            try:
+                trade = simulator.simulate_trade(signal, data, 0)
+                if trade:
+                    trades.append(trade)
+            except Exception as e:
+                continue
+        
+        return trades
+    
     def backtest_date(self, date_str: str) -> DailyBacktestResult:
         """Run full backtest for a single date"""
         print(f"\n{'='*60}")
@@ -630,6 +691,58 @@ class DateRangeBacktester:
                 print(f"   ⚠️ No Reddit signals")
         else:
             print(f"   ⚠️ RedditExploiter not loaded")
+        
+        # Convert squeeze/gamma/FTD/reddit signals to trades
+        from backtesting.simulation.selloff_rally_detector import SelloffRallyDetector
+        simulator = SelloffRallyDetector()  # Use as generic simulator
+        
+        # Squeeze trades
+        if result.squeeze and result.squeeze.get('details'):
+            squeeze_trades = self._convert_dict_signals_to_trades(
+                result.squeeze['details'], 'SQUEEZE', date_str, simulator
+            )
+            result.total_trades += len(squeeze_trades)
+            result.total_wins += len([t for t in squeeze_trades if t.outcome == 'WIN'])
+            result.total_losses += len([t for t in squeeze_trades if t.outcome == 'LOSS'])
+            result.total_pnl += sum(t.pnl_pct for t in squeeze_trades)
+            if squeeze_trades:
+                print(f"   💰 {len(squeeze_trades)} squeeze trades | {len([t for t in squeeze_trades if t.outcome == 'WIN'])/len(squeeze_trades)*100:.1f}% WR | {sum(t.pnl_pct for t in squeeze_trades):+.2f}% P&L")
+        
+        # Gamma trades
+        if result.gamma and result.gamma.get('details'):
+            gamma_trades = self._convert_dict_signals_to_trades(
+                result.gamma['details'], 'GAMMA', date_str, simulator
+            )
+            result.total_trades += len(gamma_trades)
+            result.total_wins += len([t for t in gamma_trades if t.outcome == 'WIN'])
+            result.total_losses += len([t for t in gamma_trades if t.outcome == 'LOSS'])
+            result.total_pnl += sum(t.pnl_pct for t in gamma_trades)
+            if gamma_trades:
+                print(f"   💰 {len(gamma_trades)} gamma trades | {len([t for t in gamma_trades if t.outcome == 'WIN'])/len(gamma_trades)*100:.1f}% WR | {sum(t.pnl_pct for t in gamma_trades):+.2f}% P&L")
+        
+        # FTD trades
+        if result.ftd and result.ftd.get('details'):
+            ftd_trades = self._convert_dict_signals_to_trades(
+                result.ftd['details'], 'FTD', date_str, simulator
+            )
+            result.total_trades += len(ftd_trades)
+            result.total_wins += len([t for t in ftd_trades if t.outcome == 'WIN'])
+            result.total_losses += len([t for t in ftd_trades if t.outcome == 'LOSS'])
+            result.total_pnl += sum(t.pnl_pct for t in ftd_trades)
+            if ftd_trades:
+                print(f"   💰 {len(ftd_trades)} FTD trades | {len([t for t in ftd_trades if t.outcome == 'WIN'])/len(ftd_trades)*100:.1f}% WR | {sum(t.pnl_pct for t in ftd_trades):+.2f}% P&L")
+        
+        # Reddit trades
+        if result.reddit and result.reddit.get('details'):
+            reddit_trades = self._convert_dict_signals_to_trades(
+                result.reddit['details'], 'REDDIT', date_str, simulator
+            )
+            result.total_trades += len(reddit_trades)
+            result.total_wins += len([t for t in reddit_trades if t.outcome == 'WIN'])
+            result.total_losses += len([t for t in reddit_trades if t.outcome == 'LOSS'])
+            result.total_pnl += sum(t.pnl_pct for t in reddit_trades)
+            if reddit_trades:
+                print(f"   💰 {len(reddit_trades)} reddit trades | {len([t for t in reddit_trades if t.outcome == 'WIN'])/len(reddit_trades)*100:.1f}% WR | {sum(t.pnl_pct for t in reddit_trades):+.2f}% P&L")
         
         # Aggregate metrics
         if result.selloff_rally:

@@ -1,0 +1,109 @@
+{
+  "timestamp": "2026-03-08T13:12:06.089522",
+  "start_date": "2026-03-03",
+  "end_date": "2026-03-08",
+  "trading_days": 4,
+  "symbols": [
+    "SPY",
+    "QQQ"
+  ],
+  "summary": {
+    "total_signals": 77,
+    "total_trades": 77,
+    "win_rate": 37.66233766233766,
+    "total_pnl": -1.9279243048482813,
+    "avg_daily_pnl": -0.4819810762120703,
+    "max_drawdown": 2.2350644801416824,
+    "sharpe_ratio": -0.7759129739282284,
+    "profit_factor": 0.13741893266270833
+  },
+  "by_signal_type": {
+    "selloff_rally": {
+      "signals": 77,
+      "win_rate": 37.66233766233766,
+      "pnl": -1.9279243048482813
+    },
+    "options_flow": {
+      "signals": 0,
+      "win_rate": 0,
+      "pnl": 0.0
+    },
+    "dark_pool_alerts": 0,
+    "squeeze_candidates": 0
+  },
+  "daily_results": [
+    {
+      "date": "2026-03-03",
+      "market_direction": "DOWN",
+      "market_strength": 92.22548359529372,
+      "vix": 29.489999771118164,
+      "total_signals": 21,
+      "total_trades": 21,
+      "win_rate": 47.61904761904761,
+      "total_pnl": 0.30714017529340104,
+      "selloff_rally": {
+        "signals": 21,
+        "trades": 21,
+        "win_rate": 47.61904761904761,
+        "pnl": 0.30714017529340104
+      }
+    },
+    {
+      "date": "2026-03-04",
+      "market_direction": "DOWN",
+      "market_strength": 92.22548359529372,
+      "vix": 29.489999771118164,
+      "total_signals": 20,
+      "total_trades": 20,
+      "win_rate": 35.0,
+      "total_pnl": -0.7132136607225004,
+      "selloff_rally": {
+        "signals": 20,
+        "trades": 20,
+        "win_rate": 35.0,
+        "pnl": -0.7132136607225004
+      }
+    },
+    {
+      "date": "2026-03-05",
+      "market_direction": "DOWN",
+      "market_strength": 92.22548359529372,
+      "vix": 29.489999771118164,
+      "total_signals": 18,
+      "total_trades": 18,
+      "win_rate": 38.88888888888889,
+      "total_pnl": -0.3573226225956081,
+      "selloff_rally": {
+        "signals": 18,
+        "trades": 18,
+        "win_rate": 38.88888888888889,
+        "pnl": -0.3573226225956081
+      }
+    },
+    {
+      "date": "2026-03-06",
+      "market_direction": "DOWN",
+      "market_strength": 92.22548359529372,
+      "vix": 29.489999771118164,
+      "total_signals": 18,
+      "total_trades": 18,
+      "win_rate": 27.77777777777778,
+      "total_pnl": -1.164528196823574,
+      "selloff_rally": {
+        "signals": 18,
+        "trades": 18,
+        "win_rate": 27.77777777777778,
+        "pnl": -1.164528196823574
+      }
+    }
+  ],
+  "validation": {
+    "passed": false,
+    "notes": [
+      "\u2705 77 trades (meets minimum)",
+      "\u274c Win rate 37.7% < 50.0%",
+      "\u2705 Max DD 2.24% (within limits)",
+      "\u274c Unprofitable: -1.93%"
+    ]
+  }
+}

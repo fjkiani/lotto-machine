@@ -1,0 +1,113 @@
+---
+description: "Kill Chain Dashboard frontend architecture — modular component breakdown, API data contracts, and display patterns for the 5-layer intelligence engine."
+alwaysApply: false
+---
+
+# Kill Chain Dashboard — Frontend Architecture
+
+## Current State
+`frontend/src/components/widgets/KillChainDashboard.tsx` is a 259-line monolith that dumps all 5 layers as raw text summaries. Needs to be broken into modular, individually-scalable components.
+
+## API Endpoint
+`GET /api/v1/killchain/scan` — returns full 5-layer scan (~1.3s)
+Auto-refresh: 60s polling (via `useKillChainData` hook)
+
+## Target Component Tree
+```
+KillChainDashboard (orchestrator — fetches data, passes typed props to children)
+├── KillChainAlertBanner        — full-width GREEN/YELLOW/RED strip
+├── KillChainMismatchList       — stacked RED/YELLOW mismatch cards  
+├── FedWatchCard                — rate probability table (meetings × hold/cut/hike)
+├── DarkPoolCard                — top positions bar chart ($B)
+├── COTCard                     — specs vs commercials opposing bars + divergence badge
+├── GEXCard                     — gamma regime badge + walls at strike prices
+├── SEC13FCard                  — institutional filings list
+└── useKillChainData (hook)     — shared fetch + state + polling logic
+```
+Each card → `components/widgets/killchain/<Name>.tsx`
+
+## Data Contracts (TypeScript)
+
+### FedWatch
+```typescript
+interface FedWatchData {
+  current_rate: number;
+  current_range: [number, number];
+  source: string;
+  summary: string;
+  next_meeting: {
+    date: string; label: string; days_away: number;
+    p_hold: number; p_cut_25: number; p_hike_25: number;
+    cumulative_bps: number; implied_rate: number;
+    post_meeting_rate: number; delta_bps: number;
+  };
+}
+```
+
+### Dark Pool
+```typescript
+interface DarkPoolData {
+  spy_position_dollars: number;
+  spy_short_vol_pct: number;
+  spy_net_short_dollars: number;
+  top_positions: Array<{
+    ticker: string;
+    dp_position_dollars: number;
+    short_vol_pct: number;
+  }>;
+}
+```
+
+### COT
+```typescript
+interface COTData {
+  specs_net: number;           // negative = SHORT
+  comm_net: number;            // positive = LONG
+  open_interest: number;
+  report_date: string;
+  divergence: { divergent: boolean; magnitude: number; description: string; };
+}
+```
+
+### GEX
+```typescript
+interface GEXData {
+  spot_price: number;
+  total_gex: number;           // negative = dealers amplify
+  gamma_regime: string;        // "NEGATIVE" | "POSITIVE"
+  gamma_flip: number;
+  max_pain: number;
+  gamma_walls: Array<{ strike: number; gex: number; signal: string; }>;
+  negative_zones: Array<{ strike: number; gex: number; }>;
+}
+```
+
+### 13F
+```typescript
+interface SEC13FData {
+  filings: Array<{ fund: string; filing_date: string; form_type: string; }>;
+}
+```
+
+## Display Patterns
+- **FedWatch**: Table rows = meetings, columns = Hold% / Cut% / Hike% as stacked bars
+- **Dark Pool**: Horizontal bar chart of top positions ($B), red above 50% short vol
+- **COT**: Two opposing horizontal bars (specs vs commercials), divergence badge
+- **GEX**: Regime badge (pulse animation), gamma wall strikes as mini chart, feeds `gammaWalls` prop to `TradingViewChart`
+- **13F**: Simple list (fund name, filing date, form)
+
+## Rules
+1. Each card is a pure presentational component — **no internal fetching**
+2. Parent (`KillChainDashboard`) passes strictly typed props
+3. `useKillChainData` hook owns all fetch/polling/error logic
+4. Cards handle `null` data gracefully (skeleton/shimmer state)
+5. Don't orphan existing widgets — additive only
+6. GEX walls integrate with `TradingViewChart.tsx` via existing `gammaWalls` prop
+
+## Priority Order
+1. `useKillChainData` hook (extract from monolith)
+2. `GEXCard` (most actionable — wired to chart)
+3. `COTCard` (divergence = key alpha signal)
+4. `FedWatchCard` (meeting dates table)
+5. `DarkPoolCard` (positions bar chart)
+6. `SEC13FCard` (simplest — just a list)

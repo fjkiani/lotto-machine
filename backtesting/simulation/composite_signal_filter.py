@@ -233,8 +233,8 @@ class CompositeSignalFilter:
             enhanced.confidence_level = ConfidenceLevel.LOW
         
         # ADJUST TRADE PARAMS based on DP levels
-        enhanced.adjusted_stop = signal.stop_loss
-        enhanced.adjusted_target = signal.target
+        enhanced.adjusted_stop = signal.stop_price
+        enhanced.adjusted_target = signal.target_price
         
         if enhanced.dp_confluence and enhanced.dp_level:
             # Use DP level as stop (with buffer)
@@ -245,10 +245,10 @@ class CompositeSignalFilter:
                 enhanced.adjusted_stop = enhanced.dp_level * (1 + buffer)
         
         # Calculate R/R
-        if signal.entry and enhanced.adjusted_stop:
-            risk = abs(signal.entry - enhanced.adjusted_stop)
+        if signal.entry_price and enhanced.adjusted_stop:
+            risk = abs(signal.entry_price - enhanced.adjusted_stop)
             if risk > 0:
-                reward = abs(enhanced.adjusted_target - signal.entry) if enhanced.adjusted_target else risk * 2
+                reward = abs(enhanced.adjusted_target - signal.entry_price) if enhanced.adjusted_target else risk * 2
                 enhanced.adjusted_rr = reward / risk
             else:
                 enhanced.adjusted_rr = 0
@@ -408,8 +408,8 @@ class CompositeSignalFilter:
         
         for sig in tradeable:
             base = sig.base_signal
-            report.append(f"\n   [{sig.confidence_level.value}] {base.signal_type.value}")
-            report.append(f"   Entry: ${base.entry:.2f} | Stop: ${sig.adjusted_stop:.2f} | Target: ${sig.adjusted_target:.2f}")
+            report.append(f"\n   [{sig.confidence_level.value}] {base.signal_type}")
+            report.append(f"   Entry: ${base.entry_price:.2f} | Stop: ${sig.adjusted_stop:.2f} | Target: ${sig.adjusted_target:.2f}")
             report.append(f"   R/R: {sig.adjusted_rr:.1f}:1 | Composite Score: {sig.composite_score:.0%}")
             report.append(f"   ✅ {', '.join(sig.enhancement_reasons)}")
         
@@ -419,7 +419,7 @@ class CompositeSignalFilter:
             report.append(f"\n❌ REJECTED SIGNALS: {len(rejected)}")
             for sig in rejected[:5]:  # Show first 5
                 base = sig.base_signal
-                report.append(f"   [{sig.confidence_level.value}] {base.signal_type.value}: {', '.join(sig.rejection_reasons)}")
+                report.append(f"   [{sig.confidence_level.value}] {base.signal_type}: {', '.join(sig.rejection_reasons)}")
         
         return "\n".join(report)
 

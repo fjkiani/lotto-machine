@@ -1,0 +1,19 @@
+name: Keep Render Backend Alive
+
+on:
+  schedule:
+    # Run every 10 minutes to prevent the 15-minute Render free tier spin-down
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allows manual triggering from the GitHub Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Services
+        run: |
+          echo "Pinging lotto-machine.onrender.com..."
+          curl -sS https://lotto-machine.onrender.com/health || echo "Failed to reach lotto-machine"
+          
+          echo "Pinging alpha-intelligence-monitor.onrender.com..."
+          curl -sS https://alpha-intelligence-monitor.onrender.com/health || echo "Failed to reach alpha-intelligence-monitor"

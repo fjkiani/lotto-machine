@@ -12,7 +12,7 @@ Goal (from narrative-master-strategy.mdc):
 This is V1:
 - Uses PerplexitySearchClient (real-time web narrative)
 - Uses CryptoCorrelationDetector (BTC/ETH vs SPY)
-- Uses UltimateChartExchangeClient (institutional overlay) if API key present
+- Uses StockgridClient (institutional overlay) for dark pool data
 - Does NOT yet use a real EventLoader (stub only), but is structured to add it.
 """
 
@@ -51,6 +51,10 @@ from live_monitoring.enrichment.pipeline.institutional_loader import (
     load_institutional_context,
     detect_divergences,
     synthesize_institutional_narrative,
+)
+from live_monitoring.enrichment.pipeline.news_aggregator import (
+    aggregate_news,
+    NarrativeSource as AggNarrativeSource,
 )
 
 logger = logging.getLogger(__name__)
@@ -331,7 +335,7 @@ def market_narrative_pipeline(symbol: str, date: Optional[str] = None,
     - Uses EventLoader for economic calendar + surprise scoring
     - Uses Perplexity for macro/sector/asset + BTC vs equities
     - Uses CryptoCorrelationDetector for structured crypto risk regime
-    - Integrates institutional overlay from ChartExchange
+    - Integrates institutional overlay from Stockgrid dark pool data
     - Logs all outputs to logs/narratives/{DATE}/ for review
     
     Args:
@@ -396,8 +400,8 @@ def market_narrative_pipeline(symbol: str, date: Optional[str] = None,
     # 3) Institutional context (dark pool, max pain, etc.)
     inst_ctx = load_institutional_context(symbol, trading_date_str, crypto_regime)
 
-    # 4) Build and run Perplexity queries (modularized)
-    # Build price summary to anchor Perplexity to REAL direction
+    # 4) Multi-source news aggregation (RSS + Perplexity + Finnhub)
+    # Builds price summary to anchor narrative to REAL direction
     price_summary = ""
     if daily_move["pct_change"] is not None and daily_move["close"] is not None:
         dir_word = {
@@ -407,19 +411,27 @@ def market_narrative_pipeline(symbol: str, date: Optional[str] = None,
             f"{symbol} closed {dir_word} {daily_move['pct_change']:.2f}% at "
             f"${daily_move['close']:.2f} on {trading_date_str}. "
         )
-    
-    queries = build_perplexity_queries(symbol, trading_date_str, inst_ctx)
-    # Prepend price summary to first query for factual anchoring
-    if queries and price_summary:
-        queries[0] = price_summary + queries[0]
-    
-    pplx_narratives = run_perplexity_queries(queries)
-    
-    macro_narr = pplx_narratives.get("macro", "")
-    sector_narr = pplx_narratives.get("sector", "")
-    asset_narr = pplx_narratives.get("asset", "")
-    cross_asset_narr = pplx_narratives.get("cross", "")
-    uniq_sources = pplx_narratives.get("sources", [])
+
+    news_data = aggregate_news(
+        symbol=symbol,
+        date=trading_date_str,
+        inst_ctx=inst_ctx,
+        price_summary=price_summary,
+    )
+
+    macro_narr = news_data.get("macro", "")
+    sector_narr = news_data.get("sector", "")
+    asset_narr = news_data.get("asset", "")
+    cross_asset_narr = news_data.get("cross_asset", "")
+    # Convert NarrativeSource types
+    raw_sources = news_data.get("sources", [])
+    uniq_sources = []
+    for s in raw_sources:
+        if isinstance(s, NarrativeSource):
+            uniq_sources.append(s)
+        elif hasattr(s, 'url') and hasattr(s, 'snippet'):
+            uniq_sources.append(NarrativeSource(url=s.url, snippet=s.snippet))
+    news_sentiment = news_data.get("news_sentiment", "NEUTRAL")
 
     # 5) Build causal chain & meta labels (very simple V1 logic)
     overall_direction = "NEUTRAL"
@@ -443,6 +455,17 @@ def market_narrative_pipeline(symbol: str, date: Optional[str] = None,
         risk_env = "RISK_ON"
         conviction = "HIGH"
         duration = "MULTI_DAY"
+    elif news_sentiment == "BEARISH":
+        # RSS sentiment as fallback when Perplexity is empty
+        overall_direction = "BEARISH"
+        risk_env = "RISK_OFF"
+        conviction = "MEDIUM"
+        duration = "INTRADAY"
+    elif news_sentiment == "BULLISH":
+        overall_direction = "BULLISH"
+        risk_env = "RISK_ON"
+        conviction = "MEDIUM"
+        duration = "INTRADAY"
 
     # Use crypto regime as tie-breaker
     if crypto_regime:
@@ -495,7 +518,7 @@ def market_narrative_pipeline(symbol: str, date: Optional[str] = None,
     # Pass trading_date to inst_ctx for divergence detection
     inst_ctx["date"] = trading_date_str
     
-    divergences_result = detect_divergences(symbol, inst_ctx, pplx_narratives)
+    divergences_result = detect_divergences(symbol, inst_ctx, news_data)
     divergences = divergences_result["detected"]
     
     # Log institutional stats

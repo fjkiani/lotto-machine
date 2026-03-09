@@ -1,0 +1,397 @@
+{
+  "timestamp": "2026-01-04T19:33:06.442216",
+  "start_date": "2025-11-05",
+  "end_date": "2025-12-04",
+  "trading_days": 22,
+  "symbols": [
+    "SPY",
+    "QQQ"
+  ],
+  "summary": {
+    "total_signals": 0,
+    "total_trades": 0,
+    "win_rate": 0.0,
+    "total_pnl": 0.0,
+    "avg_daily_pnl": 0.0,
+    "max_drawdown": 0,
+    "sharpe_ratio": 0,
+    "profit_factor": Infinity
+  },
+  "by_signal_type": {
+    "selloff_rally": {
+      "signals": 0,
+      "win_rate": 0,
+      "pnl": 0.0
+    },
+    "options_flow": {
+      "signals": 0,
+      "win_rate": 0,
+      "pnl": 0.0
+    },
+    "dark_pool_alerts": 4,
+    "squeeze_candidates": 0
+  },
+  "daily_results": [
+    {
+      "date": "2025-11-05",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-06",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-07",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-10",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-11",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-12",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-13",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-14",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-17",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-18",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-19",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-20",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-21",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-24",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-25",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-26",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-27",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-11-28",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-12-01",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-12-02",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-12-03",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    },
+    {
+      "date": "2025-12-04",
+      "market_direction": "CHOP",
+      "market_strength": 70,
+      "vix": 14.510000228881836,
+      "total_signals": 0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0.0,
+      "selloff_rally": {
+        "signals": 0,
+        "trades": 0,
+        "win_rate": 0,
+        "pnl": 0
+      }
+    }
+  ],
+  "validation": {
+    "passed": false,
+    "notes": [
+      "\u274c Only 0 trades (need 10+)",
+      "\u274c Win rate 0.0% < 50.0%",
+      "\u2705 Max DD 0.00% (within limits)",
+      "\u274c Unprofitable: +0.00%"
+    ]
+  }
+}

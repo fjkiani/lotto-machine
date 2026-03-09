@@ -2,24 +2,73 @@
 Dark Pool Flow API Endpoints
 
 Provides dark pool levels, summaries, and recent prints for frontend widgets.
+
+Data source: StockgridClient (free, no auth, proven in Kill Chain Engine).
+NO MOCK FALLBACKS — if data is unavailable the endpoint raises HTTP 503.
 """
 
 import logging
 from typing import List, Optional
-from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, Query, Depends
+from datetime import datetime
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
-
-from backend.app.core.dependencies import get_monitor_bridge
-from backend.app.integrations.unified_monitor_bridge import MonitorBridge
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# ---------------------------------------------------------------------------
+# Shared client instance (lazy init)
+# ---------------------------------------------------------------------------
+
+_stockgrid = None
+
+
+def _get_stockgrid():
+    """Get or create StockgridClient singleton."""
+    global _stockgrid
+    if _stockgrid is None:
+        try:
+            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
+            _stockgrid = StockgridClient(cache_ttl=300)
+        except ImportError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"StockgridClient import failed: {e}"
+            )
+    return _stockgrid
+
+
+def _get_current_price(symbol: str) -> float:
+    """Get current price via yfinance. Raises 503 if unavailable."""
+    try:
+        import yfinance as yf
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period="1d", interval="1m")
+        if hist.empty:
+            # Fallback to daily
+            hist = ticker.history(period="5d")
+        if hist.empty:
+            raise HTTPException(
+                status_code=503,
+                detail=f"No price data available for {symbol}"
+            )
+        return float(hist["Close"].iloc[-1])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to fetch price for {symbol}: {e}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Pydantic models
+# ---------------------------------------------------------------------------
 
 class DPLevel(BaseModel):
-    """Dark Pool Level"""
+    """A single dark pool price level."""
     price: float
     volume: int
     level_type: str = Field(..., description="SUPPORT, RESISTANCE, or BATTLEGROUND")
@@ -28,7 +77,7 @@ class DPLevel(BaseModel):
 
 
 class DPPrint(BaseModel):
-    """Dark Pool Print"""
+    """A single dark pool trade print."""
     price: float
     volume: int
     side: str = Field(..., description="BUY or SELL")
@@ -36,25 +85,24 @@ class DPPrint(BaseModel):
 
 
 class DPSummary(BaseModel):
-    """Dark Pool Summary"""
+    """Aggregated dark pool summary."""
     total_volume: int
-    dp_percent: float = Field(..., ge=0, le=100, description="Dark pool percentage")
-    buying_pressure: float = Field(..., ge=0, le=100, description="Buying pressure 0-100")
+    dp_percent: float = Field(..., ge=0, le=100)
+    buying_pressure: float = Field(..., ge=0, le=100)
     nearest_support: Optional[DPLevel] = None
     nearest_resistance: Optional[DPLevel] = None
     battlegrounds: List[DPLevel] = Field(default_factory=list)
 
 
 class DPLevelsResponse(BaseModel):
-    """Dark Pool Levels Response"""
     symbol: str
     levels: List[DPLevel]
     current_price: float
+    date: str
     timestamp: datetime
 
 
 class DPPrintsResponse(BaseModel):
-    """Dark Pool Prints Response"""
     symbol: str
     prints: List[DPPrint]
     count: int
@@ -62,284 +110,215 @@ class DPPrintsResponse(BaseModel):
 
 
 class DPSummaryResponse(BaseModel):
-    """Dark Pool Summary Response"""
     symbol: str
     summary: DPSummary
     timestamp: datetime
 
 
+# ---------------------------------------------------------------------------
+# Routes — powered by Stockgrid (free, no auth, real data)
+# ---------------------------------------------------------------------------
+
 @router.get("/darkpool/{symbol}/levels", response_model=DPLevelsResponse)
-async def get_dp_levels(
-    symbol: str,
-    monitor_bridge: MonitorBridge = Depends(get_monitor_bridge)
-):
+async def get_dp_levels(symbol: str):
     """
-    Get dark pool levels for a symbol.
-    
-    Returns support, resistance, and battleground levels with volumes.
+    Get dark pool levels for a symbol from Stockgrid.
+
+    Uses top dark pool positions to derive support/resistance levels.
+    Raises HTTP 503 if the data source is unavailable.
     """
+    symbol = symbol.upper()
+    sg = _get_stockgrid()
+    current_price = _get_current_price(symbol)
+
     try:
-        # Get current price
-        current_price = await _get_current_price(symbol, monitor_bridge)
-        
-        # Get dark pool levels from monitor
-        levels = await _fetch_dp_levels(symbol, monitor_bridge)
-        
-        # Calculate distance from current price
-        for level in levels:
-            if level.get('price') and current_price:
-                level['distance_from_price'] = abs(level['price'] - current_price)
-        
-        # Sort by volume (descending)
-        levels_sorted = sorted(levels, key=lambda x: x.get('volume', 0), reverse=True)
-        
-        # Convert to DPLevel models
-        dp_levels = [
-            DPLevel(
-                price=level['price'],
-                volume=level['volume'],
-                level_type=level.get('type', 'UNKNOWN'),
-                strength=level.get('strength', 50.0),
-                distance_from_price=level.get('distance_from_price')
-            )
-            for level in levels_sorted
-            if level.get('price') and level.get('volume')
-        ]
-        
-        return DPLevelsResponse(
-            symbol=symbol.upper(),
-            levels=dp_levels,
-            current_price=current_price or 0.0,
-            timestamp=datetime.now()
-        )
-        
+        # Get ticker detail from Stockgrid
+        detail = sg.get_ticker_detail(symbol)
+        top_positions = sg.get_top_positions(limit=20)
     except Exception as e:
-        logger.error(f"Error fetching DP levels for {symbol}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch DP levels: {str(e)}")
+        logger.error(f"Stockgrid DP levels call failed for {symbol}: {e}")
+        raise HTTPException(status_code=502, detail=f"Stockgrid error: {e}")
+
+    if not detail and not top_positions:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No dark pool data for {symbol} from Stockgrid"
+        )
+
+    # Build levels from top positions (tickers with largest DP activity)
+    dp_levels = []
+    max_vol = max((abs(int(p.dp_position_shares)) for p in top_positions), default=1) or 1
+
+    for pos in top_positions:
+        if not pos.dp_position_dollars:
+            continue
+
+        # Derive implied price from position dollars / shares
+        implied_price = abs(pos.dp_position_dollars / pos.dp_position_shares) if pos.dp_position_shares else 0
+        if not implied_price:
+            continue
+
+        vol = abs(int(pos.dp_position_shares))
+        strength = round(min(100.0, (vol / max_vol) * 100), 1)
+
+        # Classify based on short volume %
+        if pos.short_volume_pct > 0.55:
+            level_type = "RESISTANCE"
+        elif pos.short_volume_pct < 0.45:
+            level_type = "SUPPORT"
+        else:
+            level_type = "BATTLEGROUND"
+
+        dp_levels.append(DPLevel(
+            price=round(implied_price, 2),
+            volume=vol,
+            level_type=level_type,
+            strength=strength,
+            distance_from_price=round(abs(implied_price - current_price), 4) if pos.ticker == symbol else None,
+        ))
+
+    # If the symbol itself has detail data, add it as a primary level
+    if detail and detail.dp_position_dollars:
+        implied = abs(detail.dp_position_dollars / detail.dp_position_shares) if detail.dp_position_shares else current_price
+        short_pct = detail.short_volume_pct or 0
+        if short_pct > 0.55:
+            lt = "RESISTANCE"
+        elif short_pct < 0.45:
+            lt = "SUPPORT"
+        else:
+            lt = "BATTLEGROUND"
+
+        dp_levels.insert(0, DPLevel(
+            price=round(implied, 2),
+            volume=abs(int(detail.dp_position_shares or 0)),
+            level_type=lt,
+            strength=100.0,
+            distance_from_price=0.0,
+        ))
+
+    dp_levels.sort(key=lambda x: x.volume, reverse=True)
+    date_str = detail.date if detail else (top_positions[0].date if top_positions else "")
+
+    return DPLevelsResponse(
+        symbol=symbol,
+        levels=dp_levels[:20],
+        current_price=current_price,
+        date=date_str,
+        timestamp=datetime.now(),
+    )
 
 
 @router.get("/darkpool/{symbol}/summary", response_model=DPSummaryResponse)
-async def get_dp_summary(
-    symbol: str,
-    monitor_bridge: MonitorBridge = Depends(get_monitor_bridge)
-):
+async def get_dp_summary(symbol: str):
     """
-    Get dark pool summary for a symbol.
-    
-    Returns aggregated statistics including total volume, DP%, buying pressure,
-    and nearest support/resistance levels.
+    Get aggregated dark pool summary for a symbol from Stockgrid.
     """
+    symbol = symbol.upper()
+    sg = _get_stockgrid()
+    current_price = _get_current_price(symbol)
+
     try:
-        # Get levels
-        levels_response = await get_dp_levels(symbol, monitor_bridge)
-        levels = levels_response.levels
-        current_price = levels_response.current_price
-        
-        # Get summary data from monitor
-        summary_data = await _fetch_dp_summary(symbol, monitor_bridge)
-        
-        # Find nearest support and resistance
-        nearest_support = None
-        nearest_resistance = None
-        battlegrounds = []
-        
-        for level in levels:
-            if level.level_type == 'SUPPORT' and level.price < current_price:
-                if nearest_support is None or level.price > nearest_support.price:
-                    nearest_support = level
-            elif level.level_type == 'RESISTANCE' and level.price > current_price:
-                if nearest_resistance is None or level.price < nearest_resistance.price:
-                    nearest_resistance = level
-            elif level.level_type == 'BATTLEGROUND':
-                battlegrounds.append(level)
-        
-        # Build summary
-        summary = DPSummary(
-            total_volume=summary_data.get('total_volume', sum(l.volume for l in levels)),
-            dp_percent=summary_data.get('dp_percent', 0.0),
-            buying_pressure=summary_data.get('buying_pressure', 50.0),
-            nearest_support=nearest_support,
-            nearest_resistance=nearest_resistance,
-            battlegrounds=battlegrounds[:5]  # Top 5 battlegrounds
-        )
-        
-        return DPSummaryResponse(
-            symbol=symbol.upper(),
-            summary=summary,
-            timestamp=datetime.now()
-        )
-        
+        detail = sg.get_ticker_detail(symbol)
+        top_positions = sg.get_top_positions(limit=20)
     except Exception as e:
-        logger.error(f"Error fetching DP summary for {symbol}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch DP summary: {str(e)}")
+        logger.error(f"Stockgrid DP summary call failed for {symbol}: {e}")
+        raise HTTPException(status_code=502, detail=f"Stockgrid error: {e}")
+
+    # Try to find the symbol in top positions if detail is None
+    if not detail and top_positions:
+        for pos in top_positions:
+            if pos.ticker == symbol:
+                detail = pos
+                break
+
+    if not detail and not top_positions:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No dark pool data for {symbol} from Stockgrid"
+        )
+
+    # Derive buying pressure from short volume %
+    short_pct = (detail.short_volume_pct if detail else 0.5) or 0.5
+    buying_pressure = round((1 - short_pct) * 100, 1)
+
+    total_volume = abs(int((detail.short_volume if detail else 0) or (detail.dp_position_shares if detail else 0) or 0))
+    dp_position = abs((detail.dp_position_dollars if detail else 0) or 0)
+
+    # DP % (short volume % from Stockgrid)
+    dp_percent = round(short_pct * 100, 1)
+
+    summary = DPSummary(
+        total_volume=total_volume,
+        dp_percent=dp_percent,
+        buying_pressure=buying_pressure,
+        nearest_support=None,
+        nearest_resistance=None,
+        battlegrounds=[],
+    )
+
+    return DPSummaryResponse(
+        symbol=symbol,
+        summary=summary,
+        timestamp=datetime.now(),
+    )
 
 
 @router.get("/darkpool/{symbol}/prints", response_model=DPPrintsResponse)
 async def get_dp_prints(
     symbol: str,
     limit: int = Query(10, ge=1, le=50, description="Number of recent prints to return"),
-    monitor_bridge: MonitorBridge = Depends(get_monitor_bridge)
 ):
     """
-    Get recent dark pool prints for a symbol.
-    
-    Returns the most recent dark pool trades (prints).
+    Get recent dark pool activity for a symbol from Stockgrid.
+
+    Note: Stockgrid provides daily aggregates, not individual prints.
+    We transform the top positions into a print-like format.
     """
+    symbol = symbol.upper()
+    sg = _get_stockgrid()
+
     try:
-        # Get prints from monitor
-        prints = await _fetch_dp_prints(symbol, monitor_bridge, limit)
-        
-        # Convert to DPPrint models
-        dp_prints = [
-            DPPrint(
-                price=print_data['price'],
-                volume=print_data['volume'],
-                side=print_data.get('side', 'BUY'),
-                timestamp=datetime.fromisoformat(print_data['timestamp'].replace('Z', '+00:00'))
-                if isinstance(print_data.get('timestamp'), str)
-                else print_data.get('timestamp', datetime.now())
-            )
-            for print_data in prints
-            if print_data.get('price') and print_data.get('volume')
-        ]
-        
-        # Sort by timestamp (most recent first)
-        dp_prints.sort(key=lambda x: x.timestamp, reverse=True)
-        
-        return DPPrintsResponse(
-            symbol=symbol.upper(),
-            prints=dp_prints[:limit],
-            count=len(dp_prints),
-            timestamp=datetime.now()
+        detail = sg.get_ticker_detail(symbol)
+        top = sg.get_top_positions(limit=limit, sort_by="Net Short Volume $")
+    except Exception as e:
+        logger.error(f"Stockgrid DP prints call failed for {symbol}: {e}")
+        raise HTTPException(status_code=502, detail=f"Stockgrid error: {e}")
+
+    dp_prints = []
+
+    # Add the target symbol's detail as a "print"
+    if detail and detail.dp_position_dollars:
+        side = "SELL" if (detail.short_volume_pct or 0) > 0.5 else "BUY"
+        dp_prints.append(DPPrint(
+            price=round(abs(detail.dp_position_dollars / detail.dp_position_shares), 2) if detail.dp_position_shares else 0,
+            volume=abs(int(detail.short_volume or detail.dp_position_shares or 0)),
+            side=side,
+            timestamp=datetime.now(),
+        ))
+
+    # Add top net-short positions as context prints
+    for pos in top:
+        if pos.ticker == symbol:
+            continue  # Already added above
+        if not pos.dp_position_dollars or not pos.dp_position_shares:
+            continue
+        side = "SELL" if (pos.short_volume_pct or 0) > 0.5 else "BUY"
+        dp_prints.append(DPPrint(
+            price=round(abs(pos.dp_position_dollars / pos.dp_position_shares), 2),
+            volume=abs(int(pos.short_volume or pos.dp_position_shares or 0)),
+            side=side,
+            timestamp=datetime.now(),
+        ))
+
+    if not dp_prints:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No dark pool prints for {symbol} from Stockgrid"
         )
-        
-    except Exception as e:
-        logger.error(f"Error fetching DP prints for {symbol}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch DP prints: {str(e)}")
 
-
-# Helper functions
-
-async def _get_current_price(symbol: str, monitor_bridge: MonitorBridge) -> Optional[float]:
-    """Get current price for symbol"""
-    try:
-        if monitor_bridge.monitor:
-            # Try to get from monitor's data fetcher
-            data = await monitor_bridge.monitor.data_fetcher.fetch_quote(symbol)
-            if data and hasattr(data, 'price'):
-                return float(data.price)
-            elif isinstance(data, dict) and 'price' in data:
-                return float(data['price'])
-    except Exception as e:
-        logger.warning(f"Could not fetch current price for {symbol}: {e}")
-    
-    # Fallback: return None (frontend can handle)
-    return None
-
-
-async def _fetch_dp_levels(symbol: str, monitor_bridge: MonitorBridge) -> List[dict]:
-    """Fetch dark pool levels from monitor"""
-    try:
-        if monitor_bridge.monitor:
-            # Try to get from dark pool checker
-            dp_checker = getattr(monitor_bridge.monitor, 'dark_pool_checker', None)
-            if dp_checker:
-                # Get levels from checker
-                context = await dp_checker.check(symbol)
-                if context and hasattr(context, 'dp_levels'):
-                    levels = context.dp_levels
-                    return [
-                        {
-                            'price': level.price if hasattr(level, 'price') else level.get('price'),
-                            'volume': level.volume if hasattr(level, 'volume') else level.get('volume', 0),
-                            'type': level.type if hasattr(level, 'type') else level.get('type', 'UNKNOWN'),
-                            'strength': level.strength if hasattr(level, 'strength') else level.get('strength', 50.0)
-                        }
-                        for level in levels
-                    ]
-    except Exception as e:
-        logger.warning(f"Could not fetch DP levels from monitor for {symbol}: {e}")
-    
-    # Fallback: return mock data for development
-    return _generate_mock_dp_levels(symbol)
-
-
-async def _fetch_dp_summary(symbol: str, monitor_bridge: MonitorBridge) -> dict:
-    """Fetch dark pool summary from monitor"""
-    try:
-        if monitor_bridge.monitor:
-            # Try to get from dark pool checker
-            dp_checker = getattr(monitor_bridge.monitor, 'dark_pool_checker', None)
-            if dp_checker:
-                context = await dp_checker.check(symbol)
-                if context:
-                    return {
-                        'total_volume': getattr(context, 'total_dp_volume', 0),
-                        'dp_percent': getattr(context, 'dp_percent', 0.0),
-                        'buying_pressure': getattr(context, 'buying_pressure', 50.0)
-                    }
-    except Exception as e:
-        logger.warning(f"Could not fetch DP summary from monitor for {symbol}: {e}")
-    
-    # Fallback: return mock data
-    return {
-        'total_volume': 1000000,
-        'dp_percent': 45.0,
-        'buying_pressure': 60.0
-    }
-
-
-async def _fetch_dp_prints(symbol: str, monitor_bridge: MonitorBridge, limit: int) -> List[dict]:
-    """Fetch dark pool prints from monitor"""
-    try:
-        if monitor_bridge.monitor:
-            # Try to get from dark pool checker
-            dp_checker = getattr(monitor_bridge.monitor, 'dark_pool_checker', None)
-            if dp_checker:
-                context = await dp_checker.check(symbol)
-                if context and hasattr(context, 'recent_prints'):
-                    prints = context.recent_prints
-                    return [
-                        {
-                            'price': p.price if hasattr(p, 'price') else p.get('price'),
-                            'volume': p.volume if hasattr(p, 'volume') else p.get('volume', 0),
-                            'side': p.side if hasattr(p, 'side') else p.get('side', 'BUY'),
-                            'timestamp': p.timestamp if hasattr(p, 'timestamp') else p.get('timestamp', datetime.now())
-                        }
-                        for p in prints[:limit]
-                    ]
-    except Exception as e:
-        logger.warning(f"Could not fetch DP prints from monitor for {symbol}: {e}")
-    
-    # Fallback: return mock data
-    return _generate_mock_dp_prints(symbol, limit)
-
-
-def _generate_mock_dp_levels(symbol: str) -> List[dict]:
-    """Generate mock DP levels for development/testing"""
-    base_price = 500.0 if symbol.upper() == 'SPY' else 400.0
-    
-    return [
-        {'price': base_price - 5.0, 'volume': 2500000, 'type': 'SUPPORT', 'strength': 85.0},
-        {'price': base_price - 2.5, 'volume': 1500000, 'type': 'SUPPORT', 'strength': 70.0},
-        {'price': base_price, 'volume': 5000000, 'type': 'BATTLEGROUND', 'strength': 90.0},
-        {'price': base_price + 2.5, 'volume': 1800000, 'type': 'RESISTANCE', 'strength': 75.0},
-        {'price': base_price + 5.0, 'volume': 3000000, 'type': 'RESISTANCE', 'strength': 80.0},
-    ]
-
-
-def _generate_mock_dp_prints(symbol: str, limit: int) -> List[dict]:
-    """Generate mock DP prints for development/testing"""
-    base_price = 500.0 if symbol.upper() == 'SPY' else 400.0
-    prints = []
-    
-    for i in range(limit):
-        prints.append({
-            'price': base_price + (i * 0.5) - (limit * 0.25),
-            'volume': 100000 + (i * 50000),
-            'side': 'BUY' if i % 2 == 0 else 'SELL',
-            'timestamp': datetime.now() - timedelta(minutes=limit - i)
-        })
-    
-    return prints
-
+    return DPPrintsResponse(
+        symbol=symbol,
+        prints=dp_prints[:limit],
+        count=len(dp_prints),
+        timestamp=datetime.now(),
+    )

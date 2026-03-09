@@ -1,0 +1,297 @@
+---
+description: "Full A-Z system wiring audit + Kill Chain / backend modularization plan. Source of truth for what is wired vs orphaned, and what needs to be built or fixed."
+alwaysApply: false
+---
+
+# Alpha Terminal — Full System Audit & Backend Modularization Plan
+
+> Last Updated: 2026-03-08 | Based on: ZETA_MASTER_PLAN.mdc + alpha-terminal-frontend-plan.mdc + full codebase grep
+
+---
+
+## Part 1: A-Z Wiring Audit — Backend Routes vs Frontend Consumers
+
+### Frontend API Registry (`frontend/src/lib/api.ts`)
+
+```typescript
+const API_URL = VITE_API_URL || 'http://localhost:8000/api/v1';
+```
+
+All widgets resolve to this base. Routes not using `api.ts` use raw `fetch()` with hardcoded paths.
+
+---
+
+### Route-by-Route Audit
+
+| Backend File | Routes Exposed | Frontend Consumer | Status |
+|---|---|---|---|
+| `killchain.py` | `POST /killchain/scan` | `KillChainDashboard.tsx` line 106 | ✅ **WIRED** |
+| `darkpool.py` | `GET /darkpool/{symbol}/levels` | `DarkPoolFlow.tsx` line 62 | ✅ **WIRED** |
+| `darkpool.py` | `GET /darkpool/{symbol}/summary` | `DarkPoolFlow.tsx` line 69 | ✅ **WIRED** |
+| `darkpool.py` | `GET /darkpool/{symbol}/prints` | `DarkPoolFlow.tsx` line 75 | ✅ **WIRED** |
+| `gamma.py` | `GET /gamma/{symbol}` | `GammaTracker.tsx` line 47 | ✅ **WIRED** |
+| `squeeze.py` | `GET /squeeze/scan` | `SqueezeScanner.tsx` line 78 | ✅ **WIRED** |
+| `squeeze.py` | `GET /squeeze/{symbol}` | `SqueezeScanner.tsx` (detail modal) | ✅ **WIRED** |
+| `health.py` | `GET /health/checkers` | `SystemHealth.tsx` via `healthApi.getCheckers()` | ✅ **WIRED** |
+| `health.py` | `GET /health/checkers/{name}` | `healthApi.getChecker(name)` in `api.ts` | ⚠️ **API EXISTS, widget doesn't call it** |
+| `health.py` | `GET /health/summary` | `healthApi.getSummary()` in `api.ts` | ⚠️ **API EXISTS, no widget calls it** |
+| `options.py` | `GET /options/{symbol}/flow` | `OptionsFlow.tsx` line 82 | ✅ **WIRED** |
+| `signals.py` | `GET /signals` | `SignalsCenter.tsx` via `signalsApi.getAll()` | ✅ **WIRED** |
+| `signals.py` | `GET /signals/master` | `SignalsCenter.tsx` via `signalsApi.getMaster()` | ✅ **WIRED** |
+| `signals.py` | `GET /signals/divergence` | `SignalsCenter.tsx` via `dpApi.getDivergenceSignals()` | ⚠️ **WIRED via dpApi, but route may not exist in signals.py** |
+| `market.py` | `GET /market/context` | `MarketRegime.tsx` via `marketApi.getContext()` | ✅ **WIRED** |
+| `market.py` | `GET /market/{symbol}/quote` | `api.ts` `marketApi.getQuote()` | ⚠️ **API EXISTS, no widget calls it** |
+| `market.py` | `GET /market/{symbol}/candles` | `api.ts` `marketApi.getCandles()` | ⚠️ **API EXISTS, no widget calls it** |
+| `agents.py` | `POST /agents/{name}/analyze` | `api.ts` `agentsApi.analyze()` | ❌ **ORPHANED — nothing calls this** |
+| `agents.py` | `GET /agents/narrative/current` | `api.ts` `agentsApi.getNarrative()` | ❌ **ORPHANED — NarrativeBrain.tsx doesn't call API** |
+| `agents.py` | `POST /agents/narrative/ask` | `api.ts` `agentsApi.askNarrative()` | ❌ **ORPHANED — nothing calls this** |
+| `dp.py` | `GET /dp/edge-stats` | `api.ts` `dpApi.getEdgeStats()` | ❌ **ORPHANED — DPEdgeDashboard.tsx doesn't call API** |
+| `dp.py` | `GET /dp/interactions/recent` | `api.ts` `dpApi.getRecentInteractions()` | ❌ **ORPHANED — no widget calls** |
+| `charts.py` | Unknown | No widget imports | ❌ **ORPHANED** |
+| `websocket.py` | `WS /websocket/signals` | `SqueezeScanner.tsx` lines 177, 206 | ✅ **WIRED** |
+
+---
+
+### Orphan Summary
+
+**❌ Fully Orphaned Routes (backend exists, nothing calls them):**
+- `agents.py` — all 3 routes
+- `dp.py` — all DP Edge routes (`/dp/edge-stats`, `/dp/interactions/recent`)
+- `charts.py` — entire file
+- `market.py` — `/market/{symbol}/quote`, `/market/{symbol}/candles`
+- `health.py` — `/health/checkers/{name}`, `/health/summary`
+
+**⚠️ Partially Wired (defined in api.ts but no widget actually consumes):**
+- `dpApi.getEdgeStats()` — used by `DPEdgeDashboard.tsx` but that widget has no data call (renders static)
+- `dpApi.getDivergenceSignals()` — `SignalsCenter.tsx` calls `/signals/divergence` which may not exist in `signals.py`
+- `marketApi.getQuote()`, `marketApi.getCandles()` — defined but `MarketOverview.tsx` is only 64 lines with no API call
+
+**⚠️ Widget exists but doesn't call backend:**
+- `NarrativeBrain.tsx` — widget exists, renders nothing, no API call
+- `DPEdgeDashboard.tsx` — widget exists (10KB), no API call despite `dpApi` being defined
+- `MarketOverview.tsx` — 64 lines, no API call
+
+---
+
+### Frontend Widget Inventory (11 widgets)
+
+| Widget | API Connected | Backend Route |
+|---|---|---|
+| `KillChainDashboard.tsx` | ✅ Yes | `/killchain/scan` |
+| `DarkPoolFlow.tsx` | ✅ Yes | `/darkpool/{symbol}/levels,summary,prints` |
+| `GammaTracker.tsx` | ✅ Yes | `/gamma/{symbol}` |
+| `SqueezeScanner.tsx` | ✅ Yes | `/squeeze/scan` + WebSocket |
+| `OptionsFlow.tsx` | ✅ Yes | `/options/{symbol}/flow` |
+| `SignalsCenter.tsx` | ✅ Yes | `/signals`, `/signals/master`, `/signals/divergence` |
+| `SystemHealth.tsx` | ✅ Yes | `/health/checkers` |
+| `MarketRegime.tsx` | ✅ Yes | `/market/context` |
+| `NarrativeBrain.tsx` | ❌ No | None |
+| `DPEdgeDashboard.tsx` | ❌ No | `/dp/edge-stats` defined but not called |
+| `MarketOverview.tsx` | ❌ No | None |
+
+---
+
+## Part 2: Backend Data Quality Gaps (from ZETA_MASTER_PLAN.mdc + code audit)
+
+These are **documented in the ZETA plan** as known gaps — the backend routes exist but the underlying signal logic has holes:
+
+### Signal Generator Gaps (`live_monitoring/core/signal_generator.py`)
+
+| Gap | Where | WR Impact | Status |
+|---|---|---|---|
+| **OrderFlowImbalance never called** | `volume_profile.py:260` method exists, `signal_generator.py` has zero usage | Estimated +5% | ❌ Not wired |
+| **RegimeConfidence adjustment missing** | `RegimeDetector` class exists, no `adjust_strategy_for_regime()` | Estimated +3% | ❌ Not wired |
+| **Time-of-Day adjustment missing** | `PriceActionFilter` detects it, no `adjust_for_time_of_day()` in signal gen | Estimated +2% | ❌ Not wired |
+| **DP confluence for Selloff/Rally** | `SelloffRallyDetector` doesn't check DP levels | Expected +10% WR | ❌ Not wired |
+| **DP confluence for Options Flow** | `RapidAPIOptionsDetector` doesn't check DP levels | Expected +15% WR | ❌ Not wired |
+
+### Route Internal Quality Gaps
+
+| Route | Gap | Severity |
+|---|---|---|
+| `darkpool.py` | Falls back to **mock data** when `dp_checker` doesn't expose `.dp_levels` attr | 🔴 HIGH — likely always returning mock |
+| `gamma.py` | Falls back to mock data; `gamma_checker.check(symbol)` is async but called with `await` on a checker that may be sync | 🟡 MEDIUM |
+| `squeeze.py` | Requires `monitor.opportunity_scanner` — unclear if MonitorBridge actually initializes this | 🟡 MEDIUM |
+| `signals.py` | `/signals/divergence` — check if this route actually exists in `signals.py` | 🔴 HIGH — `SignalsCenter` calls it |
+| `market.py` | `/market/context` calls `MarketContextDetector` — verify it's initialized in bridge | 🟡 MEDIUM |
+
+---
+
+## Part 3: Kill Chain Engine Modularization Plan
+
+### kill_chain_engine.py Audit (484 lines)
+
+#### Hardcoded Values to Extract
+
+| Location | Value | Problem |
+|---|---|---|
+| `_fetch_dark_pool` L189 | `"SPY"` | Only scans SPY |
+| `_fetch_cot` L212-213 | `"ES"` | Only scans E-mini S&P |
+| `_fetch_gex` L232 | `"SPX"` | Only scans SPX |
+| `_fetch_13f` L260 | `["Bridgewater", "Soros", "Berkshire"]` | Fixed fund list |
+| `_fetch_dark_pool` L190 | `limit=5` | Fixed top-N count |
+| `_fetch_gex` L241-245 | `[:5]`, `[:3]` | Fixed wall/zone limits |
+| `__init__` L148 | `cache_ttl=300` | Hardcoded TTL |
+| `__init__` L151 | `cache_ttl=3600` | Hardcoded TTL |
+| `_detect_mismatches` L334 | `-100000` | Specs "heavy short" threshold |
+| `_detect_mismatches` L353 | `20e9` | DP "heavy" threshold ($20B) |
+| `_detect_mismatches` L383 | `50` | Short volume % threshold |
+
+#### DRY Violations
+
+1. **Import fallback boilerplate** (lines 30-91): Same try/except + fallback import pattern copied 5 times
+2. **Fetcher guard pattern**: Every `_fetch_*` starts with identical null check + try/except
+3. **Narrative key stripping**: Done in engine (L481) AND API (L60) — duplicated
+4. **Layer name list**: Hardcoded as `["fedwatch","dark_pool","cot","gex","sec_13f"]` in 4+ locations
+
+#### Scalability Gaps
+
+1. Sequential fetching — all 5 layers run one-by-one
+2. No scan-level cache — every `/killchain/scan` hits all 5 APIs fresh
+3. No per-layer timeout — one slow layer blocks full scan
+4. No symbol parameterization — can't scan AAPL/QQQ, only SPY/SPX/ES
+5. Mismatch rules hardcoded — adding new rules requires engine edits
+
+---
+
+### Proposed Files
+
+| File | Action | Contents |
+|---|---|---|
+| `kill_chain_config.py` | **NEW** | Config dataclass with all extracted constants |
+| `kill_chain_engine.py` | **MODIFY** | Consume config, DRY imports, guard decorator, optional parallel |
+| `killchain.py` (API) | **MODIFY** | Remove hardcoded `5`, consume engine config |
+
+### Config Extraction (`kill_chain_config.py`)
+
+```python
+from dataclasses import dataclass, field
+from typing import List
+
+@dataclass
+class KillChainConfig:
+    # Symbols
+    dark_pool_tickers: List[str] = field(default_factory=lambda: ["SPY"])
+    cot_contract: str = "ES"
+    gex_symbol: str = "SPX"
+    tracked_funds: List[str] = field(default_factory=lambda: [
+        "Bridgewater Associates", "Soros Fund Management", "Berkshire Hathaway"
+    ])
+
+    # Limits
+    dark_pool_top_n: int = 5
+    gex_wall_limit: int = 5
+    gex_neg_zone_limit: int = 3
+
+    # Cache TTL (seconds)
+    short_ttl: int = 300      # dark pool, gex
+    long_ttl: int = 3600      # cot, 13f
+
+    # Mismatch thresholds
+    specs_heavy_short: int = -100_000
+    dark_pool_heavy_usd: float = 20e9
+    short_vol_pct_threshold: float = 50.0
+
+    # Scan
+    scan_timeout_per_layer: int = 10
+    fetch_parallel: bool = False
+```
+
+### DRY Import Registry
+
+```python
+LAYER_REGISTRY = {
+    "fedwatch":  ("live_monitoring.enrichment.apis.fedwatch_diy",    "FedWatchEngine"),
+    "dark_pool": ("live_monitoring.enrichment.apis.stockgrid_client", "StockgridClient"),
+    "cot":       ("live_monitoring.enrichment.apis.cot_client",       "COTClient"),
+    "gex":       ("live_monitoring.enrichment.apis.gex_calculator",   "GEXCalculator"),
+    "sec_13f":   ("live_monitoring.enrichment.apis.sec_13f_client",   "SEC13FClient"),
+}
+```
+
+### Fetcher Guard Decorator
+
+```python
+from functools import wraps
+
+def layer_fetch(layer_name: str):
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(self, *a, **kw):
+            if layer_name not in self._clients:
+                return None
+            try:
+                return fn(self, *a, **kw)
+            except Exception as e:
+                logger.error(f"❌ {layer_name} layer failed: {e}")
+                return None
+        return wrapper
+    return decorator
+
+@layer_fetch("fedwatch")
+def _fetch_fedwatch(self): ...
+
+@layer_fetch("dark_pool")
+def _fetch_dark_pool(self): ...
+```
+
+### Declarative Mismatch Rules
+
+```python
+MISMATCH_RULES = [
+    {
+        "name": "FedWatch Hold + Specs Heavy Short",
+        "requires": ["fedwatch", "cot"],
+        "severity": "RED",
+        "check": lambda r, cfg: (
+            "hold" in str(r.get("fedwatch", {}).get("summary", "")).lower()
+            and r.get("cot", {}).get("specs_net", 0) < cfg.specs_heavy_short
+        ),
+    },
+    {
+        "name": "Negative Gamma + Dark Pool Positioned",
+        "requires": ["gex", "dark_pool"],
+        "severity": "ORANGE",
+        "check": lambda r, cfg: (
+            r.get("gex", {}).get("regime") == "NEGATIVE"
+            and r.get("dark_pool", {}).get("top_positions", [])
+        ),
+    },
+    # Add new rules here without touching engine code
+]
+```
+
+---
+
+## Part 4: Priority Action List
+
+### Immediate (0–2 days) — Fix Orphaned + Mock Issues
+
+| Priority | Task | File |
+|---|---|---|
+| 🔴 P0 | Verify `/signals/divergence` route exists in `signals.py` | `backend/app/api/v1/signals.py` |
+| 🔴 P0 | Wire `NarrativeBrain.tsx` to `agentsApi.getNarrative()` | `frontend/src/components/widgets/NarrativeBrain.tsx` |
+| 🔴 P0 | Wire `DPEdgeDashboard.tsx` to `dpApi.getEdgeStats()` | `frontend/src/components/widgets/DPEdgeDashboard.tsx` |
+| 🟡 P1 | Replace mock fallback in `darkpool.py` with `UltimateChartExchangeClient` direct call | `backend/app/api/v1/darkpool.py` |
+| 🟡 P1 | Wire `MarketOverview.tsx` to `marketApi.getQuote()` | `frontend/src/components/widgets/MarketOverview.tsx` |
+
+### Short-Term (3–7 days) — Signal Quality Gaps
+
+| Priority | Task | Expected WR Gain |
+|---|---|---|
+| 🔴 P0 | Wire `OrderFlowImbalance` from `volume_profile.py` into `signal_generator._apply_master_filters()` | +5% |
+| 🔴 P0 | Add `adjust_strategy_for_regime()` to `RegimeDetector` → call in signal gen | +3% |
+| 🟡 P1 | Add DP confluence check to `SelloffRallyDetector` | +10% |
+| 🟡 P1 | Add DP confluence check to `RapidAPIOptionsDetector` | +15% |
+| 🟢 P2 | Add `adjust_for_time_of_day()` to signal generator | +2% |
+
+### Medium-Term (1–2 weeks) — Modularization
+
+| Priority | Task |
+|---|---|
+| 🟡 P1 | Create `kill_chain_config.py` and extract all hardcoded values |
+| 🟡 P1 | Replace 60-line import boilerplate with `LAYER_REGISTRY` |
+| 🟡 P1 | Apply `@layer_fetch` decorator to all 5 fetcher methods |
+| 🟢 P2 | Externalize `MISMATCH_RULES` to declarative format |
+| 🟢 P2 | Add scan-level caching to `run_full_scan` (Redis or in-memory TTL) |
+| 🟢 P2 | Optional parallel fetching via `ThreadPoolExecutor` (config-gated) |

@@ -1,0 +1,45 @@
+{
+  "timestamp": "2026-01-04T19:09:56.714123",
+  "dates": [
+    "2025-12-29",
+    "2025-12-30",
+    "2025-12-31",
+    "2026-01-01",
+    "2026-01-02"
+  ],
+  "original": {
+    "total_trades": 46,
+    "wins": 21,
+    "losses": 25,
+    "timeouts": 0,
+    "win_rate": 45.65217391304348,
+    "total_pnl": 0.37284050185294165,
+    "avg_pnl": 0.008105228301150905,
+    "avg_win": 0.13836504429816093,
+    "avg_loss": -0.1013130171363375,
+    "profit_factor": 1.1472033949403395
+  },
+  "filtered": {
+    "total_trades": 23,
+    "wins": 11,
+    "losses": 12,
+    "timeouts": 0,
+    "win_rate": 47.82608695652174,
+    "total_pnl": 0.7162473884318626,
+    "avg_pnl": 0.031141190801385332,
+    "avg_win": 0.14096303687219905,
+    "avg_loss": -0.06952883476352724,
+    "profit_factor": 1.8584536555563285
+  },
+  "improvement": {
+    "win_rate_change": 2.173913043478265,
+    "pnl_change": 0.343406886578921,
+    "trade_reduction": 23,
+    "trade_reduction_pct": 50.0
+  },
+  "filters_applied": {
+    "disable_rally": true,
+    "disable_long": true,
+    "disable_morning": true
+  }
+}
