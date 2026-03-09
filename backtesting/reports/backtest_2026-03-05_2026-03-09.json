@@ -1,0 +1,298 @@
+{
+  "timestamp_generated": "2026-03-09T12:54:44.987657",
+  "backtest_period": {
+    "start": "2026-03-05",
+    "end": "2026-03-09",
+    "days_tested": 3
+  },
+  "aggregate_performance": {
+    "total_signals": 48,
+    "total_trades": 24,
+    "total_wins": 6,
+    "total_losses": 18,
+    "win_rate": 25.0,
+    "net_pnl_pct": -2.569187788793885,
+    "total_mission_wallet_usd": 0
+  },
+  "daily_breakdown": [
+    {
+      "date": "2026-03-05",
+      "market_direction": "DOWN",
+      "vix": 23.75,
+      "total_signals": 18,
+      "total_trades": 10,
+      "total_wins": 2,
+      "total_losses": 8,
+      "win_rate": 20.0,
+      "total_pnl": -1.3110675501609903,
+      "trades": [
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry_price": 685.0999755859375,
+          "exit_price": 683.7297756347656,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry_price": 680.8200073242188,
+          "exit_price": 682.1816473388672,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry_price": 680.25,
+          "exit_price": 680.5499877929688,
+          "pnl_pct": -0.044099638804667406,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry_price": 681.344970703125,
+          "exit_price": 679.9822807617187,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry_price": 677.47998046875,
+          "exit_price": 676.5349731445312,
+          "pnl_pct": 0.13948859766526198,
+          "outcome": "WIN",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry_price": 677.4400024414062,
+          "exit_price": 677.3599853515625,
+          "pnl_pct": 0.01181168657820305,
+          "outcome": "WIN",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry_price": 676.469970703125,
+          "exit_price": 677.27001953125,
+          "pnl_pct": -0.11826819559978792,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry_price": 676.0,
+          "exit_price": 677.352,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry_price": 678.3599853515625,
+          "exit_price": 679.7167053222656,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry_price": 681.8499755859375,
+          "exit_price": 685.1011962890625,
+          "pnl_pct": -0.3,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        }
+      ]
+    },
+    {
+      "date": "2026-03-06",
+      "market_direction": "DOWN",
+      "vix": 29.489999771118164,
+      "total_signals": 16,
+      "total_trades": 8,
+      "total_wins": 1,
+      "total_losses": 7,
+      "win_rate": 12.5,
+      "total_pnl": -0.9906802902275578,
+      "trades": [
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry_price": 671.0800170898438,
+          "exit_price": 672.4221771240234,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry_price": 674.0800170898438,
+          "exit_price": 672.731857055664,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry_price": 675.25,
+          "exit_price": 673.8995,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry_price": 675.1699829101562,
+          "exit_price": 673.8196429443359,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry_price": 673.7899780273438,
+          "exit_price": 675.1375579833984,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry_price": 675.0999755859375,
+          "exit_price": 674.48779296875,
+          "pnl_pct": -0.0906802902275578,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry_price": 675.4299926757812,
+          "exit_price": 674.0791326904297,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry_price": 673.4199829101562,
+          "exit_price": 671.3997229614258,
+          "pnl_pct": 0.3,
+          "outcome": "WIN",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        }
+      ]
+    },
+    {
+      "date": "2026-03-09",
+      "market_direction": "DOWN",
+      "vix": 26.829999923706055,
+      "total_signals": 14,
+      "total_trades": 6,
+      "total_wins": 3,
+      "total_losses": 3,
+      "win_rate": 50.0,
+      "total_pnl": -0.26743994840533747,
+      "trades": [
+        {
+          "symbol": "SPY",
+          "direction": "SHORT",
+          "entry_price": 663.3699951171875,
+          "exit_price": 664.6967351074219,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry_price": 665.2999877929688,
+          "exit_price": 663.9693878173828,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry_price": 668.1900024414062,
+          "exit_price": 669.530029296875,
+          "pnl_pct": 0.20054578047750082,
+          "outcome": "WIN",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry_price": 669.7899780273438,
+          "exit_price": 668.4503980712891,
+          "pnl_pct": -0.2,
+          "outcome": "LOSS",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry_price": 669.97998046875,
+          "exit_price": 670.5700073242188,
+          "pnl_pct": 0.08806634118469316,
+          "outcome": "WIN",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        },
+        {
+          "symbol": "SPY",
+          "direction": "LONG",
+          "entry_price": 671.2100219726562,
+          "exit_price": 671.5050048828125,
+          "pnl_pct": 0.04394792993246859,
+          "outcome": "WIN",
+          "narrative_conviction": "LOW",
+          "narrative_thesis": "No narrative available."
+        }
+      ]
+    }
+  ]
+}

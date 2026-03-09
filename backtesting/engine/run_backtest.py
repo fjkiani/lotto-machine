@@ -73,6 +73,7 @@ class MultiDayBacktester:
         total_wins = sum(r.get('total_wins', 0) for r in results)
         total_losses = sum(r.get('total_losses', 0) for r in results)
         total_pnl = sum(r.get('total_pnl', 0) for r in results)
+        total_donation = sum(r.get('performance', {}).get('mission_wallet_donation_usd', 0) for r in results)
         
         win_rate = (total_wins / total_trades * 100) if total_trades > 0 else 0
         
@@ -89,7 +90,8 @@ class MultiDayBacktester:
                 "total_wins": total_wins,
                 "total_losses": total_losses,
                 "win_rate": win_rate,
-                "net_pnl_pct": total_pnl
+                "net_pnl_pct": total_pnl,
+                "total_mission_wallet_usd": total_donation
             },
             "daily_breakdown": results
         }
@@ -104,6 +106,7 @@ class MultiDayBacktester:
         print(f"🏆 BACKTEST COMPLETE: {start_date} to {end_date}")
         print(f"   Win Rate : {win_rate:.1f}% ({total_wins}W / {total_losses}L)")
         print(f"   Net P&L  : {total_pnl:+.2f}%")
+        print(f"   🩸 Wallet: ${total_donation:,.2f} Donated")
         print(f"💾 Report saved to: {filepath}")
         print(f"{'='*70}")
 

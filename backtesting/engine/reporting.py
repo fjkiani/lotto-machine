@@ -40,7 +40,8 @@ class ReplayReporter:
                 "total_wins": results.get("total_wins", 0),
                 "total_losses": results.get("total_losses", 0),
                 "win_rate": results.get("win_rate", 0),
-                "total_pnl": results.get("total_pnl", 0)
+                "total_pnl": results.get("total_pnl", 0),
+                "mission_wallet_donation_usd": max(0, results.get("total_pnl", 0) * 0.5 * 100) # Assuming $100 per 1% point for simulation
             },
             "trade_log": results.get("trades", [])
         }
@@ -55,12 +56,16 @@ class ReplayReporter:
         """
         Prints a concise console summary.
         """
+        total_pnl = results.get('total_pnl', 0)
+        donation = max(0, total_pnl * 0.5 * 100) 
+        
         print("\n📈 REPLAY SUMMARY")
         print("-" * 40)
         print(f"Signals Evaluated : {results.get('total_signals', 0)}")
         print(f"Trades Executed   : {results.get('total_trades', 0)}")
         print(f"Win Rate          : {results.get('win_rate', 0):.1f}%")
-        print(f"Net P&L           : {results.get('total_pnl', 0):+.2f}%")
+        print(f"Net P&L           : {total_pnl:+.2f}%")
+        print(f"🩸 Mission Wallet : ${donation:,.2f} Donated")
         
         trades = results.get('trades', [])
         if trades:

@@ -68,6 +68,11 @@ class SessionReplayer:
                         entry_idx = _find_bar_idx(data, signal.timestamp)
                         if entry_idx is not None:
                             trade = detector.simulate_trade(signal, data, entry_idx)
+                            
+                            # Attach Narrative context to the trade for reporting
+                            trade._narrative_thesis = narrative.get("thesis", "No narrative available.")
+                            trade._narrative_conviction = narrative.get("conviction", "NONE")
+                            
                             all_trades.append(trade)
                             
                 except Exception as e:
@@ -101,7 +106,9 @@ class SessionReplayer:
                     "entry_price": t.signal.entry_price,
                     "exit_price": t.exit_price,
                     "pnl_pct": t.pnl_pct,
-                    "outcome": t.outcome
+                    "outcome": t.outcome,
+                    "narrative_conviction": getattr(t, '_narrative_conviction', 'NONE'),
+                    "narrative_thesis": getattr(t, '_narrative_thesis', '')
                 } 
                 for t in trades
             ]
