@@ -199,29 +199,91 @@ class PaperTradeScheduler:
             logger.error(f"Calendar scrape failed: {e}")
             return []
     
-    def _poll_for_release(self, target_keyword, max_wait_min=60, poll_interval=60):
-        """Poll TE for a specific release until actual appears."""
+    def _poll_for_release(self, target_keyword, max_wait_min=90, poll_interval=45):
+        """Poll TE for a specific release until actual appears.
+        
+        Uses TWO detection methods:
+        1. ReleaseDetector.check_for_releases() (preferred — runs SurpriseEngine)
+        2. Direct TE scraper fallback (if detector dedup misses it)
+        
+        Housing monitor died on 2026-03-10 because TE connection reset at 9:05 AM
+        killed polling during the critical window.
+        """
         detector = self._get_detector()
-        if not detector:
-            return None
         
         start = time.time()
+        consecutive_errors = 0
+        
         while time.time() - start < max_wait_min * 60:
+            # Method 1: Try ReleaseDetector (runs full SurpriseEngine pipeline)
+            if detector:
+                try:
+                    alerts = detector.check_for_releases()
+                    for alert in alerts:
+                        if target_keyword.lower() in alert.event_name.lower():
+                            logger.info(f"🎯 DETECTED via ReleaseDetector: {alert.event_name} — {alert.signal}")
+                            consecutive_errors = 0
+                            return alert
+                except Exception as e:
+                    consecutive_errors += 1
+                    logger.error(f"ReleaseDetector error ({consecutive_errors}): {e}")
+            
+            # Method 2: Direct scraper fallback (in case detector dedup skips it)
             try:
-                alerts = detector.check_for_releases()
-                for alert in alerts:
-                    if target_keyword.lower() in alert.event_name.lower():
-                        logger.info(f"🎯 DETECTED: {alert.event_name} — {alert.signal}")
-                        return alert
+                from live_monitoring.enrichment.apis.te_calendar_scraper import TECalendarScraper
+                scraper = TECalendarScraper()
+                today = scraper.get_today()
+                for event in today:
+                    if target_keyword.lower() in event.event.lower() and event.actual and event.actual.strip():
+                        logger.info(f"🎯 DETECTED via direct scraper: {event.event} = {event.actual}")
+                        # Build a manual alert-like object
+                        return self._build_alert_from_event(event)
+                consecutive_errors = 0
             except Exception as e:
-                logger.error(f"Poll error: {e}")
+                consecutive_errors += 1
+                logger.error(f"Direct scraper error ({consecutive_errors}): {e}")
+                # On connection errors, back off more
+                if consecutive_errors >= 3:
+                    logger.warning(f"⚠️ {consecutive_errors} consecutive errors — backing off 120s")
+                    time.sleep(120)
+                    continue
             
             elapsed = int(time.time() - start)
-            logger.info(f"⏳ Waiting for {target_keyword}... ({elapsed}s)")
+            logger.info(f"⏳ Waiting for {target_keyword}... ({elapsed}s, errors={consecutive_errors})")
             time.sleep(poll_interval)
         
         logger.warning(f"⚠️ {target_keyword} not detected within {max_wait_min} min")
         return None
+    
+    def _build_alert_from_event(self, event):
+        """Build a minimal alert object from a raw TE event (fallback path)."""
+        from live_monitoring.enrichment.apis.surprise_engine import SurpriseEngine
+        
+        engine = SurpriseEngine()
+        
+        # Parse values
+        def parse_val(s):
+            if not s: return None
+            s = s.strip().replace(',', '').replace('M', '').replace('K', '').replace('%', '')
+            try: return float(s)
+            except: return None
+        
+        actual = parse_val(event.actual)
+        consensus = parse_val(event.consensus) or parse_val(event.forecast)
+        
+        if actual is None or consensus is None:
+            logger.warning(f"Cannot parse values: actual={event.actual}, consensus={event.consensus}")
+            return None
+        
+        # Run through engine
+        result = engine.compute(
+            event_name=event.event,
+            actual=actual,
+            consensus=consensus,
+        )
+        
+        logger.info(f"🔧 Fallback alert built: {event.event} → {result.signal} ({result.surprise_pct:+.2f}%)")
+        return result
     
     def _process_alert(self, alert, release_time_str):
         """Process a detected alert: wait for 30m bar, log, send to Discord."""

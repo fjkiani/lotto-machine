@@ -1,0 +1,28 @@
+[
+  {
+    "timestamp": "2026-03-10T10:00:00-04:00",
+    "event": "Existing Home Sales FEB",
+    "actual": "4.09M",
+    "consensus": "3.89M",
+    "surprise_pct": 5.14,
+    "signal": "HAWKISH_STRONG",
+    "confidence": 0.85,
+    "directions": {
+      "SPY": "\u2191",
+      "TLT": "\u2193"
+    },
+    "category": "housing",
+    "vix_pre": 23.44,
+    "macro_filtered": false,
+    "spy_open": 675.15,
+    "spy_30m_pct": 0.48,
+    "tlt_30m_pct": null,
+    "pred_spy": "\u2191",
+    "correct": true,
+    "note": "manually_recovered \u2014 local monitor died from TE connection reset at 09:05 AM ET",
+    "actual_parsed": 4.09,
+    "consensus_parsed": 3.89,
+    "spy_10_00": 675.15,
+    "spy_10_30": 678.39
+  }
+]
