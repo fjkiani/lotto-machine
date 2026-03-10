@@ -40,3 +40,4 @@ cohere>=5.0.0
 # Paper Trade Monitor
 alpaca-py>=0.21.0
 statsmodels>=0.14.0
+redis>=5.0.0
