@@ -28,22 +28,43 @@ def main():
         
         port = int(os.getenv("PORT", 8000))
         host = os.getenv("HOST", "0.0.0.0")
+        is_render = bool(os.getenv("RENDER"))
         
         logger.info("=" * 70)
         logger.info("🔥 ALPHA TERMINAL BACKEND API - STARTING")
         logger.info("=" * 70)
         logger.info(f"   Host: {host}")
         logger.info(f"   Port: {port}")
+        logger.info(f"   Render: {is_render}")
         logger.info(f"   API Docs: http://{host}:{port}/docs")
         logger.info("=" * 70)
         
-        uvicorn.run(
-            app,
-            host=host,
-            port=port,
-            log_level="info",
-            reload=True  # Auto-reload on code changes
-        )
+        # Start paper trade scheduler in background
+        try:
+            from live_monitoring.paper_trade_scheduler import start_scheduler_thread
+            pt_thread, pt_scheduler = start_scheduler_thread()
+            logger.info("   ✅ Paper trade scheduler thread started")
+        except Exception as e:
+            logger.warning(f"   ⚠️ Paper trade scheduler: {e}")
+        
+        if is_render:
+            # On Render: no reload (reload needs import string, not app object)
+            uvicorn.run(
+                app,
+                host=host,
+                port=port,
+                log_level="info",
+                reload=False,
+            )
+        else:
+            # Local dev: use import string for reload support
+            uvicorn.run(
+                "backend.app.main:app",
+                host=host,
+                port=port,
+                log_level="info",
+                reload=True,
+            )
     except ImportError as e:
         logger.error(f"❌ Missing dependencies: {e}")
         logger.error("   Install with: pip install fastapi uvicorn redis")
