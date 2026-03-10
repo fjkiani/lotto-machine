@@ -693,6 +693,27 @@ class HealthHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(status, indent=2).encode())
             return
 
+        elif self.path == '/paper-trades':
+            # Paper trade log endpoint
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            try:
+                from live_monitoring.paper_trade_scheduler import get_paper_trades
+                trades = get_paper_trades()
+                clean = [t for t in trades if t.get('correct') is not None and not t.get('macro_filtered')]
+                wins = sum(1 for t in clean if t['correct'])
+                result = {
+                    'total_trades': len(trades),
+                    'clean_trades': len(clean),
+                    'clean_accuracy': f'{wins}/{len(clean)}={wins/len(clean)*100:.0f}%' if clean else 'N/A',
+                    'trades': trades,
+                }
+                self.wfile.write(json.dumps(result, indent=2, default=str).encode())
+            except Exception as e:
+                self.wfile.write(json.dumps({'error': str(e), 'trades': []}).encode())
+            return
+
         elif self.path == '/tradytics-forward':
             # Tradytics webhook endpoint info - GET request
             self.send_response(200)
@@ -961,6 +982,14 @@ def main():
         logger.error("   ❌ This means the savage LLM Discord bot is not running!")
         logger.error("   ❌ Check Render logs for discord.py installation errors")
         logger.error("   ❌ Manual fix: Run 'pip install discord.py>=2.3.0' in Render shell")
+
+    # Start paper trade scheduler thread
+    try:
+        from live_monitoring.paper_trade_scheduler import start_scheduler_thread
+        pt_thread, pt_scheduler = start_scheduler_thread()
+        logger.info("   ✅ Paper trade scheduler thread started")
+    except Exception as e:
+        logger.error(f"   ⚠️ Paper trade scheduler failed to start: {e}")
 
     # Start HTTP server
     port = int(os.getenv('PORT', 8000))

@@ -31,3 +31,12 @@ discord.py==2.3.2
 # Savage LLM
 google-generativeai>=0.3.0
 psutil>=5.9.0
+
+# FastAPI Backend (for Render deployment of run_backend_api.py)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+cohere>=5.0.0
+
+# Paper Trade Monitor
+alpaca-py>=0.21.0
+statsmodels>=0.14.0
