@@ -714,6 +714,30 @@ class HealthHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({'error': str(e), 'trades': []}).encode())
             return
 
+        elif self.path == '/kill-chain':
+            # Kill chain triple confluence signal log
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            try:
+                from live_monitoring.kill_chain_logger import get_kill_chain_signals
+                signals = get_kill_chain_signals()
+                # Find latest state
+                latest = signals[-1] if signals else {}
+                activations = [s for s in signals if s.get('type') == 'ACTIVATION']
+                deactivations = [s for s in signals if s.get('type') == 'DEACTIVATION']
+                result = {
+                    'total_checks': len(signals),
+                    'activations': len(activations),
+                    'deactivations': len(deactivations),
+                    'current_state': latest,
+                    'history': signals[-50:],  # last 50 entries
+                }
+                self.wfile.write(json.dumps(result, indent=2, default=str).encode())
+            except Exception as e:
+                self.wfile.write(json.dumps({'error': str(e), 'signals': []}).encode())
+            return
+
         elif self.path == '/tradytics-forward':
             # Tradytics webhook endpoint info - GET request
             self.send_response(200)
@@ -990,6 +1014,14 @@ def main():
         logger.info("   ✅ Paper trade scheduler thread started")
     except Exception as e:
         logger.error(f"   ⚠️ Paper trade scheduler failed to start: {e}")
+
+    # Start kill chain signal logger (monitors COT+GEX+DVR triple confluence)
+    try:
+        from live_monitoring.kill_chain_logger import start_kill_chain_logger_thread
+        kc_thread, kc_logger = start_kill_chain_logger_thread(check_interval_min=30)
+        logger.info("   ✅ Kill chain signal logger started (checks every 30min)")
+    except Exception as e:
+        logger.error(f"   ⚠️ Kill chain logger failed to start: {e}")
 
     # Start HTTP server
     port = int(os.getenv('PORT', 8000))

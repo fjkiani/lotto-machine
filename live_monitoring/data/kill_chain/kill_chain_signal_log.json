@@ -1,0 +1,19 @@
+[
+  {
+    "timestamp": "2026-03-10 13:58:12",
+    "type": "check",
+    "triple_active": false,
+    "layers": {
+      "cot_divergence": true,
+      "cot_specs_net": -168216.0,
+      "cot_comm_net": 71672.0,
+      "cot_date": "2026-03-03",
+      "gex_positive": false,
+      "vix": 25.5,
+      "vix_ratio": 1.0063,
+      "dp_selling": false,
+      "dvr": 0.5393
+    },
+    "spy_price": 678.27
+  }
+]
