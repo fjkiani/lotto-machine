@@ -331,7 +331,8 @@ class UnifiedAlphaMonitor:
         self.dp_divergence_checker = DPDivergenceChecker(
             alert_manager=self.alert_manager, chartexchange_client=chartexchange_client,
             options_client=options_client, symbols=self.symbols,
-            unified_mode=self.unified_mode
+            unified_mode=self.unified_mode,
+            learning_engine=self.dp_learning if self.dp_learning_enabled else None
         ) if (api_key and rapidapi_key) else None
 
         # Earnings Checker (Phase 8)

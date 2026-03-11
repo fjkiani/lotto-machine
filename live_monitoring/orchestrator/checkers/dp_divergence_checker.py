@@ -53,17 +53,25 @@ class DPDivergenceChecker(BaseChecker):
         chartexchange_client=None,
         options_client=None,
         symbols: List[str] = None,
-        unified_mode: bool = False
+        unified_mode: bool = False,
+        learning_engine=None
     ):
         super().__init__(alert_manager, unified_mode)
         self.ce_client = chartexchange_client
         self.options_client = options_client
         self.symbols = symbols or ['SPY', 'QQQ']
         self.config = DP_SIGNAL_CONFIG
+        self.learning_engine = learning_engine
         
         # State tracking
         self.last_signals: Dict[str, datetime] = {}
         self.signal_cooldown = timedelta(minutes=30)
+        
+        if self.learning_engine:
+            pattern_count = len(self.learning_engine.learner.patterns)
+            logger.info(f"🧠 DPDivergenceChecker wired with PatternLearner ({pattern_count} patterns)")
+        else:
+            logger.info("⚠️ DPDivergenceChecker running WITHOUT PatternLearner predictions")
     
     @property
     def name(self) -> str:
@@ -94,7 +102,9 @@ class DPDivergenceChecker(BaseChecker):
                 signal = self._analyze_symbol(symbol, yesterday)
                 
                 if signal and self._passes_cooldown(signal):
-                    alert = self._create_alert(signal)
+                    # ── Phase 1: Enrich with pattern prediction ──
+                    prediction = self._get_prediction(signal)
+                    alert = self._create_alert(signal, prediction=prediction)
                     alerts.append(alert)
                     self._record_signal(signal)
             
@@ -170,9 +180,29 @@ class DPDivergenceChecker(BaseChecker):
         key = f"{signal.symbol}_{signal.signal_type}_{signal.direction}"
         self.last_signals[key] = datetime.now()
     
+    # ── Pattern prediction (Phase 1) ─────────────────────────────────────
+    
+    def _get_prediction(self, signal: DPDivergenceSignal) -> Optional[Dict]:
+        """Get pattern-based prediction for this signal."""
+        if not self.learning_engine:
+            return None
+        try:
+            level_type = 'RESISTANCE' if signal.dp_bias == 'BEARISH' else 'SUPPORT'
+            approach = 'FROM_BELOW' if signal.dp_bias == 'BULLISH' else 'FROM_ABOVE'
+            pred = self.learning_engine.learner.predict_from_context(
+                level_type=level_type,
+                approach_direction=approach
+            )
+            logger.info(f"🧠 Pattern prediction for {signal.symbol}: {pred['predicted_outcome']} "
+                       f"(bounce={pred['bounce_probability']:.1%}, conf={pred['confidence']})")
+            return pred
+        except Exception as e:
+            logger.warning(f"⚠️ Pattern prediction failed: {e}")
+            return None
+    
     # ── Alert formatting ────────────────────────────────────────────────
     
-    def _create_alert(self, signal: DPDivergenceSignal) -> CheckerAlert:
+    def _create_alert(self, signal: DPDivergenceSignal, prediction: Dict = None) -> CheckerAlert:
         """Create a CheckerAlert from a signal."""
         
         # Different colors for different signal types
@@ -227,6 +257,19 @@ class DPDivergenceChecker(BaseChecker):
                 "name": "📉 Options Bias",
                 "value": signal.options_bias,
                 "inline": True
+            })
+        
+        # Phase 1: Add pattern prediction to embed
+        if prediction:
+            bounce = prediction.get('bounce_probability', 0)
+            conf = prediction.get('confidence', 'N/A')
+            outcome = prediction.get('predicted_outcome', 'N/A')
+            patterns = prediction.get('supporting_patterns', [])
+            embed["fields"].append({
+                "name": "🧠 Pattern Prediction",
+                "value": f"{outcome} ({bounce:.0%} bounce, {conf} conf)\n"
+                         f"Patterns: {', '.join(patterns[:3]) if patterns else 'none'}",
+                "inline": False
             })
         
         content = f"🔥 **{signal.signal_type}**: {signal.symbol} {signal.direction} @ ${signal.entry_price:.2f} | {signal.confidence}% confidence"
