@@ -66,7 +66,7 @@ class NarrativeUpdate:
 class NarrativeMemory:
     """Persistent memory for narrative context"""
 
-    def __init__(self, db_path: str = "narrative_memory.db"):
+    def __init__(self, db_path: str = "data/narrative_memory.db"):
         self.db_path = db_path
         self._init_db()
 
@@ -651,7 +651,7 @@ class NarrativeBrain:
     """
 
     def __init__(self, discord_webhook: str = None):
-        self.memory = NarrativeMemory()
+        self.memory = NarrativeMemory(db_path="data/narrative_memory.db")
         self.filter = AlertFilter(self.memory)
         self.integrator = ContextIntegrator()
         self.formatter = DiscordFormatter()
@@ -660,6 +660,7 @@ class NarrativeBrain:
         # Track last updates
         self.last_pre_market = None
         self.last_intra_day = datetime.now() - timedelta(hours=3)  # Start 3h ago
+        self._last_regime = None
 
         logger.info("🧠 NarrativeBrain initialized")
 
@@ -761,6 +762,22 @@ class NarrativeBrain:
         current_regime = context.get('market_regime', 'NEUTRAL')
         previous_context = self.memory.get_context()
 
+        # Persist regime to memory on every check (cross-session intelligence)
+        if current_regime != self._last_regime:
+            try:
+                import yfinance as yf
+                vix = yf.Ticker('^VIX').history(period='1d')
+                vix_level = float(vix['Close'].iloc[-1]) if not vix.empty else None
+            except Exception:
+                vix_level = None
+            self.memory.store_market_regime(
+                date=datetime.now().strftime('%Y-%m-%d'),
+                regime=current_regime,
+                vix_level=vix_level
+            )
+            self._last_regime = current_regime
+            logger.info(f"📊 Market regime persisted: {current_regime} (VIX={vix_level})")
+
         if previous_context and previous_context.market_regime != current_regime:
             return NarrativeUpdate(
                 alert_type=AlertType.INTRA_DAY,
@@ -823,6 +840,51 @@ class NarrativeBrain:
         context = self.integrator.get_unified_context()
         context['narrative_memory'] = self.memory.get_recent_narratives(hours=24)
         return context
+
+    def save_session_summary(self, regime: str = None, key_themes: list = None,
+                             events: list = None, risk_assessment: str = None):
+        """Save end-of-session summary to narrative memory for cross-session continuity.
+        Called by OvernightManager during daily recap."""
+        today = datetime.now().strftime('%Y-%m-%d')
+        try:
+            # Save daily context
+            outlook = regime or self.integrator._detect_market_regime()
+            themes = key_themes or []
+            risk = risk_assessment or 'UNKNOWN'
+            self.memory.store_daily_context(today, outlook, themes, risk)
+
+            # Save narrative chain entry
+            recent = self.memory.get_recent_narratives(hours=8)
+            if recent:
+                summary = '; '.join([n.get('content', '')[:100] for n in recent[:3]])
+                self.memory.store_narrative_chain(
+                    date=today,
+                    narrative_text=summary,
+                    conviction=risk,
+                    direction=outlook
+                )
+
+            logger.info(f"📝 Session summary saved for {today}: regime={outlook}, themes={len(themes)}")
+        except Exception as e:
+            logger.error(f"Error saving session summary: {e}")
+
+    def load_previous_session(self) -> Optional[Dict]:
+        """Load yesterday's context for morning seeding.
+        Called at orchestrator startup."""
+        from datetime import date, timedelta
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        context = self.memory.get_daily_context(yesterday)
+        regime = self.memory.get_market_regime(yesterday)
+        chain = self.memory.get_narrative_chain(days=3)
+        if context or regime or chain:
+            logger.info(f"📚 Loaded previous session: context={'yes' if context else 'no'}, regime={'yes' if regime else 'no'}, chain={len(chain)} entries")
+            return {
+                'daily_context': context,
+                'market_regime': regime,
+                'narrative_chain': chain
+            }
+        logger.info("📚 No previous session data found")
+        return None
 
 
 

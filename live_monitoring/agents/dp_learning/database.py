@@ -269,28 +269,29 @@ class DPDatabase:
         cols = [col[0] for col in description]
         data = dict(zip(cols, row))
         
+        # Use `or` fallback — dict.get() returns None when key exists with NULL value
         return DPInteraction(
             id=data.get('id'),
             timestamp=datetime.fromisoformat(data['timestamp']) if data.get('timestamp') else datetime.now(),
-            symbol=data.get('symbol', ''),
-            level_price=data.get('level_price', 0),
-            level_volume=data.get('level_volume', 0),
-            level_type=LevelType(data.get('level_type', 'RESISTANCE')),
-            level_date=data.get('level_date', ''),
-            approach_price=data.get('approach_price', 0),
-            approach_direction=ApproachDirection(data.get('approach_direction', 'FROM_BELOW')),
-            distance_pct=data.get('distance_pct', 0),
-            touch_count=data.get('touch_count', 1),
-            market_trend=data.get('market_trend', 'UNKNOWN'),
-            volume_vs_avg=data.get('volume_vs_avg', 1.0),
-            momentum_pct=data.get('momentum_pct', 0),
-            vix_level=data.get('vix_level', 0),
-            time_of_day=data.get('time_of_day', 'UNKNOWN'),
-            outcome=Outcome(data.get('outcome', 'PENDING')),
+            symbol=data.get('symbol') or '',
+            level_price=data.get('level_price') or 0,
+            level_volume=data.get('level_volume') or 0,
+            level_type=LevelType(data.get('level_type') or 'RESISTANCE'),
+            level_date=data.get('level_date') or '',
+            approach_price=data.get('approach_price') or 0,
+            approach_direction=ApproachDirection(data.get('approach_direction') or 'FROM_BELOW'),
+            distance_pct=data.get('distance_pct') or 0,
+            touch_count=data.get('touch_count') or 1,
+            market_trend=data.get('market_trend') or 'UNKNOWN',
+            volume_vs_avg=data.get('volume_vs_avg') or 1.0,
+            momentum_pct=data.get('momentum_pct') or 0,
+            vix_level=data.get('vix_level') or 0,
+            time_of_day=data.get('time_of_day') or 'UNKNOWN',
+            outcome=Outcome(data.get('outcome') or 'PENDING'),
             outcome_timestamp=datetime.fromisoformat(data['outcome_timestamp']) if data.get('outcome_timestamp') else None,
-            max_move_pct=data.get('max_move_pct', 0),
-            time_to_outcome_min=data.get('time_to_outcome_min', 0),
-            notes=data.get('notes', '')
+            max_move_pct=data.get('max_move_pct') or 0,
+            time_to_outcome_min=data.get('time_to_outcome_min') or 0,
+            notes=data.get('notes') or ''
         )
 
 

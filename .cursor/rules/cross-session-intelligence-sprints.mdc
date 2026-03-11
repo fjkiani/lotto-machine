@@ -1,0 +1,293 @@
+---
+description: Cross-Session Intelligence — Sprint Plan, Sandbag Audit, Grep Receipts
+globs:
+  - live_monitoring/orchestrator/**
+  - live_monitoring/agents/**
+  - data/*.db
+alwaysApply: false
+---
+
+# Cross-Session Intelligence System
+
+> Created: 2026-03-11 | Status: Sprint 1 In Progress
+> This file is the PERMANENT record. Do not overwrite — append updates below.
+
+## Problem Statement
+
+The system has 17 persistent databases but is **mostly memoryless**:
+- 8/17 have data, only 4/17 are read back into decisions
+- All 16 checkers use `period='1d'` — zero multi-day context
+- NarrativeBrain has 8 empty tables, never writes
+- DP Learning has 372 interactions but 0 learned patterns
+- No checker knows its own accuracy
+
+---
+
+## Data Store Audit (2026-03-11)
+
+| Store | Rows | Reads Back? | Verdict |
+|-------|------|-------------|---------|
+| `dp_learning.db` | 372 interactions (307 BOUNCE, 35 BREAK, 4 FADE) | ⚠️ Bounce rate read by dp_signal_analyzer, 0 patterns | BROKEN |
+| `alerts_history.db` | 376 alerts (204 dp, 62 synthesis, 56 narrative, 29 trump) | ✅ Dedup | Working |
+| `narrative_memory.db` | **0 rows** (all 8 tables: daily_contexts, recent_events, market_regime, key_levels, sentiment_history, narrative_chain, narrative_context, narrative_history) | ❌ | DEAD |
+| `checker_health.db` | 2 runs, 2 alerts, 0 win_rates | ❌ Resets on deploy | BROKEN |
+| `economic_intelligence.db` | 806 releases, 2 patterns, 0 fed_watch, 0 predictions | ⚠️ Patterns not in scoring | UNDERUTILIZED |
+| `economic_learning.db` | 10 releases, 2 patterns, 0 fed_watch | ⚠️ Duplicate of above? | INVESTIGATE |
+| `trump_intelligence.db` | 59 statements, 2 topic_correlations, 0 predictions | ✅ Dedup + sentiment | Working |
+| `reddit_sentiment_history.db` | 546 entries | ⚠️ Stored, no trend analysis | UNDERUTILIZED |
+| `reddit_signal_tracking.db` | 20 signals | ⚠️ Stored, no trend analysis | UNDERUTILIZED |
+| `options_flow.db` | 3 market_sentiment, 14 options_signals, 0 unusual | ⚠️ No cross-day analysis | UNDERUTILIZED |
+| `kill_chain_state.json` | 9 entries | ✅ COT/GEX regime persists | Working |
+| `ftd_signals.db` | 0 rows all tables | ❌ Never populated | DEAD |
+| `news_intelligence.db` | 0 rows all tables | ❌ Never populated | DEAD |
+| `fed_officials.db` | 0 bytes | ❌ Empty file | DEAD |
+| `signals.db` | 0 bytes, referenced by NOBODY | ❌ | DEAD — DELETE |
+| `consensus_cache.db` | 7 rows | ❓ Unknown reader | INVESTIGATE |
+| `memory.db` | 3 analyses, 3 price_history, 0 in rest | ⚠️ Legacy? | INVESTIGATE |
+
+---
+
+## Sprint Structure
+
+| Sprint | Theme | Key Gate |
+|--------|-------|----------|
+| **S1** | Fix What's Broken | Every DB with a schema must write AND read |
+| **S2** | Multi-Day Intelligence | Every checker has >= 5-day context |
+| **S3** | Predictive Edge | Predictions in alerts + accuracy tracking |
+| **S4** | Autonomous Learning | Self-improvement + morning briefs |
+
+---
+
+## Sprint 1: Fix What's Broken
+
+### S1.1 — DP Pattern Graduation
+
+**Problem:** 372 interactions, 0 patterns despite `min_samples=3`.
+
+**Grep receipt:**
+```
+live_monitoring/agents/dp_learning/engine.py:66:  self.learner.learn(min_samples=3)
+live_monitoring/agents/dp_learning/learner.py:49: def learn(self, min_samples: int = 5):
+live_monitoring/agents/dp_learning/learner.py:58: if len(interactions) < min_samples: return early
+live_monitoring/agents/dp_learning/learner.py:99: if pattern.total_samples >= min_samples: save
+```
+
+**Root cause hypothesis:** `learn()` loads interactions from DB, but the `get_all_interactions()` method might not be returning them properly, OR the sub-grouping (by volume, time, touch_count, level_type) results in groups all < min_samples.
+
+**Deliverables:**
+1. Run `learn()` with debug logging, dump what each sub-group contains
+2. Fix the bottleneck (likely sub-group granularity too fine)
+3. Force-backfill patterns from 372 existing interactions
+4. Wire `predict()` into `DPDivergenceChecker` alerts
+
+**Test (must pass):**
+```python
+from live_monitoring.agents.dp_learning.engine import DPLearningEngine
+engine = DPLearningEngine()
+engine.learner.learn(min_samples=3)
+assert len(engine.learner.patterns) > 0, f"Still 0 patterns"
+```
+
+**Sandbag warning:** The plan originally said "just lower the threshold" — threshold is already 3. Real fix requires debugging the sub-grouping logic.
+
+---
+
+### S1.2 — Narrative Memory Activation
+
+**Problem:** 8 tables, all empty. NarrativeBrain creates schema but never writes.
+
+**Grep receipt:**
+```
+# ZERO hits for save_daily, load_previous in narrative modules
+# Only reference: narrative_recap.py:62: self.memory = NarrativeMemory(db_path="data/narrative_memory.db")
+```
+
+**Sandbag warning:** Plan said "wire save_daily_context()" — **this method does not exist.** Must BUILD from scratch (~100-150 lines).
+
+**Deliverables:**
+1. Audit `NarrativeMemory` class — what write methods exist
+2. Build `save_session_summary()` — called at 4PM, saves regime + levels + events
+3. Build `load_previous_session()` — called at boot, loads yesterday's context
+4. Wire into `OvernightManager.run_daily_recap()` → save
+5. Wire into `UnifiedAlphaMonitor.__init__()` → load
+
+**Test:**
+```python
+from live_monitoring.recaps.components.narrative_recap import NarrativeMemory
+mem = NarrativeMemory()
+mem.save_session_summary(regime="DOWNTREND", key_levels={"SPY": 550}, events=["CPI miss"])
+loaded = mem.load_previous_session()
+assert loaded["regime"] == "DOWNTREND"
+```
+
+---
+
+### S1.3 — Health Registry Persistence
+
+**Problem:** 2 rows. Resets each deploy.
+
+**Grep receipt:**
+```
+checker_health.py:57: CREATE TABLE IF NOT EXISTS checker_runs  ← uses IF NOT EXISTS, so NOT dropping
+checker_health.py:178: INSERT INTO checker_runs  ← appends
+```
+
+**Revised diagnosis:** Schema uses `IF NOT EXISTS` — it's NOT truncating. The problem is likely that the checker only runs 2 checks before Render restarts the process. The data IS persisting, but we only get 2 rows because the deploy cycle is faster than the check cycle.
+
+**Deliverables:**
+1. Verify: is the 2-row count because of Render restarts or actual truncation?
+2. Add `deploy_id` (UUID per boot) to `checker_runs` for session tracking
+3. Add `GET /health/history?days=7` endpoint
+4. Verify win_rates table gets populated (currently 0 rows — needs `record_outcome()` calls)
+
+---
+
+### S1.4 — Dead Database Cleanup
+
+**Databases to fix (5, not 3 as originally planned):**
+
+| DB | Fix |
+|----|-----|
+| `ftd_signals.db` (0 rows) | Wire `FTDChecker.check()` → save results to `ftd_raw_data` table |
+| `news_intelligence.db` (0 rows) | Wire `NewsIntelligenceChecker` → persist parsed articles |
+| `fed_officials.db` (0 bytes) | Wire `FedChecker` → save official statements |
+| `signals.db` (0 bytes, no references) | **DELETE** — dead file, nobody uses it |
+| `consensus_cache.db` (7 rows) | **Investigate** — find what writes/reads, document |
+
+**Also investigate:**
+- `economic_learning.db` — looks like a duplicate of `economic_intelligence.db`
+- `memory.db` — 3 analyses, legacy?
+
+---
+
+## Sprint 2: Multi-Day Intelligence
+
+### S2.1 — DP Accumulation Trends
+
+**Sandbag warning:** `get_ticker_detail_raw(window=252)` needs validation. Does it return daily time-series or a single summary row? If single row, need alternative source (AXLFI history or Stockgrid table endpoint).
+
+**Pre-work (MUST DO FIRST):**
+```python
+from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
+sg = StockgridClient()
+raw = sg.get_ticker_detail_raw("SPY", window=20)
+print(type(raw), raw.keys() if isinstance(raw, dict) else "not dict")
+# IF this returns daily bars → proceed
+# IF this returns one summary → need new data source
+```
+
+**Deliverables (contingent on pre-work):**
+1. Create `DPTrendAnalyzer` — 5-day cumulative, 20-day rolling, acceleration
+2. Store daily snapshots to `dp_daily_snapshots` table
+3. Wire into `DPDivergenceChecker`: accumulation + price trend divergence
+
+---
+
+### S2.2 — Reddit Sentiment Trends
+
+**Deliverables:**
+1. Add `get_sentiment_trend(ticker, days=5)` to storage layer
+2. Compute 5-day sentiment momentum
+3. Flag tickers > 2 std dev shift
+4. Wire trend context into squeeze/scanner alerts
+
+---
+
+### S2.3 — Options Flow Cross-Day
+
+**Deliverables:**
+1. `detect_unusual_accumulation(ticker, days=5)` — same-strike multi-day
+2. 5-day P/C ratio trend for SPY/QQQ
+3. Wire into `OptionsFlowChecker`
+
+---
+
+### S2.4 — Price Lookback Upgrade
+
+**Deliverables:**
+1. Create `PriceContextProvider` — cached yfinance wrapper for 1d/5d/20d
+2. Wire into `SynthesisChecker`, `DPDivergenceChecker`, `EarningsChecker`
+
+---
+
+## Sprint 3: Predictive Edge
+
+### S3.1 — DP Prediction Pipeline
+- Wire `PatternLearner.predict()` into live `DPDivergenceChecker` alerts
+- Include prediction text in Discord embed
+- Track prediction vs. actual outcome
+
+### S3.2 — Earnings History Accumulator
+
+**Sandbag warning:** Original plan said "backtester with 4 quarters of data." 4 data points is NOT a backtester. 
+
+**Revised plan:**
+1. Build `EarningsHistoryAccumulator` — saves pre-earnings scores NOW
+2. After 2+ quarters of accumulated data, THEN build backtester
+3. For now, pull historical earnings from Finnhub (they have 4+ years)
+
+### S3.3 — Win Rate Tracking
+- For directional alerts, track alert_price vs. price 1h/4h/1d later
+- Populate `checker_win_rates` table
+- Add win rates to daily recap
+
+### S3.4 — Signal Replay Engine
+- `SessionRecorder` — serialize all inputs per tick
+- `SessionReplayer` — replay through any checker
+- Record 5+ sessions before building
+
+---
+
+## Sprint 4: Autonomous Learning (ROADMAP — Not Sprint)
+
+> [!WARNING]
+> Sprint 4 had ZERO tests in original plan. Demoted to roadmap until S1-S3 deliver.
+
+### S4.1 — Self-Calibrating Scorer
+Requires: S3.2 accumulator running for 2+ months
+
+### S4.2 — Regime-Aware Weighting
+Requires: S3.3 win rate data across multiple regimes
+
+### S4.3 — Morning Intelligence Brief
+Requires: S1.2 narrative memory + S2.4 price context
+
+### S4.4 — Anomaly Detection
+Requires: S2.1 DP trends + S2.2 sentiment trends (historical baselines)
+
+---
+
+## Verification Protocol
+
+### Per-Sprint Database Audit
+```bash
+python3 -c "
+import sqlite3, glob
+for db in sorted(glob.glob('data/*.db')):
+    conn = sqlite3.connect(db)
+    tables = conn.execute(\"SELECT name FROM sqlite_master WHERE type='table'\").fetchall()
+    for t in tables:
+        count = conn.execute(f'SELECT COUNT(*) FROM {t[0]}').fetchone()[0]
+        status = '✅' if count > 0 else '❌ EMPTY'
+        print(f'{db:40s} {t[0]:25s} {count:6d} {status}')
+    conn.close()
+"
+```
+
+### End-State Targets
+
+| Metric | Current | After S1 | After S2 | After S3 |
+|--------|---------|----------|----------|----------|
+| DBs with data | 8/17 | 13/17 | 15/17 | 17/17 |
+| DBs read back into decisions | 4/17 | 10/17 | 15/17 | 17/17 |
+| Learned DP patterns | 0 | > 5 | > 10 | > 10 |
+| Narrative memory rows | 0 | > 1 | > 20 | > 50 |
+| Multi-day lookback | 0 checkers | 0 | 8+ checkers | All |
+| Win rate tracked | No | No | Scaffolded | Yes (3+ checkers) |
+| Predictions in alerts | No | DP edge context | DP + price context | DP predictions live |
+
+---
+
+## Changelog
+
+- **2026-03-11**: Initial plan created. Sandbag audit found 7 issues. Fixed: S1.2 scope (build not wire), S1.4 expanded to 5 DBs, S2.1 needs pre-validation, S3.2 downscoped to accumulator, S4 demoted to roadmap, DB count corrected to 17.
