@@ -1,0 +1,266 @@
+---
+description: Frontend handoff for Cross-Session Intelligence — API map, component audit, wiring plan
+globs:
+  - frontend/src/**
+  - backend/app/api/v1/**
+alwaysApply: false
+---
+
+# Frontend Intelligence Handoff
+
+> Created: 2026-03-11 | Companion to: cross-session-intelligence-sprints.mdc
+> PERMANENT RECORD — append updates, do not overwrite.
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Frontend (React/Vite)                              │
+│  frontend/src/lib/api.ts → 12 API client namespaces │
+│  frontend/src/components/widgets/ → 15 widgets      │
+│  frontend/src/pages/ → 5 pages                      │
+│  Hooks: usePollingData (30s), useWebSocket           │
+├─────────────────────────────────────────────────────┤
+│  Backend (FastAPI)                                   │
+│  backend/app/api/v1/ → 20 route files, 49 endpoints │
+│  4 WebSocket channels: /ws/unified, /ws/market,     │
+│                        /ws/signals, /ws/agents       │
+├─────────────────────────────────────────────────────┤
+│  Data Layer                                          │
+│  data/*.db → 17 SQLite databases                     │
+│  data/*.json → Kill chain state                      │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## Current Widget → API → Backend Map
+
+### Dashboard (WidgetGrid.tsx)
+
+The main Dashboard renders 8 widgets in a 12-column grid:
+
+| Widget | File | API Client | Backend Endpoint(s) | Grid |
+|--------|------|-----------|---------------------|------|
+| MarketOverview | `MarketOverview.tsx` (388 bytes — stub) | `marketApi` | `/market/context` | col-12 |
+| KillChainDashboard | `KillChainDashboard.tsx` (11.6KB) | `killchainApi` | `MONITOR_URL/kill-chain`, `/killchain/scan` | col-12 |
+| EconomicExploit | `EconomicExploit.tsx` (17.8KB) | `economicApi` | `/economic/calendar`, `/economic/fedwatch`, `/economic/exploit-brief` | col-12 |
+| MarketRegime | `MarketRegime.tsx` (8.9KB) | `marketApi` | `/market/context` | col-6 |
+| SystemHealth | `SystemHealth.tsx` (8.8KB) | `healthApi` | `/health/checkers` | col-6 |
+| DPEdgeDashboard | `DPEdgeDashboard.tsx` (10.1KB) | `dpApi` | `/dp/edge-stats`, `/signals/divergence` | col-12 |
+| SignalsCenter | `SignalsCenter.tsx` (9.2KB) | `signalsApi` + `dpApi` | `/signals`, `/signals/master`, `/signals/divergence` | col-6 |
+| NarrativeBrain | `NarrativeBrain.tsx` (2.5KB) | `agentsApi` | `/agents/narrative/current` + WS `narrative` | col-6 |
+
+### Other Pages (not on Dashboard)
+
+| Page | Key Widget | API | Endpoints |
+|------|-----------|-----|-----------|
+| Exploit (`/exploit`) | DarkPoolFlow, GammaTracker, SqueezeScanner, OptionsFlow, PivotLevels, TAConsensus, COTPositioning | darkpoolApi, gammaApi, squeezeApi, optionsApi, pivotsApi, taApi, cotApi | 14 endpoints |
+| AgentX (`/agent-x`) | AgentXDashboard + 11 panels | agentxApi | `/agentx/report`, `/agentx/enrich` |
+| Feds (`/feds`) | Inline | economicApi | `/economic/*` |
+| Politicians (`/politicians`) | Inline | agentxApi | `/agentx/enrich` |
+
+---
+
+## API Client Registry (frontend/src/lib/api.ts)
+
+```
+Base: VITE_API_URL || 'http://localhost:8000/api/v1'
+WS:   VITE_WS_URL  || 'ws://localhost:8000/api/v1'  
+MON:  VITE_MONITOR_URL || base.replace('/api/v1', '')
+```
+
+| Namespace | Methods | Endpoints Hit |
+|-----------|---------|---------------|
+| `marketApi` | getQuote, getCandles, getContext | `/market/{symbol}/quote`, `/market/context` |
+| `signalsApi` | getAll, getMaster, getById | `/signals`, `/signals/master` |
+| `agentsApi` | analyze, getNarrative, askNarrative | `/agents/narrative/current`, `/agents/narrative/ask` |
+| `dpApi` | getEdgeStats, getRecentInteractions, getDivergenceSignals | `/dp/edge-stats`, `/dp/interactions/recent`, `/signals/divergence` |
+| `darkpoolApi` | getLevels, getSummary, getPrints, getNarrative, getTopPositions | `/darkpool/{symbol}/*`, `/darkpool/narrative`, `/darkpool/top-positions` |
+| `chartApi` | getMatrix, getOHLC | `/charts/{symbol}/matrix`, `/charts/{symbol}/ohlc` |
+| `healthApi` | getCheckers, getChecker, getSummary | `/health/checkers`, `/health/summary` |
+| `killchainApi` | scan, narrative, gex, monitor, paperTrades | `/killchain/*`, `MONITOR_URL/kill-chain` |
+| `economicApi` | fedwatch, calendar, upcomingCritical, exploitBrief, releases | `/economic/*` |
+| `gammaApi` | get | `/gamma/{symbol}` |
+| `squeezeApi` | scan, active | `/squeeze/scan` |
+| `optionsApi` | flow, unusual | `/options/{symbol}/flow` |
+
+---
+
+## Cross-Session Intelligence: What's Missing
+
+### MISSING Backend Endpoints (MUST BUILD)
+
+| Endpoint | Method | Returns | Needed By |
+|----------|--------|---------|-----------|
+| `/dp/patterns` | GET | Learned DP patterns (13 patterns, bounce/break rates) | DPEdgeDashboard upgrade |
+| `/dp/prediction/{symbol}` | GET | PatternLearner prediction (bounce_prob, confidence, action) | DPEdgeDashboard + SignalsCenter |
+| `/narrative/memory` | GET | Session memory (daily_contexts, regime history, key levels) | NarrativeBrain upgrade |
+| `/narrative/previous-session` | GET | Yesterday's context for morning seeding display | NarrativeBrain upgrade |
+| `/health/win-rates` | GET | Per-checker win rates over 7 days | SystemHealth upgrade |
+| `/health/history?days=7` | GET | Checker run history with deploy_id segmentation | SystemHealth upgrade |
+| `/dp/trends/{symbol}` | GET | 5-day/20-day DP accumulation trend + acceleration | NEW: DPTrendWidget |
+| `/sentiment/trends/{symbol}` | GET | 5-day Reddit sentiment momentum | NEW: SentimentTrendWidget |
+
+### MISSING Frontend Components (MUST BUILD)
+
+| Component | What It Shows | API Source | Priority |
+|-----------|---------------|------------|----------|
+| `DPPatternCard.tsx` | Learned patterns table (bounce rate, sample count, trend) | `/dp/patterns` | S1 |
+| `DPPredictionBadge.tsx` | Live prediction when divergence detected (BOUNCE 91%, HIGH) | `/dp/prediction/{symbol}` | S3 |
+| `SessionMemoryPanel.tsx` | Yesterday's regime, key levels, narrative chain | `/narrative/previous-session` | S1 |
+| `WinRateTracker.tsx` | Per-checker accuracy over 7 days (bar chart) | `/health/win-rates` | S3 |
+| `DPAccumulationTrend.tsx` | 5-day DP net flow line chart with price overlay | `/dp/trends/{symbol}` | S2 |
+| `SentimentMomentum.tsx` | Reddit sentiment shift sparkline per ticker | `/sentiment/trends/{symbol}` | S2 |
+| `MorningBrief.tsx` | 9AM intelligence synthesis (regime + levels + events) | `/narrative/morning-brief` | S4 |
+
+### EXISTING Components That Need Upgrades
+
+| Component | Current State | Upgrade Needed | API Change |
+|-----------|--------------|----------------|------------|
+| `NarrativeBrain.tsx` | Shows single narrative string + confidence % | Add: session memory panel, regime badge, yesterday's context, narrative chain timeline | Add `/narrative/memory` client |
+| `DPEdgeDashboard.tsx` | Shows win_rate, interactions, divergence signals | Add: pattern table, prediction badge on each signal, 5-day trend sparkline | Add `/dp/patterns`, `/dp/prediction/{symbol}` |
+| `SystemHealth.tsx` | Shows checker status grid (healthy/warning/error) | Add: win rate per checker, 7-day performance chart, deploy history | Add `/health/win-rates`, `/health/history` |
+| `MarketRegime.tsx` | Shows current regime from `/market/context` | Add: regime history timeline (from narrative_memory.db), VIX trend | Add `/narrative/memory` |
+| `SignalsCenter.tsx` | Shows signals + divergences | Add: DP prediction confidence on each divergence signal | Extend signal response payload |
+
+---
+
+## Wiring Guide
+
+### Step 1: Backend Endpoints (backend/app/api/v1/)
+
+**File: `dp.py` — Add 2 endpoints:**
+```python
+@router.get("/dp/patterns")
+# Return: learned_patterns from DPLearningEngine
+# Source: PatternLearner.patterns dict → serialize to JSON
+
+@router.get("/dp/prediction/{symbol}")  
+# Return: PatternLearner.predict() result
+# Source: DPLearningEngine.learner.predict(DPInteraction)
+```
+
+**File: `agents.py` — Add 2 endpoints:**
+```python
+@router.get("/narrative/memory")
+# Return: daily_contexts, market_regime, key_levels, sentiment_history from NarrativeMemory
+# Source: NarrativeMemory.get_daily_context() + get_key_levels() + get_narrative_chain()
+
+@router.get("/narrative/previous-session")
+# Return: NarrativeBrain.load_previous_session()
+```
+
+**File: `health.py` — Add 2 endpoints:**
+```python
+@router.get("/health/win-rates")
+# Return: checker_win_rates table contents
+# Source: SELECT * FROM checker_win_rates ORDER BY date DESC
+
+@router.get("/health/history")
+# Return: checker_runs grouped by deploy session
+# Source: SELECT * FROM checker_runs ORDER BY timestamp DESC LIMIT 100
+```
+
+### Step 2: API Client (frontend/src/lib/api.ts)
+
+```typescript
+// Add to dpApi:
+getPatterns: () => api.get('/dp/patterns'),
+getPrediction: (symbol: string) => api.get(`/dp/prediction/${symbol}`),
+
+// Add to agentsApi (or new narrativeApi):
+getMemory: () => api.get('/narrative/memory'),
+getPreviousSession: () => api.get('/narrative/previous-session'),
+
+// Add to healthApi:
+getWinRates: () => api.get('/health/win-rates'),
+getHistory: (days: number = 7) => api.get(`/health/history?days=${days}`),
+```
+
+### Step 3: Upgrade Existing Widgets
+
+**DPEdgeDashboard.tsx** — Add pattern table section below the stats:
+```
+loadData() {
+  const [stats, divergence, patterns] = await Promise.all([
+    dpApi.getEdgeStats(),
+    dpApi.getDivergenceSignals(),
+    dpApi.getPatterns()          // NEW
+  ]);
+}
+```
+
+**NarrativeBrain.tsx** — Expand from 77 lines to include memory:
+```
+// Load session memory on mount
+const memory = await narrativeApi.getMemory();
+// Render: regime badge, key levels, yesterday's context
+```
+
+**SystemHealth.tsx** — Add win rate column to checker grid:
+```
+loadHealth() {
+  const [checkers, winRates] = await Promise.all([
+    healthApi.getCheckers(),
+    healthApi.getWinRates()     // NEW
+  ]);
+}
+```
+
+---
+
+## Data Flow Diagram
+
+```
+                    ┌─────────────────┐
+                    │  Frontend        │
+                    │  React/Vite      │
+                    └────────┬────────┘
+                             │ fetch / WS
+                    ┌────────▼────────┐
+                    │  FastAPI Backend │
+                    │  backend/app/    │
+                    └────────┬────────┘
+                             │ reads from
+            ┌────────────────┼────────────────┐
+            ▼                ▼                ▼
+  ┌──────────────┐ ┌───────────────┐ ┌──────────────┐
+  │dp_learning.db│ │narrative_     │ │checker_      │
+  │  372 interact│ │memory.db      │ │health.db     │
+  │  13 patterns │ │  4 tables pop │ │  2 runs      │
+  │  Predictions │ │  daily context│ │  0 win_rates │
+  └──────────────┘ └───────────────┘ └──────────────┘
+```
+
+---
+
+## Component File Sizes (for sandbag detection)
+
+| File | Lines | Verdict |
+|------|-------|---------|
+| `NarrativeBrain.tsx` | 77 lines | 🟡 THIN — just shows text + bar, no memory/regime/history |
+| `MarketOverview.tsx` | 388 bytes | 🔴 STUB — nearly empty |
+| `DPEdgeDashboard.tsx` | 291 lines | 🟢 Solid — stats, signals, tiers, but no patterns/predictions |
+| `SystemHealth.tsx` | 249 lines | 🟢 Solid — checker grid, but no win rates |
+| `DarkPoolFlow.tsx` | ~350 lines | 🟢 Full — levels, summary, prints, narrative, positions |
+| `EconomicExploit.tsx` | ~450 lines | 🟢 Full — calendar, fedwatch, exploit briefs |
+| `SqueezeScanner.tsx` | ~470 lines | 🟢 Full — scan, price sparklines, filters |
+
+---
+
+## Priority Ordering for Frontend Work
+
+1. **Build backend endpoints** (6 new routes in dp.py, agents.py, health.py)
+2. **Add API client methods** (6 lines in api.ts)
+3. **Upgrade DPEdgeDashboard** — add patterns table + prediction badges
+4. **Upgrade NarrativeBrain** — add session memory panel + regime history
+5. **Upgrade SystemHealth** — add win rate column + deploy history
+6. **Build new DPPatternCard** — standalone pattern display component
+7. **Build SessionMemoryPanel** — yesterday's regime + key levels
+
+---
+
+## Changelog
+
+- **2026-03-11**: Initial audit. 15 widgets, 49 endpoints, 12 API namespaces mapped. 6 missing endpoints, 7 missing components, 5 upgrades identified.
