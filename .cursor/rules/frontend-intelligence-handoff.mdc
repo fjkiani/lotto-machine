@@ -315,15 +315,15 @@ Hit every endpoint on `https://lotto-machine-3.onrender.com`:
 
 **Existing Widgets Upgraded (each with visual proof):**
 - [x] DPEdgeDashboard shows patterns table + prediction badges ✅
-- [ ] NarrativeBrain shows session memory panel + regime badge + yesterday's context
-- [ ] SystemHealth shows per-checker win rates + deploy history
+- [x] NarrativeBrain shows session memory panel + regime badge + yesterday's context ✅ (2026-03-11: fetches /narrative/memory + /narrative/previous-session, renders outlook/VIX/themes/risk)
+- [x] SystemHealth shows per-checker win rates + DP learning stats ✅ (2026-03-11: fetches /health/win-rates, renders 89.8% WR panel)
 - [ ] MarketRegime shows regime history timeline
 - [ ] SignalsCenter shows DP prediction confidence on divergence signals
 
 **New Components Built:**
 - [x] DPPatternCard.tsx — learned patterns table ✅
-- [ ] SessionMemoryPanel.tsx — yesterday's regime + key levels
-- [ ] DPPredictionBadge.tsx — live prediction badge
+- [x] SessionMemoryPanel.tsx — yesterday's regime + key levels ✅ (2026-03-11)
+- [x] DPPredictionBadge.tsx — live prediction badge ✅ (2026-03-11: compact + expanded modes, color-coded)
 
 **Verification (screenshot or curl proof for each):**
 - [ ] Dashboard loads with 0 error states
@@ -338,10 +338,10 @@ Hit every endpoint on `https://lotto-machine-3.onrender.com`:
 1. **~~Fix api.ts timeout handling~~** ✅ DONE (10s AbortController, 15s for narrative)
 2. **Fix narrative endpoint timeout** (cache or background polling)
 3. **Populate signals endpoint** (requires checker output → signals pipe)
-4. **~~Build backend endpoints~~** ✅ ALL DONE (dp.py, agents.py, health.py — all 6 endpoints built)
-5. **~~Add API client methods~~** ✅ ALL DONE (6/6 methods in api.ts)
-6. **Upgrade 4 remaining widgets** (~~DPEdge done~~, NarrativeBrain, SystemHealth, MarketRegime, Signals)
-7. **Build 2 remaining new components** (~~DPPatternCard done~~, SessionMemoryPanel, DPPredictionBadge)
+4. **~~Build backend endpoints~~** ✅ ALL DONE
+5. **~~Add API client methods~~** ✅ ALL DONE
+6. **Upgrade remaining widgets** (~~DPEdge done, NarrativeBrain done, SystemHealth done~~. Remaining: MarketRegime, Signals)
+7. **~~Build new components~~** ✅ ALL DONE (DPPatternCard, SessionMemoryPanel, DPPredictionBadge)
 8. **Screenshot proof for each widget** (curl + browser)
 
 ---
