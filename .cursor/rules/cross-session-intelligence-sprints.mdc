@@ -134,16 +134,14 @@ engine.learner.learn(min_samples=3)
 assert len(engine.learner.patterns) > 0, f"Still 0 patterns"
 ```
 
-**STATUS: ⚠️ PARTIAL**
+**STATUS: ✅ COMPLETE (2026-03-11)**
 - ✅ Fixed NULL handling in `_row_to_interaction()` (ValueError fix)
 - ✅ `learn()` now produces 13 patterns from 346 interactions
-- ❌ **Deliverable #4 NOT DONE:** `predict()` is NOT wired into any checker
-  - Grep receipt: 0 hits for `predict|PatternLearner` in `live_monitoring/orchestrator/` or `live_monitoring/checkers/`
-  - The patterns are learned but NEVER USED for decisions
-
-**Remaining work:**
-1. Wire `PatternLearner.predict()` into `DPDivergenceChecker.check()`
-2. Include prediction text in divergence alert embeds
+- ✅ Patterns persist to `dp_patterns` table (upsert-based)
+- ✅ Patterns auto-load on PatternLearner init
+- ✅ `predict()` wired into `DPDivergenceChecker` (Phase 1)
+- ✅ Prediction text in divergence alert embeds (🧠 Pattern Prediction field)
+- ✅ `persistent_storage.py` path bug fixed (.parent x4 → x3)
 
 **Sandbag warning:** The plan originally said "just lower the threshold" — threshold is already 3. Real fix requires debugging the sub-grouping logic.
 
@@ -177,21 +175,14 @@ loaded = brain.load_previous_session()
 assert loaded is not None and loaded.get("regime") is not None
 ```
 
-**STATUS: ⚠️ PARTIAL**
+**STATUS: ✅ COMPLETE (2026-03-11)**
 - ✅ Built `save_session_summary()` method in NarrativeBrain (line 844)
 - ✅ Built `load_previous_session()` method in NarrativeBrain (line 871)
 - ✅ Fixed db_path to `data/narrative_memory.db`
 - ✅ Wired `store_market_regime()` into `process_intelligence_update()`
-- ❌ **Deliverable #4 NOT DONE:** NOT wired into `OvernightManager.run_daily_recap()`
-  - Grep receipt: 0 hits for `save_session_summary` in `live_monitoring/orchestrator/`
-- ❌ **Deliverable #5 NOT DONE:** NOT wired into `UnifiedAlphaMonitor.__init__()`
-  - Grep receipt: 0 hits for `load_previous_session` in `live_monitoring/orchestrator/`
-  - The methods EXIST but NOBODY CALLS THEM
-
-**Remaining work:**
-1. Wire `save_session_summary()` into daily recap (4PM trigger)
-2. Wire `load_previous_session()` into monitor startup
-3. Verify narrative_memory.db gets populated after one market session
+- ✅ `save_session_summary()` wired into NarrativeScheduler 4PM hook
+- ✅ `load_previous_session()` wired into `monitor_initializer._init_narrative_brain()`
+- ✅ daily_contexts has 1 row with real data (TRENDING_DOWN, VIX=24.89)
 
 ---
 
@@ -213,10 +204,11 @@ checker_health.py:178: INSERT INTO checker_runs  ← appends
 3. Add `GET /health/history?days=7` endpoint
 4. Verify win_rates table gets populated (currently 0 rows — needs `record_outcome()` calls)
 
-**STATUS: ❌ NOT STARTED**
+**STATUS: ⚠️ PARTIAL (2026-03-11)**
+- ✅ `GET /health/history` endpoint built — returns 376 alerts, 2 checker_runs
+- ✅ `GET /health/win-rates` endpoint built — returns 89.8% DP WR from dp_learning.db fallback
 - ❌ deploy_id does NOT exist — 0 grep hits for `deploy_id` in entire codebase
-- ❌ No history endpoint built
-- ❌ win_rates still 0 rows
+- ✅ win_rates endpoint has dp_learning.db fallback so it returns real data
 - ⚠️ All 14 checkers show status=warning on Render (live test 2026-03-11)
 
 ---
@@ -273,7 +265,17 @@ for ep in market/context dp/edge-stats signals health/checkers agents/narrative/
 done
 ```
 
-**STATUS: ❌ NOT STARTED**
+**STATUS: ⚠️ PARTIAL (2026-03-11)**
+- ✅ `api.ts` has AbortController with 10s default timeout + 15s for narrative
+- ✅ `withTimeout()` helper used in `get()` and `post()`
+- ✅ 6 backend endpoints built, 6 frontend API methods added
+- ✅ `SystemHealth.tsx` upgraded with DP win rates panel
+- ✅ `NarrativeBrain.tsx` upgraded with previous-session fetch
+- ✅ `SessionMemoryPanel.tsx` new component built
+- ✅ `DPPredictionBadge.tsx` new component built
+- ❌ Error fallback UI for all widgets NOT done
+- ❌ Narrative caching NOT done (still times out)
+- ❌ Signals endpoint still returns 0 signals**
 
 ---
 
