@@ -157,6 +157,185 @@ async def paper_trades():
         return {"error": str(e), "trades": []}
 
 
+@app.get("/dp-snapshots")
+async def dp_snapshots():
+    """Dark pool snapshot timeseries."""
+    try:
+        import sqlite3
+        db_path = '/tmp/dp_timeseries.db'
+        if os.path.exists(db_path):
+            conn = sqlite3.connect(db_path)
+            rows = conn.execute(
+                "SELECT timestamp, symbol, short_vol_pct, json_data FROM dp_snapshots ORDER BY id DESC LIMIT 20"
+            ).fetchall()
+            conn.close()
+            import json as _json
+            snapshots = [{"timestamp": r[0], "symbol": r[1], "short_vol_pct": r[2], "data": _json.loads(r[3])} for r in rows]
+            return {"total": len(snapshots), "snapshots": snapshots}
+        return {"total": 0, "snapshots": [], "note": "recorder not yet started"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/signal-diffs")
+async def signal_diffs():
+    """AXLFI signal regime changes."""
+    try:
+        from live_monitoring.enrichment.apis.axlfi_signal_differ import AXLFISignalDiffer
+        differ = AXLFISignalDiffer()
+        return differ.get_latest()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/volume-spikes")
+async def volume_spikes():
+    """SPY intraday volume spike events."""
+    try:
+        from live_monitoring.enrichment.apis.volume_spike_detector import VolumeSpikeDetector
+        detector = VolumeSpikeDetector()
+        return detector.get_latest()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/option-walls")
+async def option_walls():
+    """SPY/QQQ/IWM option wall levels."""
+    try:
+        from live_monitoring.enrichment.apis.option_wall_tracker import OptionWallTracker
+        tracker = OptionWallTracker()
+        return tracker.get_latest()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/kill-shots-live")
+async def kill_shots_live():
+    """LIVE Kill Shots Divergence Score — all layers, no InstitutionalContext needed."""
+    try:
+        score = 0
+        layers = {}
+        reasons = []
+
+        # 2.7 Brain Conviction
+        try:
+            from live_monitoring.core.brain_manager import BrainManager
+            bm = BrainManager()
+            brain_report = bm.get_report(use_cache=True)
+            if brain_report:
+                boost = brain_report.get('divergence_boost', 0)
+                score += boost
+                layers['brain_boost'] = boost
+                layers['brain_reasons'] = brain_report.get('reasons', [])
+                for r in brain_report.get('reasons', []):
+                    reasons.append(f"Brain: {r}")
+        except Exception as e:
+            layers['brain_error'] = str(e)
+
+        # 2.8 COT Extreme Divergence
+        try:
+            from live_monitoring.enrichment.apis.cot_client import COTClient
+            cot_client = COTClient(cache_ttl=3600)
+            cot_div = cot_client.get_divergence_signal("ES")
+            cot_add = 0
+            if cot_div and cot_div.get("divergent"):
+                specs = cot_div.get("specs_net", 0)
+                comms = cot_div.get("comm_net", 0)
+                if specs < -100_000 and comms > 50_000:
+                    cot_add = 3
+                    reasons.append(f"COT EXTREME: specs {specs:+,}, comms {comms:+,}")
+                elif specs < -50_000 and comms > 25_000:
+                    cot_add = 1
+                    reasons.append(f"COT mild: specs {specs:+,}, comms {comms:+,}")
+                layers['cot_specs_net'] = specs
+                layers['cot_comm_net'] = comms
+                layers['cot_date'] = cot_div.get('report_date')
+            score += cot_add
+            layers['cot_boost'] = cot_add
+            layers['cot_divergent'] = cot_div.get('divergent', False) if cot_div else False
+        except Exception as e:
+            layers['cot_error'] = str(e)
+
+        # 2.9 GEX Regime (VIX ratio proxy)
+        gex_add = 0
+        try:
+            import yfinance as yf
+            vix = yf.Ticker('^VIX').history(period='1d')['Close'].iloc[-1]
+            vix3m = yf.Ticker('^VIX3M').history(period='1d')['Close'].iloc[-1]
+            ratio = vix / vix3m
+            layers['vix'] = round(float(vix), 2)
+            layers['vix3m'] = round(float(vix3m), 2)
+            layers['vix_ratio'] = round(float(ratio), 4)
+            if ratio < 0.85:
+                gex_add = 1
+                layers['gex_regime'] = 'STRONG_POSITIVE'
+                reasons.append(f"GEX strong positive (VIX ratio {ratio:.3f})")
+            elif ratio < 1.0:
+                layers['gex_regime'] = 'MILD_POSITIVE'
+            elif ratio < 1.15:
+                layers['gex_regime'] = 'MILD_NEGATIVE'
+            else:
+                layers['gex_regime'] = 'STRONG_NEGATIVE'
+            score += gex_add
+            layers['gex_boost'] = gex_add
+        except Exception as e:
+            layers['gex_error'] = str(e)
+
+        # 2.10 Combined GEX + COT
+        cot_extreme = layers.get('cot_boost', 0) >= 3
+        gex_positive = layers.get('gex_regime', '') in ('STRONG_POSITIVE', 'MILD_POSITIVE')
+        combined_add = 2 if (cot_extreme and gex_positive) else 0
+        score += combined_add
+        layers['combined_boost'] = combined_add
+        if combined_add > 0:
+            reasons.append(f"COMBINED: GEX+ ({layers.get('gex_regime')}) + COT Extreme → +2")
+
+        # 2.5 Fed vs Dark Pool
+        try:
+            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
+            sc = StockgridClient(cache_ttl=300)
+            spy_detail = sc.get_ticker_detail('SPY')
+            if spy_detail:
+                sv_pct = spy_detail.short_volume_pct or 0
+                layers['spy_short_vol_pct'] = round(sv_pct, 2)
+                brain_tones = layers.get('brain_reasons', [])
+                fed_hawkish = any('HAWKISH' in str(r).upper() for r in brain_tones)
+                if fed_hawkish and sv_pct > 55:
+                    score += 3
+                    layers['fed_dp_divergence'] = True
+                    reasons.append(f"Fed HAWKISH + SPY dark pool loading ({sv_pct:.1f}% SV)")
+                else:
+                    layers['fed_dp_divergence'] = False
+        except Exception as e:
+            layers['dp_error'] = str(e)
+
+        # Verdict
+        if score > 7:
+            verdict = "BOOST"
+            action = "+15% confidence on all signals"
+        elif score >= 5:
+            verdict = "NEUTRAL"
+            action = "Signals pass through unchanged"
+        elif score > 0:
+            verdict = "SOFT_VETO"
+            action = "Signals pass ONLY if no narrative divergence"
+        else:
+            verdict = "HARD_VETO"
+            action = "All signals killed"
+
+        return {
+            'divergence_score': score,
+            'verdict': verdict,
+            'action': action,
+            'layers': layers,
+            'reasons': reasons,
+            'timestamp': datetime.now().isoformat(),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """Global exception handler"""
