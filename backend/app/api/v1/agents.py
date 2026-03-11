@@ -502,3 +502,40 @@ async def get_reddit_trending():
     except Exception as e:
         logger.error(f"Error getting trending: {e}")
         return {"trending": [], "count": 0, "error": str(e)}
+
+
+@router.get("/options/pc-ratio-trend")
+async def get_options_pc_ratio():
+    """Get Put/Call ratio trend from options flow data."""
+    try:
+        from live_monitoring.exploitation.options_flow_trends import OptionsFlowTrends
+        oft = OptionsFlowTrends()
+        return oft.get_pc_ratio_trend(days=5)
+    except Exception as e:
+        logger.error(f"Error getting P/C ratio trend: {e}")
+        return {"has_data": False, "error": str(e)}
+
+
+@router.get("/options/accumulation")
+async def get_options_accumulation(symbol: str = None):
+    """Detect same-strike multi-day options accumulation."""
+    try:
+        from live_monitoring.exploitation.options_flow_trends import OptionsFlowTrends
+        oft = OptionsFlowTrends()
+        results = oft.detect_unusual_accumulation(ticker=symbol, days=5)
+        return {"accumulation": results, "count": len(results), "timestamp": datetime.now().isoformat()}
+    except Exception as e:
+        logger.error(f"Error detecting options accumulation: {e}")
+        return {"accumulation": [], "count": 0, "error": str(e)}
+
+
+@router.get("/price/context/{symbol}")
+async def get_price_context(symbol: str):
+    """Get cached price context (1d/5d/20d changes, volume, range position)."""
+    try:
+        from live_monitoring.enrichment.price_context_provider import PriceContextProvider
+        pcp = PriceContextProvider()
+        return pcp.get_context(symbol)
+    except Exception as e:
+        logger.error(f"Error getting price context for {symbol}: {e}")
+        return {"symbol": symbol.upper(), "has_data": False, "error": str(e)}
