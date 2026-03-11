@@ -193,23 +193,31 @@ class FedOfficialsBrain:
         """Exploit the live pipes we already opened. Direct SQL on populated tables."""
         cursor = self._conn.cursor()
 
-        # Politician trades
-        cursor.execute("""
-            SELECT politician_name, ticker, transaction_type, trade_size, trade_date
-            FROM politician_trades
-            WHERE created_at >= datetime('now', ? || ' days')
-            ORDER BY created_at DESC LIMIT 20
-        """, (f"-{days}",))
-        pol_rows = cursor.fetchall()
+        # Politician trades — table may not exist on fresh Render deploy
+        pol_rows = []
+        try:
+            cursor.execute("""
+                SELECT politician_name, ticker, transaction_type, trade_size, trade_date
+                FROM politician_trades
+                WHERE created_at >= datetime('now', ? || ' days')
+                ORDER BY created_at DESC LIMIT 20
+            """, (f"-{days}",))
+            pol_rows = cursor.fetchall()
+        except sqlite3.OperationalError as e:
+            logger.warning(f"politician_trades query failed (table may not exist): {e}")
 
-        # Insider trades
-        cursor.execute("""
-            SELECT executive_name, company, ticker, transaction_type, trade_value_usd, trade_date
-            FROM insider_trades
-            WHERE created_at >= datetime('now', ? || ' days')
-            ORDER BY created_at DESC LIMIT 20
-        """, (f"-{days}",))
-        ins_rows = cursor.fetchall()
+        # Insider trades — same resilience
+        ins_rows = []
+        try:
+            cursor.execute("""
+                SELECT executive_name, company, ticker, transaction_type, trade_value_usd, trade_date
+                FROM insider_trades
+                WHERE created_at >= datetime('now', ? || ' days')
+                ORDER BY created_at DESC LIMIT 20
+            """, (f"-{days}",))
+            ins_rows = cursor.fetchall()
+        except sqlite3.OperationalError as e:
+            logger.warning(f"insider_trades query failed (table may not exist): {e}")
 
         # Compute net insider buying
         insider_buys = sum(
