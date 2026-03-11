@@ -478,3 +478,27 @@ async def get_previous_session():
             "timestamp": datetime.now().isoformat()
         }
 
+
+@router.get("/reddit/trends/{symbol}")
+async def get_reddit_sentiment_trend(symbol: str):
+    """Get multi-day Reddit sentiment trend for a symbol."""
+    try:
+        from live_monitoring.exploitation.reddit_sentiment_trends import RedditSentimentTrends
+        rt = RedditSentimentTrends()
+        return rt.get_sentiment_trend(symbol, days=5)
+    except Exception as e:
+        logger.error(f"Error getting Reddit trend for {symbol}: {e}")
+        return {"symbol": symbol.upper(), "has_data": False, "error": str(e)}
+
+
+@router.get("/reddit/trending")
+async def get_reddit_trending():
+    """Get tickers with highest absolute sentiment momentum."""
+    try:
+        from live_monitoring.exploitation.reddit_sentiment_trends import RedditSentimentTrends
+        rt = RedditSentimentTrends()
+        trending = rt.get_trending_tickers(top_n=10)
+        return {"trending": trending, "count": len(trending), "timestamp": datetime.now().isoformat()}
+    except Exception as e:
+        logger.error(f"Error getting trending: {e}")
+        return {"trending": [], "count": 0, "error": str(e)}
