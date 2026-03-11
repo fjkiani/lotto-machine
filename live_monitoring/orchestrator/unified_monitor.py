@@ -1,11 +1,14 @@
 """
 🎯 UNIFIED ALPHA MONITOR (MODULAR VERSION)
 
-Main orchestrator that uses modular components:
+Master orchestrator that delegates to modular components:
 - AlertManager: Alert sending/deduplication
 - RegimeDetector: Market regime detection
 - MomentumDetector: Selloff/rally detection
 - MonitorInitializer: Component initialization
+- ExploitationManager: Squeeze/Gamma/Scanner/FTD/Reddit init
+- CheckerScheduler: Interval-based checker dispatch
+- OvernightManager: Post-market/overnight intelligence
 """
 
 import os
@@ -24,6 +27,9 @@ from .regime_detector import RegimeDetector
 from .momentum_detector import MomentumDetector
 from .monitor_initializer import MonitorInitializer
 from .checker_health import CheckerHealthRegistry
+from .exploitation_manager import ExploitationManager
+from .checker_scheduler import CheckerScheduler
+from .overnight_manager import OvernightManager
 from .checkers import (
     FedChecker,
     TrumpChecker,
@@ -42,6 +48,7 @@ from .checkers import (
     OptionsFlowChecker,
     NewsIntelligenceChecker,
     DPDivergenceChecker,
+    EarningsChecker,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,55 +57,39 @@ logger = logging.getLogger(__name__)
 class UnifiedAlphaMonitor:
     """
     Master orchestrator for all monitoring systems (MODULAR VERSION).
-    
-    Uses modular components:
-    - AlertManager for all alerting
-    - RegimeDetector for market regime
-    - MomentumDetector for selloff/rally
-    - MonitorInitializer for setup
+
+    Delegates to:
+    - ExploitationManager: Squeeze/Gamma/Scanner/FTD/Reddit init
+    - CheckerScheduler: Interval-based checker dispatch
+    - OvernightManager: Post-market/overnight intelligence
+    - AlertManager: Discord alerting + dedup
+    - RegimeDetector: Market regime classification
+    - MomentumDetector: Selloff/rally detection
     """
-    
+
     def __init__(self):
         self.running = True
         self.symbols = ['SPY', 'QQQ']
-        
-        # Intervals (in seconds)
-        # REDUCED INTERVALS FOR RENDER FREE TIER
-        # Render suspends services with "uncommonly high volume of traffic"
-        # See: https://render.com/docs/free#service-initiated-traffic-threshold
-        self.fed_interval = 900       # 15 minutes (was 5) - Fed data doesn't change that fast
-        self.trump_interval = 600     # 10 minutes (was 3) - Trump news can wait
-        self.econ_interval = 3600     # 1 hour - already reasonable
-        self.dp_interval = 300        # 5 minutes (was 1) - DP levels don't change that fast
-        self.synthesis_interval = 300 # 5 minutes (was 1) - synthesis can wait
-        self.squeeze_interval = 3600  # 1 hour - already reasonable
-        self.reddit_interval = 3600   # 1 hour - already reasonable
-        self.premarket_gap_interval = 600  # 10 minutes (was 5)
-        self.options_flow_interval = 1800  # 30 minutes - already reasonable
-        
-        # POST-MARKET / OVERNIGHT intervals (every 2 hours when market closed)
-        self.overnight_interval = 7200  # 2 hours - check overnight news/developments
+
+        # Intervals (in seconds) — Render free tier optimized
+        self.fed_interval = 900
+        self.trump_interval = 600
+        self.econ_interval = 3600
+        self.dp_interval = 300
+        self.synthesis_interval = 300
+        self.squeeze_interval = 3600
+        self.reddit_interval = 3600
+        self.premarket_gap_interval = 600
+        self.options_flow_interval = 1800
+        self.overnight_interval = 7200
         self.last_overnight_check = None
-        
-        # Track last run times
-        self.last_fed_check = None
-        self.last_trump_check = None
-        self.last_econ_check = None
-        self.last_dp_check = None
-        self.last_synthesis_check = None
-        self.last_tradytics_analysis = None
-        self.last_squeeze_check = None
-        self.last_reddit_check = None
-        self.last_premarket_gap_check = None
-        self.last_options_flow_check = None
-        self.last_dp_divergence_check = None
-        
-        # Initialize modular components
+
+        # Core components
         self.alert_manager = AlertManager()
         self.regime_detector = RegimeDetector()
         self.health_registry = CheckerHealthRegistry()
-        
-        # State tracking (MUST BE BEFORE _init_monitors and _init_exploitation_modules)
+
+        # State tracking
         self.prev_fed_status = None
         self.prev_trump_sentiment = None
         self.seen_fed_comments = set()
@@ -110,80 +101,97 @@ class UnifiedAlphaMonitor:
         self.last_narrative_sent = None
         self._last_level_directions = {}
         self._last_regime_details = {}
-        
-        # Initialize monitors (this will set up all components)
+
+        # Initialize monitors (sets up Fed, Trump, DP, Brain, Narrative, Econ)
         self._init_monitors()
-        
-        # Initialize exploitation modules
-        self._init_exploitation_modules()
-        
-        # Initialize momentum detector (needs signal_generator)
+
+        # Initialize exploitation modules (Squeeze, Gamma, Scanner, FTD, Reddit)
+        self.exploitation = ExploitationManager(dp_client=getattr(self, 'dp_client', None))
+        self._expose_exploitation_attrs()
+
+        # Initialize momentum detector
         self.momentum_detector = MomentumDetector(
             signal_generator=getattr(self, 'signal_generator', None),
             institutional_engine=getattr(self, 'institutional_engine', None)
         )
-        
+
+        # Initialize checkers and scheduler
+        self._init_checkers()
+        self._init_scheduler()
+
+        # Initialize overnight manager
+        self.overnight = OvernightManager(
+            send_discord=self.send_discord,
+            run_checker_with_health=self._run_checker_with_health,
+            trump_checker=self.trump_checker,
+            news_intelligence_checker=self.news_intelligence_checker,
+            gamma_tracker=self.exploitation.gamma_tracker,
+            symbols=self.symbols,
+            gamma_enabled=self.exploitation.gamma_enabled,
+            squeeze_enabled=self.exploitation.squeeze_enabled,
+        )
+
         logger.info("=" * 70)
         logger.info("🎯 ALPHA INTELLIGENCE - UNIFIED MONITOR STARTED (MODULAR)")
         logger.info("=" * 70)
-    
+
+    # ═══════════════════════════════════════════════════════════════
+    # INITIALIZATION
+    # ═══════════════════════════════════════════════════════════════
+
     def _init_monitors(self):
         """Initialize all monitor components using MonitorInitializer."""
         initializer = MonitorInitializer(on_dp_outcome=self._on_dp_outcome)
         status = initializer.initialize_all()
-        
-        # Extract components from status
+
         fed_status = status.get('fed', {})
         self.fed_enabled = fed_status.get('enabled', False)
         self.fed_watch = fed_status.get('fed_watch')
         self.fed_officials = fed_status.get('fed_officials')
-        
+
         trump_status = status.get('trump', {})
         self.trump_enabled = trump_status.get('enabled', False)
         self.trump_pulse = trump_status.get('trump_pulse')
         self.trump_news = trump_status.get('trump_news')
-        
+
         dp_status = status.get('dark_pool', {})
         self.dp_enabled = dp_status.get('enabled', False)
         self.dp_client = dp_status.get('dp_client')
         self.dp_engine = dp_status.get('dp_engine')
-        
+
         learning_status = status.get('dp_learning', {})
         self.dp_learning_enabled = learning_status.get('enabled', False)
         self.dp_learning = learning_status.get('dp_learning')
-        
+
         monitor_status = status.get('dp_monitor_engine', {})
         self.dp_monitor_engine = monitor_status.get('dp_monitor_engine')
-        
+
         brain_status = status.get('signal_brain', {})
         self.brain_enabled = brain_status.get('enabled', False)
         self.signal_brain = brain_status.get('signal_brain')
         self.macro_provider = brain_status.get('macro_provider')
-        self.unified_mode = brain_status.get('enabled', False)  # Enable if brain works
-        
+        self.unified_mode = brain_status.get('enabled', False)
+
         narrative_status = status.get('narrative_brain', {})
         self.narrative_enabled = narrative_status.get('enabled', False)
         self.narrative_brain = narrative_status.get('narrative_brain')
         self.narrative_scheduler = narrative_status.get('narrative_scheduler')
-        
+
         econ_status = status.get('economic', {})
         self.econ_enabled = econ_status.get('enabled', False)
         self.econ_engine = econ_status.get('econ_engine')
         self.econ_calendar = econ_status.get('econ_calendar')
         self.econ_calendar_type = econ_status.get('econ_calendar_type')
-        
+
         tradytics_status = status.get('tradytics', {})
         self.tradytics_llm_available = tradytics_status.get('llm_available', False)
         self.tradytics_analysis_interval = 300
-        self.tradytics_alerts_processed = 0
-        self.seen_tradytics_alerts = set()
-        
+
         # Initialize signal generator for momentum detection
         try:
             from live_monitoring.core.signal_generator import SignalGenerator
             api_key = os.getenv('CHARTEXCHANGE_API_KEY')
             self.signal_generator = SignalGenerator(api_key=api_key)
-            # Update momentum detector
             self.momentum_detector = MomentumDetector(
                 signal_generator=self.signal_generator,
                 institutional_engine=self.dp_engine
@@ -191,557 +199,353 @@ class UnifiedAlphaMonitor:
         except Exception as e:
             logger.warning(f"   ⚠️ SignalGenerator not available: {e}")
             self.signal_generator = None
-        
-        # Set institutional_engine for momentum detector
+
         self.institutional_engine = self.dp_engine
-        
+
         logger.info(f"   Fed: {'✅' if self.fed_enabled else '❌'}")
         logger.info(f"   Trump: {'✅' if self.trump_enabled else '❌'}")
         logger.info(f"   Economic: {'✅' if self.econ_enabled else '❌'}")
         logger.info(f"   Dark Pool: {'✅' if self.dp_enabled else '❌'}")
         logger.info(f"   Signal Brain: {'✅' if self.brain_enabled else '❌'}")
         logger.info(f"   Narrative Brain: {'✅' if self.narrative_enabled else '❌'}")
-    
-    def _init_exploitation_modules(self):
-        """
-        Initialize exploitation modules (Phase 1+).
-        🔥 These modules exploit unused ChartExchange data for edge.
-        """
-        logger.info("🔥 Initializing exploitation modules...")
-        
-        # Squeeze Detector (Phase 1)
-        self.squeeze_enabled = False
-        self.squeeze_detector = None
-        
-        try:
-            from live_monitoring.exploitation.squeeze_detector import SqueezeDetector
-            from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
-            
-            api_key = os.getenv('CHARTEXCHANGE_API_KEY') or os.getenv('CHART_EXCHANGE_API_KEY')
-            if api_key:
-                # Use existing dp_client if available, else create new
-                if hasattr(self, 'dp_client') and self.dp_client:
-                    self.squeeze_detector = SqueezeDetector(self.dp_client)
-                else:
-                    client = UltimateChartExchangeClient(api_key, tier=3)
-                    self.squeeze_detector = SqueezeDetector(client)
-                
-                self.squeeze_enabled = True
-                logger.info("   ✅ Squeeze Detector initialized")
-            else:
-                logger.warning("   ⚠️ Squeeze Detector: No API key found")
-        except Exception as e:
-            logger.warning(f"   ⚠️ Squeeze Detector failed: {e}")
-        
-        # Gamma Tracker (Phase 2) - Uses yfinance options data
-        self.gamma_enabled = False
-        self.gamma_tracker = None
-        
-        try:
-            from live_monitoring.exploitation.gamma_tracker import GammaTracker
-            self.gamma_tracker = GammaTracker()
-            self.gamma_enabled = True
-            logger.info("   ✅ Gamma Tracker initialized")
-        except Exception as e:
-            logger.warning(f"   ⚠️ Gamma Tracker failed: {e}")
-        
-        # Opportunity Scanner (Phase 3)
-        self.scanner_enabled = False
-        self.opportunity_scanner = None
-        
-        try:
-            from live_monitoring.exploitation.opportunity_scanner import OpportunityScanner
-            from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
-            
-            api_key = os.getenv('CHARTEXCHANGE_API_KEY') or os.getenv('CHART_EXCHANGE_API_KEY')
-            if api_key:
-                # Use existing dp_client if available, else create new
-                if hasattr(self, 'dp_client') and self.dp_client:
-                    self.opportunity_scanner = OpportunityScanner(self.dp_client)
-                else:
-                    client = UltimateChartExchangeClient(api_key, tier=3)
-                    self.opportunity_scanner = OpportunityScanner(client)
-                
-                self.scanner_enabled = True
-                logger.info("   ✅ Opportunity Scanner initialized")
-            else:
-                logger.warning("   ⚠️ Opportunity Scanner: No API key found")
-        except Exception as e:
-            logger.warning(f"   ⚠️ Opportunity Scanner failed: {e}")
-        
-        # Scanner state tracking
-        self.scanned_today = set()  # Track which dates we've scanned
-        self.scanner_interval = 3600  # Scan every hour during RTH
-        self.last_scanner_check = None
-        
-        # FTD Analyzer (Phase 4)
-        self.ftd_enabled = False
-        self.ftd_analyzer = None
-        
-        try:
-            from live_monitoring.exploitation.ftd_analyzer import FTDAnalyzer
-            from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
-            
-            api_key = os.getenv('CHARTEXCHANGE_API_KEY') or os.getenv('CHART_EXCHANGE_API_KEY')
-            if api_key:
-                # Use existing dp_client if available, else create new
-                if hasattr(self, 'dp_client') and self.dp_client:
-                    self.ftd_analyzer = FTDAnalyzer(self.dp_client)
-                else:
-                    client = UltimateChartExchangeClient(api_key, tier=3)
-                    self.ftd_analyzer = FTDAnalyzer(client)
-                
-                self.ftd_enabled = True
-                logger.info("   ✅ FTD Analyzer initialized")
-            else:
-                logger.warning("   ⚠️ FTD Analyzer: No API key found")
-        except Exception as e:
-            logger.warning(f"   ⚠️ FTD Analyzer failed: {e}")
-        
-        # FTD state tracking
-        self.ftd_interval = 3600  # Check hourly (FTD data updates daily)
-        self.last_ftd_check = None
-        self.ftd_candidates = ['GME', 'AMC', 'LCID', 'RIVN', 'MARA', 'RIOT', 'SOFI', 'PLTR', 'NIO', 'BBBY']
-        
-        # Squeeze candidates - SEED list only!
-        # The opportunity scanner DYNAMICALLY discovers new candidates each check
-        # This is just a starting point for known high-SI stocks
-        self.squeeze_candidates = ['GME', 'AMC', 'LCID', 'RIVN', 'MARA', 'RIOT']
-        
-        # Reddit Exploiter (Phase 5)
-        self.reddit_enabled = False
-        self.reddit_exploiter = None
-        
-        try:
-            from live_monitoring.exploitation.reddit_exploiter import RedditExploiter
-            
-            api_key = os.getenv('CHARTEXCHANGE_API_KEY') or os.getenv('CHART_EXCHANGE_API_KEY')
-            if api_key:
-                self.reddit_exploiter = RedditExploiter(api_key=api_key)
-                self.reddit_enabled = True
-                logger.info("   ✅ Reddit Exploiter initialized")
-            else:
-                logger.warning("   ⚠️ Reddit Exploiter: No API key found")
-        except Exception as e:
-            logger.warning(f"   ⚠️ Reddit Exploiter failed: {e}")
-        
-        logger.info(f"   Squeeze Detector: {'✅' if self.squeeze_enabled else '❌'}")
-        logger.info(f"   Gamma Tracker: {'✅' if self.gamma_enabled else '❌'}")
-        logger.info(f"   Opportunity Scanner: {'✅' if self.scanner_enabled else '❌'}")
-        logger.info(f"   FTD Analyzer: {'✅' if self.ftd_enabled else '❌'}")
-        logger.info(f"   Reddit Exploiter: {'✅' if self.reddit_enabled else '❌'}")
-        
-        # Initialize all checkers
-        self._init_checkers()
-    
+
+    def _expose_exploitation_attrs(self):
+        """Expose exploitation manager attributes for checker init compatibility."""
+        self.squeeze_enabled = self.exploitation.squeeze_enabled
+        self.squeeze_detector = self.exploitation.squeeze_detector
+        self.gamma_enabled = self.exploitation.gamma_enabled
+        self.gamma_tracker = self.exploitation.gamma_tracker
+        self.scanner_enabled = self.exploitation.scanner_enabled
+        self.opportunity_scanner = self.exploitation.opportunity_scanner
+        self.ftd_enabled = self.exploitation.ftd_enabled
+        self.ftd_analyzer = self.exploitation.ftd_analyzer
+        self.reddit_enabled = self.exploitation.reddit_enabled
+        self.reddit_exploiter = self.exploitation.reddit_exploiter
+        self.squeeze_candidates = self.exploitation.squeeze_candidates
+        self.ftd_candidates = self.exploitation.ftd_candidates
+
     def _init_checkers(self):
         """Initialize all checker modules."""
         logger.info("🔧 Initializing checker modules...")
-        
-        # Fed Checker
+
         self.fed_checker = FedChecker(
-            alert_manager=self.alert_manager,
-            fed_watch=self.fed_watch,
-            fed_officials=self.fed_officials,
-            unified_mode=self.unified_mode
+            alert_manager=self.alert_manager, fed_watch=self.fed_watch,
+            fed_officials=self.fed_officials, unified_mode=self.unified_mode
         ) if self.fed_enabled else None
-        
-        # Trump Checker
+
         self.trump_checker = TrumpChecker(
-            alert_manager=self.alert_manager,
-            trump_pulse=self.trump_pulse,
-            trump_news=self.trump_news,
-            unified_mode=self.unified_mode
+            alert_manager=self.alert_manager, trump_pulse=self.trump_pulse,
+            trump_news=self.trump_news, unified_mode=self.unified_mode
         ) if self.trump_enabled else None
-        
-        # Economic Checker
+
         self.economic_checker = EconomicChecker(
-            alert_manager=self.alert_manager,
-            econ_calendar=self.econ_calendar,
-            econ_engine=self.econ_engine,
-            econ_calendar_type=self.econ_calendar_type,
-            prev_fed_status=self.prev_fed_status,
-            unified_mode=self.unified_mode
+            alert_manager=self.alert_manager, econ_calendar=self.econ_calendar,
+            econ_engine=self.econ_engine, econ_calendar_type=self.econ_calendar_type,
+            prev_fed_status=self.prev_fed_status, unified_mode=self.unified_mode
         ) if self.econ_enabled else None
-        
-        # Dark Pool Checker
+
         self.dp_checker = DarkPoolChecker(
-            alert_manager=self.alert_manager,
-            dp_monitor_engine=self.dp_monitor_engine,
-            symbols=self.symbols,
-            unified_mode=self.unified_mode,
-            on_synthesis_trigger=lambda: None  # Synthesis handled separately
+            alert_manager=self.alert_manager, dp_monitor_engine=self.dp_monitor_engine,
+            symbols=self.symbols, unified_mode=self.unified_mode,
+            on_synthesis_trigger=lambda: None
         ) if self.dp_enabled else None
-        
-        # Synthesis Checker
+
         self.synthesis_checker = SynthesisChecker(
-            alert_manager=self.alert_manager,
-            signal_brain=self.signal_brain,
-            macro_provider=self.macro_provider,
-            unified_mode=self.unified_mode
+            alert_manager=self.alert_manager, signal_brain=self.signal_brain,
+            macro_provider=self.macro_provider, unified_mode=self.unified_mode
         ) if self.brain_enabled else None
-        
-        # Narrative Checker
+
         self.narrative_checker = NarrativeChecker(
-            alert_manager=self.alert_manager,
-            narrative_brain=self.narrative_brain,
-            regime_detector=self.regime_detector,
-            dp_monitor_engine=self.dp_monitor_engine,
+            alert_manager=self.alert_manager, narrative_brain=self.narrative_brain,
+            regime_detector=self.regime_detector, dp_monitor_engine=self.dp_monitor_engine,
             unified_mode=self.unified_mode
         ) if self.narrative_enabled else None
-        
-        # Tradytics Checker
+
         self.tradytics_checker = TradyticsChecker(
-            alert_manager=self.alert_manager,
-            tradytics_llm_available=self.tradytics_llm_available,
-            tradytics_analysis_interval=self.tradytics_analysis_interval,
-            unified_mode=self.unified_mode
+            alert_manager=self.alert_manager, tradytics_llm_available=self.tradytics_llm_available,
+            tradytics_analysis_interval=self.tradytics_analysis_interval, unified_mode=self.unified_mode
         ) if self.tradytics_llm_available else None
-        
-        # Squeeze Checker
+
         self.squeeze_checker = SqueezeChecker(
-            alert_manager=self.alert_manager,
-            squeeze_detector=self.squeeze_detector,
-            opportunity_scanner=self.opportunity_scanner,
-            squeeze_candidates=self.squeeze_candidates,
+            alert_manager=self.alert_manager, squeeze_detector=self.squeeze_detector,
+            opportunity_scanner=self.opportunity_scanner, squeeze_candidates=self.squeeze_candidates,
             unified_mode=self.unified_mode
         ) if self.squeeze_enabled else None
-        
-        # Gamma Checker
-        # Get gamma_exposure_tracker from signal_generator if available
+
         gamma_exposure_tracker = None
         if hasattr(self, 'signal_generator') and hasattr(self.signal_generator, 'gamma_tracker'):
             gamma_exposure_tracker = self.signal_generator.gamma_tracker
-        
+
         self.gamma_checker = GammaChecker(
-            alert_manager=self.alert_manager,
-            gamma_tracker=self.gamma_tracker,
-            gamma_exposure_tracker=gamma_exposure_tracker,
-            symbols=self.symbols,
+            alert_manager=self.alert_manager, gamma_tracker=self.gamma_tracker,
+            gamma_exposure_tracker=gamma_exposure_tracker, symbols=self.symbols,
             unified_mode=self.unified_mode
         ) if self.gamma_enabled else None
-        
-        # Scanner Checker
+
         self.scanner_checker = ScannerChecker(
-            alert_manager=self.alert_manager,
-            opportunity_scanner=self.opportunity_scanner,
-            squeeze_detector=self.squeeze_detector,
-            unified_mode=self.unified_mode
+            alert_manager=self.alert_manager, opportunity_scanner=self.opportunity_scanner,
+            squeeze_detector=self.squeeze_detector, unified_mode=self.unified_mode
         ) if self.scanner_enabled else None
-        
-        # FTD Checker
+
         self.ftd_checker = FTDChecker(
-            alert_manager=self.alert_manager,
-            ftd_analyzer=self.ftd_analyzer,
-            ftd_candidates=self.ftd_candidates,
-            unified_mode=self.unified_mode
+            alert_manager=self.alert_manager, ftd_analyzer=self.ftd_analyzer,
+            ftd_candidates=self.ftd_candidates, unified_mode=self.unified_mode
         ) if self.ftd_enabled else None
-        
-        # Daily Recap Checker
+
         self.daily_recap_checker = DailyRecapChecker(
-            alert_manager=self.alert_manager,
-            gamma_tracker=self.gamma_tracker,
-            symbols=self.symbols,
-            squeeze_enabled=self.squeeze_enabled,
-            gamma_enabled=self.gamma_enabled,
-            unified_mode=self.unified_mode
+            alert_manager=self.alert_manager, gamma_tracker=self.gamma_tracker,
+            symbols=self.symbols, squeeze_enabled=self.squeeze_enabled,
+            gamma_enabled=self.gamma_enabled, unified_mode=self.unified_mode
         )
-        
-        # Reddit Checker (Phase 5)
+
         api_key = os.getenv('CHARTEXCHANGE_API_KEY') or os.getenv('CHART_EXCHANGE_API_KEY')
+
         self.reddit_checker = RedditChecker(
-            alert_manager=self.alert_manager,
-            reddit_exploiter=self.reddit_exploiter,
+            alert_manager=self.alert_manager, reddit_exploiter=self.reddit_exploiter,
             api_key=api_key
         ) if self.reddit_enabled else None
-        
-        # Pre-Market Gap Checker (Phase 6)
+
         self.premarket_gap_checker = PreMarketGapChecker(
-            alert_manager=self.alert_manager,
-            api_key=api_key,
-            unified_mode=self.unified_mode
+            alert_manager=self.alert_manager, api_key=api_key, unified_mode=self.unified_mode
         )
-        
-        # Options Flow Checker (Phase 6 - RapidAPI)
+
         rapidapi_key = os.getenv('YAHOO_RAPIDAPI_KEY')
+
         self.options_flow_checker = OptionsFlowChecker(
-            alert_manager=self.alert_manager,
-            api_key=rapidapi_key,
-            unified_mode=self.unified_mode
+            alert_manager=self.alert_manager, api_key=rapidapi_key, unified_mode=self.unified_mode
         )
-        
-        # News Intelligence Checker (Phase 6 - RapidAPI)
+
         self.news_intelligence_checker = NewsIntelligenceChecker(
-            alert_manager=self.alert_manager,
-            api_key=rapidapi_key,
-            unified_mode=self.unified_mode
+            alert_manager=self.alert_manager, api_key=rapidapi_key, unified_mode=self.unified_mode
         )
-        
-        # DP Divergence Checker (Phase 7 - 89.8% WR Proven!)
+
+        # DP Divergence Checker (Phase 7)
         from core.data.ultimate_chartexchange_client import UltimateChartExchangeClient
         from core.data.rapidapi_options_client import RapidAPIOptionsClient
-        
+
         chartexchange_client = UltimateChartExchangeClient(api_key=api_key) if api_key else None
         options_client = RapidAPIOptionsClient(
-            api_key=rapidapi_key,
-            api_host=os.getenv('YAHOO_RAPIDAPI_HOST')
+            api_key=rapidapi_key
         ) if rapidapi_key else None
-        
+
         self.dp_divergence_checker = DPDivergenceChecker(
-            alert_manager=self.alert_manager,
-            chartexchange_client=chartexchange_client,
-            options_client=options_client,
-            health_registry=self.health_registry,
-            symbols=self.symbols,
+            alert_manager=self.alert_manager, chartexchange_client=chartexchange_client,
+            options_client=options_client, symbols=self.symbols,
             unified_mode=self.unified_mode
         ) if (api_key and rapidapi_key) else None
-        
-        logger.info("   ✅ All checkers initialized (including Phase 7: DPDivergenceChecker - 89.8% WR!)")
-    
+
+        # Earnings Checker (Phase 8)
+        self.earnings_checker = EarningsChecker(
+            alert_manager=self.alert_manager, unified_mode=self.unified_mode
+        )
+
+        logger.info("   ✅ All checkers initialized (Phase 1-8)")
+
+    def _init_scheduler(self):
+        """Register all checkers with the scheduler."""
+        self.scheduler = CheckerScheduler(
+            run_checker_with_health=self._run_checker_with_health,
+            send_discord=self.send_discord,
+        )
+
+        # Standard checkers (simple run-and-dispatch)
+        self.scheduler.register('fed', self.fed_checker, self.fed_interval, requires_market_hours=False)
+        self.scheduler.register('trump', self.trump_checker, self.trump_interval, requires_market_hours=False)
+        self.scheduler.register('economic', self.economic_checker, self.econ_interval, requires_market_hours=False)
+        self.scheduler.register('dark_pool', self.dp_checker, self.dp_interval)
+        self.scheduler.register('squeeze', self.squeeze_checker, self.squeeze_interval)
+        self.scheduler.register('gamma', self.gamma_checker, 3600)
+        self.scheduler.register('scanner', self.scanner_checker, 3600)
+        self.scheduler.register('ftd', self.ftd_checker, 3600)
+        self.scheduler.register('reddit', self.reddit_checker, self.reddit_interval)
+        self.scheduler.register('premarket_gap', self.premarket_gap_checker, self.premarket_gap_interval, requires_market_hours=False, run_immediately=True)
+        self.scheduler.register('options_flow', self.options_flow_checker, self.options_flow_interval, run_immediately=True)
+        self.scheduler.register('news_intelligence', self.news_intelligence_checker, 1800, run_immediately=True)
+        self.scheduler.register('dp_divergence', self.dp_divergence_checker, self.dp_interval, run_immediately=True)
+        self.scheduler.register('earnings', self.earnings_checker, 3600 * 4, requires_market_hours=False, run_immediately=True)
+
+        # Custom-handler checkers (need special logic)
+        self.scheduler.register('synthesis', self.synthesis_checker, self.synthesis_interval,
+                                custom_handler=self._handle_synthesis_narrative)
+        self.scheduler.register('tradytics', self.tradytics_checker, self.tradytics_analysis_interval,
+                                custom_handler=self._handle_tradytics)
+
+        # Set initial timers (prevent all from firing on first loop)
+        now = datetime.now()
+        self.scheduler.reset_timers(now, set_initial=[
+            'fed', 'trump', 'economic', 'dark_pool', 'squeeze', 'gamma', 'reddit',
+        ])
+
+        logger.info(f"   ⏱️ Scheduler initialized with {self.scheduler.checker_count} checkers")
+
     # ═══════════════════════════════════════════════════════════════
-    # ALERT METHODS (delegate to AlertManager)
+    # ALERT METHODS
     # ═══════════════════════════════════════════════════════════════
-    
-    def send_discord(self, embed: dict, content: str = None, alert_type: str = "general", source: str = "monitor", symbol: str = None) -> bool:
+
+    def send_discord(self, embed: dict, content: str = None, alert_type: str = "general",
+                     source: str = "monitor", symbol: str = None):
         """Send Discord notification (delegates to AlertManager)."""
         return self.alert_manager.send_discord(embed, content, alert_type, source, symbol)
-    
-    def _log_alert_to_database(self, alert_type: str, embed: dict, content: str = None, source: str = "monitor", symbol: str = None):
+
+    def _log_alert_to_database(self, alert_type: str, embed: dict, content: str = None,
+                               source: str = "monitor", symbol: str = None):
         """Log alert to database (delegates to AlertManager)."""
-        # AlertManager handles this internally, but we expose for compatibility
-        pass
-    
+        self.alert_manager._log_alert_to_database(alert_type, embed, content, source, symbol)
+
     # ═══════════════════════════════════════════════════════════════
-    # REGIME DETECTION (delegate to RegimeDetector)
+    # REGIME DETECTION
     # ═══════════════════════════════════════════════════════════════
-    
-    def _detect_market_regime(self, current_price: float) -> str:
+
+    def _detect_market_regime(self, current_price: float):
         """Detect market regime (delegates to RegimeDetector)."""
-        regime = self.regime_detector.detect(current_price)
-        details = self.regime_detector.get_regime_details(current_price)
-        self._last_regime_details = details
-        return regime
-    
+        result = self.regime_detector.detect(current_price)
+        if result.get('regime_changed'):
+            logger.info(f"   📊 Regime change: {result.get('regime')}")
+        return result.get('regime', 'NEUTRAL')
+
     # ═══════════════════════════════════════════════════════════════
-    # OVERNIGHT / POST-MARKET MONITORING
+    # MOMENTUM DETECTION (delegates to MomentumDetector)
     # ═══════════════════════════════════════════════════════════════
-    
-    def _run_overnight_check(self, now: datetime):
-        """
-        Run checks when market is CLOSED (post-market and overnight).
-        Runs every 2 hours to keep service alive and monitor overnight developments.
-        """
-        import pytz
-        et = pytz.timezone('America/New_York')
-        now_et = now.astimezone(et) if now.tzinfo else pytz.UTC.localize(now).astimezone(et)
-        
-        logger.info("=" * 60)
-        logger.info(f"🌙 OVERNIGHT CHECK | {now_et.strftime('%I:%M %p ET')}")
-        logger.info("=" * 60)
-        
-        try:
-            # 1. Check Trump news (can happen anytime)
-            trump_alerts = []
-            if self.trump_checker:
-                trump_alerts = self._run_checker_with_health('trump_overnight', self.trump_checker.check)
-                for alert in trump_alerts:
-                    self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-            
-            # 2. Check news for major symbols
-            if self.news_intelligence_checker:
-                news_alerts = self._run_checker_with_health('news_overnight', self.news_intelligence_checker.check)
-                for alert in news_alerts:
-                    self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-            
-            # 3. Get overnight futures/crypto sentiment
-            overnight_narrative = self._generate_overnight_narrative(now_et)
-            
-            if overnight_narrative:
-                embed = {
-                    "title": f"🌙 OVERNIGHT INTEL | {now_et.strftime('%I:%M %p ET')}",
-                    "description": overnight_narrative,
-                    "color": 0x3498db,  # Blue
-                    "fields": [
-                        {
-                            "name": "📊 Status",
-                            "value": f"• Market: CLOSED\n• Next open: 9:30 AM ET\n• Trump alerts: {len(trump_alerts)}",
-                            "inline": True
-                        }
-                    ],
-                    "footer": {"text": "Alpha Intelligence | Overnight Watch"},
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-                
-                self.send_discord(embed, "", "overnight_intel", "overnight_monitor", "SPY,QQQ")
-            
-            logger.info(f"   ✅ Overnight check complete | Trump: {len(trump_alerts)} alerts")
-            
-        except Exception as e:
-            logger.error(f"   ❌ Overnight check error: {e}")
-    
-    def _generate_overnight_narrative(self, now_et: datetime) -> str:
-        """Generate a brief overnight market narrative."""
-        try:
-            import yfinance as yf
-            
-            # Get futures/overnight data
-            spy = yf.Ticker('SPY')
-            btc = yf.Ticker('BTC-USD')
-            
-            spy_info = spy.info
-            btc_hist = btc.history(period='1d')
-            
-            # Build narrative
-            parts = []
-            
-            # SPY after-hours
-            if 'regularMarketPrice' in spy_info and 'previousClose' in spy_info:
-                spy_close = spy_info.get('regularMarketPrice', 0)
-                spy_prev = spy_info.get('previousClose', 0)
-                if spy_prev > 0:
-                    spy_change = ((spy_close - spy_prev) / spy_prev) * 100
-                    direction = "📈" if spy_change > 0 else "📉" if spy_change < 0 else "➡️"
-                    parts.append(f"{direction} SPY closed at ${spy_close:.2f} ({spy_change:+.2f}%)")
-            
-            # BTC sentiment
-            if not btc_hist.empty:
-                btc_price = btc_hist['Close'].iloc[-1]
-                parts.append(f"₿ BTC at ${btc_price:,.0f}")
-            
-            # Time context
-            hour = now_et.hour
-            if hour < 6:
-                parts.append("🌃 Asia markets active")
-            elif hour < 12:
-                parts.append("🌅 Pre-market prep time")
-            elif hour < 17:
-                parts.append("🌆 After-hours trading")
-            else:
-                parts.append("🌙 Overnight watch")
-            
-            return " | ".join(parts) if parts else "Market closed - monitoring overnight developments"
-            
-        except Exception as e:
-            logger.debug(f"Overnight narrative error: {e}")
-            return "Market closed - monitoring overnight developments"
-    
-    # ═══════════════════════════════════════════════════════════════
-    # MOMENTUM DETECTION (delegate to MomentumDetector)
-    # ═══════════════════════════════════════════════════════════════
-    
+
     def _check_selloffs(self):
         """Check for selloffs (delegates to MomentumDetector)."""
         try:
             selloff_signals = self.momentum_detector.check_selloffs(self.symbols)
             alert_count = 0
-            
             for item in selloff_signals:
                 symbol = item['symbol']
                 signal = item['signal']
                 current_price = item['current_price']
-                
                 embed = {
                     "title": f"🚨 **REAL-TIME SELLOFF** - {symbol}",
                     "description": signal.rationale or "Rapid price drop with volume spike detected",
                     "color": 0xff0000,
-                    "fields": [{
-                        "name": "🎯 Trade Setup",
-                        "value": f"**Action:** {signal.action.value}\n"
-                                f"**Entry:** ${signal.entry_price:.2f}\n"
-                                f"**Stop:** ${signal.stop_price:.2f}\n"
-                                f"**Target:** ${signal.target_price:.2f}\n"
-                                f"**Confidence:** {signal.confidence:.0%}",
-                        "inline": False
-                    }],
+                    "fields": [{"name": "🎯 Trade Setup", "value": (
+                        f"**Action:** {signal.action.value}\n**Entry:** ${signal.entry_price:.2f}\n"
+                        f"**Stop:** ${signal.stop_price:.2f}\n**Target:** ${signal.target_price:.2f}\n"
+                        f"**Confidence:** {signal.confidence:.0%}"
+                    ), "inline": False}],
                     "footer": {"text": "Real-time momentum detection"},
                     "timestamp": datetime.now().isoformat()
                 }
-                
                 content = f"🚨 **REAL-TIME SELLOFF** | {symbol} | {signal.action.value} @ ${current_price:.2f}"
-                
-                # Check regime before sending
                 market_regime = self._detect_market_regime(current_price)
-                signal_direction = signal.action.value
-                
-                if market_regime in ["DOWNTREND", "STRONG_DOWNTREND"] and signal_direction == "LONG":
+                if market_regime in ["DOWNTREND", "STRONG_DOWNTREND"] and signal.action.value == "LONG":
                     logger.warning(f"   ⛔ REGIME FILTER: Blocking LONG selloff signal in {market_regime}")
                     continue
-                
                 self.send_discord(embed, content=content, alert_type="selloff", source="selloff_detector", symbol=symbol)
                 alert_count += 1
                 self.health_registry.record_alert('selloff_rally', 'selloff', symbol, signal.action.value, signal.entry_price)
-            
-            # Record run once after processing all signals
             self.health_registry.record_run('selloff_rally', success=True, alerts_generated=alert_count)
         except Exception as e:
             logger.error(f"❌ selloff detection failed: {e}")
             self.health_registry.record_run('selloff_rally', success=False, error=str(e))
-    
+
     def _check_rallies(self):
         """Check for rallies (delegates to MomentumDetector)."""
         try:
             rally_signals = self.momentum_detector.check_rallies(self.symbols)
             alert_count = 0
-            
             for item in rally_signals:
                 symbol = item['symbol']
                 signal = item['signal']
                 current_price = item['current_price']
-                
                 embed = {
                     "title": f"🚀 **REAL-TIME RALLY** - {symbol}",
                     "description": signal.rationale or "Rapid price rise with volume spike detected",
                     "color": 0x00ff00,
-                    "fields": [{
-                        "name": "🎯 Trade Setup",
-                        "value": f"**Action:** {signal.action.value}\n"
-                                f"**Entry:** ${signal.entry_price:.2f}\n"
-                                f"**Stop:** ${signal.stop_price:.2f}\n"
-                                f"**Target:** ${signal.target_price:.2f}\n"
-                                f"**Confidence:** {signal.confidence:.0%}",
-                        "inline": False
-                    }],
+                    "fields": [{"name": "🎯 Trade Setup", "value": (
+                        f"**Action:** {signal.action.value}\n**Entry:** ${signal.entry_price:.2f}\n"
+                        f"**Stop:** ${signal.stop_price:.2f}\n**Target:** ${signal.target_price:.2f}\n"
+                        f"**Confidence:** {signal.confidence:.0%}"
+                    ), "inline": False}],
                     "footer": {"text": "Real-time momentum detection"},
                     "timestamp": datetime.now().isoformat()
                 }
-                
                 content = f"🚀 **REAL-TIME RALLY** | {symbol} | {signal.action.value} @ ${current_price:.2f}"
-                
-                # Check regime before sending
                 market_regime = self._detect_market_regime(current_price)
-                signal_direction = signal.action.value
-                
-                if market_regime in ["UPTREND", "STRONG_UPTREND"] and signal_direction == "SELL":
+                if market_regime in ["UPTREND", "STRONG_UPTREND"] and signal.action.value == "SELL":
                     logger.warning(f"   ⛔ REGIME FILTER: Blocking SHORT rally signal in {market_regime}")
                     continue
-                
-                if market_regime == "STRONG_DOWNTREND" and signal_direction == "BUY":
+                if market_regime == "STRONG_DOWNTREND" and signal.action.value == "BUY":
                     logger.warning(f"   ⛔ REGIME FILTER: Blocking BUY rally signal in {market_regime} (don't chase)")
                     continue
-                
                 self.send_discord(embed, content=content, alert_type="rally", source="rally_detector", symbol=symbol)
                 alert_count += 1
                 self.health_registry.record_alert('selloff_rally', 'rally', symbol, signal.action.value, signal.entry_price)
-            
-            # Record run once after processing all signals
             self.health_registry.record_run('selloff_rally', success=True, alerts_generated=alert_count)
         except Exception as e:
             logger.error(f"❌ rally detection failed: {e}")
             self.health_registry.record_run('selloff_rally', success=False, error=str(e))
-    
+
     # ═══════════════════════════════════════════════════════════════
-    # HELPER METHODS (kept for compatibility)
+    # CUSTOM CHECKER HANDLERS (for checkers needing special logic)
     # ═══════════════════════════════════════════════════════════════
-    
+
+    def _handle_synthesis_narrative(self, now: datetime, is_market_hours: bool) -> int:
+        """Custom handler for synthesis + narrative checkers (they chain together)."""
+        if not is_market_hours or not self.synthesis_checker:
+            return 0
+
+        alert_count = 0
+        try:
+            # Get prices
+            spy_price, qqq_price = self._get_current_prices()
+
+            alerts, synthesis_result = self.synthesis_checker.check(
+                recent_dp_alerts=self.recent_dp_alerts,
+                spy_price=spy_price, qqq_price=qqq_price
+            )
+            self.health_registry.record_run('synthesis', success=True, alerts_generated=len(alerts))
+            for alert in alerts:
+                self.health_registry.record_alert('synthesis', getattr(alert, 'alert_type', None), getattr(alert, 'symbol', None))
+                self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+                alert_count += 1
+
+            # Chain: narrative needs synthesis result
+            if synthesis_result and self.narrative_checker:
+                narrative_alerts = self.narrative_checker.check(
+                    recent_dp_alerts=self.recent_dp_alerts,
+                    synthesis_result=synthesis_result,
+                    spy_price=spy_price, qqq_price=qqq_price
+                )
+                for alert in narrative_alerts:
+                    self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+                    alert_count += 1
+                if not narrative_alerts:
+                    self.recent_dp_alerts = []
+
+        except Exception as e:
+            logger.error(f"❌ synthesis/narrative checker failed: {e}")
+            self.health_registry.record_run('synthesis', success=False, error=str(e))
+
+        return alert_count
+
+    def _handle_tradytics(self, now: datetime, is_market_hours: bool) -> int:
+        """Custom handler for tradytics checker (with timeout protection)."""
+        if not self.tradytics_checker:
+            return 0
+        try:
+            alerts = self.tradytics_checker.check()
+            for alert in alerts:
+                self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+            logger.info("   ✅ Tradytics check complete")
+            return len(alerts)
+        except Exception as e:
+            logger.error(f"   ❌ Tradytics checker error: {e}")
+            return 0
+
+    # ═══════════════════════════════════════════════════════════════
+    # HELPER METHODS
+    # ═══════════════════════════════════════════════════════════════
+
     def _on_dp_outcome(self, interaction_id: int, outcome):
         """Callback when DP interaction outcome is determined."""
         try:
             outcome_emoji = {
-                'BOUNCE': '✅ LEVEL HELD',
-                'BREAK': '❌ LEVEL BROKE',
-                'FADE': '⚪ NO CLEAR OUTCOME'
+                'BOUNCE': '✅ LEVEL HELD', 'BREAK': '❌ LEVEL BROKE', 'FADE': '⚪ NO CLEAR OUTCOME'
             }.get(outcome.outcome.value, '❓ UNKNOWN')
-            
+
             if not self.unified_mode:
                 embed = {
                     "title": f"🎯 DP OUTCOME: {outcome_emoji}",
@@ -757,724 +561,101 @@ class UnifiedAlphaMonitor:
                 self.send_discord(embed, alert_type="dp_outcome", source="dp_learning")
         except Exception as e:
             logger.error(f"❌ Outcome alert error: {e}")
-    
-    # NOTE: check_synthesis() and _check_narrative_brain_signals() removed
-    # Now handled by SynthesisChecker and NarrativeChecker
-    
+
     def _is_market_hours(self) -> bool:
         """Check if currently in RTH (Eastern Time)."""
         from datetime import time as dt_time
         import pytz
-        
-        # CRITICAL: Use Eastern Time, not server local time!
-        # Render runs on UTC, but market hours are in ET
+
         et = pytz.timezone('America/New_York')
         now_utc = datetime.now(pytz.UTC)
         now_et = now_utc.astimezone(et)
-        
+
         current_time = now_et.time()
         market_open = dt_time(9, 30)
         market_close = dt_time(16, 0)
         is_weekday = now_et.weekday() < 5
         in_hours = market_open <= current_time < market_close
-        
-        # Debug logging
-        logger.debug(f"   🕐 Market hours check: ET={now_et.strftime('%H:%M:%S')}, is_weekday={is_weekday}, in_hours={in_hours}")
-        
+
+        logger.debug(f"   🕐 Market hours check: ET={now_et.strftime('%H:%M:%S')}, weekday={is_weekday}, in_hours={in_hours}")
+
         return is_weekday and in_hours
-    
+
+    def _get_current_prices(self):
+        """Get current SPY/QQQ prices."""
+        spy_price, qqq_price = 0.0, 0.0
+        try:
+            import yfinance as yf
+            spy_hist = yf.Ticker('SPY').history(period='1d', interval='1m')
+            qqq_hist = yf.Ticker('QQQ').history(period='1d', interval='1m')
+            if not spy_hist.empty:
+                spy_price = float(spy_hist['Close'].iloc[-1])
+            if not qqq_hist.empty:
+                qqq_price = float(qqq_hist['Close'].iloc[-1])
+        except:
+            pass
+        return spy_price, qqq_price
+
     def _get_current_intelligence_snapshot(self) -> dict:
         """Get current snapshot of all intelligence sources."""
-        snapshot = {
-            'fed_watch': {},
-            'fed_officials': {},
-            'trump_monitor': {},
-            'economic_calendar': {},
-            'dp_monitor': {}
+        return {
+            'fed_watch': {}, 'fed_officials': {}, 'trump_monitor': {},
+            'economic_calendar': {}, 'dp_monitor': {}
         }
-        # Simplified - would populate from all monitors
-        return snapshot
-    
+
     def _run_checker_with_health(self, checker_name: str, checker_func: Callable) -> List:
-        """
-        Helper method to run a checker with health tracking.
-        
-        Args:
-            checker_name: Name of the checker (e.g., 'fed', 'trump', 'dark_pool')
-            checker_func: Function that returns list of alerts
-        
-        Returns:
-            List of alerts generated
-        """
+        """Run a checker with health tracking."""
         alerts = []
         try:
             alerts = checker_func()
             self.health_registry.record_run(checker_name, success=True, alerts_generated=len(alerts))
-            
-            # Record each alert
             for alert in alerts:
                 symbol = getattr(alert, 'symbol', None)
                 alert_type = getattr(alert, 'alert_type', None)
-                direction = None
-                entry_price = None
-                
-                # Try to extract direction and entry_price from embed if available
-                if hasattr(alert, 'embed') and alert.embed:
-                    embed = alert.embed
-                    if 'fields' in embed:
-                        for field in embed['fields']:
-                            if 'Entry' in field.get('name', ''):
-                                # Try to parse entry price from field value
-                                value = field.get('value', '')
-                                try:
-                                    # Look for price pattern like "$665.20"
-                                    import re
-                                    match = re.search(r'\$?([\d,]+\.?\d*)', value)
-                                    if match:
-                                        entry_price = float(match.group(1).replace(',', ''))
-                                except:
-                                    pass
-                            if 'Direction' in field.get('name', '') or 'Action' in field.get('name', ''):
-                                value = field.get('value', '')
-                                if 'LONG' in value.upper() or 'BUY' in value.upper():
-                                    direction = 'LONG'
-                                elif 'SHORT' in value.upper() or 'SELL' in value.upper():
-                                    direction = 'SHORT'
-                
+                direction, entry_price = None, None
+                if hasattr(alert, 'embed') and alert.embed and 'fields' in alert.embed:
+                    import re
+                    for field in alert.embed['fields']:
+                        if 'Entry' in field.get('name', ''):
+                            match = re.search(r'\$?([\d,]+\.?\d*)', field.get('value', ''))
+                            if match:
+                                entry_price = float(match.group(1).replace(',', ''))
+                        if 'Direction' in field.get('name', '') or 'Action' in field.get('name', ''):
+                            value = field.get('value', '').upper()
+                            if 'LONG' in value or 'BUY' in value:
+                                direction = 'LONG'
+                            elif 'SHORT' in value or 'SELL' in value:
+                                direction = 'SHORT'
                 self.health_registry.record_alert(checker_name, alert_type or 'unknown', symbol, direction, entry_price)
         except Exception as e:
             logger.error(f"❌ {checker_name} checker failed: {e}")
             import traceback
             logger.error(traceback.format_exc())
             self.health_registry.record_run(checker_name, success=False, error=str(e))
-        
         return alerts
-    
+
     def send_startup_alert(self):
         """Send DYNAMIC startup notification using health registry."""
         logger.info("   📤 send_startup_alert() called")
-        
         if self.startup_alert_sent:
             logger.info("   ⏭️ Startup alert already sent, skipping")
             return
-        
         logger.info("   📝 Generating dynamic health embed...")
-        
-        # Use health registry to generate dynamic embed
         embed = self.health_registry.generate_health_embed()
-        
         logger.info("   📤 Calling send_discord for startup alert...")
         result = self.send_discord(embed, alert_type="startup", source="monitor")
         logger.info(f"   {'✅' if result else '❌'} send_discord returned: {result}")
         self.startup_alert_sent = True
         logger.info("   ✅ Startup alert marked as sent")
-    
-    # NOTE: All old checker methods removed - now handled by modular checker classes:
-    # - FedChecker, TrumpChecker, EconomicChecker
-    # - DarkPoolChecker, SynthesisChecker, NarrativeChecker
-    # - TradyticsChecker, SqueezeChecker, GammaChecker, ScannerChecker, FTDChecker
-    # - DailyRecapChecker
-    #
-    # Legacy methods below are kept for backward compatibility but NOT called in run()
-    # They can be safely removed in a future cleanup
-    
-    def check_squeeze_setups(self):
-        """
-        🔥 Check for short squeeze setups (PHASE 1 EXPLOITATION).
-        FULLY DYNAMIC - Uses opportunity scanner to discover candidates first!
-        Runs hourly during market hours.
-        """
-        if not self.squeeze_enabled or not self.squeeze_detector:
-            return
-        
-        logger.info("🔥 Checking for SQUEEZE setups (DYNAMIC DISCOVERY)...")
-        
-        try:
-            # STEP 1: DYNAMIC DISCOVERY - Use opportunity scanner to find ALL high SI stocks
-            if self.scanner_enabled and self.opportunity_scanner:
-                # Use the new comprehensive squeeze candidate scanner
-                logger.info("   🔍 Running FULL dynamic squeeze scan...")
-                try:
-                    squeeze_opportunities = self.opportunity_scanner.scan_for_squeeze_candidates(
-                        self.squeeze_detector,
-                        min_score=55  # Slightly lower for discovery, will filter at 60 for alerts
-                    )
-                    
-                    if squeeze_opportunities:
-                        logger.info(f"   📡 Found {len(squeeze_opportunities)} squeeze candidates!")
-                        for opp in squeeze_opportunities:
-                            logger.info(f"      • {opp.symbol}: Score {opp.score:.0f} | SI: {opp.short_interest:.1f}%")
-                    else:
-                        logger.info("   📊 No squeeze candidates found above threshold")
-                    
-                    # Process signals directly from scan results
-                    for opp in squeeze_opportunities:
-                        if opp.score >= 60:  # Alert threshold
-                            # Get full signal for detailed alert
-                            signal = self.squeeze_detector.analyze(opp.symbol)
-                            if signal:
-                                self._send_squeeze_alert(signal)
-                    
-                    return  # Dynamic scan complete
-                    
-                except Exception as e:
-                    logger.warning(f"   ⚠️ Dynamic scan failed, falling back to seed list: {e}")
-            
-            # FALLBACK: Use seed list if scanner not available
-            candidates_to_check = set(self.squeeze_candidates)
-            logger.info(f"   📊 Using seed list: {len(candidates_to_check)} candidates")
-            
-            # STEP 2: Run squeeze detector on all candidates
-            signals_found = 0
-            for symbol in candidates_to_check:
-                signal = self.squeeze_detector.analyze(symbol)
-                
-                if signal and signal.score >= 60:
-                    signals_found += 1
-                    self._send_squeeze_alert(signal)
-            
-            logger.info(f"   📊 Squeeze check complete: {signals_found} signals found")
-                    
-        except Exception as e:
-            logger.error(f"   ❌ Squeeze check error: {e}")
-    
-    def _send_squeeze_alert(self, signal):
-        """
-        Send a squeeze alert to Discord.
-        Extracted to avoid code duplication.
-        """
-        # Check for duplicate alert
-        alert_key = f"squeeze_{signal.symbol}_{datetime.now().strftime('%Y-%m-%d')}"
-        if self.alert_manager.is_alert_duplicate(alert_key, cooldown_minutes=60):
-            logger.debug(f"   ⏭️ Skipping duplicate squeeze alert for {signal.symbol}")
-            return
-        
-        # Create Discord embed
-        score_color = 3066993 if signal.score >= 80 else 16776960  # Green if high, yellow otherwise
-        
-        embed = {
-            "title": f"🔥 SQUEEZE SETUP: {signal.symbol}",
-            "color": score_color,
-            "description": f"**Score: {signal.score:.0f}/100** | Short Interest {signal.short_interest_pct:.1f}%",
-            "fields": [
-                {"name": "📊 SI%", "value": f"{signal.short_interest_pct:.1f}% ({signal.si_score:.0f} pts)", "inline": True},
-                {"name": "💰 Borrow Fee", "value": f"{signal.borrow_fee_pct:.1f}% ({signal.borrow_fee_score:.0f} pts)", "inline": True},
-                {"name": "📈 FTD Spike", "value": f"{signal.ftd_spike_ratio:.1f}x ({signal.ftd_score:.0f} pts)", "inline": True},
-                {"name": "🔒 DP Buying", "value": f"{signal.dp_buying_pressure:.0%} ({signal.dp_support_score:.0f} pts)", "inline": True},
-                {"name": "🎯 Entry", "value": f"${signal.entry_price:.2f}", "inline": True},
-                {"name": "🛑 Stop", "value": f"${signal.stop_price:.2f}", "inline": True},
-                {"name": "🚀 Target", "value": f"${signal.target_price:.2f}", "inline": True},
-                {"name": "📐 R/R", "value": f"{signal.risk_reward_ratio:.1f}:1", "inline": True},
-                {"name": "💡 Action", "value": "**LONG** (Squeeze Play)", "inline": True},
-            ],
-            "footer": {"text": f"Exploitation Phase 1 • Dynamic Squeeze Detection"},
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        # Add reasoning
-        if signal.reasoning:
-            embed["fields"].append({
-                "name": "📝 Reasoning",
-                "value": "\n".join([f"• {r}" for r in signal.reasoning[:3]]),
-                "inline": False
-            })
-        
-        # Add warnings
-        if signal.warnings:
-            embed["fields"].append({
-                "name": "⚠️ Warnings",
-                "value": "\n".join([f"• {w}" for w in signal.warnings[:3]]),
-                "inline": False
-            })
-        
-        content = f"🔥 **SQUEEZE ALERT** 🔥 | {signal.symbol} Score: {signal.score:.0f}/100"
-        
-        self.send_discord(embed, content=content, alert_type="squeeze_signal", source="squeeze_detector", symbol=signal.symbol)
-        self.alert_manager.add_alert_to_history(alert_key)
-        
-        logger.info(f"   🔥 Squeeze signal sent for {signal.symbol}!")
-    
-    def check_gamma_setups(self):
-        """
-        🎲 Check for gamma ramp setups (PHASE 2 EXPLOITATION).
-        Runs hourly during market hours.
-        """
-        if not self.gamma_enabled or not self.gamma_tracker:
-            return
-        
-        logger.info("🎲 Checking for GAMMA setups...")
-        
-        try:
-            # Check multiple expirations for each symbol
-            for symbol in self.symbols:
-                # Check nearest and weekly expirations
-                for exp_idx in [0, 4]:  # 0=nearest, 4=weekly (Friday)
-                    signal = self.gamma_tracker.analyze(symbol, expiration_idx=exp_idx)
-                    
-                    if signal:
-                        # Create Discord embed
-                        direction_color = 15548997 if signal.direction == 'DOWN' else 3066993  # Red for DOWN, Green for UP
-                        direction_emoji = "🔻" if signal.direction == 'DOWN' else "🔺"
-                        
-                        embed = {
-                            "title": f"🎲 GAMMA {signal.direction}: {signal.symbol}",
-                            "color": direction_color,
-                            "description": f"**Score: {signal.score:.0f}/100** | Max Pain ${signal.max_pain:.2f} ({signal.max_pain_distance_pct:+.1f}%)",
-                            "fields": [
-                                {"name": "📊 P/C Ratio", "value": f"{signal.put_call_ratio:.2f}", "inline": True},
-                                {"name": f"{direction_emoji} Direction", "value": f"**{signal.direction}**", "inline": True},
-                                {"name": "🎯 Max Pain", "value": f"${signal.max_pain:.2f}", "inline": True},
-                                {"name": "📈 Call OI", "value": f"{signal.total_call_oi:,}", "inline": True},
-                                {"name": "📉 Put OI", "value": f"{signal.total_put_oi:,}", "inline": True},
-                                {"name": "📅 Expiration", "value": signal.expiration, "inline": True},
-                                {"name": "💵 Entry", "value": f"${signal.entry_price:.2f}", "inline": True},
-                                {"name": "🛑 Stop", "value": f"${signal.stop_price:.2f}", "inline": True},
-                                {"name": "🎯 Target", "value": f"${signal.target_price:.2f}", "inline": True},
-                                {"name": "📐 R/R", "value": f"{signal.risk_reward_ratio:.1f}:1", "inline": True},
-                                {"name": "💡 Action", "value": f"**{signal.action}** (Gamma Play)", "inline": True},
-                            ],
-                            "footer": {"text": f"Exploitation Phase 2 • Gamma Tracking"},
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
-                        
-                        # Add reasoning
-                        if signal.reasoning:
-                            embed["fields"].append({
-                                "name": "📝 Reasoning",
-                                "value": "\n".join([f"• {r}" for r in signal.reasoning[:4]]),
-                                "inline": False
-                            })
-                        
-                        content = f"🎲 **GAMMA ALERT** 🎲 | {signal.symbol} {signal.direction} Score: {signal.score:.0f}/100"
-                        
-                        self.send_discord(embed, content=content, alert_type="gamma_signal", source="gamma_tracker", symbol=signal.symbol)
-                        
-                        logger.info(f"   🎲 Gamma signal sent for {signal.symbol} ({signal.direction})!")
-                        
-                        # Only send one signal per symbol (break after first hit)
-                        break
-                    
-        except Exception as e:
-            logger.error(f"   ❌ Gamma check error: {e}")
-    
-    def check_opportunity_scanner(self):
-        """
-        🔍 Scan market for new opportunities (PHASE 3 EXPLOITATION).
-        Runs hourly during market hours.
-        """
-        if not self.scanner_enabled or not self.opportunity_scanner:
-            return
-        
-        logger.info("🔍 Scanning for NEW OPPORTUNITIES...")
-        
-        try:
-            # Get today's date for tracking
-            today = datetime.now().strftime('%Y-%m-%d')
-            
-            # Run market scan (lowered threshold from 50 to 45 to catch more opportunities)
-            opportunities = self.opportunity_scanner.scan_market(min_score=45, max_results=10)
-            
-            if not opportunities:
-                logger.info("   📊 No high-score opportunities found")
-                return
-            
-            # Filter out already-alerted symbols today
-            new_opportunities = [
-                opp for opp in opportunities 
-                if f"{today}:{opp.symbol}" not in self.scanned_today
-            ]
-            
-            if not new_opportunities:
-                logger.info("   📊 All opportunities already alerted today")
-                return
-            
-            # Send alerts for top 5 new opportunities
-            for opp in new_opportunities[:5]:
-                # Mark as alerted
-                self.scanned_today.add(f"{today}:{opp.symbol}")
-                
-                # Create Discord embed
-                score_color = 3066993 if opp.score >= 70 else 16776960  # Green if high, yellow otherwise
-                
-                embed = {
-                    "title": f"🔍 NEW OPPORTUNITY: {opp.symbol}",
-                    "color": score_color,
-                    "description": f"**Score: {opp.score:.0f}/100** | Found via market scan",
-                    "fields": [],
-                    "footer": {"text": f"Exploitation Phase 3 • Opportunity Scanner"},
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-                
-                # Add short interest if available
-                if opp.short_interest and opp.short_interest > 0:
-                    embed["fields"].append({
-                        "name": "📊 Short Interest",
-                        "value": f"{opp.short_interest:.1f}%",
-                        "inline": True
-                    })
-                
-                # Add DP activity if available
-                if opp.dp_activity and opp.dp_activity > 0:
-                    embed["fields"].append({
-                        "name": "🔒 DP Levels",
-                        "value": f"{opp.dp_activity:.0f}",
-                        "inline": True
-                    })
-                
-                # Add squeeze score if available
-                if opp.squeeze_score and opp.squeeze_score > 0:
-                    embed["fields"].append({
-                        "name": "🔥 Squeeze Score",
-                        "value": f"{opp.squeeze_score:.0f}/100",
-                        "inline": True
-                    })
-                
-                # Add reasons
-                if opp.reasons:
-                    embed["fields"].append({
-                        "name": "📝 Reasons",
-                        "value": "\n".join([f"• {r}" for r in opp.reasons[:5]]),
-                        "inline": False
-                    })
-                
-                # Suggest action based on score
-                if opp.score >= 70:
-                    action = "⚡ **HIGH PRIORITY** - Add to watchlist for squeeze/gamma analysis"
-                elif opp.score >= 60:
-                    action = "📈 **MEDIUM PRIORITY** - Monitor for entry setup"
-                else:
-                    action = "👀 **LOW PRIORITY** - Keep on radar"
-                
-                embed["fields"].append({
-                    "name": "💡 Suggested Action",
-                    "value": action,
-                    "inline": False
-                })
-                
-                content = f"🔍 **NEW OPPORTUNITY** | {opp.symbol} Score: {opp.score:.0f}/100"
-                
-                self.send_discord(embed, content=content, alert_type="opportunity_scan", source="opportunity_scanner", symbol=opp.symbol)
-                
-                logger.info(f"   🔍 Opportunity alert sent for {opp.symbol} (Score: {opp.score:.0f})")
-            
-            # Also run squeeze detector on top opportunities
-            if self.squeeze_enabled and self.squeeze_detector:
-                squeeze_opportunities = self.opportunity_scanner.scan_with_squeeze_detector(
-                    self.squeeze_detector, 
-                    min_score=55
-                )
-                
-                for opp in squeeze_opportunities[:3]:
-                    if f"{today}:SQUEEZE:{opp.symbol}" in self.scanned_today:
-                        continue
-                    
-                    self.scanned_today.add(f"{today}:SQUEEZE:{opp.symbol}")
-                    
-                    embed = {
-                        "title": f"🔥 SQUEEZE CANDIDATE: {opp.symbol}",
-                        "color": 15548997,  # Red for squeeze
-                        "description": f"**Squeeze Score: {opp.squeeze_score:.0f}/100** | SI: {opp.short_interest:.1f}%",
-                        "fields": [
-                            {"name": "📊 Short Interest", "value": f"{opp.short_interest:.1f}%", "inline": True},
-                            {"name": "🔥 Squeeze Score", "value": f"{opp.squeeze_score:.0f}/100", "inline": True},
-                        ],
-                        "footer": {"text": "Opportunity Scanner + Squeeze Detector"},
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
-                    
-                    if opp.reasons:
-                        embed["fields"].append({
-                            "name": "📝 Reasons",
-                            "value": "\n".join([f"• {r}" for r in opp.reasons[:3]]),
-                            "inline": False
-                        })
-                    
-                    content = f"🔥 **SQUEEZE CANDIDATE** | {opp.symbol} Score: {opp.squeeze_score:.0f}/100 | SI: {opp.short_interest:.1f}%"
-                    
-                    self.send_discord(embed, content=content, alert_type="squeeze_candidate", source="opportunity_scanner", symbol=opp.symbol)
-                    
-                    logger.info(f"   🔥 Squeeze candidate alert sent for {opp.symbol}!")
-            
-            # Clean up old entries (older than today)
-            self.scanned_today = {k for k in self.scanned_today if k.startswith(today)}
-            
-        except Exception as e:
-            logger.error(f"   ❌ Opportunity scanner error: {e}")
-    
-    def check_ftd_analyzer(self):
-        """
-        📈 Check for FTD-based opportunities (PHASE 4 EXPLOITATION).
-        Detects T+35 settlement cycles and forced covering events.
-        """
-        if not self.ftd_enabled or not self.ftd_analyzer:
-            return
-        
-        now = datetime.now()
-        today = now.strftime('%Y-%m-%d')
-        
-        logger.info("📈 Checking FTD opportunities...")
-        
-        try:
-            # Scan FTD candidates
-            signals = self.ftd_analyzer.get_ftd_candidates(self.ftd_candidates, min_score=50)
-            
-            if not signals:
-                logger.info("   📊 No FTD signals found.")
-                return
-            
-            for signal in signals:
-                # Check for duplicate alerts
-                alert_key = f"ftd_{signal.symbol}_{today}"
-                if self.alert_manager.is_alert_duplicate(alert_key, cooldown_minutes=60 * 24):
-                    logger.debug(f"   ⏭️ Skipping duplicate FTD alert for {signal.symbol}")
-                    continue
-                
-                # Determine color based on signal type
-                if signal.signal_type == "T35_WINDOW":
-                    color = 0xff0000  # Red - urgent
-                    emoji = "🚨"
-                elif signal.signal_type == "SPIKE":
-                    color = 0xff6600  # Orange - high priority
-                    emoji = "📈"
-                elif signal.signal_type == "COVERING_PRESSURE":
-                    color = 0xffcc00  # Yellow - medium
-                    emoji = "⚠️"
-                else:
-                    color = 0x00ccff  # Blue - info
-                    emoji = "📊"
-                
-                embed = {
-                    "title": f"{emoji} FTD SIGNAL: {signal.symbol}",
-                    "color": color,
-                    "description": f"**Type:** {signal.signal_type}\n"
-                                   f"**Score:** {signal.score:.0f}/100",
-                    "fields": [
-                        {"name": "📊 Current FTD", "value": f"{signal.current_ftd:,}", "inline": True},
-                        {"name": "📈 Spike Ratio", "value": f"{signal.ftd_spike_ratio:.1f}x", "inline": True},
-                        {"name": "⏰ Days to T+35", "value": f"{signal.days_to_t35}", "inline": True},
-                        {"name": "💰 Entry", "value": f"${signal.entry_price:.2f}", "inline": True},
-                        {"name": "🛑 Stop", "value": f"${signal.stop_price:.2f}", "inline": True},
-                        {"name": "🎯 Target", "value": f"${signal.target_price:.2f}", "inline": True},
-                        {"name": "⚖️ R/R Ratio", "value": f"{signal.risk_reward_ratio:.1f}:1", "inline": True},
-                    ],
-                    "footer": {"text": f"Exploitation Phase 4 • FTD Analyzer"},
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-                
-                if signal.reasoning:
-                    embed["fields"].append({
-                        "name": "📝 Reasoning",
-                        "value": "\n".join(signal.reasoning[:3]),
-                        "inline": False
-                    })
-                
-                if signal.warnings:
-                    embed["fields"].append({
-                        "name": "⚠️ Warnings",
-                        "value": "\n".join(signal.warnings[:3]),
-                        "inline": False
-                    })
-                
-                content = f"{emoji} **FTD SIGNAL** | {signal.symbol} {signal.signal_type} | Score: {signal.score:.0f}/100"
-                
-                self.send_discord(embed, content=content, alert_type="ftd_signal", source="ftd_analyzer", symbol=signal.symbol)
-                self.alert_manager.add_alert_to_history(alert_key)
-                
-                logger.info(f"   {emoji} FTD signal sent for {signal.symbol}!")
-            
-            # Also check T+35 calendar for upcoming deadlines
-            calendar = self.ftd_analyzer.get_t35_calendar(self.ftd_candidates)
-            upcoming = [c for c in calendar if c['days_until'] <= 7]  # Within 7 days
-            
-            if upcoming:
-                logger.info(f"   📅 {len(upcoming)} upcoming T+35 deadlines within 7 days")
-                for event in upcoming[:3]:  # Top 3
-                    alert_key = f"t35_calendar_{event['symbol']}_{event['t35_date']}"
-                    if not self.alert_manager.is_alert_duplicate(alert_key, cooldown_minutes=60 * 24):
-                        embed = {
-                            "title": f"📅 T+35 DEADLINE: {event['symbol']}",
-                            "color": 0xff6600 if event['days_until'] <= 3 else 0xffcc00,
-                            "description": f"**Forced buy-in deadline approaching!**",
-                            "fields": [
-                                {"name": "📅 T+35 Date", "value": event['t35_date'], "inline": True},
-                                {"name": "⏰ Days Until", "value": f"{event['days_until']}", "inline": True},
-                                {"name": "📊 FTD Quantity", "value": f"{event['ftd_quantity']:,}", "inline": True},
-                            ],
-                            "footer": {"text": f"Exploitation Phase 4 • T+35 Calendar"},
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
-                        
-                        content = f"📅 **T+35 DEADLINE** | {event['symbol']} in {event['days_until']} days | {event['ftd_quantity']:,} FTDs"
-                        
-                        self.send_discord(embed, content=content, alert_type="t35_calendar", source="ftd_analyzer", symbol=event['symbol'])
-                        self.alert_manager.add_alert_to_history(alert_key)
-            
-        except Exception as e:
-            logger.error(f"   ❌ FTD analyzer error: {e}")
-    
+
     # ═══════════════════════════════════════════════════════════════
-    # DAILY RECAP FEATURE
+    # MAIN RUN LOOP
     # ═══════════════════════════════════════════════════════════════
-    
-    def _should_send_daily_recap(self, now: datetime) -> bool:
-        """Check if we should send daily recap (4:00-4:05 PM ET on weekdays)."""
-        try:
-            import pytz
-            et = pytz.timezone('America/New_York')
-            now_et = now.astimezone(et) if now.tzinfo else et.localize(now)
-            
-            # Only weekdays
-            if now_et.weekday() >= 5:
-                return False
-            
-            # Between 4:00 PM and 4:05 PM ET
-            if now_et.hour == 16 and now_et.minute < 5:
-                # Check if we already sent today
-                if not hasattr(self, '_last_recap_date'):
-                    self._last_recap_date = None
-                
-                today = now_et.date()
-                if self._last_recap_date != today:
-                    return True
-            
-            return False
-        except Exception as e:
-            logger.debug(f"Daily recap check error: {e}")
-            return False
-    
-    def _send_daily_recap(self):
-        """📊 Send daily market recap to Discord."""
-        try:
-            import yfinance as yf
-            import pytz
-            
-            et = pytz.timezone('America/New_York')
-            now_et = datetime.now(et)
-            
-            logger.info("📊 Generating daily market recap...")
-            
-            # Get market data
-            spy = yf.Ticker('SPY')
-            qqq = yf.Ticker('QQQ')
-            vix = yf.Ticker('^VIX')
-            
-            spy_hist = spy.history(period='1d', interval='5m')
-            qqq_hist = qqq.history(period='1d', interval='5m')
-            vix_hist = vix.history(period='1d')
-            
-            if spy_hist.empty:
-                logger.warning("   ⚠️ No SPY data for daily recap")
-                return
-            
-            # Calculate metrics
-            spy_open = float(spy_hist['Open'].iloc[0])
-            spy_close = float(spy_hist['Close'].iloc[-1])
-            spy_high = float(spy_hist['High'].max())
-            spy_low = float(spy_hist['Low'].min())
-            spy_change = ((spy_close - spy_open) / spy_open) * 100
-            spy_range = ((spy_high - spy_low) / spy_open) * 100
-            
-            qqq_open = float(qqq_hist['Open'].iloc[0]) if not qqq_hist.empty else 0
-            qqq_close = float(qqq_hist['Close'].iloc[-1]) if not qqq_hist.empty else 0
-            qqq_change = ((qqq_close - qqq_open) / qqq_open) * 100 if qqq_open > 0 else 0
-            
-            vix_close = float(vix_hist['Close'].iloc[-1]) if not vix_hist.empty else 0
-            
-            # Determine market sentiment
-            if spy_change > 0.5:
-                sentiment = "🟢 BULLISH"
-                color = 0x00ff00
-            elif spy_change < -0.5:
-                sentiment = "🔴 BEARISH"
-                color = 0xff0000
-            else:
-                sentiment = "⚪ NEUTRAL"
-                color = 0x808080
-            
-            # Get gamma signal status
-            gamma_status = "❌ No signals"
-            if self.gamma_enabled and self.gamma_tracker:
-                for symbol in self.symbols:
-                    signal = self.gamma_tracker.analyze(symbol)
-                    if signal:
-                        gamma_status = f"✅ {symbol}: {signal.direction} (Score {signal.score:.0f})"
-                        break
-            
-            # Build embed
-            embed = {
-                "title": f"📊 DAILY MARKET RECAP - {now_et.strftime('%B %d, %Y')}",
-                "color": color,
-                "description": f"**Market Sentiment:** {sentiment}",
-                "fields": [
-                    {
-                        "name": "📈 SPY",
-                        "value": f"Open: ${spy_open:.2f}\nClose: ${spy_close:.2f}\nChange: {spy_change:+.2f}%\nRange: {spy_range:.2f}%",
-                        "inline": True
-                    },
-                    {
-                        "name": "📈 QQQ",
-                        "value": f"Open: ${qqq_open:.2f}\nClose: ${qqq_close:.2f}\nChange: {qqq_change:+.2f}%",
-                        "inline": True
-                    },
-                    {
-                        "name": "😰 VIX",
-                        "value": f"{vix_close:.2f}",
-                        "inline": True
-                    },
-                    {
-                        "name": "📊 Intraday",
-                        "value": f"High: ${spy_high:.2f}\nLow: ${spy_low:.2f}",
-                        "inline": True
-                    },
-                    {
-                        "name": "🎲 Gamma Status",
-                        "value": gamma_status,
-                        "inline": True
-                    },
-                    {
-                        "name": "🔥 Exploitation",
-                        "value": f"Squeeze: {'✅' if self.squeeze_enabled else '❌'}\nGamma: {'✅' if self.gamma_enabled else '❌'}",
-                        "inline": True
-                    }
-                ],
-                "footer": {"text": "Alpha Intelligence • Daily Recap"},
-                "timestamp": datetime.utcnow().isoformat()
-            }
-            
-            # Add key events
-            morning_drop = ((spy_low - spy_open) / spy_open) * 100
-            if morning_drop < -0.5:
-                embed["fields"].append({
-                    "name": "🔻 Key Event",
-                    "value": f"Morning selloff: {morning_drop:.2f}%\nLow: ${spy_low:.2f}",
-                    "inline": False
-                })
-            
-            recovery = ((spy_close - spy_low) / spy_low) * 100
-            if recovery > 0.3:
-                embed["fields"].append({
-                    "name": "📈 Recovery",
-                    "value": f"+{recovery:.2f}% from lows",
-                    "inline": False
-                })
-            
-            content = f"📊 **DAILY RECAP** | SPY {spy_change:+.2f}% | QQQ {qqq_change:+.2f}% | VIX {vix_close:.2f}"
-            
-            self.send_discord(embed, content=content, alert_type="daily_recap", source="daily_recap", symbol="SPY,QQQ")
-            
-            # Mark as sent
-            self._last_recap_date = now_et.date()
-            
-            logger.info(f"   📊 Daily recap sent! SPY {spy_change:+.2f}%")
-            
-        except Exception as e:
-            logger.error(f"   ❌ Daily recap error: {e}")
-    
+
     def run(self):
-        """Main run loop."""
+        """Main run loop — delegates to CheckerScheduler and OvernightManager."""
         logger.info("🚀 Starting unified monitoring (MODULAR)...")
-        
-        # Log timezone info for debugging
+
         import pytz
         et = pytz.timezone('America/New_York')
         now_utc = datetime.now(pytz.UTC)
@@ -1482,8 +663,8 @@ class UnifiedAlphaMonitor:
         logger.info(f"   🕐 Server UTC: {now_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}")
         logger.info(f"   🕐 Eastern Time: {now_et.strftime('%Y-%m-%d %H:%M:%S %Z')}")
         logger.info(f"   📊 Market hours check: {self._is_market_hours()}")
-        
-        # Send startup alert with explicit logging
+
+        # Send startup alert
         logger.info("📤 Attempting to send startup alert to Discord...")
         try:
             self.send_startup_alert()
@@ -1492,220 +673,56 @@ class UnifiedAlphaMonitor:
             logger.error(f"❌ Startup alert failed: {e}")
             import traceback
             logger.error(traceback.format_exc())
-        
-        now = datetime.now()
-        self.last_fed_check = now
-        self.last_trump_check = now
-        self.last_econ_check = now
-        self.last_dp_check = now
-        self.last_synthesis_check = now
-        self.last_squeeze_check = now
-        self.last_gamma_check = now
-        self.last_reddit_check = now
-        self.last_premarket_gap_check = None  # Run immediately on first check
-        self.last_options_flow_check = None  # Run immediately on first check
-        self.last_news_intelligence_check = None  # Run immediately on first check
-        self.last_dp_divergence_check = None  # Run immediately on first check
-        self.gamma_interval = 3600  # Check gamma every 60 min (reduced for Render free tier)
-        self.news_intelligence_interval = 1800  # Check news every 30 min (was 15)
-        
+
         # Heartbeat tracking
         last_heartbeat = datetime.now()
-        heartbeat_interval = 300  # Log heartbeat every 5 minutes
+        heartbeat_interval = 300
         loop_count = 0
-        
+
         while self.running:
             try:
                 now = datetime.now()
                 loop_count += 1
-                
-                # Heartbeat logging (every 5 minutes) - WITH MEMORY TRACKING
+                is_market_hours = self._is_market_hours()
+
+                # Heartbeat logging (every 5 minutes)
                 if (now - last_heartbeat).seconds >= heartbeat_interval:
                     import pytz
                     et = pytz.timezone('America/New_York')
                     now_et = now.astimezone(et) if now.tzinfo else pytz.UTC.localize(now).astimezone(et)
-                    is_mkt = self._is_market_hours()
-                    
-                    # Get memory usage
                     try:
                         import psutil
-                        process = psutil.Process()
-                        mem_mb = process.memory_info().rss / 1024 / 1024
+                        mem_mb = psutil.Process().memory_info().rss / 1024 / 1024
                         mem_str = f"{mem_mb:.1f}MB"
                     except:
                         mem_str = "N/A"
-                    
-                    logger.info(f"💓 HEARTBEAT | Loop #{loop_count} | ET: {now_et.strftime('%H:%M:%S')} | Market: {'OPEN' if is_mkt else 'CLOSED'} | Mem: {mem_str}")
+                    logger.info(f"💓 HEARTBEAT | Loop #{loop_count} | ET: {now_et.strftime('%H:%M:%S')} | Market: {'OPEN' if is_market_hours else 'CLOSED'} | Mem: {mem_str}")
                     last_heartbeat = now
-                
-                # Fed Checker
-                if self.fed_checker and (self.last_fed_check is None or (now - self.last_fed_check).seconds >= self.fed_interval):
-                    # Update prev_fed_status in checker before checking
+
+                # ── Fed checker special handling (prev_fed_status sync) ──
+                if self.fed_checker:
                     self.fed_checker.prev_fed_status = self.prev_fed_status
-                    alerts = self._run_checker_with_health('fed', self.fed_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    # Update prev_fed_status from checker after checking
-                    if hasattr(self.fed_checker, 'prev_fed_status'):
-                        self.prev_fed_status = self.fed_checker.prev_fed_status
-                    self.last_fed_check = now
-                
-                # Trump Checker
-                if self.trump_checker and (self.last_trump_check is None or (now - self.last_trump_check).seconds >= self.trump_interval):
-                    alerts = self._run_checker_with_health('trump', self.trump_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    self.last_trump_check = now
-                
-                # Economic Checker
-                if self.economic_checker and (self.last_econ_check is None or (now - self.last_econ_check).seconds >= self.econ_interval):
-                    alerts = self._run_checker_with_health('economic', self.economic_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    self.last_econ_check = now
-                
-                is_market_hours = self._is_market_hours()
-                
-                # Get current prices for synthesis/narrative checkers
-                spy_price = 0.0
-                qqq_price = 0.0
-                if is_market_hours:
-                    try:
-                        import yfinance as yf
-                        spy_ticker = yf.Ticker('SPY')
-                        qqq_ticker = yf.Ticker('QQQ')
-                        spy_hist = spy_ticker.history(period='1d', interval='1m')
-                        qqq_hist = qqq_ticker.history(period='1d', interval='1m')
-                        if not spy_hist.empty:
-                            spy_price = float(spy_hist['Close'].iloc[-1])
-                        if not qqq_hist.empty:
-                            qqq_price = float(qqq_hist['Close'].iloc[-1])
-                    except:
-                        pass
-                
-                # Dark Pool Checker
-                if is_market_hours and self.dp_checker and (self.last_dp_check is None or (now - self.last_dp_check).seconds >= self.dp_interval):
-                    alerts = self._run_checker_with_health('dark_pool', self.dp_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    # Get recent_dp_alerts from checker for synthesis/narrative
+
+                # ── Dark pool checker special handling (recent_dp_alerts) ──
+                if is_market_hours and self.dp_checker:
+                    # Handled by scheduler, but we need to sync dp_alerts after
+                    pass
+
+                # ── Run all scheduled checkers ──
+                self.scheduler.tick(now, is_market_hours)
+
+                # ── Post-tick state sync ──
+                if self.fed_checker and hasattr(self.fed_checker, 'prev_fed_status'):
+                    self.prev_fed_status = self.fed_checker.prev_fed_status
+                if self.dp_checker and hasattr(self.dp_checker, 'get_recent_alerts'):
                     self.recent_dp_alerts = self.dp_checker.get_recent_alerts()
-                    self.last_dp_check = now
-                
-                # Synthesis Checker (returns alerts + result for narrative checker)
-                synthesis_result = None
-                if is_market_hours and self.synthesis_checker and (self.last_synthesis_check is None or (now - self.last_synthesis_check).seconds >= self.synthesis_interval):
-                    try:
-                        alerts, synthesis_result = self.synthesis_checker.check(
-                            recent_dp_alerts=self.recent_dp_alerts,
-                            spy_price=spy_price,
-                            qqq_price=qqq_price
-                        )
-                        self.health_registry.record_run('synthesis', success=True, alerts_generated=len(alerts))
-                        for alert in alerts:
-                            self.health_registry.record_alert('synthesis', getattr(alert, 'alert_type', None), getattr(alert, 'symbol', None))
-                    except Exception as e:
-                        logger.error(f"❌ synthesis checker failed: {e}")
-                        self.health_registry.record_run('synthesis', success=False, error=str(e))
-                        alerts, synthesis_result = [], None
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    self.last_synthesis_check = now
-                    
-                    # Check Narrative Brain signals (needs synthesis_result)
-                    if synthesis_result and self.narrative_checker:
-                        narrative_alerts = self.narrative_checker.check(
-                            recent_dp_alerts=self.recent_dp_alerts,
-                            synthesis_result=synthesis_result,
-                            spy_price=spy_price,
-                            qqq_price=qqq_price
-                        )
-                        for alert in narrative_alerts:
-                            self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                        if not narrative_alerts:
-                            self.recent_dp_alerts = []  # Clear if no narrative signal
-                
-                # Squeeze Checker
-                if is_market_hours and self.squeeze_checker and (self.last_squeeze_check is None or (now - self.last_squeeze_check).seconds >= self.squeeze_interval):
-                    alerts = self._run_checker_with_health('squeeze', self.squeeze_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    self.last_squeeze_check = now
-                
-                # Gamma Checker
-                if is_market_hours and self.gamma_checker and (self.last_gamma_check is None or (now - self.last_gamma_check).seconds >= self.gamma_interval):
-                    alerts = self._run_checker_with_health('gamma', self.gamma_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    self.last_gamma_check = now
-                
-                # DP Divergence Checker (89.8% WR Proven!)
-                if is_market_hours and self.dp_divergence_checker and (self.last_dp_divergence_check is None or (now - self.last_dp_divergence_check).seconds >= self.dp_divergence_interval):
-                    alerts = self._run_checker_with_health('dp_divergence', self.dp_divergence_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    self.last_dp_divergence_check = now
-                
-                # Scanner Checker
-                if is_market_hours and self.scanner_checker and (self.last_scanner_check is None or (now - self.last_scanner_check).seconds >= self.scanner_interval):
-                    alerts = self._run_checker_with_health('scanner', self.scanner_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    self.last_scanner_check = now
-                
-                # FTD Checker
-                if is_market_hours and self.ftd_checker and (self.last_ftd_check is None or (now - self.last_ftd_check).seconds >= self.ftd_interval):
-                    alerts = self._run_checker_with_health('ftd', self.ftd_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    self.last_ftd_check = now
-                
-                # Reddit Checker (Phase 5)
-                if is_market_hours and self.reddit_checker and (self.last_reddit_check is None or (now - self.last_reddit_check).seconds >= self.reddit_interval):
-                    alerts = self._run_checker_with_health('reddit', self.reddit_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    self.last_reddit_check = now
-                
-                # Pre-Market Gap Checker (Phase 6) - Runs ONCE per day before market open
-                if self.premarket_gap_checker and (self.last_premarket_gap_check is None or (now - self.last_premarket_gap_check).seconds >= self.premarket_gap_interval):
-                    alerts = self._run_checker_with_health('premarket_gap', self.premarket_gap_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert_type="premarket_gap", source="premarket_gap_checker", symbol=alert.symbol or "")
-                    self.last_premarket_gap_check = now
-                
-                # Options Flow Checker (Phase 6) - Runs during RTH every 30 min
-                if is_market_hours and self.options_flow_checker and (self.last_options_flow_check is None or (now - self.last_options_flow_check).seconds >= self.options_flow_interval):
-                    alerts = self._run_checker_with_health('options_flow', self.options_flow_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert_type="options_flow", source="options_flow_checker", symbol=alert.symbol or "")
-                    self.last_options_flow_check = now
-                
-                # News Intelligence Checker (Phase 6) - Runs during RTH every 15 min
-                if is_market_hours and self.news_intelligence_checker and (self.last_news_intelligence_check is None or (now - self.last_news_intelligence_check).seconds >= self.news_intelligence_interval):
-                    alerts = self._run_checker_with_health('news_intelligence', self.news_intelligence_checker.check)
-                    for alert in alerts:
-                        self.send_discord(alert.embed, alert.content, alert_type="news_intelligence", source="news_intelligence_checker", symbol=alert.symbol or "")
-                    self.last_news_intelligence_check = now
-                
-                # 🚨 MOMENTUM: Selloff/Rally Detection (every minute during RTH)
-                if is_market_hours and (self.last_dp_check is None or (now - self.last_dp_check).seconds >= 60):
+
+                # ── Momentum detection (every minute during RTH) ──
+                if is_market_hours:
                     self._check_selloffs()
                     self._check_rallies()
-                
-                # Tradytics Checker (with timeout protection)
-                try:
-                    if self.tradytics_checker and (self.last_tradytics_analysis is None or (now - self.last_tradytics_analysis).seconds >= self.tradytics_analysis_interval):
-                        alerts = self.tradytics_checker.check()
-                        for alert in alerts:
-                            self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                        self.last_tradytics_analysis = now
-                        logger.info("   ✅ Tradytics check complete")
-                except Exception as e:
-                    logger.error(f"   ❌ Tradytics checker error: {e}")
-                    self.last_tradytics_analysis = now  # Mark as done to prevent infinite retries
-                
-                # Narrative Brain scheduled updates (with error handling)
+
+                # ── Narrative Brain scheduled updates ──
                 try:
                     if self.narrative_enabled and self.narrative_scheduler:
                         self.narrative_scheduler.check_and_run_scheduled_updates()
@@ -1717,30 +734,29 @@ class UnifiedAlphaMonitor:
                                 logger.info(f"🧠 Narrative update sent: {update.alert_type.value}")
                 except Exception as e:
                     logger.error(f"   ❌ Narrative scheduler error: {e}")
-                
-                # Daily Recap Checker (with error handling)
+
+                # ── Daily Recap ──
                 try:
                     recap_alerts = self.daily_recap_checker.check(now)
                     for alert in recap_alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
                 except Exception as e:
                     logger.error(f"   ❌ Daily recap error: {e}")
-                
-                # OVERNIGHT/POST-MARKET CHECK (every 2 hours when market closed)
+
+                # ── Overnight check (every 2h when market closed) ──
                 if not is_market_hours and (self.last_overnight_check is None or (now - self.last_overnight_check).seconds >= self.overnight_interval):
-                    self._run_overnight_check(now)
+                    self.overnight.run_overnight_check(now)
                     self.last_overnight_check = now
-                
-                # Log every 10 loops to confirm system is alive
+
+                # Log every 10 loops
                 if loop_count % 10 == 0:
                     logger.info(f"✅ Loop #{loop_count} complete | Sleeping 30s...")
-                
+
                 time.sleep(30)
-                
+
             except KeyboardInterrupt:
                 logger.info("\n🛑 Monitor stopped by user")
                 break
             except Exception as e:
                 logger.error(f"❌ Main loop error: {e}")
                 time.sleep(60)
-

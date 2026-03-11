@@ -39,6 +39,7 @@ from .premarket_gap_checker import PreMarketGapChecker
 from .options_flow_checker import OptionsFlowChecker
 from .news_intelligence_checker import NewsIntelligenceChecker
 from .dp_divergence_checker import DPDivergenceChecker
+from .earnings_checker import EarningsChecker
 
 __all__ = [
     'BaseChecker',
@@ -60,5 +61,6 @@ __all__ = [
     'OptionsFlowChecker',
     'NewsIntelligenceChecker',
     'DPDivergenceChecker',
+    'EarningsChecker',
 ]
 
