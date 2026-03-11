@@ -27,11 +27,11 @@ base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.p
 if base_path not in sys.path:
     sys.path.insert(0, base_path)
 
-from live_monitoring.enrichment.apis.stockgrid_client import StockGridClient
+from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
 
 class DPSnapshotRecorder:
     def __init__(self, db_path: str = None):
-        self.client = StockGridClient()
+        self.client = StockgridClient()
         
         if not db_path:
             self.db_path = os.path.join(base_path, "data", "dp_timeseries.db")
@@ -77,23 +77,31 @@ class DPSnapshotRecorder:
         
         for symbol in symbols:
             try:
-                # The StockGridClient uses the /dppie endpoint which returns current sentiment
-                sentiment = self.client.get_current_sentiment(symbol)
+                # Use get_ticker_detail which returns DarkPoolPosition
+                detail = self.client.get_ticker_detail(symbol)
                 
-                # It might also return levels if we map it correctly
-                # We'll adapt whatever `get_current_sentiment` returns.
-                if sentiment:
-                    alerts_count = len(sentiment.get("alerts", []))
-                    short_vol = sentiment.get("short_volume_pct", 0)
+                if detail:
+                    short_vol = detail.short_volume_pct or 0
+                    sentiment = {
+                        "short_volume_pct": short_vol,
+                        "dp_position_shares": detail.dp_position_shares,
+                        "dp_position_dollars": detail.dp_position_dollars,
+                        "net_short_dollars": detail.net_short_dollars,
+                        "net_short_volume": detail.net_short_volume,
+                        "short_volume": detail.short_volume,
+                        "date": detail.date,
+                        "alerts": [],
+                    }
+                    alerts_count = 0
                     
                     cursor.execute(
                         "INSERT INTO dp_snapshots (symbol, alerts_count, short_vol_pct, json_data) VALUES (?, ?, ?, ?)",
                         (symbol, alerts_count, short_vol, json.dumps(sentiment))
                     )
                     
-                    print(f"  ✅ {symbol}: {short_vol}% Short Vol | {alerts_count} Alerts")
+                    print(f"  ✅ {symbol}: {short_vol:.1f}% Short Vol | DP ${detail.dp_position_dollars/1e6:.1f}M")
                 else:
-                    print(f"  ⚠️ {symbol}: No data returned from StockGrid.")
+                    print(f"  ⚠️ {symbol}: No data returned from AXLFI.")
                     
             except Exception as e:
                 print(f"  ❌ {symbol}: Failed to capture -> {e}")
