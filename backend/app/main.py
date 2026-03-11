@@ -65,6 +65,34 @@ app.include_router(cot.router, prefix="/api/v1", tags=["cot"])
 app.include_router(ta.router, prefix="/api/v1", tags=["ta"])
 
 
+# Global thread status tracking
+_thread_status = {}
+_pipe_instances = {}
+
+def _run_pipe(name, instance, method_name, interval, first_capture_method=None):
+    """Wrapper that tracks thread status and does immediate first capture."""
+    import traceback as tb
+    _thread_status[name] = {'status': 'starting', 'started': datetime.now().isoformat()}
+    try:
+        # Immediate first capture
+        if first_capture_method:
+            try:
+                result = first_capture_method()
+                _thread_status[name]['first_capture'] = 'ok'
+                _thread_status[name]['first_result'] = str(result)[:200]
+                logger.info(f"✅ {name}: first capture complete")
+            except Exception as e:
+                _thread_status[name]['first_capture'] = f'error: {e}'
+                logger.error(f"⚠️ {name} first capture failed: {e}")
+        # Start continuous loop
+        _thread_status[name]['status'] = 'running'
+        getattr(instance, method_name)(interval)
+    except Exception as e:
+        _thread_status[name]['status'] = f'crashed: {e}'
+        _thread_status[name]['traceback'] = tb.format_exc()
+        logger.error(f"💀 {name} thread crashed: {e}")
+
+
 @app.on_event("startup")
 async def startup():
     """Initialize monitor bridge + start background data capture threads."""
@@ -84,38 +112,65 @@ async def startup():
     # Background brain polling — keeps intelligence warm every 15 min
     asyncio.create_task(_brain_polling_loop())
 
-    # Start DP snapshot recorder (5min during market hours)
+    # Start DP snapshot recorder (5min)
     try:
         from live_monitoring.enrichment.apis.dp_snapshot_recorder import DPSnapshotRecorder
-        dp_recorder = DPSnapshotRecorder(db_path='/tmp/dp_timeseries.db')
-        threading.Thread(target=dp_recorder.run_continuous, args=(5,), daemon=True).start()
-        logger.info("✅ DP snapshot recorder started (5min)")
+        dp = DPSnapshotRecorder(db_path='/tmp/dp_timeseries.db')
+        _pipe_instances['dp_recorder'] = dp
+        threading.Thread(
+            target=_run_pipe,
+            args=('dp_recorder', dp, 'run_continuous', 5, lambda: dp.capture_snapshot(symbols=['SPY'])),
+            daemon=True
+        ).start()
+        logger.info("✅ DP snapshot recorder thread launched")
     except Exception as e:
-        logger.error(f"⚠️ DP snapshot recorder failed: {e}")
+        logger.error(f"⚠️ DP snapshot recorder failed to init: {e}")
+        _thread_status['dp_recorder'] = {'status': f'init_failed: {e}'}
 
-    # Start AXLFI signal differ (60min during market hours)
+    # Start AXLFI signal differ (60min)
     try:
         from live_monitoring.enrichment.apis.axlfi_signal_differ import AXLFISignalDiffer
-        threading.Thread(target=AXLFISignalDiffer().run_continuous, args=(60,), daemon=True).start()
-        logger.info("✅ AXLFI signal differ started (60min)")
+        sd = AXLFISignalDiffer()
+        _pipe_instances['signal_differ'] = sd
+        threading.Thread(
+            target=_run_pipe,
+            args=('signal_differ', sd, 'run_continuous', 60, sd.capture_and_diff),
+            daemon=True
+        ).start()
+        logger.info("✅ AXLFI signal differ thread launched")
     except Exception as e:
-        logger.error(f"⚠️ AXLFI signal differ failed: {e}")
+        logger.error(f"⚠️ AXLFI signal differ failed to init: {e}")
+        _thread_status['signal_differ'] = {'status': f'init_failed: {e}'}
 
-    # Start volume spike detector (5min during market hours)
+    # Start volume spike detector (5min)
     try:
         from live_monitoring.enrichment.apis.volume_spike_detector import VolumeSpikeDetector
-        threading.Thread(target=VolumeSpikeDetector(symbol='SPY').run_continuous, args=(5,), daemon=True).start()
-        logger.info("✅ Volume spike detector started (5min)")
+        vs = VolumeSpikeDetector(symbol='SPY')
+        _pipe_instances['volume_spikes'] = vs
+        threading.Thread(
+            target=_run_pipe,
+            args=('volume_spikes', vs, 'run_continuous', 5, vs.check_for_spikes),
+            daemon=True
+        ).start()
+        logger.info("✅ Volume spike detector thread launched")
     except Exception as e:
-        logger.error(f"⚠️ Volume spike detector failed: {e}")
+        logger.error(f"⚠️ Volume spike detector failed to init: {e}")
+        _thread_status['volume_spikes'] = {'status': f'init_failed: {e}'}
 
-    # Start option wall tracker (30min during market hours)
+    # Start option wall tracker (30min)
     try:
         from live_monitoring.enrichment.apis.option_wall_tracker import OptionWallTracker
-        threading.Thread(target=OptionWallTracker().run_continuous, args=(30,), daemon=True).start()
-        logger.info("✅ Option wall tracker started (30min)")
+        ow = OptionWallTracker()
+        _pipe_instances['option_walls'] = ow
+        threading.Thread(
+            target=_run_pipe,
+            args=('option_walls', ow, 'run_continuous', 30, ow.capture_walls),
+            daemon=True
+        ).start()
+        logger.info("✅ Option wall tracker thread launched")
     except Exception as e:
-        logger.error(f"⚠️ Option wall tracker failed: {e}")
+        logger.error(f"⚠️ Option wall tracker failed to init: {e}")
+        _thread_status['option_walls'] = {'status': f'init_failed: {e}'}
 
 
 async def _brain_polling_loop():
@@ -215,9 +270,11 @@ async def dp_snapshots():
 async def signal_diffs():
     """AXLFI signal regime changes."""
     try:
+        inst = _pipe_instances.get('signal_differ')
+        if inst:
+            return inst.get_latest()
         from live_monitoring.enrichment.apis.axlfi_signal_differ import AXLFISignalDiffer
-        differ = AXLFISignalDiffer()
-        return differ.get_latest()
+        return AXLFISignalDiffer().get_latest()
     except Exception as e:
         return {"error": str(e)}
 
@@ -226,9 +283,11 @@ async def signal_diffs():
 async def volume_spikes():
     """SPY intraday volume spike events."""
     try:
+        inst = _pipe_instances.get('volume_spikes')
+        if inst:
+            return inst.get_latest()
         from live_monitoring.enrichment.apis.volume_spike_detector import VolumeSpikeDetector
-        detector = VolumeSpikeDetector()
-        return detector.get_latest()
+        return VolumeSpikeDetector().get_latest()
     except Exception as e:
         return {"error": str(e)}
 
@@ -237,11 +296,23 @@ async def volume_spikes():
 async def option_walls():
     """SPY/QQQ/IWM option wall levels."""
     try:
+        inst = _pipe_instances.get('option_walls')
+        if inst:
+            return inst.get_latest()
         from live_monitoring.enrichment.apis.option_wall_tracker import OptionWallTracker
-        tracker = OptionWallTracker()
-        return tracker.get_latest()
+        return OptionWallTracker().get_latest()
     except Exception as e:
         return {"error": str(e)}
+
+
+@app.get("/thread-status")
+async def thread_status():
+    """Diagnostic: status of all background data capture threads."""
+    return {
+        "threads": _thread_status,
+        "instances": {k: type(v).__name__ for k, v in _pipe_instances.items()},
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 @app.get("/kill-shots-live")
