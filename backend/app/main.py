@@ -67,8 +67,9 @@ app.include_router(ta.router, prefix="/api/v1", tags=["ta"])
 
 @app.on_event("startup")
 async def startup():
-    """Initialize monitor bridge + start background brain polling."""
+    """Initialize monitor bridge + start background data capture threads."""
     import asyncio
+    import threading
 
     if MONITOR_AVAILABLE:
         try:
@@ -82,6 +83,39 @@ async def startup():
 
     # Background brain polling — keeps intelligence warm every 15 min
     asyncio.create_task(_brain_polling_loop())
+
+    # Start DP snapshot recorder (5min during market hours)
+    try:
+        from live_monitoring.enrichment.apis.dp_snapshot_recorder import DPSnapshotRecorder
+        dp_recorder = DPSnapshotRecorder(db_path='/tmp/dp_timeseries.db')
+        threading.Thread(target=dp_recorder.run_continuous, args=(5,), daemon=True).start()
+        logger.info("✅ DP snapshot recorder started (5min)")
+    except Exception as e:
+        logger.error(f"⚠️ DP snapshot recorder failed: {e}")
+
+    # Start AXLFI signal differ (60min during market hours)
+    try:
+        from live_monitoring.enrichment.apis.axlfi_signal_differ import AXLFISignalDiffer
+        threading.Thread(target=AXLFISignalDiffer().run_continuous, args=(60,), daemon=True).start()
+        logger.info("✅ AXLFI signal differ started (60min)")
+    except Exception as e:
+        logger.error(f"⚠️ AXLFI signal differ failed: {e}")
+
+    # Start volume spike detector (5min during market hours)
+    try:
+        from live_monitoring.enrichment.apis.volume_spike_detector import VolumeSpikeDetector
+        threading.Thread(target=VolumeSpikeDetector(symbol='SPY').run_continuous, args=(5,), daemon=True).start()
+        logger.info("✅ Volume spike detector started (5min)")
+    except Exception as e:
+        logger.error(f"⚠️ Volume spike detector failed: {e}")
+
+    # Start option wall tracker (30min during market hours)
+    try:
+        from live_monitoring.enrichment.apis.option_wall_tracker import OptionWallTracker
+        threading.Thread(target=OptionWallTracker().run_continuous, args=(30,), daemon=True).start()
+        logger.info("✅ Option wall tracker started (30min)")
+    except Exception as e:
+        logger.error(f"⚠️ Option wall tracker failed: {e}")
 
 
 async def _brain_polling_loop():
