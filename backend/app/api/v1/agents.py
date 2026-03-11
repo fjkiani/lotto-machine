@@ -358,3 +358,46 @@ async def agents_health():
         "timestamp": datetime.now().isoformat()
     }
 
+
+@router.get("/narrative/memory")
+async def get_narrative_memory():
+    """
+    Get cross-session narrative memory.
+
+    Returns daily context, market regime, narrative chain, and recent events
+    from the NarrativeMemory database — the data that persists across restarts.
+    """
+    try:
+        from live_monitoring.agents.narrative_brain.narrative_brain import NarrativeMemory
+        memory = NarrativeMemory()
+
+        today = datetime.now().strftime('%Y-%m-%d')
+        daily_context = memory.get_daily_context(today)
+        regime = memory.get_market_regime(today)
+        chain = memory.get_narrative_chain(days=7)
+        recent_events = memory.get_recent_events(hours=24)
+        recent_narratives = memory.get_recent_narratives(hours=24)
+        sentiment = memory.get_sentiment_history(days=7)
+
+        return {
+            "daily_context": daily_context,
+            "market_regime": regime,
+            "narrative_chain": chain,
+            "recent_events": recent_events,
+            "recent_narratives": recent_narratives,
+            "sentiment_history": sentiment,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error fetching narrative memory: {e}", exc_info=True)
+        return {
+            "daily_context": None,
+            "market_regime": None,
+            "narrative_chain": [],
+            "recent_events": [],
+            "recent_narratives": [],
+            "sentiment_history": [],
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+

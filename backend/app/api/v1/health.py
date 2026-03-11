@@ -72,7 +72,7 @@ async def get_checker_health():
             'warning': 0,
             'error': 0,
             'disabled': 0,
-            'not_applicable': 0
+            'n/a': 0
         }
         
         for checker_name, health in health_summary.items():
@@ -119,7 +119,7 @@ async def get_checker_health():
             warning=status_counts['warning'],
             error=status_counts['error'],
             disabled=status_counts['disabled'],
-            not_applicable=status_counts['not_applicable'],
+            not_applicable=status_counts['n/a'],
             checkers=checkers,
             timestamp=datetime.utcnow().isoformat()
         )
@@ -194,7 +194,7 @@ async def get_health_summary():
             'warning': 0,
             'error': 0,
             'disabled': 0,
-            'not_applicable': 0
+            'n/a': 0
         }
         
         for health in health_summary.values():
@@ -208,7 +208,7 @@ async def get_health_summary():
             "warning": status_counts['warning'],
             "error": status_counts['error'],
             "disabled": status_counts['disabled'],
-            "not_applicable": status_counts['not_applicable'],
+            "not_applicable": status_counts['n/a'],
             "timestamp": datetime.utcnow().isoformat()
         }
     
@@ -223,4 +223,60 @@ async def get_health_summary():
             "not_applicable": 0,
             "timestamp": datetime.utcnow().isoformat()
         }
+
+
+@router.get("/health/history")
+async def get_health_history(days: int = 7):
+    """
+    Get historical health data from alerts_history.db and checker_health.db.
+    Returns recent alerts and checker run counts for cross-session intelligence.
+    """
+    import sqlite3
+    from pathlib import Path
+    
+    result = {"alerts": [], "checker_runs": [], "timestamp": datetime.utcnow().isoformat()}
+    
+    try:
+        # Try CWD-relative first, then persistent storage
+        alerts_path = Path("data/alerts_history.db")
+        if not alerts_path.exists():
+            try:
+                from core.utils.persistent_storage import get_database_path
+                alerts_path = get_database_path("alerts_history.db")
+            except Exception:
+                pass
+        
+        if alerts_path.exists():
+            conn = sqlite3.connect(str(alerts_path))
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM alerts ORDER BY timestamp DESC LIMIT 50"
+            ).fetchall()
+            result["alerts"] = [dict(r) for r in rows]
+            conn.close()
+    except Exception as e:
+        logger.warning(f"Could not read alerts_history: {e}")
+    
+    try:
+        checker_path = Path("data/checker_health.db")
+        if not checker_path.exists():
+            try:
+                from core.utils.persistent_storage import get_database_path
+                checker_path = get_database_path("checker_health.db")
+            except Exception:
+                pass
+        
+        if checker_path.exists():
+            conn = sqlite3.connect(str(checker_path))
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT checker_name, COUNT(*) as run_count, MAX(timestamp) as last_run "
+                "FROM checker_runs GROUP BY checker_name ORDER BY last_run DESC"
+            ).fetchall()
+            result["checker_runs"] = [dict(r) for r in rows]
+            conn.close()
+    except Exception as e:
+        logger.warning(f"Could not read checker_health: {e}")
+    
+    return result
 
