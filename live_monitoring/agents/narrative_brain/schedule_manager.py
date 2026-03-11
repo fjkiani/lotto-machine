@@ -162,12 +162,23 @@ class NarrativeScheduler:
                 self.schedule_manager.mark_pre_market_sent()
                 self.logger.info("✅ Pre-market outlook sent")
 
-        # End-of-day summary
+        # End-of-day summary + session save (Phase 2: cross-session persistence)
         if self.schedule_manager.should_run_end_of_day():
-            self.logger.info("📊 Running end-of-day summary...")
-            # TODO: Implement end-of-day summary generation
+            self.logger.info("📊 Running end-of-day summary + session save...")
+            try:
+                # Get current context for session summary
+                context = self.brain.get_current_context()
+                regime = context.get('market_regime', 'UNKNOWN')
+                self.brain.save_session_summary(
+                    regime=regime if isinstance(regime, str) else str(regime),
+                    key_themes=context.get('narrative_themes', []),
+                    risk_assessment=context.get('risk_level', 'UNKNOWN')
+                )
+                self.logger.info("💾 Session summary saved for cross-session continuity")
+            except Exception as e:
+                self.logger.error(f"❌ Session save failed: {e}")
             self.schedule_manager.mark_end_of_day_sent()
-            self.logger.info("✅ End-of-day summary sent")
+            self.logger.info("✅ End-of-day summary complete")
 
     def can_run_intra_day_update(self) -> bool:
         """Check if intra-day update can be run (called by external triggers)"""

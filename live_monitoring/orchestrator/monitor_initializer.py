@@ -50,10 +50,10 @@ class MonitorInitializer:
         """Initialize Fed Watch monitors."""
         try:
             from live_monitoring.agents.fed_watch_monitor import FedWatchMonitor
-            from live_monitoring.agents.fed_officials_monitor import FedOfficialsMonitor
+            from live_monitoring.agents.fed_officials.engine import FedOfficialsEngine
             
             fed_watch = FedWatchMonitor(alert_threshold=5.0)
-            fed_officials = FedOfficialsMonitor()
+            fed_officials = FedOfficialsEngine()
             
             logger.info("   ✅ Fed monitors initialized")
             return {
@@ -217,11 +217,19 @@ class MonitorInitializer:
             narrative_brain = NarrativeBrain()
             narrative_scheduler = NarrativeScheduler(narrative_brain)
             
+            # Phase 2: Load previous session context at startup
+            prev_session = narrative_brain.load_previous_session()
+            if prev_session:
+                logger.info(f"   📚 Previous session loaded: regime={prev_session.get('market_regime', {}).get('regime', 'N/A')}")
+            else:
+                logger.info("   📚 No previous session data (first run or no data)")
+            
             logger.info("   🧠 Narrative Brain initialized (CONTEXTUAL STORYTELLING)")
             return {
                 'enabled': True,
                 'narrative_brain': narrative_brain,
-                'narrative_scheduler': narrative_scheduler
+                'narrative_scheduler': narrative_scheduler,
+                'previous_session': prev_session
             }
         except Exception as e:
             logger.warning(f"   ⚠️ Narrative Brain failed: {e}")
