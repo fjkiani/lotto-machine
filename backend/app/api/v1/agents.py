@@ -401,3 +401,41 @@ async def get_narrative_memory():
             "timestamp": datetime.now().isoformat()
         }
 
+
+@router.get("/narrative/previous-session")
+async def get_previous_session():
+    """
+    Get yesterday's session context for morning seeding.
+    
+    Returns daily context, market regime, and narrative chain from the previous day.
+    This is the cross-session bridge — what the system remembers from yesterday.
+    """
+    try:
+        from live_monitoring.agents.narrative_brain.narrative_brain import NarrativeBrain
+        brain = NarrativeBrain()
+        prev = brain.load_previous_session()
+
+        if prev:
+            return {
+                "has_data": True,
+                "daily_context": prev.get('daily_context'),
+                "market_regime": prev.get('market_regime'),
+                "narrative_chain": prev.get('narrative_chain', []),
+                "timestamp": datetime.now().isoformat()
+            }
+        return {
+            "has_data": False,
+            "daily_context": None,
+            "market_regime": None,
+            "narrative_chain": [],
+            "note": "No previous session data (first day or no data saved yesterday)",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error fetching previous session: {e}", exc_info=True)
+        return {
+            "has_data": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+

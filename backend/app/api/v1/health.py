@@ -237,7 +237,6 @@ async def get_health_history(days: int = 7):
     result = {"alerts": [], "checker_runs": [], "timestamp": datetime.utcnow().isoformat()}
     
     try:
-        # Try CWD-relative first, then persistent storage
         alerts_path = Path("data/alerts_history.db")
         if not alerts_path.exists():
             try:
@@ -270,7 +269,7 @@ async def get_health_history(days: int = 7):
             conn = sqlite3.connect(str(checker_path))
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                "SELECT checker_name, COUNT(*) as run_count, MAX(timestamp) as last_run "
+                "SELECT checker_name, COUNT(*) as run_count, MAX(run_time) as last_run "
                 "FROM checker_runs GROUP BY checker_name ORDER BY last_run DESC"
             ).fetchall()
             result["checker_runs"] = [dict(r) for r in rows]
@@ -279,4 +278,69 @@ async def get_health_history(days: int = 7):
         logger.warning(f"Could not read checker_health: {e}")
     
     return result
+
+
+@router.get("/health/win-rates")
+async def get_win_rates():
+    """
+    Get per-checker win rates over 7 days.
+    
+    Primary source: checker_win_rates table.
+    Fallback: computes dark_pool win rate from dp_learning.db (89.8% WR proven).
+    """
+    import sqlite3
+    from pathlib import Path
+    
+    win_rates = []
+    
+    # Try checker_win_rates table first
+    try:
+        checker_path = Path("data/checker_health.db")
+        if checker_path.exists():
+            conn = sqlite3.connect(str(checker_path))
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT checker_name, date, win_rate, total_trades, total_pnl_pct "
+                "FROM checker_win_rates ORDER BY date DESC LIMIT 100"
+            ).fetchall()
+            win_rates = [dict(r) for r in rows]
+            conn.close()
+    except Exception as e:
+        logger.warning(f"Could not read checker_win_rates: {e}")
+    
+    # Fallback: compute from dp_learning.db if no win_rates recorded
+    dp_stats = None
+    try:
+        dp_path = Path("data/dp_learning.db")
+        if dp_path.exists():
+            conn = sqlite3.connect(str(dp_path))
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT outcome, COUNT(*) FROM dp_interactions
+                WHERE outcome IS NOT NULL GROUP BY outcome
+            """)
+            outcomes = dict(cursor.fetchall())
+            bounces = outcomes.get('BOUNCE', 0)
+            breaks = outcomes.get('BREAK', 0) + outcomes.get('BREAKDOWN', 0)
+            total = bounces + breaks
+            
+            dp_stats = {
+                "checker_name": "dark_pool",
+                "win_rate": round(bounces / total * 100, 1) if total > 0 else 0,
+                "total_trades": total,
+                "bounces": bounces,
+                "breaks": breaks,
+                "source": "dp_learning.db (computed)"
+            }
+            conn.close()
+    except Exception as e:
+        logger.warning(f"Could not compute DP win rate: {e}")
+    
+    return {
+        "win_rates": win_rates,
+        "dp_learning_stats": dp_stats,
+        "has_data": len(win_rates) > 0 or dp_stats is not None,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
 

@@ -290,38 +290,38 @@ Hit every endpoint on `https://lotto-machine-3.onrender.com`:
 ### DONE means ALL of these are true:
 
 **Infrastructure (MUST be done first):**
-- [ ] `api.ts` has AbortController with 10s timeout on all fetch calls
+- [x] `api.ts` has AbortController with 10s timeout on all fetch calls ✅ (2026-03-11)
 - [ ] Every widget has try/catch with error fallback UI (not just console.error)
 - [ ] Narrative endpoint responds in <3s (via caching or pre-computation)
 - [ ] Signals endpoint returns >0 signals (requires checker output)
 
 **Backend Endpoints Built AND Returning Real Data:**
-- [ ] `GET /dp/patterns` → returns 13+ learned patterns from `dp_learning.db`
-- [ ] `GET /dp/prediction/{symbol}` → returns PatternLearner prediction
-- [ ] `GET /narrative/memory` → returns data from narrative_memory.db (NOT empty schema)
-- [ ] `GET /narrative/previous-session` → returns yesterday's regime + levels
-- [ ] `GET /health/win-rates` → returns per-checker win rates (NOT all None)
-- [ ] `GET /health/history?days=7` → returns checker runs with deploy_id
+- [x] `GET /dp/patterns` → returns 13+ learned patterns from `dp_learning.db` ✅ curl verified
+- [x] `GET /dp/prediction/{symbol}` → returns PatternLearner prediction ✅ curl verified (SPY=89.3% bounce)
+- [x] `GET /narrative/memory` → returns REAL data ✅ (2026-03-11: daily_context has TRENDING_DOWN regime, VIX=24.89, sentiment=1 entry. narrative_chain/events sparse but not empty schema)
+- [ ] `GET /narrative/previous-session` → ❌ NOT BUILT — no backend endpoint exists
+- [ ] `GET /health/win-rates` → ❌ NOT BUILT — AND checker_win_rates table has 0 rows, so even if built would return empty
+- [x] `GET /health/history?days=7` → returns REAL data ✅ (2026-03-11: 376 alerts, 2 checker_runs)
 - [ ] `GET /dp/trends/{symbol}` → returns 5-day DP accumulation
 - [ ] `GET /sentiment/trends/{symbol}` → returns 5-day sentiment momentum
 
 **API Client Methods Added to api.ts:**
-- [ ] dpApi.getPatterns()
-- [ ] dpApi.getPrediction(symbol)
-- [ ] agentsApi.getMemory()
-- [ ] agentsApi.getPreviousSession()
-- [ ] healthApi.getWinRates()
-- [ ] healthApi.getHistory(days)
+- [x] dpApi.getPatterns() ✅
+- [x] dpApi.getPrediction(symbol) ✅
+- [x] narrativeApi.getMemory() ✅ (2026-03-11: new `narrativeApi` namespace created)
+- [ ] narrativeApi.getPreviousSession() — ❌ NOT ADDED (no backend endpoint)
+- [ ] healthApi.getWinRates() — ❌ NOT ADDED (no backend endpoint)
+- [x] healthApi.getHistory(days) ✅ (2026-03-11)
 
 **Existing Widgets Upgraded (each with visual proof):**
-- [ ] DPEdgeDashboard shows patterns table + prediction badges
+- [x] DPEdgeDashboard shows patterns table + prediction badges ✅
 - [ ] NarrativeBrain shows session memory panel + regime badge + yesterday's context
 - [ ] SystemHealth shows per-checker win rates + deploy history
 - [ ] MarketRegime shows regime history timeline
 - [ ] SignalsCenter shows DP prediction confidence on divergence signals
 
 **New Components Built:**
-- [ ] DPPatternCard.tsx — learned patterns table
+- [x] DPPatternCard.tsx — learned patterns table ✅
 - [ ] SessionMemoryPanel.tsx — yesterday's regime + key levels
 - [ ] DPPredictionBadge.tsx — live prediction badge
 
@@ -335,18 +335,19 @@ Hit every endpoint on `https://lotto-machine-3.onrender.com`:
 
 ## Priority Ordering (Updated After Audit)
 
-1. **Fix api.ts timeout handling** (10min, saves every widget from hanging)
+1. **~~Fix api.ts timeout handling~~** ✅ DONE (10s AbortController, 15s for narrative)
 2. **Fix narrative endpoint timeout** (cache or background polling)
 3. **Populate signals endpoint** (requires checker output → signals pipe)
-4. **Build 8 backend endpoints** (dp.py, agents.py, health.py)
-5. **Add 6 API client methods** (api.ts)
-6. **Upgrade 5 existing widgets** (DPEdge, NarrativeBrain, SystemHealth, MarketRegime, Signals)
-7. **Build 3 new components** (DPPatternCard, SessionMemoryPanel, DPPredictionBadge)
+4. **Build 3 remaining backend endpoints** (~~dp.py done, /narrative/memory done, /health/history done~~. Remaining: /narrative/previous-session, /health/win-rates, /dp/trends)
+5. **Add 2 remaining API client methods** (~~dpApi done, narrativeApi.getMemory done, healthApi.getHistory done~~. Remaining: narrativeApi.getPreviousSession, healthApi.getWinRates)
+6. **Upgrade 4 remaining widgets** (~~DPEdge done~~, NarrativeBrain, SystemHealth, MarketRegime, Signals)
+7. **Build 2 remaining new components** (~~DPPatternCard done~~, SessionMemoryPanel, DPPredictionBadge)
 8. **Screenshot proof for each widget** (curl + browser)
 
 ---
 
 ## Changelog
 
+- **2026-03-11 12:35**: SANDBAG AUDIT ITER 3 (by Antigravity). Verified: /narrative/memory returns REAL data (daily_context=TRENDING_DOWN, VIX=24.89). /health/history returns REAL data (376 alerts, 2 checker_runs). narrativeApi namespace + getMemory() + healthApi.getHistory() added to api.ts. HONEST FLAGS: /narrative/previous-session NOT BUILT. /health/win-rates NOT BUILT (AND checker_win_rates table has 0 rows). narrative_chain/events sparse. Updated completion checklist.
 - **2026-03-11 11:50**: SANDBAG AUDIT ITER 2. Added live endpoint test results (2/8 widgets work, 3 timeout, 1 empty, 1 all-warning). Corrected Render URL to `lotto-machine-3.onrender.com`. Identified `api.ts` zero-timeout gap. Added real A-Z completion criteria with checkboxes. Updated priority order: infrastructure fixes first, then endpoints, then widgets.
 - **2026-03-11 11:33**: Initial audit. 15 widgets, 49 endpoints, 12 API namespaces mapped. 6 missing endpoints, 7 missing components, 5 upgrades identified.
