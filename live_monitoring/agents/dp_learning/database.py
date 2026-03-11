@@ -33,8 +33,13 @@ class DPDatabase:
             if PERSISTENT_STORAGE_AVAILABLE:
                 db_path = get_database_path("dp_learning.db")
             else:
-                # Fallback to default path
-                db_path = Path(__file__).parent.parent.parent.parent / "data" / "dp_learning.db"
+                # Try CWD-relative first (works when run from project root)
+                cwd_path = Path("data") / "dp_learning.db"
+                if cwd_path.exists():
+                    db_path = cwd_path
+                else:
+                    # Fallback to __file__-relative
+                    db_path = Path(__file__).parent.parent.parent.parent / "data" / "dp_learning.db"
         
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -294,7 +299,48 @@ class DPDatabase:
             notes=data.get('notes') or ''
         )
 
-
-
-
+    # ─── Pattern Persistence ───────────────────────────────────
+    
+    def save_pattern(self, pattern: DPPattern) -> None:
+        """Upsert a single pattern to dp_patterns table."""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO dp_patterns (pattern_name, total_samples, bounce_count, break_count, fade_count, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(pattern_name) DO UPDATE SET
+                total_samples = excluded.total_samples,
+                bounce_count = excluded.bounce_count,
+                break_count = excluded.break_count,
+                fade_count = excluded.fade_count,
+                last_updated = excluded.last_updated
+        """, (
+            pattern.pattern_name,
+            pattern.total_samples,
+            pattern.bounce_count,
+            pattern.break_count,
+            pattern.fade_count,
+            datetime.now().isoformat()
+        ))
+        conn.commit()
+        conn.close()
+    
+    def get_all_patterns(self) -> List[DPPattern]:
+        """Load all persisted patterns from dp_patterns table."""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        cursor.execute("SELECT pattern_name, total_samples, bounce_count, break_count, fade_count FROM dp_patterns")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [
+            DPPattern(
+                pattern_name=r[0],
+                total_samples=r[1],
+                bounce_count=r[2],
+                break_count=r[3],
+                fade_count=r[4]
+            )
+            for r in rows
+        ]
 

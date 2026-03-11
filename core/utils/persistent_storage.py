@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 RENDER_PERSISTENT_DISK = Path("/opt/render/project/src/data")
 
 # Standard data directory in project root
-PROJECT_DATA_DIR = Path(__file__).parent.parent.parent.parent / "data"
+PROJECT_DATA_DIR = Path(__file__).parent.parent.parent / "data"  # core/utils/ → core/ → project_root/
 
 
 def get_persistent_data_dir() -> Path:

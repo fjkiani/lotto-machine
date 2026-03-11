@@ -7,8 +7,9 @@ Learns patterns from historical interactions to predict future outcomes.
 import logging
 from typing import Dict, List, Optional
 from collections import defaultdict
+from datetime import datetime
 
-from .models import DPInteraction, DPPattern, DPPrediction, Outcome, LevelType
+from .models import DPInteraction, DPPattern, DPPrediction, Outcome, LevelType, ApproachDirection
 from .database import DPDatabase
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,12 @@ class PatternLearner:
         self.db = database
         self.patterns: Dict[str, DPPattern] = {}
         
-        logger.info("🧠 PatternLearner initialized")
+        # Auto-load persisted patterns (survive restarts)
+        self.load_patterns()
+        if self.patterns:
+            logger.info(f"🧠 PatternLearner initialized — loaded {len(self.patterns)} patterns from disk")
+        else:
+            logger.info("🧠 PatternLearner initialized — no persisted patterns yet")
     
     def learn(self, min_samples: int = 5):
         """
@@ -80,6 +86,10 @@ class PatternLearner:
         self._learn_combined(interactions, min_samples)
         
         logger.info(f"🧠 Learned {len(self.patterns)} patterns")
+        
+        # Auto-persist to disk
+        self.save_patterns()
+        logger.info(f"💾 Persisted {len(self.patterns)} patterns to dp_patterns table")
     
     def _learn_by_volume(self, interactions: List[DPInteraction], min_samples: int):
         """Learn patterns by volume bracket."""
@@ -318,7 +328,37 @@ class PatternLearner:
             for name, p in self.patterns.items()
         }
 
-
-
-
-
+    # ─── Pattern Persistence ───────────────────────────────────
+    
+    def save_patterns(self) -> None:
+        """Persist all in-memory patterns to the database."""
+        for pattern in self.patterns.values():
+            self.db.save_pattern(pattern)
+    
+    def load_patterns(self) -> None:
+        """Load persisted patterns from database into memory."""
+        db_patterns = self.db.get_all_patterns()
+        for p in db_patterns:
+            self.patterns[p.pattern_name] = p
+    
+    def predict_from_context(self, level_type: str = 'SUPPORT', 
+                              approach_direction: str = 'FROM_ABOVE',
+                              level_volume: int = 1_000_000,
+                              touch_count: int = 1) -> dict:
+        """Quick prediction from context params (no full DPInteraction needed)."""
+        interaction = DPInteraction(
+            level_type=LevelType(level_type),
+            approach_direction=ApproachDirection(approach_direction) if approach_direction else ApproachDirection.FROM_BELOW,
+            level_volume=level_volume,
+            touch_count=touch_count,
+            timestamp=datetime.now()
+        )
+        pred = self.predict(interaction)
+        return {
+            'bounce_probability': round(pred.bounce_probability, 3),
+            'break_probability': round(pred.break_probability, 3),
+            'confidence': pred.confidence,
+            'predicted_outcome': pred.predicted_outcome.value,
+            'suggested_action': pred.suggested_action,
+            'supporting_patterns': pred.supporting_patterns
+        }
