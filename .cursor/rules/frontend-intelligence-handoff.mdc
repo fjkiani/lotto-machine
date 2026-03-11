@@ -335,9 +335,14 @@ Hit every endpoint on `https://lotto-machine-3.onrender.com`:
 
 ## Priority Ordering (Updated After Audit)
 
-1. **~~Fix api.ts timeout handling~~** ✅ DONE (10s AbortController, 15s for narrative)
-2. **Fix narrative endpoint timeout** (cache or background polling)
+1. **~~Fix api.ts timeout handling~~** ✅ DONE
+2. **~~Fix narrative endpoint timeout~~** ✅ DONE (2026-03-11: stale-while-revalidate cache, 120s TTL, background recompute)
 3. **Populate signals endpoint** (requires checker output → signals pipe)
+4. **~~Build backend endpoints~~** ✅ ALL DONE
+5. **~~Add API client methods~~** ✅ ALL DONE
+6. **~~Upgrade widgets~~** ✅ ALL 5 DONE (DPEdge, NarrativeBrain, SystemHealth, MarketRegime, SignalsCenter)
+7. **~~Build new components~~** ✅ ALL 3 DONE
+8. **Screenshot proof for each widget** (curl + browser)
 4. **~~Build backend endpoints~~** ✅ ALL DONE
 5. **~~Add API client methods~~** ✅ ALL DONE
 6. **Upgrade remaining widgets** (~~DPEdge done, NarrativeBrain done, SystemHealth done~~. Remaining: MarketRegime, Signals)
