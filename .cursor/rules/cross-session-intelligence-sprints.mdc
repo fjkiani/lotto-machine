@@ -9,7 +9,7 @@ alwaysApply: false
 
 # Cross-Session Intelligence System
 
-> Created: 2026-03-11 | Status: Sprint 1 In Progress
+> Created: 2026-03-11 | Status: Sprint 1 PARTIAL — 2 sandbags found
 > This file is the PERMANENT record. Do not overwrite — append updates below.
 
 ## Problem Statement
@@ -88,6 +88,17 @@ engine.learner.learn(min_samples=3)
 assert len(engine.learner.patterns) > 0, f"Still 0 patterns"
 ```
 
+**STATUS: ⚠️ PARTIAL**
+- ✅ Fixed NULL handling in `_row_to_interaction()` (ValueError fix)
+- ✅ `learn()` now produces 13 patterns from 346 interactions
+- ❌ **Deliverable #4 NOT DONE:** `predict()` is NOT wired into any checker
+  - Grep receipt: 0 hits for `predict|PatternLearner` in `live_monitoring/orchestrator/` or `live_monitoring/checkers/`
+  - The patterns are learned but NEVER USED for decisions
+
+**Remaining work:**
+1. Wire `PatternLearner.predict()` into `DPDivergenceChecker.check()`
+2. Include prediction text in divergence alert embeds
+
 **Sandbag warning:** The plan originally said "just lower the threshold" — threshold is already 3. Real fix requires debugging the sub-grouping logic.
 
 ---
@@ -113,12 +124,28 @@ assert len(engine.learner.patterns) > 0, f"Still 0 patterns"
 
 **Test:**
 ```python
-from live_monitoring.recaps.components.narrative_recap import NarrativeMemory
-mem = NarrativeMemory()
-mem.save_session_summary(regime="DOWNTREND", key_levels={"SPY": 550}, events=["CPI miss"])
-loaded = mem.load_previous_session()
-assert loaded["regime"] == "DOWNTREND"
+from live_monitoring.agents.narrative_brain.narrative_brain import NarrativeBrain
+brain = NarrativeBrain()
+brain.save_session_summary(regime="DOWNTREND", key_themes=["tariff"], risk_assessment="HIGH")
+loaded = brain.load_previous_session()
+assert loaded is not None and loaded.get("regime") is not None
 ```
+
+**STATUS: ⚠️ PARTIAL**
+- ✅ Built `save_session_summary()` method in NarrativeBrain (line 844)
+- ✅ Built `load_previous_session()` method in NarrativeBrain (line 871)
+- ✅ Fixed db_path to `data/narrative_memory.db`
+- ✅ Wired `store_market_regime()` into `process_intelligence_update()`
+- ❌ **Deliverable #4 NOT DONE:** NOT wired into `OvernightManager.run_daily_recap()`
+  - Grep receipt: 0 hits for `save_session_summary` in `live_monitoring/orchestrator/`
+- ❌ **Deliverable #5 NOT DONE:** NOT wired into `UnifiedAlphaMonitor.__init__()`
+  - Grep receipt: 0 hits for `load_previous_session` in `live_monitoring/orchestrator/`
+  - The methods EXIST but NOBODY CALLS THEM
+
+**Remaining work:**
+1. Wire `save_session_summary()` into daily recap (4PM trigger)
+2. Wire `load_previous_session()` into monitor startup
+3. Verify narrative_memory.db gets populated after one market session
 
 ---
 
@@ -140,6 +167,12 @@ checker_health.py:178: INSERT INTO checker_runs  ← appends
 3. Add `GET /health/history?days=7` endpoint
 4. Verify win_rates table gets populated (currently 0 rows — needs `record_outcome()` calls)
 
+**STATUS: ❌ NOT STARTED**
+- ❌ deploy_id does NOT exist — 0 grep hits for `deploy_id` in entire codebase
+- ❌ No history endpoint built
+- ❌ win_rates still 0 rows
+- ⚠️ All 14 checkers show status=warning on Render (live test 2026-03-11)
+
 ---
 
 ### S1.4 — Dead Database Cleanup
@@ -157,6 +190,44 @@ checker_health.py:178: INSERT INTO checker_runs  ← appends
 **Also investigate:**
 - `economic_learning.db` — looks like a duplicate of `economic_intelligence.db`
 - `memory.db` — 3 analyses, legacy?
+
+---
+
+## Sprint 1.5: Frontend Infrastructure (BLOCKING — Added 2026-03-11)
+
+### S1.5 — Frontend Can't Receive Data
+
+**Problem:** Even if backend endpoints work, the frontend can't reliably consume them.
+
+Live test results (2026-03-11 11:42 ET) against `lotto-machine-3.onrender.com`:
+- `/agents/narrative/current` → 💀 TIMEOUT (>15s)
+- `/darkpool/SPY/levels` → 💀 TIMEOUT
+- `/economic/calendar` → 💀 TIMEOUT
+- `/signals` → 200 but EMPTY (0 signals)
+- `/health/checkers` → 14 checkers, 0 healthy, ALL warning, win_rate=None
+
+**Root causes:**
+1. `api.ts` has ZERO timeout config — no AbortController, requests hang forever
+2. Narrative endpoint calls `monitor_bridge.get_narrative_update()` which does heavy compute
+3. Darkpool/economic endpoints likely make external API calls that stall
+4. No checker generates signals for `/signals` endpoint
+
+**Deliverables:**
+1. Add AbortController with 10s timeout to all fetch calls in `api.ts`
+2. Add error fallback UI to every Dashboard widget (not just `console.error`)
+3. Cache narrative response — serve cached result, compute in background
+4. Investigate: which external API calls stall darkpool/economic endpoints?
+5. Wire at least one checker's output to the `/signals` endpoint
+
+**Test (must pass):**
+```bash
+# All Dashboard endpoints respond in <5s
+for ep in market/context dp/edge-stats signals health/checkers agents/narrative/current; do
+  time curl -s "https://lotto-machine-3.onrender.com/api/v1/$ep" | head -c 100
+done
+```
+
+**STATUS: ❌ NOT STARTED**
 
 ---
 
@@ -290,4 +361,5 @@ for db in sorted(glob.glob('data/*.db')):
 
 ## Changelog
 
+- **2026-03-11 11:52**: SANDBAG AUDIT ITER 2. S1.1 downgraded to PARTIAL (predict() never wired). S1.2 downgraded to PARTIAL (save/load never called). S1.3 marked NOT STARTED (deploy_id doesn't exist). Added S1.5 for frontend infrastructure failures. Corrected Render URL to `lotto-machine-3.onrender.com`. Live endpoint test: 3/10 FastAPI endpoints timeout, 1 empty, 1 all-warning.
 - **2026-03-11**: Initial plan created. Sandbag audit found 7 issues. Fixed: S1.2 scope (build not wire), S1.4 expanded to 5 DBs, S2.1 needs pre-validation, S3.2 downscoped to accumulator, S4 demoted to roadmap, DB count corrected to 17.
