@@ -47,6 +47,52 @@ The system has 17 persistent databases but is **mostly memoryless**:
 
 ---
 
+## Data Freshness Audit (2026-03-11 11:57 ET — LIVE TEST)
+
+### Render Deployment: lotto-machine-3.onrender.com
+
+**Background Thread Status:**
+| Thread | Status | First Capture | Producing Data? |
+|--------|--------|--------------|-----------------|
+| dp_recorder | running (13min) | ok | ❌ NO — `/dp-snapshots` returns 0 snapshots |
+| signal_differ | running (13min) | ok | ❌ NO — `/signal-diffs` returns `{"bullish":[],"bearish":[]}` |
+| volume_spikes | running (13min) | ok | ✅ YES — real SPY volume spikes with timestamps |
+| option_walls | running (13min) | ok | ❌ NO — `/option-walls` returns `{"walls":{}}` |
+
+**⚠️ All threads started at 15:45 — service restarted 13min ago. 3/4 threads "running" but producing EMPTY results.**
+
+### Local Database Timestamps (THE REAL TRUTH)
+
+| DB | Table | Rows | Latest Record | Freshness |
+|----|-------|------|---------------|-----------|
+| `dp_learning.db` | dp_interactions | 372 | **2025-12-24** | 🔴 3 MONTHS STALE — never updated since seed |
+| `dp_learning.db` | dp_patterns | **0** | N/A | 🔴 ZERO — "13 patterns" were in-memory only, never persisted |
+| `narrative_memory.db` | daily_contexts | 1 | 2026-03-11 | 🟡 1 row from today's manual test, NOT production |
+| `narrative_memory.db` | market_regime | 1 | 2026-03-11 | 🟡 1 row from today's manual test |
+| `narrative_memory.db` | narrative_chain | 0 | N/A | 🔴 EMPTY |
+| `checker_health.db` | checker_runs | 2 | 2026-03-11 09:30 | 🟡 Only 2 runs ever |
+| `checker_health.db` | checker_win_rates | 0 | N/A | 🔴 EMPTY |
+| `economic_intelligence.db` | economic_releases | 806 | **2025-11-29** | 🔴 4 MONTHS STALE |
+| `economic_learning.db` | economic_releases | 10 | **2024-12-06** | 🔴 15 MONTHS STALE |
+| `reddit_sentiment_history.db` | sentiment_history | 546 | **2025-12-17** | 🔴 3 MONTHS STALE |
+| `reddit_signal_tracking.db` | signals | 20 | **2025-12-17** | 🔴 3 MONTHS STALE |
+| `options_flow.db` | options_signals | 14 | **2025-12-18** | 🔴 3 MONTHS STALE |
+| `trump_intelligence.db` | statements | 59 | **2025-12-05** | 🔴 3 MONTHS STALE |
+| `alerts_history.db` | alerts | 376 | 2026-03-11 09:30 | 🟢 TODAY — only one actively writing |
+| `kill_chain_state.json` | entries | 2 | 2026-03-11 15:45 | 🟡 2 checks total ever |
+
+### Sandbag Exposure
+
+1. **"372 DP interactions" = SEEDED DATA FROM DEC 2025.** Not a single new interaction captured since the initial data load. The DP learning system has NEVER captured a real-time interaction.
+2. **"13 patterns learned" = IN-MEMORY ONLY.** `dp_patterns` table has 0 rows. Patterns vanish on restart.
+3. **"4 narrative_memory tables populated" = FROM MANUAL TEST.** We ran a test command today. Production orchestrator NEVER writes to these tables.
+4. **3/4 Render background threads produce nothing.** They start, report "first_capture=ok", then generate zero data.
+5. **Reddit, options, trump data = frozen since Dec 2025.** No checker has updated these stores in 3 months.
+6. **Economic releases = frozen since Nov 2025.** 806 rows but from 4 months ago.
+7. **Kill chain = 2 total checks ever.** Should be running every 30min but only has data from 2 checks.
+
+---
+
 ## Sprint Structure
 
 | Sprint | Theme | Key Gate |
