@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts
+from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta
 from backend.app.core.dependencies import set_monitor_bridge
 
 # Try to import and initialize monitor
@@ -56,25 +56,48 @@ app.include_router(gamma.router, prefix="/api/v1", tags=["gamma"])
 app.include_router(options.router, prefix="/api/v1", tags=["options"])
 app.include_router(squeeze.router, prefix="/api/v1", tags=["squeeze"])
 app.include_router(charts.router, prefix="/api/v1", tags=["charts"])
+app.include_router(agentx.router, prefix="/api/v1", tags=["agentx"])
+app.include_router(calendar.router, prefix="/api/v1", tags=["calendar"])
+app.include_router(enrichment.router, prefix="/api/v1", tags=["enrichment"])
+app.include_router(economic.router, prefix="/api/v1", tags=["economic"])
+app.include_router(pivots.router, prefix="/api/v1", tags=["pivots"])
+app.include_router(cot.router, prefix="/api/v1", tags=["cot"])
+app.include_router(ta.router, prefix="/api/v1", tags=["ta"])
 
 
 @app.on_event("startup")
 async def startup():
-    """Initialize monitor bridge on startup"""
+    """Initialize monitor bridge + start background brain polling."""
+    import asyncio
+
     if MONITOR_AVAILABLE:
         try:
-            # Initialize monitor (it may already be running)
-            # In production, we might want to connect to an existing instance
             monitor = UnifiedAlphaMonitor()
-            
-            # Set in bridge
             set_monitor_bridge(monitor)
-            
             logger.info("✅ Monitor bridge initialized")
         except Exception as e:
             logger.error(f"Error initializing monitor: {e}", exc_info=True)
     else:
         logger.warning("⚠️ Running without monitor - agent endpoints will have limited functionality")
+
+    # Background brain polling — keeps intelligence warm every 15 min
+    asyncio.create_task(_brain_polling_loop())
+
+
+async def _brain_polling_loop():
+    """Continuous brain polling — agents run even with zero frontend traffic."""
+    import asyncio
+    await asyncio.sleep(10)  # Let startup finish first
+    while True:
+        try:
+            from live_monitoring.core.brain_manager import BrainManager
+            bm = BrainManager()
+            report = bm.get_report(use_cache=False)
+            boost = report.get("divergence_boost", 0) if report else "N/A"
+            logger.info(f"🧠 Background brain poll complete — divergence_boost={boost}")
+        except Exception as e:
+            logger.error(f"Brain poll failed: {e}")
+        await asyncio.sleep(900)  # 15 minutes
 
 
 @app.get("/")
@@ -96,6 +119,42 @@ async def health():
         "monitor_available": MONITOR_AVAILABLE,
         "timestamp": datetime.now().isoformat()
     }
+
+
+@app.get("/kill-chain")
+async def kill_chain_signals():
+    """Kill chain triple confluence signal log."""
+    try:
+        from live_monitoring.kill_chain_logger import get_kill_chain_signals
+        signals = get_kill_chain_signals()
+        latest = signals[-1] if signals else {}
+        activations = [s for s in signals if s.get('type') == 'ACTIVATION']
+        return {
+            "total_checks": len(signals),
+            "activations": len(activations),
+            "current_state": latest,
+            "history": signals[-50:],
+        }
+    except Exception as e:
+        return {"error": str(e), "signals": []}
+
+
+@app.get("/paper-trades")
+async def paper_trades():
+    """Paper trade log for economic surprise signals."""
+    try:
+        from live_monitoring.paper_trade_scheduler import get_paper_trades
+        trades = get_paper_trades()
+        clean = [t for t in trades if t.get('correct') is not None and not t.get('macro_filtered')]
+        wins = sum(1 for t in clean if t['correct'])
+        return {
+            'total_trades': len(trades),
+            'clean_trades': len(clean),
+            'clean_accuracy': f'{wins}/{len(clean)}={wins/len(clean)*100:.0f}%' if clean else 'N/A',
+            'trades': trades,
+        }
+    except Exception as e:
+        return {"error": str(e), "trades": []}
 
 
 @app.exception_handler(Exception)

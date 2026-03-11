@@ -1,0 +1,25 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    # Ping every 5 minutes to prevent Render free tier spin-down
+    - cron: '*/5 * * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Health
+        run: |
+          echo "🏓 Pinging Render service..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            https://lotto-machine.onrender.com/health)
+          echo "Health: $HTTP_STATUS"
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Service is healthy"
+          else
+            echo "⚠️ Service returned $HTTP_STATUS — may be starting up"
+          fi
