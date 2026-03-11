@@ -5,6 +5,7 @@ Tracks health, status, and metrics for all checkers.
 
 import sqlite3
 import os
+import uuid
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Dict, Optional
@@ -41,9 +42,9 @@ class CheckerHealthRegistry:
     """
     
     def __init__(self, db_path: str = "data/checker_health.db"):
-        # Ensure data directory exists
         os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else ".", exist_ok=True)
         self.db_path = db_path
+        self.deploy_id = str(uuid.uuid4())[:8]  # Short UUID per boot
         self._init_db()
         self._register_all_checkers()
     
@@ -60,9 +61,16 @@ class CheckerHealthRegistry:
                 run_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 success BOOLEAN,
                 alerts_generated INT DEFAULT 0,
-                error_message TEXT
+                error_message TEXT,
+                deploy_id TEXT
             )
         """)
+        
+        # Add deploy_id column if upgrading from old schema
+        try:
+            cursor.execute("ALTER TABLE checker_runs ADD COLUMN deploy_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
         
         # Alert tracking table
         cursor.execute("""
@@ -171,13 +179,13 @@ class CheckerHealthRegistry:
         }
     
     def record_run(self, checker_name: str, success: bool, alerts_generated: int = 0, error: str = None):
-        """Record a checker run."""
+        """Record a checker run with deploy session ID."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO checker_runs (checker_name, success, alerts_generated, error_message)
-            VALUES (?, ?, ?, ?)
-        """, (checker_name, success, alerts_generated, error))
+            INSERT INTO checker_runs (checker_name, success, alerts_generated, error_message, deploy_id)
+            VALUES (?, ?, ?, ?, ?)
+        """, (checker_name, success, alerts_generated, error, self.deploy_id))
         conn.commit()
         conn.close()
         
@@ -247,9 +255,11 @@ class CheckerHealthRegistry:
                 time_since_run = (datetime.now() - health.last_run).total_seconds()
                 if time_since_run > health.expected_interval * 2:
                     health.status = CheckerStatus.WARNING
+                else:
+                    health.status = CheckerStatus.HEALTHY
             elif health.status != CheckerStatus.NOT_APPLICABLE:
-                # Never run but should have
-                health.status = CheckerStatus.WARNING
+                # Never run — mark as awaiting first run, not warning
+                health.status = CheckerStatus.NOT_APPLICABLE
         
         return self.checkers
     
