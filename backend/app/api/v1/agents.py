@@ -5,6 +5,8 @@ Grounded in REAL data structures from the codebase.
 """
 
 import logging
+import threading
+import time as _time
 from typing import Dict, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
@@ -192,26 +194,68 @@ async def analyze_with_agent(
         raise HTTPException(500, f"Agent analysis failed: {str(e)}")
 
 
+
+
+# Cache for /agents/narrative/current — stale-while-revalidate pattern
+_narrative_cache = {"result": None, "timestamp": 0, "computing": False}
+_NARRATIVE_CACHE_TTL = 120  # Serve cached for 2 minutes
+
+
 @router.get("/agents/narrative/current")
 async def get_current_narrative(
     monitor_bridge: MonitorBridge = Depends(get_monitor_bridge),
     redis_client = Depends(get_redis)
 ):
     """
-    Get current narrative brain synthesis
-    
-    Returns:
-        Unified narrative with all agent insights
+    Get current narrative brain synthesis.
+    Uses stale-while-revalidate: returns cached result instantly,
+    recomputes in background when stale.
     """
-    # Use the service from dependencies (includes all agents)
+    now = _time.time()
+    cached = _narrative_cache["result"]
+    cache_age = now - _narrative_cache["timestamp"]
+
+    # Return cached if fresh
+    if cached and cache_age < _NARRATIVE_CACHE_TTL:
+        return cached
+
+    # Return stale cache immediately, trigger background refresh
+    if cached and not _narrative_cache["computing"]:
+        _narrative_cache["computing"] = True
+
+        def _recompute():
+            try:
+                result = _compute_narrative(monitor_bridge)
+                _narrative_cache["result"] = result
+                _narrative_cache["timestamp"] = _time.time()
+            except Exception as e:
+                logger.error(f"Background narrative recompute failed: {e}")
+            finally:
+                _narrative_cache["computing"] = False
+
+        threading.Thread(target=_recompute, daemon=True).start()
+        return cached
+
+    # No cache — compute synchronously (first request only)
+    try:
+        result = _compute_narrative(monitor_bridge)
+        _narrative_cache["result"] = result
+        _narrative_cache["timestamp"] = _time.time()
+        return result
+    except Exception as e:
+        logger.error(f"Error synthesizing narrative: {e}", exc_info=True)
+        raise HTTPException(500, f"Narrative synthesis failed: {str(e)}")
+
+
+def _compute_narrative(monitor_bridge):
+    """Heavy compute: gathers all data + LLM synthesis."""
     from backend.app.core.dependencies import get_savage_agents_service
     narrative_brain = get_savage_agents_service()
-    
-    # Gather ALL data from monitor bridge
+
     symbol = "SPY"
     market_data = monitor_bridge.get_market_data(symbol)
     current_price = market_data.get('price', 0.0) if market_data else 0.0
-    
+
     all_data = {
         "market": market_data,
         "signals": monitor_bridge.get_current_signals(symbol),
@@ -239,14 +283,9 @@ async def get_current_narrative(
         },
         "macro": monitor_bridge.get_macro_data() or {}
     }
-    
-    # Synthesize
-    try:
-        narrative = narrative_brain.synthesize(all_data)
-        return narrative
-    except Exception as e:
-        logger.error(f"Error synthesizing narrative: {e}", exc_info=True)
-        raise HTTPException(500, f"Narrative synthesis failed: {str(e)}")
+
+    return narrative_brain.synthesize(all_data)
+
 
 
 class NarrativeAskRequest(BaseModel):
