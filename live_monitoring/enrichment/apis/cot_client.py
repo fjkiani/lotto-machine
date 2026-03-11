@@ -106,10 +106,18 @@ class COTClient:
             return self._df_cache
         
         try:
-            df = cot.cot_year(2026, cot_report_type="legacy_fut")
-            if df is None or (hasattr(df, 'empty') and df.empty):
-                logger.warning("⚠️ 2026 COT data empty, trying 2025")
-                df = cot.cot_year(2025, cot_report_type="legacy_fut")
+            # cot_reports downloads annual.txt to CWD — use /tmp/ so it works on Render
+            import os
+            original_cwd = os.getcwd()
+            os.makedirs("/tmp/cot_data", exist_ok=True)
+            os.chdir("/tmp/cot_data")
+            try:
+                df = cot.cot_year(2026, cot_report_type="legacy_fut")
+                if df is None or (hasattr(df, 'empty') and df.empty):
+                    logger.warning("⚠️ 2026 COT data empty, trying 2025")
+                    df = cot.cot_year(2025, cot_report_type="legacy_fut")
+            finally:
+                os.chdir(original_cwd)
             
             self._df_cache = df
             self._df_cache_ts = time.time()

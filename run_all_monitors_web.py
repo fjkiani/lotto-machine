@@ -738,6 +738,69 @@ class HealthHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({'error': str(e), 'signals': []}).encode())
             return
 
+        elif self.path == '/dp-snapshots':
+            # Dark pool snapshot timeseries
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            try:
+                import sqlite3
+                db_path = os.path.join(os.path.dirname(__file__), 'data', 'dp_timeseries.db')
+                if not os.path.exists(db_path):
+                    db_path = '/tmp/dp_timeseries.db'
+                if os.path.exists(db_path):
+                    conn = sqlite3.connect(db_path)
+                    rows = conn.execute(
+                        "SELECT timestamp, symbol, short_vol_pct, json_data FROM dp_snapshots ORDER BY id DESC LIMIT 20"
+                    ).fetchall()
+                    conn.close()
+                    snapshots = [{"timestamp": r[0], "symbol": r[1], "short_vol_pct": r[2], "data": json.loads(r[3])} for r in rows]
+                    self.wfile.write(json.dumps({"total": len(snapshots), "snapshots": snapshots}, indent=2).encode())
+                else:
+                    self.wfile.write(json.dumps({"total": 0, "snapshots": [], "note": "recorder not yet started"}).encode())
+            except Exception as e:
+                self.wfile.write(json.dumps({'error': str(e)}).encode())
+            return
+
+        elif self.path == '/signal-diffs':
+            # AXLFI signal regime changes
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            try:
+                from live_monitoring.enrichment.apis.axlfi_signal_differ import AXLFISignalDiffer
+                differ = AXLFISignalDiffer()
+                self.wfile.write(json.dumps(differ.get_latest(), indent=2).encode())
+            except Exception as e:
+                self.wfile.write(json.dumps({'error': str(e)}).encode())
+            return
+
+        elif self.path == '/volume-spikes':
+            # SPY intraday volume spike events
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            try:
+                from live_monitoring.enrichment.apis.volume_spike_detector import VolumeSpikeDetector
+                detector = VolumeSpikeDetector()
+                self.wfile.write(json.dumps(detector.get_latest(), indent=2).encode())
+            except Exception as e:
+                self.wfile.write(json.dumps({'error': str(e)}).encode())
+            return
+
+        elif self.path == '/option-walls':
+            # SPY/QQQ/IWM option wall levels
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            try:
+                from live_monitoring.enrichment.apis.option_wall_tracker import OptionWallTracker
+                tracker = OptionWallTracker()
+                self.wfile.write(json.dumps(tracker.get_latest(), indent=2).encode())
+            except Exception as e:
+                self.wfile.write(json.dumps({'error': str(e)}).encode())
+            return
+
         elif self.path == '/tradytics-forward':
             # Tradytics webhook endpoint info - GET request
             self.send_response(200)
@@ -1022,6 +1085,46 @@ def main():
         logger.info("   ✅ Kill chain signal logger started (checks every 30min)")
     except Exception as e:
         logger.error(f"   ⚠️ Kill chain logger failed to start: {e}")
+
+    # Start DP snapshot recorder (captures AXLFI dark pool data every 5min during RTH)
+    try:
+        from live_monitoring.enrichment.apis.dp_snapshot_recorder import DPSnapshotRecorder
+        dp_recorder = DPSnapshotRecorder(db_path='/tmp/dp_timeseries.db')
+        dp_thread = threading.Thread(target=dp_recorder.run_continuous, args=(5,), daemon=True)
+        dp_thread.start()
+        logger.info("   ✅ DP snapshot recorder started (5min intervals)")
+    except Exception as e:
+        logger.error(f"   ⚠️ DP snapshot recorder failed: {e}")
+
+    # Start AXLFI signal differ (tracks signal regime changes hourly)
+    try:
+        from live_monitoring.enrichment.apis.axlfi_signal_differ import AXLFISignalDiffer
+        signal_differ = AXLFISignalDiffer()
+        sd_thread = threading.Thread(target=signal_differ.run_continuous, args=(60,), daemon=True)
+        sd_thread.start()
+        logger.info("   ✅ AXLFI signal differ started (60min intervals)")
+    except Exception as e:
+        logger.error(f"   ⚠️ AXLFI signal differ failed: {e}")
+
+    # Start volume spike detector (monitors SPY intraday volume every 5min)
+    try:
+        from live_monitoring.enrichment.apis.volume_spike_detector import VolumeSpikeDetector
+        spike_detector = VolumeSpikeDetector(symbol='SPY')
+        vs_thread = threading.Thread(target=spike_detector.run_continuous, args=(5,), daemon=True)
+        vs_thread.start()
+        logger.info("   ✅ Volume spike detector started (5min intervals)")
+    except Exception as e:
+        logger.error(f"   ⚠️ Volume spike detector failed: {e}")
+
+    # Start option wall tracker (snapshots SPY/QQQ/IWM walls every 30min)
+    try:
+        from live_monitoring.enrichment.apis.option_wall_tracker import OptionWallTracker
+        wall_tracker = OptionWallTracker()
+        ow_thread = threading.Thread(target=wall_tracker.run_continuous, args=(30,), daemon=True)
+        ow_thread.start()
+        logger.info("   ✅ Option wall tracker started (30min intervals)")
+    except Exception as e:
+        logger.error(f"   ⚠️ Option wall tracker failed: {e}")
 
     # Start HTTP server
     port = int(os.getenv('PORT', 8000))

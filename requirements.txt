@@ -41,3 +41,7 @@ cohere>=5.0.0
 alpaca-py>=0.21.0
 statsmodels>=0.14.0
 redis>=5.0.0
+
+# Kill Chain Dependencies (Finnhub insider data + CFTC COT positioning)
+finnhub-python>=2.4.0
+cot_reports>=0.2.0

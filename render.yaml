@@ -30,6 +30,14 @@ services:
         sync: false  # Set in Render dashboard - for paper trade 30m bars
       - key: ALPACA_SECRET_KEY
         sync: false  # Set in Render dashboard - for paper trade 30m bars
+      - key: FINNHUB_API_KEY
+        sync: false  # Set in Render dashboard - insider transactions + sentiment
+      - key: DIFFBOT_TOKEN
+        sync: false  # Set in Render dashboard - article extraction
+      - key: YAHOO_RAPIDAPI_KEY
+        sync: false  # Set in Render dashboard - dark pool fallback data
+      - key: YAHOO_RAPIDAPI_HOST
+        value: yahoo-finance15.p.rapidapi.com
       # Optional: Set DATA_DIR to external storage path for persistent databases
       # - key: DATA_DIR
       #   value: /opt/render/project/src/data  # Render persistent disk (paid tier)
