@@ -64,6 +64,44 @@ class IntradayGuardian:
         self._wall_break_time: Optional[str] = None
         self._cached_walls: dict = {}
 
+    def force_invalidate(self, reason: str = "Forced thesis invalidation") -> dict:
+        """
+        Force thesis to invalid — for E2E testing and external callers.
+        Bypasses live data. Writes snapshot + invalidates signals + fires webhook.
+        Returns the snapshot dict.
+        """
+        et = _et_now()
+        snapshot = {
+            "timestamp": et.isoformat(),
+            "market_open": True,
+            "spy_price": 0.0,
+            "spy_call_wall": 0.0,
+            "spy_put_wall": 0.0,
+            "spy_poc": 0.0,
+            "spy_vs_wall": "below",
+            "wall_status": "broken",
+            "wall_break_time": et.strftime("%I:%M %p"),
+            "volume_character": "distribution",
+            "volume_ratio": 0.0,
+            "thesis_valid": False,
+            "thesis_invalidation_reason": reason,
+            "circuit_breaker_active": False,
+            "circuit_breaker_reason": None,
+            "consecutive_losses_today": 0,
+            "signals_active": 0,
+            "signals_invalidated": 0,
+            "morning_verdict": None,
+            "last_check": et.strftime("%H:%M:%S"),
+        }
+        self._invalidate_signals(reason)
+        active, invalidated = self._count_signals()
+        snapshot["signals_active"] = active
+        snapshot["signals_invalidated"] = invalidated
+        self._write_snapshot(snapshot)
+        self._previous_thesis_valid = False
+        logger.info(f"🛡️ Guardian: FORCED thesis invalidation — {reason}")
+        return snapshot
+
     def check(self) -> dict:
         """
         Run all intraday checks and write /tmp/intraday_snapshot.json.
@@ -313,43 +351,52 @@ class IntradayGuardian:
 
     def _check_circuit_breaker(self) -> tuple:
         """
-        Check if 2+ consecutive losses today → circuit breaker active.
+        Check if circuit breaker should be active. Two sources:
+        1. Consecutive losses today (2+ consecutive LOSS results)
+        2. RiskManager PnL-based breaker (/tmp/risk_manager_circuit_breaker.json)
         Returns (active: bool, reason: str|None, consecutive_losses: int).
         """
+        consec = 0
+
+        # ── Source 1: Consecutive losses from gate outcomes ──
         try:
-            if not OUTCOMES_FILE.exists():
-                return False, None, 0
+            if OUTCOMES_FILE.exists():
+                with open(OUTCOMES_FILE) as f:
+                    outcomes = json.load(f)
 
-            with open(OUTCOMES_FILE) as f:
-                outcomes = json.load(f)
+                if isinstance(outcomes, list):
+                    today_str = date.today().isoformat()
+                    today_outcomes = [
+                        o for o in outcomes
+                        if o.get("date") == today_str and not o.get("blocked")
+                    ]
 
-            if not isinstance(outcomes, list):
-                return False, None, 0
+                    if len(today_outcomes) >= 2:
+                        for o in reversed(today_outcomes):
+                            if o.get("result") == "LOSS":
+                                consec += 1
+                            else:
+                                break
 
-            today_str = date.today().isoformat()
-            today_outcomes = [
-                o for o in outcomes
-                if o.get("date") == today_str and not o.get("blocked")
-            ]
-
-            if len(today_outcomes) < 2:
-                return False, None, 0
-
-            # Count consecutive losses from the end
-            consec = 0
-            for o in reversed(today_outcomes):
-                if o.get("result") == "LOSS":
-                    consec += 1
-                else:
-                    break
-
-            if consec >= 2:
-                return True, f"Circuit breaker active — {consec} consecutive losses today", consec
-
-            return False, None, consec
+                        if consec >= 2:
+                            return True, f"Circuit breaker active — {consec} consecutive losses today", consec
         except Exception as e:
-            logger.warning(f"Circuit breaker check failed: {e}")
-            return False, None, 0
+            logger.warning(f"Consecutive loss check failed: {e}")
+
+        # ── Source 2: RiskManager PnL-based circuit breaker ──
+        try:
+            rm_state_path = "/tmp/risk_manager_circuit_breaker.json"
+            if os.path.exists(rm_state_path):
+                with open(rm_state_path) as f:
+                    rm_state = json.load(f)
+                if rm_state.get("triggered"):
+                    pnl = rm_state.get("daily_pnl_pct", 0)
+                    limit = rm_state.get("limit_pct", -0.03)
+                    return True, f"RiskManager circuit breaker — daily PnL {pnl:.2%} <= {limit:.2%}", consec
+        except Exception as e:
+            logger.warning(f"RiskManager circuit breaker check failed: {e}")
+
+        return False, None, consec
 
     # ── SIGNAL INVALIDATION ───────────────────────────────────────────
 
