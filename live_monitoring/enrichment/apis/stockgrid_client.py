@@ -91,7 +91,9 @@ class StockgridClient:
         self._cache_ttl = cache_ttl
         self._max_retries = max_retries
         self._data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "data")
-        logger.info("📊 StockgridClient initialized (AXLFI pure-requests mode)")
+        self._disk_cache_dir = "/tmp/axlfi_cache"
+        os.makedirs(self._disk_cache_dir, exist_ok=True)
+        logger.info("📊 StockgridClient initialized (AXLFI pure-requests mode, disk cache ON)")
 
     # ── Internal helpers ─────────────────────────────────────────────────
 
@@ -102,19 +104,56 @@ class StockgridClient:
         self._cache[key] = data
         self._cache_ts[key] = time.time()
 
+    def _disk_cache_key(self, path: str, params: dict = None) -> str:
+        """Generate a safe filename for disk cache."""
+        key = path.replace("/", "_").strip("_")
+        if params:
+            key += "_" + "_".join(f"{k}={v}" for k, v in sorted(params.items()))
+        return key.replace(" ", "") + ".json"
+
+    def _read_disk_cache(self, cache_file: str) -> Optional[dict]:
+        """Read stale data from disk cache (last known good)."""
+        try:
+            fpath = os.path.join(self._disk_cache_dir, cache_file)
+            if os.path.exists(fpath):
+                with open(fpath) as f:
+                    data = json.load(f)
+                age = time.time() - os.path.getmtime(fpath)
+                logger.info(f"📂 Disk cache hit: {cache_file} (age: {age:.0f}s)")
+                return data
+        except Exception as e:
+            logger.warning(f"Disk cache read error: {e}")
+        return None
+
+    def _write_disk_cache(self, cache_file: str, data: Any):
+        """Write successful response to disk cache."""
+        try:
+            fpath = os.path.join(self._disk_cache_dir, cache_file)
+            with open(fpath, "w") as f:
+                json.dump(data, f)
+        except Exception as e:
+            logger.warning(f"Disk cache write error: {e}")
+
     def _get(self, path: str, params: dict = None) -> Optional[dict]:
-        """Make a GET request with retries."""
+        """Make a GET request with retries + disk-backed cache fallback."""
         url = f"{self.BASE}{path}"
+        disk_key = self._disk_cache_key(path, params)
+
         for attempt in range(self._max_retries):
             try:
-                r = requests.get(url, headers=self.HEADERS, params=params, timeout=10)
+                r = requests.get(url, headers=self.HEADERS, params=params, timeout=25)
                 if r.status_code == 200 and "json" in r.headers.get("content-type", ""):
-                    return r.json()
+                    data = r.json()
+                    self._write_disk_cache(disk_key, data)
+                    return data
                 logger.warning(f"⚠️ {path}: status={r.status_code} (attempt {attempt+1})")
             except Exception as e:
                 logger.warning(f"⚠️ {path}: {e} (attempt {attempt+1})")
-            time.sleep(1)
-        return None
+            time.sleep(2 * (attempt + 1))  # exponential backoff: 2s, 4s, 6s
+
+        # All retries failed — fall back to disk cache (stale but better than None)
+        logger.warning(f"⚠️ {path}: all {self._max_retries} retries failed, checking disk cache")
+        return self._read_disk_cache(disk_key)
 
     def _save_to_disk(self, key: str, data: Any):
         try:
