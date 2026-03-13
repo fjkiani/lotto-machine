@@ -220,25 +220,38 @@ def scheduler_loop():
             if h == 7 and 45 <= m < 55 and not _stage_done("brief"):
                 run_brief()
 
-            # 16:05–16:15 ET → POST-CLOSE BRIEF UPDATE
-            if h == 16 and 5 <= m < 15 and not _stage_done("postclose"):
-                logger.info("🔔 Post-close brief update...")
-                run_brief(force=True)
-                _mark_stage("postclose")
-
-            # ── INTRADAY GUARDIAN — every 15 min during market hours ──
+            # 9:30–16:00 ET → INTRADAY GUARDIAN (every 15 min)
             if (h == 9 and m >= 30) or (10 <= h <= 15) or (h == 16 and m == 0):
                 if m % 15 < 5:  # scheduler checks every 5 min, catch 15-min marks
                     try:
                         from live_monitoring.intraday_guardian import IntradayGuardian
                         guardian = IntradayGuardian()
                         snapshot = guardian.check()
+                        thesis = "VALID" if snapshot.get("thesis_valid") else "INVALID"
                         logger.info(
-                            f"🛡️ Guardian: thesis={'VALID' if snapshot.get('thesis_valid') else 'INVALID'} "
-                            f"| SPY=${snapshot.get('spy_price')} | wall={snapshot.get('wall_status')}"
+                            f"🛡️ Guardian: thesis={thesis} "
+                            f"| SPY=${snapshot.get('spy_price', 0):.2f} "
+                            f"| wall={snapshot.get('wall_status', '?')}"
                         )
                     except Exception as e:
-                        logger.error(f"Guardian failed: {e}")
+                        logger.error(f"Guardian check failed: {e}")
+
+            # 16:05–16:15 ET → POST-CLOSE BRIEF UPDATE
+            if h == 16 and 5 <= m < 15 and not _stage_done("postclose"):
+                logger.info("🔔 Post-close brief update...")
+                run_brief(force=True)
+                _mark_stage("postclose")
+
+            # ── INTRADAY BRIEF REFRESH — every 30 min during market ──
+            # Regenerates morning brief with live data so it stops being stale.
+            # Runs at :00 and :30 (m % 30 < 5 catches the 5-min check window).
+            if (h == 9 and m >= 30) or (10 <= h <= 15):
+                if m % 30 < 5:
+                    try:
+                        run_brief(force=True)
+                        logger.info("📋 Intraday brief refreshed")
+                    except Exception as e:
+                        logger.error(f"Intraday brief refresh failed: {e}")
 
         except Exception as e:
             logger.error(f"Scheduler loop error: {e}", exc_info=True)

@@ -157,11 +157,31 @@ class MorningBriefGenerator:
         if blocked_names:
             summary_parts.append(f"Blocked (DP diverging): {', '.join(blocked_names)}")
 
+        # ── Wall breach detection ─────────────────────────────────
+        spy_price = spy_wall.get("current_price")
+        call_wall = walls.get("SPY", {}).get("call_wall")
+        wall_breached = False
+        wall_breach_details = None
+        if spy_price and call_wall:
+            try:
+                if float(spy_price) < float(call_wall) - 0.5:
+                    wall_breached = True
+                    wall_breach_details = {
+                        "spy_price": spy_price,
+                        "call_wall": call_wall,
+                        "delta": round(float(spy_price) - float(call_wall), 2),
+                        "breach_time": datetime.now().strftime("%I:%M %p ET"),
+                    }
+            except (TypeError, ValueError):
+                pass
+
         brief = {
             "date": today,
             "generated_at": datetime.now().strftime("%H:%M ET"),
             "verdict": verdict_data.get("signal", "UNKNOWN"),
             "signals": verdict_data.get("signals", []),
+            "wall_breached": wall_breached,
+            "wall_breach_details": wall_breach_details,
             "spy": spy_summary,
             "qqq": qqq_summary,
             "iwm": iwm_summary,
