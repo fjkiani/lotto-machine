@@ -236,6 +236,19 @@ def scheduler_loop():
                     except Exception as e:
                         logger.error(f"Guardian check failed: {e}")
 
+                    # ── VOLUME SPIKE DETECTION — piggybacked on 15-min cycle ──
+                    try:
+                        from live_monitoring.enrichment.apis.volume_spike_detector import VolumeSpikeDetector
+                        detector = VolumeSpikeDetector()
+                        result = detector.check_for_spikes()
+                        if result and result.get("spikes"):
+                            logger.info(
+                                f"📈 Volume spikes: {len(result['spikes'])} detected "
+                                f"| avg_vol={result.get('avg_volume', 0):,.0f}"
+                            )
+                    except Exception as e:
+                        logger.error(f"Volume spike check failed: {e}")
+
             # 16:05–16:15 ET → POST-CLOSE BRIEF UPDATE
             if h == 16 and 5 <= m < 15 and not _stage_done("postclose"):
                 logger.info("🔔 Post-close brief update...")
