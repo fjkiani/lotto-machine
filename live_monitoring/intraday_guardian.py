@@ -357,6 +357,7 @@ class IntradayGuardian:
         """
         When thesis flips to invalid: mark all active signals as invalidated.
         Only runs ONCE per thesis flip (tracked by _previous_thesis_valid).
+        Also fires a Discord webhook alert to notify traders immediately.
         """
         try:
             if not SIGNALS_TODAY.exists():
@@ -383,8 +384,45 @@ class IntradayGuardian:
                     json.dump(signals, f, indent=2, default=str)
                 invalidated = sum(1 for s in signals if s.get("status") == "invalidated")
                 logger.info(f"🛡️ Guardian: {invalidated} signals invalidated — {reason}")
+
+                # ── Task 3.2: Discord thesis invalidation webhook ──
+                self._send_thesis_invalidation_webhook(reason, invalidated)
         except Exception as e:
             logger.error(f"Signal invalidation failed: {e}")
+
+    def _send_thesis_invalidation_webhook(self, reason: str, invalidated_count: int):
+        """Fire a Discord webhook when thesis flips to invalid."""
+        try:
+            import requests
+            webhook_url = os.environ.get(
+                "DISCORD_THESIS_WEBHOOK",
+                os.environ.get("DISCORD_WEBHOOK_URL", ""),
+            )
+            if not webhook_url:
+                logger.debug("No Discord webhook URL configured — skipping thesis alert")
+                return
+
+            payload = {
+                "content": f"🚨 **THESIS INVALIDATED** — {reason}",
+                "embeds": [{
+                    "title": "🛡️ Intraday Guardian: Thesis Flipped INVALID",
+                    "color": 0xFF0000,
+                    "description": reason,
+                    "fields": [
+                        {"name": "Signals Invalidated", "value": str(invalidated_count), "inline": True},
+                        {"name": "Action", "value": "All active signals marked INVALIDATED. No new signals will fire until thesis recovers.", "inline": False},
+                    ],
+                    "footer": {"text": "Intraday Guardian — automated thesis protection"},
+                    "timestamp": datetime.now().isoformat(),
+                }],
+            }
+            resp = requests.post(webhook_url, json=payload, timeout=5)
+            if resp.ok:
+                logger.info(f"📢 Discord thesis invalidation webhook sent ({invalidated_count} signals)")
+            else:
+                logger.warning(f"Discord webhook returned {resp.status_code}")
+        except Exception as e:
+            logger.warning(f"Discord thesis webhook failed: {e}")
 
     def _count_signals(self) -> tuple:
         """Count active vs invalidated signals. Returns (active, invalidated)."""

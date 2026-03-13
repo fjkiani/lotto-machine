@@ -278,6 +278,26 @@ class NarrativeChecker(BaseChecker):
             
             logger.info(f"   🧠 Narrative Brain: Sending HIGH-QUALITY signal ({reason})")
             
+            # ── Gate check: route through ConfluenceGate before emitting ──
+            try:
+                from live_monitoring.orchestrator.confluence_gate import ConfluenceGate
+                gate = ConfluenceGate()
+                # Extract direction from the alert embed
+                direction = "LONG"
+                desc_lower = (embed.get("description", "") or "").lower()
+                if any(w in desc_lower for w in ["short", "bearish", "puts", "sell"]):
+                    direction = "SHORT"
+                gate_result = gate.should_fire(
+                    signal_direction=direction,
+                    symbol=best_alert.symbol,
+                    raw_confidence=70,
+                )
+                if gate_result.blocked:
+                    logger.info(f"   ⛔ Gate blocked narrative signal {best_alert.symbol} {direction}: {gate_result.reason}")
+                    return []
+            except Exception as e:
+                logger.debug(f"Gate check skipped for narrative: {e}")
+            
             # Update state
             self.last_narrative_sent = current_time
             

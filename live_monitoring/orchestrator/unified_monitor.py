@@ -33,6 +33,8 @@ from .exploitation_manager import ExploitationManager
 from .checker_scheduler import CheckerScheduler
 from .overnight_manager import OvernightManager
 from .confluence_gate import ConfluenceGate
+from .gate_outcome_tracker import GateOutcomeTracker
+from .morning_brief import MorningBriefGenerator
 from .checkers import (
     FedChecker,
     TrumpChecker,
@@ -279,6 +281,18 @@ class UnifiedAlphaMonitor:
             regime_detector=self.regime_detector,
         )
 
+        # Outcome tracker (logs signals, settles after close)
+        self.outcome_tracker = GateOutcomeTracker()
+
+        # Morning brief generator
+        self.morning_brief = MorningBriefGenerator(
+            confluence_gate=self.confluence_gate,
+            regime_detector=self.regime_detector,
+            gamma_tracker=self.gamma_tracker if self.gamma_enabled else None,
+            outcome_tracker=self.outcome_tracker,
+            send_discord=self.send_discord,
+        )
+
         self.squeeze_checker = SqueezeChecker(
             alert_manager=self.alert_manager, squeeze_detector=self.squeeze_detector,
             opportunity_scanner=self.opportunity_scanner, squeeze_candidates=self.squeeze_candidates,
@@ -401,7 +415,35 @@ class UnifiedAlphaMonitor:
 
     def send_discord(self, embed: dict, content: str = None, alert_type: str = "general",
                      source: str = "monitor", symbol: str = None):
-        """Send Discord notification (delegates to AlertManager)."""
+        """Send Discord notification (delegates to AlertManager).
+        
+        Checks thesis_valid from intraday snapshot. If thesis is invalid,
+        directional signal alerts get a prominent ⚠️ warning prepended.
+        """
+        # ── Thesis check: warn on directional alerts when thesis is invalid ──
+        _directional_types = {"selloff", "rally", "dp_divergence", "narrative_brain",
+                              "gamma_flip", "squeeze", "options_flow", "signal"}
+        if alert_type in _directional_types:
+            try:
+                import json as _json, os as _os
+                _snap_path = "/tmp/intraday_snapshot.json"
+                if _os.path.exists(_snap_path):
+                    with open(_snap_path) as _f:
+                        _snap = _json.load(_f)
+                    if _snap.get("market_open") and not _snap.get("thesis_valid", True):
+                        _reason = _snap.get("thesis_invalidation_reason", "Thesis invalidated")
+                        # Prepend warning to embed and content
+                        embed["title"] = f"⚠️ THESIS INVALID | {embed.get('title', '')}"
+                        embed.setdefault("fields", []).insert(0, {
+                            "name": "🚨 THESIS WARNING",
+                            "value": _reason,
+                            "inline": False,
+                        })
+                        if content:
+                            content = f"⚠️ THESIS INVALID — {_reason} | {content}"
+                        logger.warning(f"⚠️ Thesis invalid but alert firing: {alert_type} {symbol}")
+            except Exception:
+                pass  # Don't block alert delivery on snapshot read failure
         return self.alert_manager.send_discord(embed, content, alert_type, source, symbol)
 
     def _log_alert_to_database(self, alert_type: str, embed: dict, content: str = None,
@@ -787,8 +829,23 @@ class UnifiedAlphaMonitor:
                     recap_alerts = self.daily_recap_checker.check(now)
                     for alert in recap_alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
+                    # Settle gate outcomes right after recap (16:05 ET)
+                    if recap_alerts and self.outcome_tracker:
+                        try:
+                            self.outcome_tracker.settle_day()
+                            logger.info("📊 Gate outcomes settled for today")
+                        except Exception as e:
+                            logger.error(f"   ❌ Outcome settlement error: {e}")
                 except Exception as e:
                     logger.error(f"   ❌ Daily recap error: {e}")
+
+                # ── Morning Brief (07:45 ET, pre-market) ──
+                try:
+                    if self.morning_brief and self.morning_brief.should_generate(now):
+                        self.morning_brief.generate()
+                        logger.info("📋 Morning brief sent")
+                except Exception as e:
+                    logger.error(f"   ❌ Morning brief error: {e}")
 
                 # ── Overnight check (every 2h when market closed) ──
                 if not is_market_hours and (self.last_overnight_check is None or (now - self.last_overnight_check).seconds >= self.overnight_interval):

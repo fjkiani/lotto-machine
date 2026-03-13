@@ -69,6 +69,19 @@ class TradyticsChecker(BaseChecker):
         if not self.tradytics_llm_available:
             return []
         
+        # ── Thesis check: block tradytics signals when thesis is invalid ──
+        try:
+            import json as _json, os as _os
+            _snap_path = "/tmp/intraday_snapshot.json"
+            if _os.path.exists(_snap_path):
+                with open(_snap_path) as _f:
+                    _snap = _json.load(_f)
+                if _snap.get("market_open") and not _snap.get("thesis_valid", True):
+                    logger.info("⛔ Tradytics blocked — thesis invalid")
+                    return []
+        except Exception:
+            pass  # Don't block on snapshot read failure
+        
         try:
             logger.info("🤖 Running Autonomous Tradytics Analysis...")
             sample_alerts = self._generate_sample_tradytics_alerts()

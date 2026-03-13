@@ -48,8 +48,23 @@ def setup(bot):
             response = await alpha_agent.process(query)
             
             if response.success:
-                # Add footer with tools used
+                # Post-agent gate check — append warning if thesis invalid
                 message = response.response
+                try:
+                    from live_monitoring.orchestrator.confluence_gate import ConfluenceGate
+                    gate = ConfluenceGate()
+                    response_lower = message.lower()
+                    if any(word in response_lower for word in ["buy", "long", "calls", "bullish entry"]):
+                        gate_result = gate.should_fire(signal_direction="LONG", symbol="SPY", raw_confidence=50)
+                        if gate_result.blocked:
+                            message += f"\n\n⚠️ **Gate Warning**: {gate_result.reason}"
+                    elif any(word in response_lower for word in ["sell", "short", "puts", "bearish entry"]):
+                        gate_result = gate.should_fire(signal_direction="SHORT", symbol="SPY", raw_confidence=50)
+                        if gate_result.blocked:
+                            message += f"\n\n⚠️ **Gate Warning**: {gate_result.reason}"
+                except Exception:
+                    pass  # Gate unavailable — proceed without warning
+
                 if response.tools_used:
                     tools_str = ", ".join(response.tools_used)
                     message += f"\n\n*Tools used: {tools_str}*"
@@ -83,7 +98,7 @@ def setup(bot):
     @bot.tree.command(name="levels", description="Quick access to DP levels for a symbol")
     @app_commands.describe(symbol="Ticker symbol (default: SPY)")
     async def levels_command(interaction: discord.Interaction, symbol: str = "SPY"):
-        """Quick access to dark pool levels"""
+        """Quick access to dark pool levels — with thesis warning."""
         await interaction.response.defer()
         
         try:
@@ -91,7 +106,20 @@ def setup(bot):
             response = await alpha_agent.process(f"What are the dark pool levels for {symbol}?")
             
             if response.success:
-                await interaction.followup.send(f"🧠 **Alpha Intelligence**\n\n{response.response}")
+                message = response.response
+                # ── Thesis warning: append if thesis invalid ──
+                try:
+                    import json, os
+                    snap_path = "/tmp/intraday_snapshot.json"
+                    if os.path.exists(snap_path):
+                        with open(snap_path) as f:
+                            snap = json.load(f)
+                        if snap.get("market_open") and not snap.get("thesis_valid", True):
+                            reason = snap.get("thesis_invalidation_reason", "Thesis invalidated")
+                            message += f"\n\n⚠️ **THESIS WARNING**: {reason}\n_Levels shown for reference only — thesis is currently INVALID._"
+                except Exception:
+                    pass  # Don't fail levels on snapshot read error
+                await interaction.followup.send(f"🧠 **Alpha Intelligence**\n\n{message}")
             else:
                 await interaction.followup.send(f"❌ {response.response}")
         except Exception as e:
@@ -107,10 +135,25 @@ def setup(bot):
         app_commands.Choice(name="📉 Short", value="SHORT"),
     ])
     async def setup_command(interaction: discord.Interaction, symbol: str = "SPY", direction: str = "LONG"):
-        """Quick access to trade setup"""
+        """Quick access to trade setup — gated through ConfluenceGate."""
         await interaction.response.defer()
         
         try:
+            # Gate check BEFORE generating setup
+            try:
+                from live_monitoring.orchestrator.confluence_gate import ConfluenceGate
+                gate = ConfluenceGate()
+                gate_result = gate.should_fire(
+                    signal_direction=direction.upper(),
+                    symbol=symbol.upper(),
+                    raw_confidence=75,
+                )
+                if gate_result.blocked:
+                    await interaction.followup.send(f"⛔ **BLOCKED by Gate**: {gate_result.reason}")
+                    return
+            except Exception:
+                pass  # Gate unavailable — proceed with setup
+
             alpha_agent = get_agent()
             response = await alpha_agent.process(f"Give me a {direction} trade setup for {symbol}")
             

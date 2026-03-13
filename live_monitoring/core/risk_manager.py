@@ -192,9 +192,25 @@ class RiskManager:
         Returns:
             (can_open: bool, reason: str)
         """
-        # Circuit breaker check
+        # Circuit breaker check (internal)
         if self.circuit_breaker_triggered:
             return False, "Circuit breaker triggered - trading halted"
+        
+        # ── Gate circuit breaker check (reads intraday snapshot) ──
+        try:
+            import json as _json, os as _os
+            _snap_path = "/tmp/intraday_snapshot.json"
+            if _os.path.exists(_snap_path):
+                with open(_snap_path) as _f:
+                    _snap = _json.load(_f)
+                if _snap.get("circuit_breaker_active"):
+                    _reason = _snap.get("circuit_breaker_reason", "Gate circuit breaker active")
+                    return False, f"Gate circuit breaker: {_reason}"
+                if _snap.get("market_open") and not _snap.get("thesis_valid", True):
+                    _reason = _snap.get("thesis_invalidation_reason", "Thesis invalid")
+                    return False, f"Thesis invalid: {_reason}"
+        except Exception:
+            pass  # Don't block on snapshot read failure
         
         # Daily drawdown check
         if self.daily_pnl_pct <= self.limits.max_daily_drawdown_pct:
