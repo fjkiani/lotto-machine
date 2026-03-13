@@ -18,6 +18,21 @@ Architecture:
 import os
 import logging
 from datetime import datetime, timedelta
+
+# S2.1: Multi-day DP trend analysis
+try:
+    from live_monitoring.dp_learning.dp_trend_analyzer import DPTrendAnalyzer
+    _HAS_TREND_ANALYZER = True
+except ImportError:
+    _HAS_TREND_ANALYZER = False
+
+# S2.4: Cached price context
+try:
+    from live_monitoring.enrichment.price_context_provider import PriceContextProvider
+    _HAS_PRICE_CONTEXT = True
+except ImportError:
+    _HAS_PRICE_CONTEXT = False
+
 from typing import List, Dict, Optional
 
 from .base_checker import BaseChecker, CheckerAlert
@@ -63,6 +78,12 @@ class DPDivergenceChecker(BaseChecker):
         self.config = DP_SIGNAL_CONFIG
         self.learning_engine = learning_engine
         
+        # S2.1: Multi-day trend analyzer
+        self.trend_analyzer = DPTrendAnalyzer() if _HAS_TREND_ANALYZER else None
+        
+        # S2.4: Cached price context
+        self.price_provider = PriceContextProvider() if _HAS_PRICE_CONTEXT else None
+        
         # State tracking
         self.last_signals: Dict[str, datetime] = {}
         self.signal_cooldown = timedelta(minutes=30)
@@ -104,7 +125,11 @@ class DPDivergenceChecker(BaseChecker):
                 if signal and self._passes_cooldown(signal):
                     # ── Phase 1: Enrich with pattern prediction ──
                     prediction = self._get_prediction(signal)
-                    alert = self._create_alert(signal, prediction=prediction)
+                    # ── S2.1: Enrich with multi-day trend ──
+                    trend_data = self._get_trend_enrichment(symbol)
+                    # ── S2.4: Enrich with price context ──
+                    price_ctx = self._get_price_context(symbol)
+                    alert = self._create_alert(signal, prediction=prediction, trend_data=trend_data, price_ctx=price_ctx)
                     alerts.append(alert)
                     self._record_signal(signal)
             
@@ -180,6 +205,41 @@ class DPDivergenceChecker(BaseChecker):
         key = f"{signal.symbol}_{signal.signal_type}_{signal.direction}"
         self.last_signals[key] = datetime.now()
     
+    # ── S2.1: Multi-day trend enrichment ────────────────────────────────
+
+    def _get_trend_enrichment(self, symbol: str) -> Optional[Dict]:
+        """Get multi-day DP trend data from DPTrendAnalyzer."""
+        if not self.trend_analyzer:
+            return None
+        try:
+            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
+            sg = StockgridClient()
+            raw = sg.get_ticker_detail_raw(symbol, window=30)
+            if raw:
+                self.trend_analyzer.ingest_stockgrid_data(symbol, raw)
+            analysis = self.trend_analyzer.analyze(symbol)
+            if analysis.get('has_data'):
+                logger.info(f"📊 Trend enrichment for {symbol}: 5d_cum={analysis.get('cumulative_5d', 0):+,.0f} "
+                            f"divergence={analysis.get('has_divergence')}")
+                return analysis
+        except Exception as e:
+            logger.warning(f"⚠️ Trend enrichment failed for {symbol}: {e}")
+        return None
+
+    # ── S2.4: Price context enrichment ──────────────────────────────────
+
+    def _get_price_context(self, symbol: str) -> Optional[Dict]:
+        """Get cached price context for the symbol."""
+        if not self.price_provider:
+            return None
+        try:
+            ctx = self.price_provider.get_context(symbol)
+            if ctx.get('has_data'):
+                return ctx
+        except Exception as e:
+            logger.warning(f"⚠️ Price context failed for {symbol}: {e}")
+        return None
+
     # ── Pattern prediction (Phase 1) ─────────────────────────────────────
     
     def _get_prediction(self, signal: DPDivergenceSignal) -> Optional[Dict]:
@@ -202,7 +262,7 @@ class DPDivergenceChecker(BaseChecker):
     
     # ── Alert formatting ────────────────────────────────────────────────
     
-    def _create_alert(self, signal: DPDivergenceSignal, prediction: Dict = None) -> CheckerAlert:
+    def _create_alert(self, signal: DPDivergenceSignal, prediction: Dict = None, trend_data: Dict = None, price_ctx: Dict = None) -> CheckerAlert:
         """Create a CheckerAlert from a signal."""
         
         # Different colors for different signal types
@@ -259,6 +319,38 @@ class DPDivergenceChecker(BaseChecker):
                 "inline": True
             })
         
+        # S2.1: Add multi-day trend data to embed
+        if trend_data and trend_data.get('has_data'):
+            trend_lines = []
+            trend_lines.append(f"5d Cumulative: {trend_data.get('cumulative_5d', 0):+,.0f}")
+            trend_lines.append(f"20d Avg: {trend_data.get('rolling_avg_20d', 0):+,.0f}")
+            trend_lines.append(f"Acceleration: {trend_data.get('acceleration', 0):+,.0f}")
+            trend_lines.append(f"Short Vol 5d: {trend_data.get('short_volume_pct_5d', 0)}%")
+            if trend_data.get('has_divergence'):
+                trend_lines.append("🚨 DP ACCUMULATION DIVERGENCE (bullish)")
+            if trend_data.get('has_reverse_divergence'):
+                trend_lines.append("🚨 DP DISTRIBUTION DIVERGENCE (bearish)")
+            for sig in trend_data.get('signals', []):
+                trend_lines.append(f"Signal: {sig['type']} → {sig['direction']}")
+            embed['fields'].append({
+                'name': '📊 Multi-Day DP Trend',
+                'value': '\n'.join(trend_lines),
+                'inline': False,
+            })
+
+        # S2.4: Add price context to embed
+        if price_ctx and price_ctx.get('has_data'):
+            price_lines = [
+                f"Price: ${price_ctx.get('current_price', 0)}",
+                f"1d: {price_ctx.get('change_1d_pct', 'N/A')}%  |  5d: {price_ctx.get('change_5d_pct', 'N/A')}%",
+                f"Volume: {price_ctx.get('volume_ratio', 0)}x avg  |  Range: {price_ctx.get('range_position', 0):.0%}",
+            ]
+            embed['fields'].append({
+                'name': '💰 Price Context',
+                'value': '\n'.join(price_lines),
+                'inline': False,
+            })
+
         # Phase 1: Add pattern prediction to embed
         if prediction:
             bounce = prediction.get('bounce_probability', 0)

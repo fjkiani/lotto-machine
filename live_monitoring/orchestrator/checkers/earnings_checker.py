@@ -77,6 +77,7 @@ class EarningsChecker(BaseChecker):
         self._stockgrid = None
         self._kill_chain = None
         self._finnhub = None
+        self._earnings_accumulator = None
         self._scanned_today = set()
         self._init_clients()
 
@@ -103,6 +104,14 @@ class EarningsChecker(BaseChecker):
                 logger.info("   ✅ EarningsChecker: FinnhubClient loaded")
         except Exception as e:
             logger.warning(f"   ⚠️ EarningsChecker: FinnhubClient unavailable: {e}")
+
+        # S3.2: Earnings History Accumulator
+        try:
+            from live_monitoring.exploitation.earnings_history_accumulator import EarningsHistoryAccumulator
+            self._earnings_accumulator = EarningsHistoryAccumulator()
+            logger.info("   ✅ EarningsChecker: EarningsHistoryAccumulator loaded")
+        except Exception as e:
+            logger.warning(f"   ⚠️ EarningsChecker: EarningsHistoryAccumulator unavailable: {e}")
 
     @property
     def name(self) -> str:
@@ -149,6 +158,24 @@ class EarningsChecker(BaseChecker):
                             f"   📅 Earnings alert: {ticker} Score={score_card['total_score']:.0f} "
                             f"Exploit={score_card['exploit']}"
                         )
+
+                    # S3.2: Always capture pre-earnings snapshot for accumulation
+                    if self._earnings_accumulator:
+                        try:
+                            import yfinance as yf
+                            t = yf.Ticker(ticker)
+                            price = t.info.get('regularMarketPrice') or t.info.get('previousClose', 0)
+                            self._earnings_accumulator.capture_pre_earnings(ticker, earnings_date, {
+                                'report_time': score_card.get('report_time'),
+                                'price': price,
+                                'dp_bias': score_card.get('dp_data', {}).get('sv_pct'),
+                                'dp_strength': score_card['factors'].get('dp_accumulation', {}).get('score', 0),
+                                'options_bias': 'BULLISH' if score_card['factors'].get('options_skew', {}).get('score', 0) > 50 else 'BEARISH',
+                                'iv_rank': score_card['factors'].get('iv_rank', {}).get('score', 0),
+                                'regime': score_card.get('kill_chain', {}).get('triple_active', False) and 'TRIPLE_ACTIVE' or 'NORMAL',
+                            })
+                        except Exception as e:
+                            logger.warning(f"   ⚠️ Earnings snapshot failed for {ticker}: {e}")
 
                 except Exception as e:
                     logger.error(f"   ❌ EarningsChecker: Error scoring {ticker}: {e}")

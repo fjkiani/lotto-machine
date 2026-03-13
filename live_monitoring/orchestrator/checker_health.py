@@ -10,6 +10,9 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Dict, Optional
 from enum import Enum
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CheckerStatus(Enum):
     HEALTHY = "healthy"        # Working normally
@@ -208,8 +211,25 @@ class CheckerHealthRegistry:
             INSERT INTO checker_alerts (checker_name, alert_type, symbol, direction, entry_price)
             VALUES (?, ?, ?, ?, ?)
         """, (checker_name, alert_type, symbol, direction, entry_price))
+        alert_id = cursor.lastrowid
         conn.commit()
         conn.close()
+
+        # S3.3: Register for outcome tracking
+        if direction and entry_price and symbol:
+            try:
+                from live_monitoring.orchestrator.alert_outcome_tracker import AlertOutcomeTracker
+                tracker = AlertOutcomeTracker(health_db=self.db_path)
+                tracker.track_alert(
+                    alert_id=alert_id,
+                    checker_name=checker_name,
+                    symbol=symbol,
+                    direction=direction,
+                    alert_price=entry_price,
+                    alert_time=datetime.utcnow().isoformat(),
+                )
+            except Exception as e:
+                logger.warning(f"AlertOutcomeTracker registration failed: {e}")
     
     def get_alerts_count(self, checker_name: str, hours: int = 24) -> int:
         """Get count of alerts in last N hours."""
