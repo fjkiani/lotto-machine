@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate
+from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate, intraday
 from backend.app.core.dependencies import set_monitor_bridge
 
 # Try to import and initialize monitor
@@ -65,6 +65,7 @@ app.include_router(cot.router, prefix="/api/v1", tags=["cot"])
 app.include_router(ta.router, prefix="/api/v1", tags=["ta"])
 app.include_router(axlfi.router, prefix="/api/v1", tags=["axlfi"])
 app.include_router(gate.router, prefix="/api/v1", tags=["gate"])
+app.include_router(intraday.router)
 
 
 # Global thread status tracking
