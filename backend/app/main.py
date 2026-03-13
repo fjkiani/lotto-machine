@@ -378,6 +378,18 @@ async def thread_status():
     }
 
 
+@app.get("/signal-intel")
+async def signal_intel():
+    """Full tactical signal intelligence — answers all manager questions in one call."""
+    try:
+        from live_monitoring.enrichment.apis.signal_intel_engine import SignalIntelEngine
+        engine = SignalIntelEngine()
+        return engine.generate_report()
+    except Exception as e:
+        logger.error(f"Signal intel failed: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
 @app.get("/kill-shots-live")
 async def kill_shots_live():
     """LIVE Kill Shots Divergence Score — all layers, no InstitutionalContext needed."""
