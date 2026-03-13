@@ -87,8 +87,11 @@ class DPPrint(BaseModel):
 class DPSummary(BaseModel):
     """Aggregated dark pool summary."""
     total_volume: int
-    dp_percent: float = Field(..., ge=0, le=100)
-    buying_pressure: float = Field(..., ge=0, le=100)
+    dp_percent: float
+    buying_pressure: float
+    dp_position_dollars: Optional[float] = None
+    net_short_dollars: Optional[float] = None
+    short_volume_pct: Optional[float] = None
     nearest_support: Optional[DPLevel] = None
     nearest_resistance: Optional[DPLevel] = None
     battlegrounds: List[DPLevel] = Field(default_factory=list)
@@ -116,7 +119,60 @@ class DPSummaryResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Routes — powered by Stockgrid (free, no auth, real data)
+# Routes — STATIC routes first (FastAPI matches in registration order)
+# ---------------------------------------------------------------------------
+
+@router.get("/darkpool/narrative")
+async def get_dp_narrative():
+    """
+    Multi-ticker dark pool narrative — SPY vs QQQ vs IWM comparison.
+    Uses the source's get_narrative() for rich dollar-value prose.
+    """
+    sg = _get_stockgrid()
+    try:
+        narrative = sg.get_narrative()
+        return {
+            "narrative": narrative,
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"DP narrative failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"DP narrative failed: {e}")
+
+
+@router.get("/darkpool/top-positions")
+async def get_dp_top_positions(
+    limit: int = Query(10, ge=1, le=50, description="Number of top positions"),
+    sort_by: str = Query("Net Short Volume $", description="Sort field"),
+):
+    """
+    Top dark pool positions by dollar value with short vol % per ticker.
+    """
+    sg = _get_stockgrid()
+    try:
+        positions = sg.get_top_positions(limit=limit, sort_by=sort_by)
+        return {
+            "positions": [
+                {
+                    "ticker": p.ticker,
+                    "dp_position_dollars": p.dp_position_dollars,
+                    "dp_position_shares": p.dp_position_shares,
+                    "short_volume_pct": p.short_volume_pct,
+                    "net_short_volume": getattr(p, "net_short_volume", None),
+                    "date": p.date,
+                }
+                for p in positions
+            ],
+            "count": len(positions),
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"DP top positions failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"DP top positions failed: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Routes — parameterized {symbol} routes AFTER static routes
 # ---------------------------------------------------------------------------
 
 @router.get("/darkpool/{symbol}/levels", response_model=DPLevelsResponse)
@@ -145,50 +201,22 @@ async def get_dp_levels(symbol: str):
             detail=f"No dark pool data for {symbol} from Stockgrid"
         )
 
-    # Build levels from top positions (tickers with largest DP activity)
     dp_levels = []
-    max_vol = max((abs(int(p.dp_position_shares)) for p in top_positions), default=1) or 1
-
-    for pos in top_positions:
-        if not pos.dp_position_dollars:
-            continue
-
-        # Derive implied price from position dollars / shares
-        implied_price = abs(pos.dp_position_dollars / pos.dp_position_shares) if pos.dp_position_shares else 0
-        if not implied_price:
-            continue
-
-        vol = abs(int(pos.dp_position_shares))
-        strength = round(min(100.0, (vol / max_vol) * 100), 1)
-
-        # Classify based on short volume %
-        if pos.short_volume_pct > 0.55:
-            level_type = "RESISTANCE"
-        elif pos.short_volume_pct < 0.45:
-            level_type = "SUPPORT"
-        else:
-            level_type = "BATTLEGROUND"
-
-        dp_levels.append(DPLevel(
-            price=round(implied_price, 2),
-            volume=vol,
-            level_type=level_type,
-            strength=strength,
-            distance_from_price=round(abs(implied_price - current_price), 4) if pos.ticker == symbol else None,
-        ))
 
     # If the symbol itself has detail data, add it as a primary level
     if detail and detail.dp_position_dollars:
         implied = abs(detail.dp_position_dollars / detail.dp_position_shares) if detail.dp_position_shares else current_price
         short_pct = detail.short_volume_pct or 0
-        if short_pct > 0.55:
+        
+        # FIX: Stockgrid short volume is a percentage (e.g. 59.2), not a decimal (0.59)
+        if short_pct > 55:
             lt = "RESISTANCE"
-        elif short_pct < 0.45:
+        elif short_pct < 45:
             lt = "SUPPORT"
         else:
             lt = "BATTLEGROUND"
 
-        dp_levels.insert(0, DPLevel(
+        dp_levels.append(DPLevel(
             price=round(implied, 2),
             volume=abs(int(detail.dp_position_shares or 0)),
             level_type=lt,
@@ -238,22 +266,104 @@ async def get_dp_summary(symbol: str):
         )
 
     # Derive buying pressure from short volume %
-    short_pct = (detail.short_volume_pct if detail else 0.5) or 0.5
-    buying_pressure = round((1 - short_pct) * 100, 1)
+    # Stockgrid returns short_volume_pct as raw percentage (e.g. 54.4) OR decimal (0.544)
+    raw_pct = (detail.short_volume_pct if detail else 0.5) or 0.5
+    # Normalize: if > 1, it's already a percentage; if <= 1, multiply by 100
+    dp_percent = round(raw_pct if raw_pct > 1 else raw_pct * 100, 1)
+    dp_percent = max(0, min(100, dp_percent))  # Clamp to 0-100
+    buying_pressure = round(max(0, 100 - dp_percent), 1)
 
     total_volume = abs(int((detail.short_volume if detail else 0) or (detail.dp_position_shares if detail else 0) or 0))
-    dp_position = abs((detail.dp_position_dollars if detail else 0) or 0)
+    dp_position_dollars = abs((detail.dp_position_dollars if detail else 0) or 0)
+    net_short_dollars = abs((detail.net_short_volume if detail else 0) or 0) if hasattr(detail, 'net_short_volume') else None
 
-    # DP % (short volume % from Stockgrid)
-    dp_percent = round(short_pct * 100, 1)
+    # B3 FIX: Return raw Stockgrid short_volume_pct, not the derived dp_percent
+    raw_short_vol_pct = round(raw_pct if raw_pct > 1 else raw_pct * 100, 1) if detail else None
+
+    # B2 FIX: Derive nearest support/resistance from same-symbol data only
+    # Cross-ticker positions have different price scales — filter to this symbol
+    nearest_support = None
+    nearest_resistance = None
+    battlegrounds = []
+
+    # Use the symbol's own detail for primary S/R classification
+    if detail and detail.dp_position_dollars and detail.dp_position_shares and current_price:
+        implied = abs(detail.dp_position_dollars / detail.dp_position_shares)
+        svp = detail.short_volume_pct or 0.5
+        vol = abs(int(detail.dp_position_shares or 0))
+
+        # Classify and create levels at price bands around implied price
+        if svp > 0.55:
+            # Heavy shorting → these levels are resistance
+            nearest_resistance = DPLevel(
+                price=round(implied, 2),
+                volume=vol,
+                level_type="RESISTANCE",
+                strength=100.0,
+                distance_from_price=round(abs(implied - current_price), 4),
+            )
+        elif svp < 0.45:
+            nearest_support = DPLevel(
+                price=round(implied, 2),
+                volume=vol,
+                level_type="SUPPORT",
+                strength=100.0,
+                distance_from_price=round(abs(implied - current_price), 4),
+            )
+        else:
+            battlegrounds.append(DPLevel(
+                price=round(implied, 2),
+                volume=vol,
+                level_type="BATTLEGROUND",
+                strength=50.0,
+                distance_from_price=round(abs(implied - current_price), 4),
+            ))
+
+    # Also check same-symbol positions in the top list for additional levels
+    if top_positions and current_price:
+        for pos in top_positions:
+            if pos.ticker != symbol:
+                continue  # Skip other symbols — their prices are different scales
+            if not pos.dp_position_dollars or not pos.dp_position_shares:
+                continue
+            implied_price = abs(pos.dp_position_dollars / pos.dp_position_shares)
+            if not implied_price:
+                continue
+            svp = pos.short_volume_pct or 0.5
+            vol = abs(int(pos.dp_position_shares))
+            if svp > 0.55:
+                level_type = "RESISTANCE"
+            elif svp < 0.45:
+                level_type = "SUPPORT"
+            else:
+                level_type = "BATTLEGROUND"
+            level = DPLevel(
+                price=round(implied_price, 2),
+                volume=vol,
+                level_type=level_type,
+                strength=0,
+                distance_from_price=round(abs(implied_price - current_price), 4),
+            )
+            if level_type == "SUPPORT" and implied_price < current_price:
+                if nearest_support is None or level.distance_from_price < nearest_support.distance_from_price:
+                    nearest_support = level
+            elif level_type == "RESISTANCE" and implied_price > current_price:
+                if nearest_resistance is None or level.distance_from_price < nearest_resistance.distance_from_price:
+                    nearest_resistance = level
+            elif level_type == "BATTLEGROUND":
+                battlegrounds.append(level)
+        battlegrounds.sort(key=lambda x: x.distance_from_price or 999)
 
     summary = DPSummary(
         total_volume=total_volume,
         dp_percent=dp_percent,
         buying_pressure=buying_pressure,
-        nearest_support=None,
-        nearest_resistance=None,
-        battlegrounds=[],
+        dp_position_dollars=dp_position_dollars if dp_position_dollars else None,
+        net_short_dollars=net_short_dollars,
+        short_volume_pct=raw_short_vol_pct,
+        nearest_support=nearest_support,
+        nearest_resistance=nearest_resistance,
+        battlegrounds=battlegrounds[:5],
     )
 
     return DPSummaryResponse(
@@ -322,3 +432,6 @@ async def get_dp_prints(
         count=len(dp_prints),
         timestamp=datetime.now(),
     )
+
+
+# (Static routes moved to top of file — see above)

@@ -1,0 +1,486 @@
+{
+  "cpi": [
+    {
+      "date": "2023-12-12",
+      "ref": "Nov 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.54,
+      "vix": 12.07
+    },
+    {
+      "date": "2023-11-14",
+      "ref": "Oct 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.54,
+      "vix": 14.16
+    },
+    {
+      "date": "2023-10-12",
+      "ref": "Sep 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.75,
+      "vix": 16.69
+    },
+    {
+      "date": "2023-09-13",
+      "ref": "Aug 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.06,
+      "vix": 13.48
+    },
+    {
+      "date": "2023-08-10",
+      "ref": "Jul 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.51,
+      "vix": 15.85
+    },
+    {
+      "date": "2023-07-12",
+      "ref": "Jun 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.08,
+      "vix": 13.54
+    },
+    {
+      "date": "2023-06-13",
+      "ref": "May 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.31,
+      "vix": 14.61
+    },
+    {
+      "date": "2023-05-10",
+      "ref": "Apr 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.25,
+      "vix": 16.94
+    },
+    {
+      "date": "2023-04-12",
+      "ref": "Mar 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.93,
+      "vix": 19.09
+    },
+    {
+      "date": "2023-03-14",
+      "ref": "Feb 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.31,
+      "vix": 23.73
+    },
+    {
+      "date": "2023-02-14",
+      "ref": "Jan 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.34,
+      "vix": 18.91
+    },
+    {
+      "date": "2023-01-12",
+      "ref": "Dec 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.07,
+      "vix": 18.83
+    },
+    {
+      "date": "2022-12-13",
+      "ref": "Nov 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -2.01,
+      "vix": 22.55
+    },
+    {
+      "date": "2022-11-10",
+      "ref": "Oct 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 1.71,
+      "vix": 23.53
+    },
+    {
+      "date": "2022-10-13",
+      "ref": "Sep 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 4.8,
+      "vix": 31.94
+    },
+    {
+      "date": "2022-09-13",
+      "ref": "Aug 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -2.17,
+      "vix": 27.27
+    },
+    {
+      "date": "2022-08-10",
+      "ref": "Jul 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.29,
+      "vix": 19.74
+    },
+    {
+      "date": "2022-07-13",
+      "ref": "Jun 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.99,
+      "vix": 26.82
+    },
+    {
+      "date": "2022-06-10",
+      "ref": "May 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -1.29,
+      "vix": 27.75
+    },
+    {
+      "date": "2022-05-11",
+      "ref": "Apr 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -1.34,
+      "vix": 32.56
+    },
+    {
+      "date": "2022-04-12",
+      "ref": "Mar 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -1.08,
+      "vix": 24.26
+    },
+    {
+      "date": "2022-03-10",
+      "ref": "Feb 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.7,
+      "vix": 30.23
+    },
+    {
+      "date": "2022-02-10",
+      "ref": "Jan 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.45,
+      "vix": 23.91
+    },
+    {
+      "date": "2022-01-12",
+      "ref": "Dec 2021",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.12,
+      "vix": 17.62
+    }
+  ],
+  "housing": [
+    {
+      "date": "2023-12-20",
+      "ref": "Nov 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -1.2,
+      "vix": 13.67
+    },
+    {
+      "date": "2023-11-21",
+      "ref": "Oct 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.02,
+      "vix": 13.35
+    },
+    {
+      "date": "2023-10-19",
+      "ref": "Sep 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -1.05,
+      "vix": 21.4
+    },
+    {
+      "date": "2023-09-21",
+      "ref": "Aug 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.99,
+      "vix": 17.54
+    },
+    {
+      "date": "2023-08-22",
+      "ref": "Jul 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.69,
+      "vix": 16.97
+    },
+    {
+      "date": "2023-07-20",
+      "ref": "Jun 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.44,
+      "vix": 13.99
+    },
+    {
+      "date": "2023-06-22",
+      "ref": "May 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.59,
+      "vix": 12.91
+    },
+    {
+      "date": "2023-05-18",
+      "ref": "Apr 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 1.04,
+      "vix": 16.05
+    },
+    {
+      "date": "2023-04-20",
+      "ref": "Mar 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.16,
+      "vix": 17.17
+    },
+    {
+      "date": "2023-03-21",
+      "ref": "Feb 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.42,
+      "vix": 21.38
+    },
+    {
+      "date": "2023-02-21",
+      "ref": "Jan 2023",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.98,
+      "vix": 22.87
+    },
+    {
+      "date": "2023-01-20",
+      "ref": "Dec 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 1.48,
+      "vix": 19.85
+    },
+    {
+      "date": "2022-12-21",
+      "ref": "Nov 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.78,
+      "vix": 20.07
+    },
+    {
+      "date": "2022-11-18",
+      "ref": "Oct 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.43,
+      "vix": 23.12
+    },
+    {
+      "date": "2022-10-20",
+      "ref": "Sep 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.71,
+      "vix": 29.98
+    },
+    {
+      "date": "2022-09-21",
+      "ref": "Aug 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -2.26,
+      "vix": 27.99
+    },
+    {
+      "date": "2022-08-18",
+      "ref": "Jul 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.24,
+      "vix": 19.56
+    },
+    {
+      "date": "2022-07-20",
+      "ref": "Jun 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.59,
+      "vix": 23.88
+    },
+    {
+      "date": "2022-06-21",
+      "ref": "May 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.86,
+      "vix": 30.19
+    },
+    {
+      "date": "2022-05-19",
+      "ref": "Apr 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 0.22,
+      "vix": 29.35
+    },
+    {
+      "date": "2022-04-20",
+      "ref": "Mar 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.49,
+      "vix": 20.32
+    },
+    {
+      "date": "2022-03-18",
+      "ref": "Feb 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": 1.49,
+      "vix": 23.87
+    },
+    {
+      "date": "2022-02-18",
+      "ref": "Jan 2022",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -0.71,
+      "vix": 27.75
+    },
+    {
+      "date": "2022-01-20",
+      "ref": "Dec 2021",
+      "spy_30m": null,
+      "spy_60m": null,
+      "tlt_30m": null,
+      "tlt_60m": null,
+      "spy_daily_pct": -1.54,
+      "vix": 25.59
+    }
+  ]
+}

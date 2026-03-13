@@ -1,0 +1,10 @@
+{
+  "source_name": "cboe_delayed_quotes",
+  "source_url": "https://cdn.cboe.com/api/global/delayed_quotes/options/SPY.json",
+  "download_date": "2026-03-10T04:24:12.038859",
+  "total_contracts": 13580,
+  "active_contracts": 8803,
+  "net_gex": -8357226903.322575,
+  "regime": "NEGATIVE",
+  "verification_status": "computed"
+}

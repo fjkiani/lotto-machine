@@ -193,11 +193,15 @@ class SignalBrainEngine:
         """
         Get prediction from DP Learning Engine for nearest zone.
         
+        Uses get_prediction_for_level() which correctly tracks touch counts
+        (our strongest feature at 62.1% importance) via self._touch_counts.
+        
         Returns:
             {
                 'bounce_probability': 0.78,
                 'confidence': 'HIGH',
                 'patterns': ['vol_2m_plus', 'support', 'touch_1'],
+                'level_type': 'SUPPORT',  # For SUPPORT asymmetry weighting
             }
         """
         if not self.dp_learning or not spy_state:
@@ -206,24 +210,27 @@ class SignalBrainEngine:
         try:
             # Find nearest zone to get prediction for
             nearest_zone = None
+            level_type = 'SUPPORT'
             if spy_state.at_support and spy_state.nearest_support:
                 nearest_zone = spy_state.nearest_support
+                level_type = 'SUPPORT'
             elif spy_state.at_resistance and spy_state.nearest_resistance:
                 nearest_zone = spy_state.nearest_resistance
+                level_type = 'RESISTANCE'
             elif spy_state.support_zones:
                 nearest_zone = spy_state.support_zones[0]
+                level_type = 'SUPPORT'
             
             if not nearest_zone:
                 return None
             
-            # Get prediction from learning engine
-            # The learning engine's predict method expects the level context
-            prediction = self.dp_learning.predict(
+            # Use get_prediction_for_level() — it tracks real touch_count
+            # via self._touch_counts (our #1 feature at 62.1% importance)
+            prediction = self.dp_learning.get_prediction_for_level(
                 symbol='SPY',
-                price=nearest_zone.center_price,
-                volume=nearest_zone.combined_volume,
-                level_type=nearest_zone.zone_type,
-                touch_count=1,  # Will be refined with tracking
+                level_price=nearest_zone.center_price,
+                level_volume=nearest_zone.combined_volume,
+                level_type=level_type,
             )
             
             if prediction:
@@ -231,6 +238,7 @@ class SignalBrainEngine:
                     'bounce_probability': prediction.probability,
                     'confidence': prediction.confidence.value if hasattr(prediction.confidence, 'value') else prediction.confidence,
                     'patterns': prediction.supporting_patterns,
+                    'level_type': level_type,
                 }
         except Exception as e:
             logger.debug(f"DP Learning prediction error: {e}")

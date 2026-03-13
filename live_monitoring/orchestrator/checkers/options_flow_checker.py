@@ -240,6 +240,8 @@ class OptionsFlowChecker(BaseChecker):
         # State tracking
         self.last_sentiment: Optional[Dict] = None
         self.alerted_unusual: set = set()  # Track already-alerted unusual activity
+        self.alerted_bullish: set = set()  # Track already-alerted bullish symbols
+        self.alerted_bearish: set = set()  # Track already-alerted bearish symbols
         
         logger.info("📊 OptionsFlowChecker initialized (RapidAPI)")
     
@@ -276,15 +278,25 @@ class OptionsFlowChecker(BaseChecker):
             for opt in most_active:
                 if opt.symbol in self.WATCH_SYMBOLS or opt.total_volume >= self.MIN_VOLUME_ALERT:
                     if opt.put_call_ratio < self.BULLISH_PC_THRESHOLD:
+                        # DEDUP: Skip if already alerted for this symbol today
+                        if opt.symbol in self.alerted_bullish:
+                            logger.debug(f"   ⏭️ Already alerted bullish for {opt.symbol} — skipping")
+                            continue
                         alert = self._create_bullish_alert(opt)
                         if alert:
                             alerts.append(alert)
+                            self.alerted_bullish.add(opt.symbol)
                             self._store_signal(opt, "BULLISH_CALL_ACCUMULATION", "LONG")
                     
                     elif opt.put_call_ratio > self.BEARISH_PC_THRESHOLD:
+                        # DEDUP: Skip if already alerted for this symbol today
+                        if opt.symbol in self.alerted_bearish:
+                            logger.debug(f"   ⏭️ Already alerted bearish for {opt.symbol} — skipping")
+                            continue
                         alert = self._create_bearish_alert(opt)
                         if alert:
                             alerts.append(alert)
+                            self.alerted_bearish.add(opt.symbol)
                             self._store_signal(opt, "BEARISH_PUT_ACCUMULATION", "SHORT")
             
             # 4. Get unusual activity for watch symbols

@@ -9,7 +9,7 @@ import sqlite3
 import json
 import logging
 from datetime import datetime
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from pathlib import Path
 
 from .models import (
@@ -110,9 +110,205 @@ class FedOfficialsDatabase:
             )
         """)
         
+        # Hidden Layer 1: Politician Trades
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS politician_trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                politician_name TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                transaction_type TEXT,
+                trade_size TEXT,
+                trade_date TEXT,
+                filing_date TEXT,
+                url TEXT,
+                owner TEXT DEFAULT 'Self',
+                trade_hash TEXT UNIQUE,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Hidden Layer 2: Insider Trades
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS insider_trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                executive_name TEXT NOT NULL,
+                company TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                transaction_type TEXT,
+                trade_value_usd REAL,
+                trade_date TEXT,
+                filing_date TEXT,
+                url TEXT,
+                trade_hash TEXT UNIQUE,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Federation Calendar
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS calendar_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_date TEXT NOT NULL,
+                speaker TEXT,
+                title TEXT,
+                location TEXT,
+                event_hash TEXT UNIQUE,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # ── New tables (Manager expansion) ──────────────────────────────
+        
+        # Divergence Snapshots — the memory that compounds
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS divergence_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                current_price REAL,
+                dark_position_dollar REAL,
+                gex_net REAL,
+                cot_specs_short INTEGER,
+                politician_cluster INTEGER,
+                insider_net_buy_usd REAL,
+                fed_tone TEXT,
+                divergence_score INTEGER,
+                reasons TEXT,
+                market_move_5d_later REAL,
+                replay_id TEXT,
+                snapshot_hash TEXT UNIQUE,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Mission Wallet Log — paper trade P&L + donation tracking
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS mission_wallet_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                replay_id TEXT,
+                simulated_pnl REAL,
+                donation_pct REAL,
+                donation_usd REAL,
+                wallet_address TEXT,
+                tx_hash TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Dark Pool Timeseries — position history per ticker
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS dp_timeseries (
+                timestamp TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                dp_position_dollar REAL,
+                net_short_dollar REAL,
+                short_vol_pct REAL,
+                dp_hash TEXT UNIQUE,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (timestamp, ticker)
+            )
+        """)
+        
+        # ── Expand existing comments table with new columns ─────────────
+        for col_def in [
+            ("tavily_context", "TEXT"),
+            ("divergence_boost", "INTEGER DEFAULT 0"),
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE comments ADD COLUMN {col_def[0]} {col_def[1]}")
+            except sqlite3.OperationalError:
+                pass  # Column already exists — safe to ignore
+        
         conn.commit()
         conn.close()
-        logger.info(f"📊 Fed Officials Database initialized: {self.db_path}")
+        logger.info(f"📊 Fed Officials & Hidden Layers DB initialized: {self.db_path}")
+    
+    # ── Divergence Snapshot Methods ─────────────────────────────────
+    
+    def save_divergence_snapshot(self, snapshot: Dict[str, Any]) -> int:
+        """
+        Save a point-in-time divergence snapshot.
+        Returns the row ID. Deduplicates via snapshot_hash.
+        """
+        import hashlib
+        
+        # Build hash from key fields
+        hash_input = f"{snapshot.get('timestamp','')}-{snapshot.get('divergence_score',0)}-{snapshot.get('fed_tone','')}"
+        snap_hash = hashlib.md5(hash_input.encode()).hexdigest()
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                INSERT OR IGNORE INTO divergence_snapshots (
+                    timestamp, current_price, dark_position_dollar, gex_net,
+                    cot_specs_short, politician_cluster, insider_net_buy_usd,
+                    fed_tone, divergence_score, reasons, market_move_5d_later,
+                    replay_id, snapshot_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                snapshot.get('timestamp', datetime.now().isoformat()),
+                snapshot.get('current_price'),
+                snapshot.get('dark_position_dollar'),
+                snapshot.get('gex_net'),
+                snapshot.get('cot_specs_short'),
+                snapshot.get('politician_cluster'),
+                snapshot.get('insider_net_buy_usd'),
+                snapshot.get('fed_tone'),
+                snapshot.get('divergence_score', 0),
+                json.dumps(snapshot.get('reasons', [])),
+                snapshot.get('market_move_5d_later'),
+                snapshot.get('replay_id'),
+                snap_hash,
+            ))
+            conn.commit()
+            row_id = cursor.lastrowid
+            return row_id
+        finally:
+            conn.close()
+    
+    def get_divergence_history(self, limit: int = 50) -> List[Dict]:
+        """Get recent divergence snapshots for trend analysis."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute(
+                "SELECT * FROM divergence_snapshots ORDER BY timestamp DESC LIMIT ?",
+                (limit,)
+            )
+            return [dict(row) for row in cursor.fetchall()]
+        finally:
+            conn.close()
+    
+    def save_dp_timeseries(self, ticker: str, data: Dict[str, Any]) -> None:
+        """Save a dark pool timeseries data point."""
+        import hashlib
+        
+        ts = data.get('timestamp', datetime.now().isoformat())
+        dp_hash = hashlib.md5(f"{ts}-{ticker}".encode()).hexdigest()
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                INSERT OR IGNORE INTO dp_timeseries (
+                    timestamp, ticker, dp_position_dollar, net_short_dollar,
+                    short_vol_pct, dp_hash
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                ts, ticker,
+                data.get('dp_position_dollar'),
+                data.get('net_short_dollar'),
+                data.get('short_vol_pct'),
+                dp_hash,
+            ))
+            conn.commit()
+        finally:
+            conn.close()
     
     def save_comment(self, comment: FedComment) -> int:
         """Save a comment and return its ID."""
@@ -152,6 +348,78 @@ class FedOfficialsDatabase:
         finally:
             conn.close()
     
+    def save_politician_trade(self, trade: Dict[str, Any]) -> int:
+        """Save a politician trade and return its ID."""
+        import hashlib
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # Generate unique hash to avoid dups
+            hash_str = f"{trade.get('politician_name', '')}{trade.get('ticker', '')}{trade.get('trade_date', '')}"
+            trade_hash = hashlib.md5(hash_str.encode('utf-8')).hexdigest()
+            
+            cursor.execute("""
+                INSERT OR IGNORE INTO politician_trades (
+                    politician_name, ticker, transaction_type, trade_size,
+                    trade_date, filing_date, url, owner, trade_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                trade.get('politician_name', 'Unknown'),
+                trade.get('ticker', 'UNKNOWN'),
+                trade.get('transaction_type', 'unknown'),
+                trade.get('trade_size', '0'),
+                trade.get('trade_date', ''),
+                trade.get('filing_date', ''),
+                trade.get('url', ''),
+                trade.get('owner', 'Self'),
+                trade_hash,
+            ))
+            
+            trade_id = cursor.lastrowid
+            conn.commit()
+            return trade_id
+        except sqlite3.IntegrityError:
+            return 0
+        finally:
+            conn.close()
+            
+    def save_insider_trade(self, trade: Dict[str, Any]) -> int:
+        """Save an insider trade and return its ID."""
+        import hashlib
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # Generate unique hash
+            hash_str = f"{trade.get('executive_name', '')}{trade.get('ticker', '')}{trade.get('trade_date', '')}{trade.get('trade_value_usd', '')}"
+            trade_hash = hashlib.md5(hash_str.encode('utf-8')).hexdigest()
+            
+            cursor.execute("""
+                INSERT OR IGNORE INTO insider_trades (
+                    executive_name, company, ticker, transaction_type,
+                    trade_value_usd, trade_date, filing_date, url, trade_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                trade.get('executive_name', 'Unknown'),
+                trade.get('company', 'Unknown'),
+                trade.get('ticker', 'UNKNOWN'),
+                trade.get('transaction_type', 'unknown'),
+                trade.get('trade_value_usd', 0.0),
+                trade.get('trade_date', ''),
+                trade.get('filing_date', ''),
+                trade.get('url', ''),
+                trade_hash,
+            ))
+            
+            trade_id = cursor.lastrowid
+            conn.commit()
+            return trade_id
+        except sqlite3.IntegrityError:
+            return 0
+        finally:
+            conn.close()
+
     def get_recent_comments(self, hours: int = 24, limit: int = 50) -> List[FedComment]:
         """Get recent comments."""
         conn = sqlite3.connect(self.db_path)
@@ -233,8 +501,8 @@ class FedOfficialsDatabase:
             if row['position']:
                 try:
                     position = FedPosition(row['position'])
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Unknown FedPosition '{row['position']}': {e}")
             
             officials.append(FedOfficial(
                 name=row['name'],
@@ -344,7 +612,59 @@ class FedOfficialsDatabase:
         
         return patterns
 
-
+    def get_politician_flow(self, ticker: Optional[str] = None, days: int = 7) -> List[Dict[str, Any]]:
+        """Get recent politician trades, optionally filtered by ticker."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cutoff = datetime.now().timestamp() - (days * 86400)
+        
+        if ticker:
+            cursor.execute("""
+                SELECT * FROM politician_trades
+                WHERE datetime(created_at) > datetime(?, 'unixepoch')
+                AND ticker LIKE ?
+                ORDER BY created_at DESC LIMIT 50
+            """, (cutoff, f"%{ticker}%"))
+        else:
+            cursor.execute("""
+                SELECT * FROM politician_trades
+                WHERE datetime(created_at) > datetime(?, 'unixepoch')
+                ORDER BY created_at DESC LIMIT 50
+            """, (cutoff,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
+    
+    def get_insider_flow(self, ticker: Optional[str] = None, days: int = 7) -> List[Dict[str, Any]]:
+        """Get recent insider trades, optionally filtered by ticker."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cutoff = datetime.now().timestamp() - (days * 86400)
+        
+        if ticker:
+            cursor.execute("""
+                SELECT * FROM insider_trades
+                WHERE datetime(created_at) > datetime(?, 'unixepoch')
+                AND ticker LIKE ?
+                ORDER BY created_at DESC LIMIT 50
+            """, (cutoff, f"%{ticker}%"))
+        else:
+            cursor.execute("""
+                SELECT * FROM insider_trades
+                WHERE datetime(created_at) > datetime(?, 'unixepoch')
+                ORDER BY created_at DESC LIMIT 50
+            """, (cutoff,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
 
 
 

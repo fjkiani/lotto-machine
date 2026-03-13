@@ -1,0 +1,215 @@
+---
+description: FedOfficialsBrain operations — recalibrated after live testing March 9 2026
+globs: live_monitoring/agents/fed_officials/**,live_monitoring/enrichment/apis/finnhub_client.py,live_monitoring/core/signal_generator.py,backend/app/api/v1/agentx.py,frontend/src/components/agentx/**
+---
+
+# 🧠 FED OFFICIALS BRAIN — OPERATIONAL PLAYBOOK
+
+**Last Updated:** March 9, 2026 17:55 ET
+**Status:** ✅ Pipeline LIVE-TESTED. Brain produces real data. Finnhub wired. Ready for frontend pages.
+
+---
+
+## 1. ARCHITECTURE (Post-Modularization — March 9)
+
+```
+live_monitoring/
+├── agents/
+│   ├── fed_officials/
+│   │   ├── models.py               # Data contracts (FedComment, FedOfficial, FedCommentReport)
+│   │   ├── database.py             # SQLite persistence + pattern learning
+│   │   ├── brain.py                # THE brain — get_brain_report() with Finnhub + Tavily
+│   │   ├── engine.py               # Thin coordinator (~180 lines, delegates to modules)
+│   │   ├── trade_normalizer.py     # [NEW] CapitolTradesNormalizer + OpenInsiderNormalizer
+│   │   ├── tone_aggregator.py      # [NEW] Weighted hawk/dove scoring (seniority × impact)
+│   │   ├── report_builder.py       # [NEW] Data-driven recommendations (not "SHORT QQQ")
+│   │   ├── fed_rss_calendar.py     # RSS + Calendar JSON polling
+│   │   ├── sentiment_analyzer.py   # Cohere LLM tone extraction
+│   │   ├── official_tracker.py     # Discovers officials from text
+│   │   ├── impact_learner.py       # Learns market impact from SPY price moves
+│   │   └── query_generator.py      # Learned query templates
+│   │
+│   └── hidden_layers/
+│       ├── politician_monitor.py   # Congressional trades via Diffbot/BS4
+│       └── insider_monitor.py      # Corporate insider trades via BS4
+│
+└── enrichment/apis/
+    ├── diffbot_extractor.py        # Diffbot Article + Analyze API
+    └── finnhub_client.py           # [NEW] Insider MSPR + News + Cross-Reference
+```
+
+---
+
+## 2. DATA PIPES — HONEST STATUS (Live-Tested March 9)
+
+| Pipe | Source | Method | Tested? | Result |
+|------|--------|--------|---------|--------|
+| Fed Speeches | federalreserve.gov RSS | feedparser + Diffbot | ✅ LIVE | Returns tone + speaker. Diffbot 429s on quota |
+| Politician Trades | capitoltrades.com | Diffbot + BS4 | ✅ LIVE | 6 trades scraped (BRO, PYPL, NOW, TTD, UBER, NTAP) |
+| Insider Trades | openinsider.com cluster buys | BS4 tinytable | ✅ LIVE | Cluster buys returned with values parsed |
+| Finnhub Insider Tx | Finnhub `/insider-transactions` | REST API | ✅ LIVE | Per-person SEC filings (names, shares, $price) |
+| Finnhub MSPR | Finnhub `/insider-sentiment` | REST API | ✅ LIVE | Monthly sentiment (AAPL=25.7, TSLA=-19.6) |
+| Finnhub News | Finnhub `/company-news` | REST API | ✅ LIVE | 247 PYPL articles in 30 days. Saves Tavily quota |
+| Tavily Research | tavily.com | tavily-python | ✅ LIVE | Hot ticker research. Only fires if Finnhub misses |
+| Tone Analysis | SentimentAnalyzer | Cohere `command-a-reasoning` | ✅ LIVE | HAWKISH/DOVISH/NEUTRAL with confidence + reasoning |
+| Spouse Detection | CapitolTrades `Owner` col | Regex in trade_normalizer | ✅ LIVE | "SPOUSE TRADE: Byron Donalds's spouse traded PYPL" |
+
+---
+
+## 3. BRAIN DIVERGENCE MODEL (Live-Tested)
+
+Location: `brain.py` → `get_brain_report()` L249-370
+
+```
+divergence_score starts at 0
+
+Source 1: Politician cluster buys (≥3 buys → +2)
+Source 2: Insider net buying (>$5M → +3, >$1M → +1)
+Source 3: Insider net selling (≥3 sells → -2)
+Source 4: Finnhub MSPR cross-reference [NEW]
+  - Politician BUY + MSPR>50  → CONVERGENCE  (+3)
+  - Politician BUY + MSPR<-20 → FADING INSIDERS (-2)
+  - Politician SELL + MSPR>50 → DIVERGENCE    (-2)
+  - Politician SELL + MSPR<-20→ BOTH EXITING  (+3)
+Source 5: News catalysts (earnings, M&A → +1)
+Source 6: Fed tone (HAWKISH/DOVISH alignment)
+Source 7: Tavily enrichment (if Finnhub news misses → +1)
+```
+
+**Live test result:** Divergence boost = **5** (politician clusters + $16.1M insider net buying + dovish Fed)
+
+### Convergence/Divergence Signals Detected (Live March 9)
+```
+NOW (buy):   DIVERGENCE ❌  boost=-2 → Politician fading insiders (MSPR=-100)
+PYPL (sell): DIVERGENCE ❌  boost=-2 → Politician bailing while insiders buy (MSPR=100)
+AAPL (buy):  CONVERGENCE ✅ boost=+1 → Both aligned (MSPR=26)
+```
+
+---
+
+## 4. API ENDPOINTS (Backend → Frontend)
+
+| Endpoint | Method | Returns | Status |
+|----------|--------|---------|--------|
+| `/api/v1/agentx/report` | GET | Full brain report (tone + hands + Finnhub + divergence) | ✅ Live |
+| `/api/v1/agentx/enrich` | GET | On-demand Tavily enrichment for tickers | ✅ Live |
+
+**Brain report payload shape** (from `/agentx/report`):
+```json
+{
+  "status": "ok",
+  "scan_time_seconds": 45.2,
+  "fed_tone_summary": [{"speaker": "...", "tone": "HAWKISH", "confidence": 0.85}],
+  "fed_hawkish_count": 1, "fed_dovish_count": 2,
+  "fed_overall_tone": "DOVISH",
+  "hidden_hands": {
+    "politician_cluster": 6, "politician_buys": 4, "politician_sells": 2,
+    "insider_net_usd": 16100000, "hot_tickers": ["ALT", "CSGP", "FFIN"],
+    "politician_details": [{"name": "Byron Donalds (R-FL)", "ticker": "BRO", "type": "sell"}],
+    "insider_details": [{"name": "3 insiders at Harley-Davidson", "ticker": "HOG", "value": 411996}]
+  },
+  "finnhub_signals": [{"ticker": "NOW", "convergence": "DIVERGENCE", "insider_mspr": -100}],
+  "finnhub_news": {"ALT": [{"headline": "...", "source": "...", "datetime": "..."}]},
+  "tavily_context": null,
+  "divergence_boost": 5,
+  "reasons": ["Politician cluster buys detected...", "Finnhub: Politician BUY but MSPR=-100..."]
+}
+```
+
+---
+
+## 5. FRONTEND COMPONENTS (Existing — Need Wiring to Pages)
+
+```
+frontend/src/components/agentx/
+├── AgentXDashboard.tsx         # Main dashboard container
+├── hooks/useAgentXReport.ts    # Data hook → /api/v1/agentx/report (2-min refresh)
+├── panels/
+│   ├── ConvictionHeader.tsx    # Divergence boost gauge + overall tone
+│   ├── FedTonePanel.tsx        # Hawk/dove summary per official
+│   ├── PoliticianTradesPanel.tsx # Congressional trade table
+│   ├── InsiderTradesPanel.tsx  # Insider cluster buys table
+│   ├── HotTickersStrip.tsx     # Ticker badge strip
+│   └── TavilyResearchPanel.tsx # Research context display
+├── primitives/
+│   ├── BoostGauge.tsx          # Circular divergence meter
+│   ├── ToneBadge.tsx           # HAWKISH/DOVISH/NEUTRAL badge
+│   └── TradeRow.tsx            # Single trade row component
+├── types.ts                    # BrainReport TypeScript types
+└── utils.ts                    # Formatting helpers
+```
+
+### What's Ready vs What's Needed for 2 Pages
+
+#### Page 1: "The Feds" (Fed Officials Intelligence)
+| Component | Data Source | Status |
+|-----------|-----------|--------|
+| Fed Tone Summary (hawk/dove breakdown) | `fed_tone_summary` from brain | ✅ Data exists |
+| Individual Official Tones | `FedTonePanel.tsx` | ✅ Component exists |
+| Overall Tone + Confidence | `ConvictionHeader.tsx` | ✅ Component exists |
+| Fed Calendar Events | `FedRSSCalendarPoller.poll_calendar()` | ✅ Data exists, ❌ No dedicated endpoint |
+| Speech Transcripts | Diffbot-extracted full text | ✅ In DB, ❌ No frontend component |
+| Impact Predictions | `ImpactLearner.predict_impact()` | ✅ Logic exists, ❌ Not in API response |
+
+#### Page 2: "Politicians" (Hidden Hands Intelligence)
+| Component | Data Source | Status |
+|-----------|-----------|--------|
+| Politician Trades Table | `hidden_hands.politician_details` from brain | ✅ Data + component exists |
+| Insider Trades Table | `hidden_hands.insider_details` from brain | ✅ Data + component exists |
+| Finnhub MSPR Convergence | `finnhub_signals` from brain | ✅ Data exists, ❌ No frontend component |
+| News Headlines per Ticker | `finnhub_news` from brain | ✅ Data exists, ❌ No frontend component |
+| Hot Tickers Strip | `HotTickersStrip.tsx` | ✅ Component exists |
+| Spouse Trade Alerts | Logged but not in API response | ❌ Missing from payload |
+| Tavily Deep Research | `TavilyResearchPanel.tsx` | ✅ Component exists |
+
+---
+
+## 6. BUILD PLAN FOR 2 FRONTEND PAGES
+
+### What's Needed (Backend):
+1. **Dedicated endpoints** — Consider splitting `/agentx/report` into:
+   - `/api/v1/fed/tone` — Fed tone, speeches, calendar
+   - `/api/v1/fed/politicians` — Politician trades + Finnhub signals + news
+   - Or keep `/agentx/report` as the unified feed and let frontend filter
+2. **Add to payload**:
+   - `spouse_trade_alerts`: list of detected spouse trades
+   - `fed_calendar_events`: upcoming FOMC/Fed events
+   - `finnhub_insider_transactions`: per-person SEC filings for hot tickers
+
+### What's Needed (Frontend):
+1. **Two new page files**: `Feds.tsx` + `Politicians.tsx` in `frontend/src/pages/`
+2. **New components**:
+   - `FinnhubConvergencePanel.tsx` — MSPR convergence/divergence visualization
+   - `FinnhubNewsPanel.tsx` — News headlines per ticker (replaces/supplements Tavily)
+   - `SpouseAlertBanner.tsx` — Spouse trade warning banner
+   - `FedCalendarPanel.tsx` — Upcoming Fed events timeline
+3. **Route registration** in `App.tsx` or router config
+
+---
+
+## 7. API KEYS (Verified Present in .env)
+
+| Service | Env Var | Present? | Live-Tested? |
+|---------|---------|----------|-------------|
+| Cohere | `COHERE_API_KEY` | ✅ | ✅ Tone analysis works |
+| Tavily | `TAVILY_API_KEY` | ✅ | ✅ Research works |
+| Diffbot | `DIFFBOT_TOKEN` | ✅ | ✅ 429s on quota (expected) |
+| Finnhub | `FINNHUB_API_KEY` | ✅ | ✅ All 3 endpoints tested |
+
+---
+
+## 8. SELF-CORRECTION LOG
+
+> **March 9 16:36** — Alpha called out that every "✅ Live" claim was code review only.
+> MDC rewritten with honest tested-vs-assumed disclosure.
+
+> **March 9 17:15** — Engine modularized: 312 → 180 lines.
+> 3 new modules: trade_normalizer, tone_aggregator, report_builder.
+> Weighted tone scoring replaces rigid counting. All 5 tests pass.
+
+> **March 9 17:45** — Finnhub wired in. 3 endpoints live-tested.
+> MSPR cross-reference detects NOW/PYPL divergence. News saves Tavily quota.
+> Brain report includes finnhub_signals + finnhub_news.
+
+> **March 9 17:55** — MDC recalibrated with live test results.
+> Ready for 2 frontend pages: The Feds + Politicians.

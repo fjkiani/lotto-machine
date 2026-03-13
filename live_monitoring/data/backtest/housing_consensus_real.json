@@ -1,0 +1,184 @@
+[
+  {
+    "release_date": "2026-02-12",
+    "ref_month": "Jan 2026",
+    "actual": 3.91,
+    "forecast": 4.16,
+    "previous": 4.27
+  },
+  {
+    "release_date": "2026-01-14",
+    "ref_month": "Dec 2025",
+    "actual": 4.35,
+    "forecast": 4.21,
+    "previous": 4.14
+  },
+  {
+    "release_date": "2025-12-19",
+    "ref_month": "Nov 2025",
+    "actual": 4.13,
+    "forecast": 4.15,
+    "previous": 4.11
+  },
+  {
+    "release_date": "2025-11-20",
+    "ref_month": "Oct 2025",
+    "actual": 4.1,
+    "forecast": 4.08,
+    "previous": 4.05
+  },
+  {
+    "release_date": "2025-10-23",
+    "ref_month": "Sep 2025",
+    "actual": 4.06,
+    "forecast": 4.06,
+    "previous": 4.0
+  },
+  {
+    "release_date": "2025-09-25",
+    "ref_month": "Aug 2025",
+    "actual": 4.0,
+    "forecast": 3.96,
+    "previous": 4.01
+  },
+  {
+    "release_date": "2025-08-21",
+    "ref_month": "Jul 2025",
+    "actual": 4.01,
+    "forecast": 3.92,
+    "previous": 3.93
+  },
+  {
+    "release_date": "2025-07-23",
+    "ref_month": "Jun 2025",
+    "actual": 3.93,
+    "forecast": 4.0,
+    "previous": 4.04
+  },
+  {
+    "release_date": "2025-06-23",
+    "ref_month": "May 2025",
+    "actual": 4.03,
+    "forecast": 3.96,
+    "previous": 4.0
+  },
+  {
+    "release_date": "2025-05-22",
+    "ref_month": "Apr 2025",
+    "actual": 4.0,
+    "forecast": 4.15,
+    "previous": 4.02
+  },
+  {
+    "release_date": "2025-04-24",
+    "ref_month": "Mar 2025",
+    "actual": 4.02,
+    "forecast": 4.14,
+    "previous": 4.27
+  },
+  {
+    "release_date": "2025-03-20",
+    "ref_month": "Feb 2025",
+    "actual": 4.26,
+    "forecast": 3.95,
+    "previous": 4.09
+  },
+  {
+    "release_date": "2025-02-21",
+    "ref_month": "Jan 2025",
+    "actual": 4.08,
+    "forecast": 4.13,
+    "previous": 4.29
+  },
+  {
+    "release_date": "2025-01-24",
+    "ref_month": "Dec 2024",
+    "actual": 4.24,
+    "forecast": 4.19,
+    "previous": 4.15
+  },
+  {
+    "release_date": "2024-12-19",
+    "ref_month": "Nov 2024",
+    "actual": 4.15,
+    "forecast": 4.09,
+    "previous": 3.96
+  },
+  {
+    "release_date": "2024-11-21",
+    "ref_month": "Oct 2024",
+    "actual": 3.96,
+    "forecast": 3.95,
+    "previous": 3.83
+  },
+  {
+    "release_date": "2024-10-23",
+    "ref_month": "Sep 2024",
+    "actual": 3.84,
+    "forecast": 3.88,
+    "previous": 3.88
+  },
+  {
+    "release_date": "2024-09-19",
+    "ref_month": "Aug 2024",
+    "actual": 3.86,
+    "forecast": 3.92,
+    "previous": 3.96
+  },
+  {
+    "release_date": "2024-08-22",
+    "ref_month": "Jul 2024",
+    "actual": 3.95,
+    "forecast": 3.94,
+    "previous": 3.9
+  },
+  {
+    "release_date": "2024-07-23",
+    "ref_month": "Jun 2024",
+    "actual": 3.89,
+    "forecast": 3.99,
+    "previous": 4.11
+  },
+  {
+    "release_date": "2024-06-21",
+    "ref_month": "May 2024",
+    "actual": 4.11,
+    "forecast": 4.08,
+    "previous": 4.14
+  },
+  {
+    "release_date": "2024-05-22",
+    "ref_month": "Apr 2024",
+    "actual": 4.14,
+    "forecast": 4.21,
+    "previous": 4.22
+  },
+  {
+    "release_date": "2024-04-18",
+    "ref_month": "Mar 2024",
+    "actual": 4.19,
+    "forecast": 4.2,
+    "previous": 4.38
+  },
+  {
+    "release_date": "2024-03-21",
+    "ref_month": "Feb 2024",
+    "actual": 4.38,
+    "forecast": 3.95,
+    "previous": 4.0
+  },
+  {
+    "release_date": "2024-02-22",
+    "ref_month": "Jan 2024",
+    "actual": 4.0,
+    "forecast": 3.96,
+    "previous": 3.88
+  },
+  {
+    "release_date": "2024-01-19",
+    "ref_month": "Dec 2023",
+    "actual": 3.78,
+    "forecast": 3.82,
+    "previous": 3.82
+  }
+]

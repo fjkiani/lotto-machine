@@ -221,6 +221,35 @@ class DivergenceDetector:
         except Exception as e:
             logger.error("Error in liquidity crisis check for %s: %s", symbol, e)
 
+        # Check 4: Economic Surprise Divergence
+        try:
+            macro_data = institutional_data.get("macro_data", {})
+            net_surprise = macro_data.get("net_surprise_sigma", 0.0)
+            pct_change = institutional_data.get("pct_change", 0.0)
+            
+            if net_surprise >= 2.0 and pct_change < -1.0:
+                divergences.append(
+                    {
+                        "type": "ECONOMIC_SURPRISE_DIVERGENCE",
+                        "severity": "HIGH",
+                        "reality": f"Strong economic data (Surprise: {net_surprise:+.1f}σ) but market dropping (-{abs(pct_change):.1f}%).",
+                        "narrative": "News praises economic resilience but misses institutional selling.",
+                        "signal": "SHORT_OR_TRIM - Liquidity drain overriding macro data.",
+                    }
+                )
+            elif net_surprise <= -2.0 and pct_change > 1.0:
+                divergences.append(
+                    {
+                        "type": "ECONOMIC_SURPRISE_DIVERGENCE",
+                        "severity": "HIGH",
+                        "reality": f"Weak economic data (Surprise: {net_surprise:+.1f}σ) but market rallying (+{pct_change:.1f}%).",
+                        "narrative": "News highlights 'rate cut hopium'.",
+                        "signal": "LONG - Short squeeze or OPEX pinning overriding bad news.",
+                    }
+                )
+        except Exception as e:
+            logger.error("Error in economic surprise check for %s: %s", symbol, e)
+
         return divergences
 
 

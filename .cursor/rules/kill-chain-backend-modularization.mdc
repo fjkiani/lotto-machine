@@ -287,11 +287,11 @@ MISMATCH_RULES = [
 
 ### Medium-Term (1–2 weeks) — Modularization
 
-| Priority | Task |
-|---|---|
-| 🟡 P1 | Create `kill_chain_config.py` and extract all hardcoded values |
-| 🟡 P1 | Replace 60-line import boilerplate with `LAYER_REGISTRY` |
-| 🟡 P1 | Apply `@layer_fetch` decorator to all 5 fetcher methods |
-| 🟢 P2 | Externalize `MISMATCH_RULES` to declarative format |
-| 🟢 P2 | Add scan-level caching to `run_full_scan` (Redis or in-memory TTL) |
-| 🟢 P2 | Optional parallel fetching via `ThreadPoolExecutor` (config-gated) |
+| Priority | Task | Status |
+|---|---|---|
+| ✅ DONE | Create `kill_chain_config.py` and extract all hardcoded values | ✅ |
+| ✅ DONE | Replace 60-line import boilerplate with `LAYER_REGISTRY` | ✅ |
+| ✅ DONE | Apply `@layer_fetch` decorator to all 5 fetcher methods | ✅ |
+| ✅ DONE | Externalize `MISMATCH_RULES` to declarative format | ✅ |
+| 🟢 P2 | Add scan-level caching to `run_full_scan` (Redis or in-memory TTL) | ⏳ |
+| 🟢 P2 | Optional parallel fetching via `ThreadPoolExecutor` (config-gated) | ⏳ |

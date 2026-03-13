@@ -1,0 +1,23 @@
+{
+  "source_name": "cboe_vix",
+  "source_url": "yfinance ^VIX + ^VVIX",
+  "download_date": "2026-03-10T01:33:28.589757",
+  "date_range": {
+    "start": "2021-03-10 00:00:00",
+    "end": "2026-03-09 00:00:00"
+  },
+  "total_rows": 1255,
+  "schema_version": 1,
+  "columns": [
+    "date",
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Volume",
+    "symbol",
+    "vvix_close",
+    "vix_regime"
+  ],
+  "verification_status": "pending"
+}

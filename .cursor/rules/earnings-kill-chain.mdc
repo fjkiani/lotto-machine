@@ -1,0 +1,519 @@
+---
+description: "Earnings Kill Chain — full pre-earnings intelligence playbook. Data source inventory, pipeline wiring, replay sequence, decision matrix, and codebase integration map."
+globs:
+  - "live_monitoring/enrichment/**"
+  - "live_monitoring/agents/**"
+  - "backend/app/api/v1/darkpool.py"
+  - "live_monitoring/core/signal_generator.py"
+alwaysApply: false
+---
+
+# 🎯 Earnings Kill Chain — Full Replay Playbook
+
+**Purpose:** Structured, repeatable pre-earnings intelligence run. Every step has a data source, a code path, and a decision rule. No brute-forcing.
+
+**Last validated:** 2026-03-11 01:15 ET (all endpoints live, all consumer code patched)
+
+---
+
+## Architecture Overview
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                    EARNINGS KILL CHAIN — DATA FLOW                         │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
+│  PHASE 1: TARGET IDENTIFICATION                                           │
+│  ├── yfinance .calendar            → next_earnings_date                   │
+│  ├── EventLoader (Yahoo Calendar)  → macro events + OPEX detection        │
+│  └── AXLFI /clusters/table         → sector/cluster context               │
+│                                                                            │
+│  PHASE 2: DARK POOL INTELLIGENCE                                          │
+│  ├── AXLFI /dark_pools/leaderboard → top 200 positions (where $ is)       │
+│  ├── AXLFI /dark_pools/symbol      → per-ticker 252d history + 5d trend   │
+│  └── AXLFI /symbols/info           → price, sector, volatility, 52w      │
+│                                                                            │
+│  PHASE 3: OPTIONS & GAMMA CONTEXT                                         │
+│  ├── AXLFI /option_walls/data      → SPY/QQQ/IWM call/put walls + POC   │
+│  ├── AXLFI /option_walls/snapshot  → live SPY/QQQ/IWM prices             │
+│  └── ChartExchange options chain   → individual stock OI (if available)   │
+│                                                                            │
+│  PHASE 4: REGIME & SIGNAL CROSS-REF                                      │
+│  ├── AXLFI /dashboard/all          → VIX regime + signal symbols          │
+│  ├── narrative_engine.py           → 6-source synthesizer                 │
+│  └── market_narrative_pipeline.py  → Perplexity macro + causal chain      │
+│                                                                            │
+│  PHASE 5: DECISION                                                        │
+│  └── Decision Matrix (see below)   → LEAN LONG / LEAN SHORT / NEUTRAL    │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Phase 1: Target Identification
+
+### Step 1.1 — Find Earnings Dates
+
+**Data source:** `yfinance` `.calendar` property
+**Code path:** `live_monitoring/agents/unusual_activity_investigator.py` → `_check_earnings()`
+
+```python
+import yfinance as yf
+from datetime import datetime
+
+tickers = ["ADBE", "ORCL", "LEN"]  # This week's earnings
+
+for ticker in tickers:
+    t = yf.Ticker(ticker)
+    cal = t.calendar
+    if cal is not None and 'Earnings Date' in cal:
+        earn_date = list(cal['Earnings Date'])[0]
+        days_until = (earn_date.date() - datetime.now().date()).days
+        print(f"{ticker}: Earnings {earn_date.date()} ({days_until}d away)")
+```
+
+**Decision gate:** Only proceed with tickers where `0 < days_until <= 5`.
+
+### Step 1.2 — Check Macro Calendar (Same-Day Events)
+
+**Data source:** Yahoo Finance Calendar API via RapidAPI
+**Code path:** `live_monitoring/enrichment/apis/event_loader.py` → `EventLoader.load_events()`
+
+```python
+from live_monitoring.enrichment.apis.event_loader import EventLoader
+
+loader = EventLoader()
+events = loader.load_events(date="2026-03-12", min_impact="medium")
+
+# Key fields per event:
+# - event_name, actual, forecast, previous
+# - sigma (surprise score: |actual - forecast| / |forecast|)
+# - impact_level: "high", "medium"
+# - is_released: True/False
+```
+
+**Decision gate:** If `CPI`, `FOMC`, or `jobs` event on same day as earnings → increase position sizing risk. Flag for narrative.
+
+### Step 1.3 — Cluster Context (Sector Peers)
+
+**Data source:** AXLFI `/clusters/table` (214KB)
+**Code path:** `StockgridClient.get_clusters()`
+
+```python
+client = StockgridClient()
+clusters = client.get_clusters()
+
+# Find which cluster ADBE belongs to
+for universe_key in ["sp500", "nasdaq100", "all"]:
+    universe = clusters.get(universe_key, [])
+    for stock in universe:
+        if stock.get("symbol") == "ADBE":
+            print(f"  Cluster: {stock.get('cluster_id')} | Sector: {stock.get('sector')}")
+```
+
+**Use:** Identify sector peers in the same cluster. If peers are rallying pre-earnings, sector momentum supports a bullish lean.
+
+---
+
+## Phase 2: Dark Pool Intelligence (The Core)
+
+### Step 2.1 — Leaderboard Position (Where Is the Money?)
+
+**Data source:** AXLFI `/dark_pools/leaderboard`
+**Code path:** `StockgridClient.get_top_positions(limit=200)`
+**Returns:** `List[DarkPoolPosition]` — each has `.ticker`, `.dp_position_dollars`, `.short_volume_pct`, `.net_short_dollars`
+
+```python
+client = StockgridClient()
+top = client.get_top_positions(limit=200)
+
+# Find our earnings targets in the leaderboard
+earnings_set = {"ADBE", "ORCL", "LEN"}
+for p in top:
+    if p.ticker in earnings_set:
+        print(f"{p.ticker}: DP ${p.dp_position_dollars/1e9:.1f}B | SV% {p.short_volume_pct:.1f}% | NetShort ${p.net_short_dollars/1e6:.0f}M")
+```
+
+**Interpretation:**
+| SV% Range | Signal | Meaning |
+|-----------|--------|---------|
+| < 45% | 🟢 Bullish | Institutions buying aggressively in dark pools |
+| 45-55% | 🟡 Neutral | Balanced flow — no strong directional bias |
+| > 55% | 🔴 Bearish | Heavy short selling through dark pools |
+
+### Step 2.2 — Per-Ticker 5-Day Trend (Direction Matters More Than Level)
+
+**Data source:** AXLFI `/dark_pools/symbol`
+**Code path:** `StockgridClient.get_ticker_detail(ticker)` → returns `DarkPoolPosition`
+**Raw history:** `StockgridClient.get_ticker_detail_raw(ticker)` → returns `dict` with 252d arrays
+
+```python
+# Quick check: latest position
+detail = client.get_ticker_detail("ADBE")
+print(f"ADBE: DP shares={detail.dp_position_shares:,.0f} | SV%={detail.short_volume_pct:.1f}%")
+
+# Full trend analysis (5d):
+raw = client.get_ticker_detail_raw("ADBE")
+dp = raw["individual_dark_pool_position_data"]
+dates = dp["dates"][-5:]
+shares = dp["dp_position"][-5:]
+for d, s in zip(dates, shares):
+    print(f"  {d}: {s:>12,.0f} shares")
+```
+
+**Trend Decision Rules:**
+| Pattern | Signal | Example |
+|---------|--------|---------|
+| 5d shares IMPROVING (less negative or more positive) | 🟢 Covering/Accumulating | -7M → -4M = shorts covering pre-earnings |
+| 5d shares WORSENING (more negative or less positive) | 🔴 Distribution | +2M → -1M = institutions reducing exposure |
+| 5d shares FLAT | 🟡 No conviction | ±500K movement = noise |
+
+### Step 2.3 — Ticker Metadata (52-Week Context + Volatility)
+
+**Data source:** AXLFI `/symbols/info`
+**Code path:** `StockgridClient.get_symbol_info(ticker)`
+
+```python
+info = client.get_symbol_info("ADBE")
+sym = info["symbol"]
+print(f"ADBE: ${sym['close']} ({sym['change_pct']:+.1f}%) | Vol: {sym['volatility']}")
+print(f"  52w: ${sym['52_week_low']}-${sym['52_week_high']} | Sector: {sym['sector']}")
+
+# Context: where in the range?
+position_in_range = (sym['close'] - sym['52_week_low']) / (sym['52_week_high'] - sym['52_week_low'])
+print(f"  52w position: {position_in_range:.0%}")  # 0% = at low, 100% = at high
+```
+
+**Decision gate:**
+- If < 20% of 52w range → beaten down, could pop (or could die — check dark pool trend)
+- If > 80% of 52w range → extended, post-earnings fade risk is higher
+
+### Step 2.4 — All-In-One Convenience Method
+
+**Code path:** `StockgridClient.get_earnings_intel(tickers)`
+**Returns:** Fused dict per ticker with DP trend, short vol, metadata, option walls, VIX regime, and signal symbols
+
+```python
+intel = client.get_earnings_intel(["ADBE", "ORCL", "LEN"])
+
+for ticker, data in intel.items():
+    if data.get("status") != "live":
+        continue
+    
+    trend = data["trend_5d"]
+    first_shares = trend[0]["shares"] or 0
+    last_shares = trend[-1]["shares"] or 0
+    direction = "⬆️ ACCUMULATING" if last_shares > first_shares else "⬇️ DISTRIBUTING"
+    
+    signal = "🟢" if last_shares > 0 else "🔴"
+    sv = data["short_volume_pct"]
+    
+    print(f"{signal} {ticker}: DP {last_shares:,.0f} shares | SV {sv:.1f}% | {direction}")
+    print(f"  ${data['close']} in {data['52w_range']} | {data['sector']}")
+```
+
+---
+
+## Phase 3: Options & Gamma Context
+
+### Step 3.1 — SPY/QQQ Option Walls (Macro Gamma)
+
+**Data source:** AXLFI `/option_walls/data`
+**Code path:** `StockgridClient.get_option_walls_today("SPY")`
+
+```python
+walls = client.get_option_walls_today("SPY")
+if walls:
+    print(f"SPY Walls: Call={walls.call_wall} Put={walls.put_wall} POC={walls.poc}")
+    
+    # Price vs walls
+    snapshot = client.get_market_snapshot()
+    spy_price = snapshot["market_snapshot"]["SPY"]["close"]
+    
+    if spy_price > walls.call_wall:
+        print("  ⚡ ABOVE call wall — breakout territory, gamma squeeze potential")
+    elif spy_price < walls.put_wall:
+        print("  ⚡ BELOW put wall — breakdown territory, gamma crash risk")
+    else:
+        print("  🔄 BETWEEN walls — pinned/ranging, gamma neutral")
+```
+
+**Why this matters for earnings:** If SPY is pinned at a call wall during your target's earnings, the market is range-bound and individual stock moves will be driven by company-specific catalysts (good for earnings plays). If SPY is in breakdown territory, even good earnings can get sold.
+
+### Step 3.2 — VIX Regime Check
+
+**Data source:** AXLFI `/dashboard/all` → `strategy_metrics.volatility_regime`
+**Code path:** `StockgridClient.get_volatility_regime()`
+
+```python
+regime = client.get_volatility_regime()
+print(f"VIX Regime: Level {regime['current_regime']} — {regime['tier_label']}")
+```
+
+| Regime | Level | Earnings Impact |
+|--------|-------|-----------------|
+| Low Vol | 1 | Lower IV premium → smaller post-earnings moves |
+| Warning | 2 | Normal IV → standard earnings reactions |
+| High Vol | 3 | Elevated IV → amplified moves both directions |
+| Extreme | 4 | Crisis mode → earnings reactions can be muted (macro dominates) |
+
+---
+
+## Phase 4: Narrative & Signal Cross-Reference
+
+### Step 4.1 — Signal Symbols Check (Is AXLFI Bullish On Peers?)
+
+**Data source:** AXLFI `/dashboard/all` → `signal_symbols`
+**Code path:** `StockgridClient.get_signal_symbols()`
+
+```python
+signals = client.get_signal_symbols()
+bullish = [s["symbol"] for s in signals if s.get("dir") == 1]
+bearish = [s["symbol"] for s in signals if s.get("dir") == -1]
+
+# Cross-reference with earnings targets
+for ticker in ["ADBE", "ORCL", "LEN"]:
+    if ticker in bullish:
+        print(f"  ✅ {ticker} is on the BULLISH signal list")
+    elif ticker in bearish:
+        print(f"  ❌ {ticker} is on the BEARISH signal list")
+    else:
+        print(f"  ➖ {ticker} not in any signal list")
+```
+
+### Step 4.2 — Full Narrative Engine (6-Source Synthesis)
+
+**Code path:** `live_monitoring/enrichment/narrative_engine.py` → `run_narrative_engine()`
+
+```python
+from live_monitoring.enrichment.narrative_engine import run_narrative_engine
+
+result = run_narrative_engine("ADBE", verbose=True)
+# Aggregates: yfinance price + RSS news + Stockgrid DP + crypto correlation + EventLoader + Kill Chain
+```
+
+**Sources aggregated:**
+1. yfinance — price snapshot + VIX
+2. RSS news — sentiment from headlines
+3. StockgridClient — dark pool narrative
+4. Crypto correlation — BTC/ETH vs equities divergence
+5. EventLoader — economic calendar
+6. Kill Chain engine — 5-layer institutional intelligence
+
+### Step 4.3 — Market Narrative Pipeline (Perplexity Synthesizer)
+
+**Code path:** `live_monitoring/enrichment/market_narrative_pipeline.py` → `market_narrative_pipeline()`
+
+```python
+from live_monitoring.enrichment.market_narrative_pipeline import market_narrative_pipeline
+
+mn = market_narrative_pipeline("ADBE", enable_logging=True)
+# Returns MarketNarrative with: macro_narrative, sector_narrative, causal_chain, conviction, direction
+```
+
+**Requires:** `PERPLEXITY_API_KEY` env var. Uses Perplexity for real-time macro/sector/asset search + synthesis.
+
+---
+
+## Phase 5: Decision Matrix
+
+### The Replay Score Card
+
+Run this for each earnings target. Score each factor and sum:
+
+| Factor | Bullish (+) | Neutral (0) | Bearish (-) |
+|--------|-------------|-------------|-------------|
+| **DP 5d Trend** | Accumulating (+2) | Flat (0) | Distributing (-2) |
+| **Short Vol %** | < 45% (+1) | 45-55% (0) | > 55% (-1) |
+| **DP Position Sign** | Positive (+1) | Near-zero (0) | Negative (-1) |
+| **52w Range Position** | 20-60% (+1) | 60-80% (0) | <20% or >80% (-1) |
+| **VIX Regime** | Level 1-2 (+1) | Level 3 (0) | Level 4 (-1) |
+| **Signal List** | On bullish list (+1) | Not listed (0) | On bearish list (-1) |
+| **SPY Gamma** | Above call wall (+1) | Between walls (0) | Below put wall (-1) |
+| **Sector Momentum** | Peers rallying (+1) | Mixed (0) | Peers selling (-1) |
+
+### Score Interpretation
+
+| Score | Action | Sizing |
+|-------|--------|--------|
+| +5 to +8 | 🟢 LEAN LONG | Full size (1-2% of portfolio) |
+| +2 to +4 | 🟡 LEAN LONG (cautious) | Half size |
+| -1 to +1 | ⚪ NEUTRAL | No position or small straddle |
+| -4 to -2 | 🟡 LEAN SHORT (cautious) | Half size puts |
+| -8 to -5 | 🔴 LEAN SHORT | Full size puts |
+
+### Live Score Cards (2026-03-11 Replay)
+
+```
+🎯 ADBE (Adobe) — Earnings Wed Mar 12, After-Close
+────────────────────────────────────────────────────
+Factor                Score  Evidence
+DP 5d Trend           +2     -7,125,676 → -4,076,211 (shorts covering hard)
+Short Vol %            0     46.1% (neutral — just below 45% bullish threshold)
+DP Position Sign      -1     -4.1M cumulative (still net selling overall)
+52w Range Position    -1     15% of range ($244–$444) — beaten down badly
+VIX Regime            +1     Level 2 — Tier 1 Warning (normal)
+Signal List            0     Not on AXLFI bullish or bearish list
+SPY Gamma              0     SPY $677 between Call=685 / Put=655 (pinned)
+Sector Momentum        ?     Check AMAT, CRM peers — ADBE -2.6% today
+────────────────────────────────────────────────────
+TOTAL                 +1     → ⚪ NEUTRAL / slight long lean
+Note: 4-quarter beat streak. At 15% of 52w = deep value or knife.
+      Covering trend is the strongest bull signal here.
+
+🎯 ORCL (Oracle) — Reported Mon Mar 11, After-Close
+────────────────────────────────────────────────────
+Factor                Score  Evidence
+DP 5d Trend           +2     -52,398,029 → -39,580,463 (massive covering)
+Short Vol %            0     47.0% (neutral)
+DP Position Sign      -1     -39.6M cumulative (still net selling)
+52w Range Position    -1     13% of range ($119–$346) — crushed
+VIX Regime            +1     Level 2 — Tier 1 Warning
+Signal List            0     Not on signal list
+SPY Gamma              0     Between walls
+────────────────────────────────────────────────────
+TOTAL                 +1     → ⚪ NEUTRAL
+Note: 2-quarter beat streak. 13M shares covered in 5 days = big.
+      EPS $1.74 est → watch reaction for ADBE read-across.
+
+🎯 LEN (Lennar) — Earnings Wed Mar 12, After-Close
+────────────────────────────────────────────────────
+Factor                Score  Evidence
+DP 5d Trend           -2     1,879,554 → 1,661,752 (light distribution)
+Short Vol %            0     48.5% (neutral)
+DP Position Sign      +1     +1.7M cumulative (still net accumulation)
+52w Range Position    -1     5% of range ($96–$144) — near 52w low
+VIX Regime            +1     Level 2 — Tier 1 Warning
+Signal List            0     Not on signal list
+SPY Gamma              0     Between walls
+────────────────────────────────────────────────────
+TOTAL                 -1     → ⚪ NEUTRAL / slight short lean
+Note: 0-quarter beat streak. Housing sector headwinds.
+      Near 52w lows + distribution = risky long.
+```
+
+---
+
+## Pipeline File Map
+
+### Data Source → Client → Consumer Chain
+
+```
+AXLFI API
+├── /dark_pools/leaderboard → StockgridClient.get_top_positions()
+│   ├── darkpool.py (backend API)         → /darkpool/top-positions
+│   ├── kc_layer_registry.py              → dark_pool_fetcher
+│   ├── tm_layer_fetcher.py               → fetch_dark_pool()
+│   └── institutional_narrative.py        → load_institutional_context()
+│
+├── /dark_pools/symbol → StockgridClient.get_ticker_detail()  [returns DarkPoolPosition]
+│   │                  → StockgridClient.get_ticker_detail_raw()  [returns dict w/ 252d history]
+│   ├── darkpool.py (backend API)         → /darkpool/{symbol}/levels, /summary, /prints
+│   ├── battleground.py                   → BattlegroundAnalyzer
+│   ├── tm_layer_fetcher.py               → fetch_dark_pool()
+│   ├── dp_snapshot_recorder.py           → capture_snapshot()
+│   └── institutional_narrative.py        → load_institutional_context()
+│
+├── /option_walls/data → StockgridClient.get_option_walls()
+│   └── get_earnings_intel()              → SPY/QQQ walls context
+│
+├── /dashboard/all → StockgridClient.get_dashboard()
+│   ├── get_volatility_regime()           → VIX climax tier
+│   ├── get_signal_symbols()              → bullish/bearish signal list
+│   └── get_movers()                      → sector rotation + volume spikes
+│
+├── /symbols/info → StockgridClient.get_symbol_info()
+│   └── get_earnings_intel()              → ticker metadata context
+│
+└── /clusters/table → StockgridClient.get_clusters()
+    └── Sector/rotation analysis
+
+Yahoo Finance Calendar API
+└── EventLoader.load_events()
+    ├── market_narrative_pipeline.py       → load_event_schedule()
+    └── narrative_engine.py               → _get_events()
+
+yfinance
+├── .calendar                             → unusual_activity_investigator._check_earnings()
+├── .history()                            → _get_price_snapshot(), _get_current_price()
+└── institutional_narrative.py            → price + pct_change
+
+Perplexity API
+└── market_narrative_pipeline.py          → macro/sector/asset narrative synthesis
+
+Finnhub (RSS)
+└── finnhub_client.py                     → news headlines + catalyst detection ("earnings" keyword)
+```
+
+---
+
+## Quick Replay Command
+
+Run the entire kill chain for earnings targets in one shot:
+
+```bash
+# From project root:
+cd /Users/fahadkiani/Desktop/development/nyu-hackathon/ai-hedge-fund-main
+
+python3 -c "
+from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
+
+client = StockgridClient()
+intel = client.get_earnings_intel(['ADBE', 'ORCL', 'LEN'])
+
+for ticker, data in intel.items():
+    if ticker.startswith('_') or '_walls' in ticker:
+        continue
+    if data.get('status') != 'live':
+        continue
+    
+    trend = data['trend_5d']
+    first = trend[0]['shares'] or 0
+    last = trend[-1]['shares'] or 0
+    direction = '⬆️' if last > first else '⬇️'
+    signal = '🟢' if last > 0 else '🔴'
+    
+    print(f'{signal} {ticker}: DP {last:>12,.0f} | SV {data[\"short_volume_pct\"]:.1f}% | {direction} | \${data[\"close\"]} | {data[\"sector\"]}')
+    for d in trend:
+        s = d['shares'] or 0
+        print(f'    {d[\"date\"]}: {s:>12,.0f}')
+
+# VIX regime
+r = intel.get('_regime', {})
+print(f'\nVIX: Level {r.get(\"current_regime\",\"?\")} — {r.get(\"tier_label\",\"?\")}')
+
+# Signals
+sigs = intel.get('_signals', [])
+if sigs:
+    bulls = [s['symbol'] for s in sigs if s.get('dir') == 1]
+    bears = [s['symbol'] for s in sigs if s.get('dir') == -1]
+    print(f'Bullish: {bulls[:10]}')
+    print(f'Bearish: {bears[:10]}')
+"
+```
+
+---
+
+## Known Gaps & Future Work
+
+| Gap | Impact | Fix |
+|-----|--------|-----|
+| No individual stock option walls | Can't see gamma pinning for ADBE/ORCL directly | Use ChartExchange `/data/options/chain-summary/` if available |
+| EventLoader `earnings` field is empty | Can't auto-identify earnings dates from calendar | Use yfinance `.calendar` as fallback (works) |
+| No real-time intraday DP data | Dark pool is T+1 — can't see post-earnings DP reaction same-day | Capture snapshots via `dp_snapshot_recorder.py` during RTH |
+| Finnhub earnings keyword detection is basic | Only matches "earnings" in headline text | Add NLP-based catalyst classification |
+| No IV rank/percentile | Can't quantify IV premium for options sizing | Add IV30/IV60 from options chain data |
+
+---
+
+## Rules for This Codebase
+
+1. **`get_ticker_detail()` returns `DarkPoolPosition`** (not raw dict). Use `get_ticker_detail_raw()` for the full 252d history dict.
+2. **`short_volume_pct` is already a percentage** (e.g., 53.5). Do NOT multiply by 100. The `institutional_narrative.py` has a `raw <= 1.0` guard — this guard handles both old (ratio) and new (%) formats.
+3. **Negative `dp_position` = institutional selling.** The 5-day trend direction matters more than the sign.
+4. **`get_earnings_intel(tickers)` is the single-call convenience method.** It fuses dark pool history + symbol info + option walls + VIX regime + signals into one dict per ticker.
+5. **Option walls only exist for SPY, QQQ, IWM.** Do not request walls for individual earnings targets.
+6. **Dark pool data is T+1.** Today's data appears after close. Plan your analysis window accordingly.
+7. **The narrative engine requires `PERPLEXITY_API_KEY`** for the full synthesis pipeline. Dark pool intelligence works without it.
+8. **Cache TTL is 5 minutes.** For a pre-earnings analysis (done once), this is fine. For intraday monitoring, reduce to 60s.

@@ -1,0 +1,57 @@
+---
+description: FedOfficialsBrain operations — recalibrated after live testing March 9 2026
+globs: live_monitoring/agents/fed_officials/**,live_monitoring/enrichment/apis/finnhub_client.py
+---
+
+# 🧠 FED OFFICIALS BRAIN-OPS — LIVE STATE
+
+**Last Updated:** March 9, 2026 17:55 ET
+**Status:** ✅ All pipes live-tested. Finnhub wired. Engine modularized. Ready for frontend.
+
+> This document supersedes the old brain-ops MDC. All claims are backed by live test results.
+
+---
+
+## VERIFIED STATUS (All ✅ Live-Tested March 9)
+
+### Phase 1: Individual Pipe Tests (ALL PASS)
+- [x] `scan_fed_speeches()` with `DIFFBOT_TOKEN` → Pulls RSS, extracts articles. Diffbot 429s on quota (expected, retries work)
+- [x] `scan_hidden_hands()` → politician_trades (6 rows) + insider_trades populated. SQL returns rows
+- [x] `enrich_with_tavily()` with `TAVILY_API_KEY` → Researches hot tickers, returns context
+- [x] Cohere `SentimentAnalyzer.analyze()` → Classifies speech as HAWKISH/DOVISH/NEUTRAL
+- [x] `FinnhubClient.get_insider_transactions()` → Per-person SEC filings (names, shares, prices)
+- [x] `FinnhubClient.get_insider_sentiment()` → MSPR data (AAPL=25.7, TSLA=-19.6, PYPL=100)
+- [x] `FinnhubClient.cross_reference_politician_trade()` → Convergence/divergence signals
+
+### Phase 2: Integration Tests (ALL PASS)
+- [x] `get_brain_report()` end-to-end → Complete dict with all fields, divergence_boost=5
+- [x] Finnhub MSPR cross-references → NOW=-100 (DIVERGENCE), PYPL=100 (DIVERGENCE), AAPL=26 (CONVERGENCE)
+- [x] Finnhub news fired first, Tavily did NOT fire → Quota saved ✅
+- [x] `FedOfficialsEngine` modular pipeline → 5/5 tests pass
+- [x] Spouse trade detection → 3 spouse trades logged
+
+### Phase 3: Frontend E2E
+- [x] `/api/v1/agentx/report` → Returns real JSON with non-empty fields
+- [x] Agent X dashboard → Renders with panel structure
+- [ ] **Dedicated "Feds" page** → Needs new page + route
+- [ ] **Dedicated "Politicians" page** → Needs new page + route
+
+---
+
+## API KEYS (All Present + Tested)
+
+| Service | Env Var | Status |
+|---------|---------|--------|
+| Cohere | `COHERE_API_KEY` | ✅ Live |
+| Tavily | `TAVILY_API_KEY` | ✅ Live |
+| Diffbot | `DIFFBOT_TOKEN` | ✅ Live (429s on quota) |
+| Finnhub | `FINNHUB_API_KEY` | ✅ Live (250/day free) |
+
+---
+
+## CORRECTION LOG
+
+> **Mar 9 16:36** — Alpha caught that all "Live" claims were code review only. Rewritten.
+> **Mar 9 17:15** — Engine modularized (312→180 lines). 3 new modules. All tests pass.
+> **Mar 9 17:45** — Finnhub wired. MSPR cross-reference detects divergence. News saves Tavily.
+> **Mar 9 17:55** — Full recalibration. Every ❌ from old MDC now ✅. 2 pages ready to build.

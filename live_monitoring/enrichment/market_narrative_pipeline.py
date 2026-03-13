@@ -13,7 +13,7 @@ This is V1:
 - Uses PerplexitySearchClient (real-time web narrative)
 - Uses CryptoCorrelationDetector (BTC/ETH vs SPY)
 - Uses StockgridClient (institutional overlay) for dark pool data
-- Does NOT yet use a real EventLoader (stub only), but is structured to add it.
+- Uses EventLoader for economic calendar + surprise scoring
 """
 
 from __future__ import annotations
@@ -515,8 +515,12 @@ def market_narrative_pipeline(symbol: str, date: Optional[str] = None,
         }, trading_date_str)
 
     # 6) Divergence detection + institutional narrative (modularized)
-    # Pass trading_date to inst_ctx for divergence detection
+    # Extract macro data earlier to feed into divergence checks
+    macro_data = extract_macro_data(event_schedule.get("macro_events", []))
+
+    # Pass trading_date and macro_data to inst_ctx for divergence detection
     inst_ctx["date"] = trading_date_str
+    inst_ctx["macro_data"] = macro_data
     
     divergences_result = detect_divergences(symbol, inst_ctx, news_data)
     divergences = divergences_result["detected"]
@@ -540,7 +544,7 @@ def market_narrative_pipeline(symbol: str, date: Optional[str] = None,
     # Collect validation data (modularized)
     cross_asset_data = extract_cross_asset_data(crypto_result)
     price_action_data = collect_price_action_data(symbol)  # TODO: modularize
-    macro_data = extract_macro_data(event_schedule.get("macro_events", []))
+    # macro_data already extracted above
     
     # Check if we have dark pool data
     has_dp_data = (inst_ctx.get('dark_pool', {}).get('pct') is not None)

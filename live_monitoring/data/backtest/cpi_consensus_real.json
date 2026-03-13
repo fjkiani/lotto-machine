@@ -1,0 +1,177 @@
+[
+  {
+    "release_date": "2026-02-13",
+    "ref_month": "Jan 2026",
+    "actual_yoy": 2.4,
+    "forecast_yoy": 2.5,
+    "previous_yoy": 2.7
+  },
+  {
+    "release_date": "2026-01-13",
+    "ref_month": "Dec 2025",
+    "actual_yoy": 2.7,
+    "forecast_yoy": 2.7,
+    "previous_yoy": 2.7
+  },
+  {
+    "release_date": "2025-12-18",
+    "ref_month": "Nov 2025",
+    "actual_yoy": 2.7,
+    "forecast_yoy": 3.1,
+    "previous_yoy": 3.0
+  },
+  {
+    "release_date": "2025-10-24",
+    "ref_month": "Sep 2025",
+    "actual_yoy": 3.0,
+    "forecast_yoy": 3.1,
+    "previous_yoy": 2.9
+  },
+  {
+    "release_date": "2025-09-11",
+    "ref_month": "Aug 2025",
+    "actual_yoy": 2.9,
+    "forecast_yoy": 2.9,
+    "previous_yoy": 2.7
+  },
+  {
+    "release_date": "2025-08-12",
+    "ref_month": "Jul 2025",
+    "actual_yoy": 2.7,
+    "forecast_yoy": 2.8,
+    "previous_yoy": 2.7
+  },
+  {
+    "release_date": "2025-07-15",
+    "ref_month": "Jun 2025",
+    "actual_yoy": 2.7,
+    "forecast_yoy": 2.6,
+    "previous_yoy": 2.4
+  },
+  {
+    "release_date": "2025-06-11",
+    "ref_month": "May 2025",
+    "actual_yoy": 2.4,
+    "forecast_yoy": 2.5,
+    "previous_yoy": 2.3
+  },
+  {
+    "release_date": "2025-05-13",
+    "ref_month": "Apr 2025",
+    "actual_yoy": 2.3,
+    "forecast_yoy": 2.4,
+    "previous_yoy": 2.4
+  },
+  {
+    "release_date": "2025-04-10",
+    "ref_month": "Mar 2025",
+    "actual_yoy": 2.4,
+    "forecast_yoy": 2.5,
+    "previous_yoy": 2.8
+  },
+  {
+    "release_date": "2025-03-12",
+    "ref_month": "Feb 2025",
+    "actual_yoy": 2.8,
+    "forecast_yoy": 2.9,
+    "previous_yoy": 3.0
+  },
+  {
+    "release_date": "2025-02-12",
+    "ref_month": "Jan 2025",
+    "actual_yoy": 3.0,
+    "forecast_yoy": 2.9,
+    "previous_yoy": 2.9
+  },
+  {
+    "release_date": "2025-01-15",
+    "ref_month": "Dec 2024",
+    "actual_yoy": 2.9,
+    "forecast_yoy": 2.9,
+    "previous_yoy": 2.7
+  },
+  {
+    "release_date": "2024-12-11",
+    "ref_month": "Nov 2024",
+    "actual_yoy": 2.7,
+    "forecast_yoy": 2.7,
+    "previous_yoy": 2.6
+  },
+  {
+    "release_date": "2024-11-13",
+    "ref_month": "Oct 2024",
+    "actual_yoy": 2.6,
+    "forecast_yoy": 2.6,
+    "previous_yoy": 2.4
+  },
+  {
+    "release_date": "2024-10-10",
+    "ref_month": "Sep 2024",
+    "actual_yoy": 2.4,
+    "forecast_yoy": 2.3,
+    "previous_yoy": 2.5
+  },
+  {
+    "release_date": "2024-09-11",
+    "ref_month": "Aug 2024",
+    "actual_yoy": 2.5,
+    "forecast_yoy": 2.5,
+    "previous_yoy": 2.9
+  },
+  {
+    "release_date": "2024-08-14",
+    "ref_month": "Jul 2024",
+    "actual_yoy": 2.9,
+    "forecast_yoy": 3.0,
+    "previous_yoy": 3.0
+  },
+  {
+    "release_date": "2024-07-11",
+    "ref_month": "Jun 2024",
+    "actual_yoy": 3.0,
+    "forecast_yoy": 3.1,
+    "previous_yoy": 3.3
+  },
+  {
+    "release_date": "2024-06-12",
+    "ref_month": "May 2024",
+    "actual_yoy": 3.3,
+    "forecast_yoy": 3.4,
+    "previous_yoy": 3.4
+  },
+  {
+    "release_date": "2024-05-15",
+    "ref_month": "Apr 2024",
+    "actual_yoy": 3.4,
+    "forecast_yoy": 3.4,
+    "previous_yoy": 3.5
+  },
+  {
+    "release_date": "2024-04-10",
+    "ref_month": "Mar 2024",
+    "actual_yoy": 3.5,
+    "forecast_yoy": 3.4,
+    "previous_yoy": 3.2
+  },
+  {
+    "release_date": "2024-03-12",
+    "ref_month": "Feb 2024",
+    "actual_yoy": 3.2,
+    "forecast_yoy": 3.1,
+    "previous_yoy": 3.1
+  },
+  {
+    "release_date": "2024-02-13",
+    "ref_month": "Jan 2024",
+    "actual_yoy": 3.1,
+    "forecast_yoy": 2.9,
+    "previous_yoy": 3.4
+  },
+  {
+    "release_date": "2024-01-11",
+    "ref_month": "Dec 2023",
+    "actual_yoy": 3.4,
+    "forecast_yoy": 3.2,
+    "previous_yoy": 3.1
+  }
+]

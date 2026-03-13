@@ -1,0 +1,170 @@
+[
+  {
+    "release_date": "2023-12-12",
+    "ref_month": "Nov 2023",
+    "actual_yoy": 3.1,
+    "forecast_yoy": 3.1,
+    "previous_yoy": 3.2
+  },
+  {
+    "release_date": "2023-11-14",
+    "ref_month": "Oct 2023",
+    "actual_yoy": 3.2,
+    "forecast_yoy": 3.3,
+    "previous_yoy": 3.7
+  },
+  {
+    "release_date": "2023-10-12",
+    "ref_month": "Sep 2023",
+    "actual_yoy": 3.7,
+    "forecast_yoy": 3.6,
+    "previous_yoy": 3.7
+  },
+  {
+    "release_date": "2023-09-13",
+    "ref_month": "Aug 2023",
+    "actual_yoy": 3.7,
+    "forecast_yoy": 3.6,
+    "previous_yoy": 3.2
+  },
+  {
+    "release_date": "2023-08-10",
+    "ref_month": "Jul 2023",
+    "actual_yoy": 3.2,
+    "forecast_yoy": 3.3,
+    "previous_yoy": 3.0
+  },
+  {
+    "release_date": "2023-07-12",
+    "ref_month": "Jun 2023",
+    "actual_yoy": 3.0,
+    "forecast_yoy": 3.1,
+    "previous_yoy": 4.0
+  },
+  {
+    "release_date": "2023-06-13",
+    "ref_month": "May 2023",
+    "actual_yoy": 4.0,
+    "forecast_yoy": 4.1,
+    "previous_yoy": 4.9
+  },
+  {
+    "release_date": "2023-05-10",
+    "ref_month": "Apr 2023",
+    "actual_yoy": 4.9,
+    "forecast_yoy": 5.0,
+    "previous_yoy": 5.0
+  },
+  {
+    "release_date": "2023-04-12",
+    "ref_month": "Mar 2023",
+    "actual_yoy": 5.0,
+    "forecast_yoy": 5.2,
+    "previous_yoy": 6.0
+  },
+  {
+    "release_date": "2023-03-14",
+    "ref_month": "Feb 2023",
+    "actual_yoy": 6.0,
+    "forecast_yoy": 6.0,
+    "previous_yoy": 6.4
+  },
+  {
+    "release_date": "2023-02-14",
+    "ref_month": "Jan 2023",
+    "actual_yoy": 6.4,
+    "forecast_yoy": 6.2,
+    "previous_yoy": 6.5
+  },
+  {
+    "release_date": "2023-01-12",
+    "ref_month": "Dec 2022",
+    "actual_yoy": 6.5,
+    "forecast_yoy": 6.5,
+    "previous_yoy": 7.1
+  },
+  {
+    "release_date": "2022-12-13",
+    "ref_month": "Nov 2022",
+    "actual_yoy": 7.1,
+    "forecast_yoy": 7.3,
+    "previous_yoy": 7.8
+  },
+  {
+    "release_date": "2022-11-10",
+    "ref_month": "Oct 2022",
+    "actual_yoy": 7.7,
+    "forecast_yoy": 8.0,
+    "previous_yoy": 8.2
+  },
+  {
+    "release_date": "2022-10-13",
+    "ref_month": "Sep 2022",
+    "actual_yoy": 8.2,
+    "forecast_yoy": 8.1,
+    "previous_yoy": 8.2
+  },
+  {
+    "release_date": "2022-09-13",
+    "ref_month": "Aug 2022",
+    "actual_yoy": 8.3,
+    "forecast_yoy": 8.1,
+    "previous_yoy": 8.5
+  },
+  {
+    "release_date": "2022-08-10",
+    "ref_month": "Jul 2022",
+    "actual_yoy": 8.5,
+    "forecast_yoy": 8.7,
+    "previous_yoy": 9.1
+  },
+  {
+    "release_date": "2022-07-13",
+    "ref_month": "Jun 2022",
+    "actual_yoy": 9.1,
+    "forecast_yoy": 8.8,
+    "previous_yoy": 8.6
+  },
+  {
+    "release_date": "2022-06-10",
+    "ref_month": "May 2022",
+    "actual_yoy": 8.6,
+    "forecast_yoy": 8.3,
+    "previous_yoy": 8.3
+  },
+  {
+    "release_date": "2022-05-11",
+    "ref_month": "Apr 2022",
+    "actual_yoy": 8.3,
+    "forecast_yoy": 8.1,
+    "previous_yoy": 8.5
+  },
+  {
+    "release_date": "2022-04-12",
+    "ref_month": "Mar 2022",
+    "actual_yoy": 8.5,
+    "forecast_yoy": 8.4,
+    "previous_yoy": 7.9
+  },
+  {
+    "release_date": "2022-03-10",
+    "ref_month": "Feb 2022",
+    "actual_yoy": 7.9,
+    "forecast_yoy": 7.9,
+    "previous_yoy": 7.5
+  },
+  {
+    "release_date": "2022-02-10",
+    "ref_month": "Jan 2022",
+    "actual_yoy": 7.5,
+    "forecast_yoy": 7.3,
+    "previous_yoy": 7.0
+  },
+  {
+    "release_date": "2022-01-12",
+    "ref_month": "Dec 2021",
+    "actual_yoy": 7.0,
+    "forecast_yoy": 7.0,
+    "previous_yoy": 6.8
+  }
+]

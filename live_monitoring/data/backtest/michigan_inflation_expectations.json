@@ -1,0 +1,102 @@
+[
+  {
+    "date": "2024-01-01",
+    "expected_inflation": 2.9
+  },
+  {
+    "date": "2024-02-01",
+    "expected_inflation": 3.0
+  },
+  {
+    "date": "2024-03-01",
+    "expected_inflation": 2.9
+  },
+  {
+    "date": "2024-04-01",
+    "expected_inflation": 3.2
+  },
+  {
+    "date": "2024-05-01",
+    "expected_inflation": 3.3
+  },
+  {
+    "date": "2024-06-01",
+    "expected_inflation": 3.0
+  },
+  {
+    "date": "2024-07-01",
+    "expected_inflation": 2.9
+  },
+  {
+    "date": "2024-08-01",
+    "expected_inflation": 2.8
+  },
+  {
+    "date": "2024-09-01",
+    "expected_inflation": 2.7
+  },
+  {
+    "date": "2024-10-01",
+    "expected_inflation": 2.7
+  },
+  {
+    "date": "2024-11-01",
+    "expected_inflation": 2.6
+  },
+  {
+    "date": "2024-12-01",
+    "expected_inflation": 2.8
+  },
+  {
+    "date": "2025-01-01",
+    "expected_inflation": 3.3
+  },
+  {
+    "date": "2025-02-01",
+    "expected_inflation": 4.3
+  },
+  {
+    "date": "2025-03-01",
+    "expected_inflation": 5.0
+  },
+  {
+    "date": "2025-04-01",
+    "expected_inflation": 6.5
+  },
+  {
+    "date": "2025-05-01",
+    "expected_inflation": 6.6
+  },
+  {
+    "date": "2025-06-01",
+    "expected_inflation": 5.0
+  },
+  {
+    "date": "2025-07-01",
+    "expected_inflation": 4.5
+  },
+  {
+    "date": "2025-08-01",
+    "expected_inflation": 4.8
+  },
+  {
+    "date": "2025-09-01",
+    "expected_inflation": 4.7
+  },
+  {
+    "date": "2025-10-01",
+    "expected_inflation": 4.6
+  },
+  {
+    "date": "2025-11-01",
+    "expected_inflation": 4.5
+  },
+  {
+    "date": "2025-12-01",
+    "expected_inflation": 4.2
+  },
+  {
+    "date": "2026-01-01",
+    "expected_inflation": 4.0
+  }
+]

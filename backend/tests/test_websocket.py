@@ -10,6 +10,9 @@ import websockets
 from datetime import datetime
 
 
+import pytest
+
+@pytest.mark.asyncio
 async def test_unified_stream():
     """Test unified WebSocket stream"""
     print("🔌 Connecting to /ws/unified...")
@@ -41,6 +44,7 @@ async def test_unified_stream():
         print(f"❌ Error: {e}")
 
 
+@pytest.mark.asyncio
 async def test_market_stream(symbol="SPY"):
     """Test market-specific WebSocket stream"""
     print(f"🔌 Connecting to /ws/market/{symbol}...")
@@ -69,6 +73,7 @@ async def test_market_stream(symbol="SPY"):
         print(f"❌ Error: {e}")
 
 
+@pytest.mark.asyncio
 async def test_signals_stream():
     """Test signals WebSocket stream"""
     print("🔌 Connecting to /ws/signals...")
@@ -97,6 +102,7 @@ async def test_signals_stream():
         print(f"❌ Error: {e}")
 
 
+@pytest.mark.asyncio
 async def test_narrative_stream():
     """Test narrative WebSocket stream"""
     print("🔌 Connecting to /ws/narrative...")
@@ -125,6 +131,7 @@ async def test_narrative_stream():
         print(f"❌ Error: {e}")
 
 
+@pytest.mark.asyncio
 async def test_stats():
     """Test WebSocket stats endpoint"""
     import aiohttp

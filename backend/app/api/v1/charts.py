@@ -11,6 +11,7 @@ Endpoints:
 
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
@@ -40,6 +41,20 @@ def _get_orchestrator():
             logger.error(f"Failed to init TrapMatrixOrchestrator: {e}")
             raise HTTPException(status_code=503, detail=f"Orchestrator unavailable: {e}")
     return _orchestrator
+
+
+# ── OHLC Cache (prevents yfinance spam on 30s polls) ─────────────────────────
+
+_ohlc_cache: dict[tuple, dict] = {}  # (symbol, period, interval) -> {data, timestamp}
+
+# Intraday periods change fast — shorter TTL
+_INTRADAY_PERIODS = {"1d", "5d"}
+_INTRADAY_TTL = 30   # 30s — match frontend poll
+_DAILY_TTL = 120      # 2min — daily candles barely change mid-session
+
+
+def _ohlc_cache_ttl(period: str) -> int:
+    return _INTRADAY_TTL if period in _INTRADAY_PERIODS else _DAILY_TTL
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -78,7 +93,17 @@ async def get_ohlc(
     Get OHLC candle data for TradingView chart base layer.
 
     Returns array of candles: [{time, open, high, low, close, volume}, ...]
+    Cached per (symbol, period, interval) to prevent yfinance spam on polling.
     """
+    cache_key = (symbol.upper(), period, interval)
+    now = time.time()
+    ttl = _ohlc_cache_ttl(period)
+
+    # Return cached if fresh
+    cached = _ohlc_cache.get(cache_key)
+    if cached and (now - cached["timestamp"]) < ttl:
+        return cached["data"]
+
     try:
         import yfinance as yf
 
@@ -100,7 +125,7 @@ async def get_ohlc(
                 "volume": int(row["Volume"]),
             })
 
-        return {
+        result = {
             "symbol": symbol.upper(),
             "period": period,
             "interval": interval,
@@ -108,6 +133,11 @@ async def get_ohlc(
             "count": len(candles),
             "timestamp": datetime.utcnow().isoformat(),
         }
+
+        # Store in cache
+        _ohlc_cache[cache_key] = {"data": result, "timestamp": now}
+
+        return result
 
     except HTTPException:
         raise

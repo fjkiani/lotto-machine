@@ -25,9 +25,9 @@ class FedWatchTool(BaseTool):
         """Initialize Fed Watch tool"""
         try:
             from live_monitoring.agents.fed_watch_monitor import FedWatchMonitor
-            from live_monitoring.agents.fed_officials_monitor import FedOfficialsMonitor
+            from live_monitoring.agents.fed_officials.engine import FedOfficialsEngine
             self.fed_watch = FedWatchMonitor()
-            self.fed_officials = FedOfficialsMonitor()
+            self.fed_officials = FedOfficialsEngine()
             logger.info("✅ Fed Watch Tool initialized")
         except Exception as e:
             logger.warning(f"⚠️ Fed Watch init failed: {e}")
@@ -122,7 +122,7 @@ class FedWatchTool(BaseTool):
         
         if self.fed_officials:
             try:
-                comments = self.fed_officials.fetch_fed_comments()
+                comments = self.fed_officials.fetch_comments()
                 if comments:
                     comments_data["comments"] = comments[:5]  # Top 5
             except Exception as e:
@@ -169,8 +169,9 @@ class FedWatchTool(BaseTool):
         if data.get("comments"):
             lines.append("\n**Recent Comments:**")
             for comment in data["comments"][:3]:
-                official = comment.get("official", "Fed Official")
-                snippet = comment.get("snippet", "")[:100]
+                # comment is a FedComment object
+                official = getattr(comment, "official_name", "Fed Official")
+                snippet = getattr(comment, "content", "")[:100]
                 lines.append(f"  • {official}: \"{snippet}...\"")
         
         return "\n".join(lines)

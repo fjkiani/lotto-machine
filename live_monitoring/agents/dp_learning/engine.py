@@ -125,6 +125,27 @@ class DPLearningEngine:
             # Individual arguments
             symbol = symbol_or_interaction
         
+        # AUTO-FETCH: Prevent garbage features from being recorded.
+        # Our audit found VIX=0.0 and volume=1.0 killed BREAK recall (was 0%).
+        # These are the #2 and #3 features (12.6% and 12.2% importance).
+        if vix_level == 0.0 or volume_vs_avg == 1.0:
+            try:
+                import yfinance as yf
+                if vix_level == 0.0:
+                    vix_data = yf.Ticker("^VIX").history(period="1d")
+                    if not vix_data.empty:
+                        vix_level = float(vix_data['Close'].iloc[-1])
+                        logger.info(f"📊 Auto-fetched VIX: {vix_level:.2f}")
+                if volume_vs_avg == 1.0:
+                    spy_data = yf.Ticker("SPY").history(period="25d")
+                    if len(spy_data) >= 21:
+                        avg_vol = spy_data['Volume'].iloc[:-1].rolling(20).mean().iloc[-1]
+                        today_vol = spy_data['Volume'].iloc[-1]
+                        if avg_vol > 0:
+                            volume_vs_avg = float(today_vol / avg_vol)
+                            logger.info(f"📊 Auto-fetched volume_vs_avg: {volume_vs_avg:.2f}")
+            except Exception as e:
+                logger.warning(f"⚠️ Auto-fetch VIX/volume failed: {e}")
         # Determine level type
         lt = LevelType.RESISTANCE if level_type.upper() == "RESISTANCE" else LevelType.SUPPORT
         

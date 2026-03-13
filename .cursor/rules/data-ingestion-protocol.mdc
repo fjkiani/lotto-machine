@@ -1,0 +1,565 @@
+---
+description: "Data ingestion protocol — disciplined pipeline for downloading, cleaning, storing, and verifying external datasets. No brute-forcing."
+globs: "backend/data_loaders/**/*.py,backend/tests/backtest_*.py,backend/tests/stress_test_*.py,data/external/**/*"
+---
+
+# Data Ingestion Protocol — Measure Twice, Cut Once
+
+## Anti-Brute-Force Rules
+
+**Before touching ANY external data source, you MUST complete all 5 gates IN ORDER.**
+NO skipping. NO "I'll clean it later." NO downloading 5GB before checking if 5 rows work.
+
+```
+Gate 1: PROBE    → Understand the source (schema, size, format, rate limits)
+Gate 2: SAMPLE   → Download smallest possible sample (1 day, 10 rows)
+Gate 3: CLEAN    → Validate schema, types, nulls, ranges on the sample
+Gate 4: STORE    → Write to standardized format with manifest
+Gate 5: VERIFY   → Cross-reference against independent truth
+```
+
+**Circuit breaker**: If ANY gate fails, STOP. Do not proceed. Document the failure and reassess.
+
+---
+
+## Gate 1: PROBE (Understand before downloading)
+
+### Required checklist — answer ALL before writing any download code:
+
+```python
+PROBE_CHECKLIST = {
+    "source_url": "",           # Exact URL or API endpoint
+    "format": "",               # CSV, JSON, ZIP, API, etc.
+    "auth_required": False,     # API key? OAuth? Free?
+    "rate_limits": "",          # Calls/min, calls/day, throttling?
+    "total_size_estimate": "",  # How big is the full dataset?
+    "date_range": "",           # How far back does it go?
+    "update_frequency": "",     # Real-time? Daily? Weekly?
+    "schema_documented": False, # Do they publish column definitions?
+    "terms_of_use": "",         # Any redistribution restrictions?
+    "python_library": "",       # Existing lib? Or raw HTTP?
+}
+```
+
+### How to probe (in order):
+1. **Read the docs** — not the marketing page, the actual API/data docs
+2. **Check for Python library** — `pip search` or GitHub search before writing HTTP code
+3. **Check schema** — What columns exist? What types? What's nullable?
+4. **Estimate size** — Will this fit on disk? In memory? Need chunking?
+5. **Find the gotchas** — Rate limits, IP blocks, format changes, timezone issues
+
+### Red flags that should make you pause:
+- No published schema → data format may change without notice
+- "Free tier" with no clear limits → could cut off mid-download
+- Data > 10GB → need a chunking strategy, not a single download
+- No timestamp column → can't verify freshness
+
+---
+
+## Gate 2: SAMPLE (Smallest viable download)
+
+### Rules:
+- Download **exactly 1 file** or **1 day** or **10 rows** first
+- NEVER download the full dataset before validating the sample
+- Save the raw sample to `data/external/{source_name}/samples/` with timestamp
+
+```python
+# Template for sample download
+def download_sample(source_name: str) -> Path:
+    """Download minimal sample. Return path to raw file."""
+    sample_dir = Path(f"data/external/{source_name}/samples")
+    sample_dir.mkdir(parents=True, exist_ok=True)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    sample_path = sample_dir / f"sample_{timestamp}.csv"
+    
+    # Download smallest unit (1 day, 1 page, etc.)
+    # ...
+    
+    # Log what we got
+    print(f"Sample: {sample_path}")
+    print(f"Size: {sample_path.stat().st_size / 1024:.1f} KB")
+    print(f"Rows: {count_rows(sample_path)}")
+    
+    return sample_path
+```
+
+### Sample validation — run BEFORE any larger download:
+```python
+def validate_sample(sample_path: Path, expected_schema: dict) -> bool:
+    """Check sample matches expectations from Gate 1."""
+    df = pd.read_csv(sample_path)
+    
+    checks = []
+    
+    # 1. Column names match expected
+    missing = set(expected_schema.keys()) - set(df.columns)
+    checks.append(("columns_present", len(missing) == 0, f"Missing: {missing}"))
+    
+    # 2. Not empty
+    checks.append(("has_rows", len(df) > 0, f"Rows: {len(df)}"))
+    
+    # 3. Key columns not all null
+    for col, dtype in expected_schema.items():
+        if col in df.columns:
+            null_pct = df[col].isna().mean()
+            checks.append((f"{col}_populated", null_pct < 0.5, f"{null_pct:.0%} null"))
+    
+    # 4. Date column parses correctly
+    date_cols = [c for c in df.columns if 'date' in c.lower() or 'time' in c.lower()]
+    for dc in date_cols:
+        try:
+            pd.to_datetime(df[dc])
+            checks.append((f"{dc}_parseable", True, "OK"))
+        except:
+            checks.append((f"{dc}_parseable", False, "PARSE FAIL"))
+    
+    # Report
+    for name, passed, detail in checks:
+        print(f"  {'✅' if passed else '❌'} {name}: {detail}")
+    
+    return all(c[1] for c in checks)
+```
+
+---
+
+## Gate 3: CLEAN (Standardize and validate)
+
+### Cleaning rules — apply to EVERY dataset:
+
+```python
+CLEANING_RULES = {
+    # 1. Timestamps → UTC ISO-8601
+    "timestamps": "Convert ALL timestamps to UTC. Store as ISO-8601 strings.",
+    
+    # 2. Tickers → uppercase, no whitespace
+    "tickers": "Strip whitespace, uppercase. 'spy' → 'SPY', ' AAPL ' → 'AAPL'",
+    
+    # 3. Numeric columns → float64, NaN for missing (NOT 0, NOT -1)
+    "numerics": "Cast to float64. Missing = NaN, not 0. Never use sentinel values.",
+    
+    # 4. Booleans → True/False (NOT 0/1, NOT 'Y'/'N')
+    "booleans": "Cast to Python bool. No integer booleans.",
+    
+    # 5. Duplicates → drop, log count
+    "duplicates": "Drop exact duplicates. Log how many removed.",
+    
+    # 6. Date ranges → filter to requested range only
+    "date_range": "Drop rows outside requested date range. Don't silently include extras.",
+}
+```
+
+### Schema enforcement — define BEFORE cleaning:
+
+```python
+# Example schema definition (one per dataset)
+FINRA_SHORT_VOLUME_SCHEMA = {
+    "date": "datetime",        # Trading date
+    "symbol": "str",           # Ticker symbol
+    "short_volume": "int64",   # Short sale volume
+    "short_exempt_vol": "int64",  # Short exempt volume
+    "total_volume": "int64",   # Total consolidated volume
+    "market": "str",           # Market center
+}
+
+# Enforce schema
+def enforce_schema(df: pd.DataFrame, schema: dict) -> pd.DataFrame:
+    """Cast columns to specified types. Fail loudly on mismatch."""
+    for col, dtype in schema.items():
+        if col not in df.columns:
+            raise ValueError(f"Missing required column: {col}")
+        if dtype == "datetime":
+            df[col] = pd.to_datetime(df[col], utc=True)
+        elif dtype == "str":
+            df[col] = df[col].astype(str).str.strip()
+        else:
+            df[col] = pd.to_numeric(df[col], errors='coerce').astype(dtype)
+    return df
+```
+
+### Range validation — catch absurd values:
+
+```python
+RANGE_CHECKS = {
+    "short_volume_pct": (0, 100),    # Can't be negative or > 100%
+    "price": (0.01, 100000),         # Penny stock floor, Berkshire ceiling
+    "open_interest": (0, 50_000_000),  # Sanity cap
+    "delta": (-1.0, 1.0),           # Options Greek bounds
+    "gamma": (0, 10.0),             # Gamma is positive
+    "rsi": (0, 100),                # RSI bounds
+}
+
+def check_ranges(df: pd.DataFrame, checks: dict) -> list:
+    """Flag rows with values outside expected ranges."""
+    violations = []
+    for col, (lo, hi) in checks.items():
+        if col in df.columns:
+            bad = df[(df[col] < lo) | (df[col] > hi)]
+            if len(bad) > 0:
+                violations.append(f"{col}: {len(bad)} rows outside [{lo}, {hi}]")
+    return violations
+```
+
+---
+
+## Gate 4: STORE (Standardized format with manifest)
+
+### Storage structure — every dataset follows this:
+
+```
+data/external/
+├── {source_name}/
+│   ├── manifest.json          ← REQUIRED: metadata about this dataset
+│   ├── samples/               ← Gate 2 raw samples
+│   │   └── sample_20260310.csv
+│   ├── raw/                   ← Original downloaded files (never modify)
+│   │   └── finra_20260310.txt
+│   ├── clean/                 ← Cleaned, schema-enforced data
+│   │   └── finra_20260310.parquet
+│   └── db/                    ← SQLite for queryable access
+│       └── {source_name}.db
+```
+
+### Manifest — REQUIRED before storing any data:
+
+```json
+{
+    "source_name": "finra_short_volume",
+    "source_url": "https://cdn.finra.org/equity/regsho/daily/",
+    "download_date": "2026-03-10T01:25:00Z",
+    "date_range": {"start": "2025-03-10", "end": "2026-03-10"},
+    "total_rows": 0,
+    "total_files": 0,
+    "schema_version": 1,
+    "columns": ["date", "symbol", "short_volume", "short_exempt_vol", "total_volume", "market"],
+    "cleaning_applied": [
+        "timestamps_to_utc",
+        "tickers_uppercase",
+        "duplicates_removed"
+    ],
+    "verification_status": "pending",
+    "verification_method": "",
+    "notes": ""
+}
+```
+
+### SQLite table naming:
+- Table name = `{source_name}` (e.g., `finra_short_volume`)
+- Always include `_ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP` column
+- Create indexes on `date` and `symbol` columns
+
+### Rules:
+- **Raw files are immutable** — NEVER modify files in `raw/`
+- **Clean files are reproducible** — running the cleaning script on `raw/` should produce identical `clean/` output
+- **Manifest updates on every operation** — row counts, dates, verification status
+
+---
+
+## Gate 5: VERIFY (Cross-reference against independent truth)
+
+### Verification matrix — each source has a specific verification method:
+
+| Source | Verification Method | Independent Truth |
+|--------|-------------------|------------------|
+| **FINRA Short Volume** | Compare SPY short_volume_pct vs our Stockgrid value for same date | Should be within ±2% |
+| **CFTC COT** | Compare parsed specs_net vs our `/cot/positioning` API response | Should be exact match |
+| **Kaggle Options** | Compute RSI from underlying prices, compare to yfinance | Should match within ±0.5 |
+| **FRED Economic** | Compare CPI value vs our `economic_intelligence.db` | Should be exact match |
+| **CBOE VIX Futures** | Compare VIX settlement vs yfinance `^VIX` close | Should match within ±0.10 |
+| **yfinance Prices** | Compare SPY close vs CBOE SPY settlement | Should match within ±$0.01 |
+
+### Verification script template:
+
+```python
+def verify_dataset(source_name: str, sample_size: int = 10) -> dict:
+    """
+    Cross-reference our stored data against independent source.
+    Run on a RANDOM sample, not the first N rows.
+    """
+    # Load our cleaned data
+    our_data = load_clean_data(source_name)
+    
+    # Pick random sample
+    sample = our_data.sample(min(sample_size, len(our_data)))
+    
+    results = {"matches": 0, "mismatches": 0, "errors": 0, "details": []}
+    
+    for _, row in sample.iterrows():
+        try:
+            # Fetch independent truth for this specific data point
+            truth = fetch_independent_truth(source_name, row)
+            
+            # Compare
+            delta = compare(row, truth)
+            
+            if delta <= TOLERANCE[source_name]:
+                results["matches"] += 1
+                results["details"].append(f"✅ {row['date']} {row.get('symbol','')}: Δ={delta}")
+            else:
+                results["mismatches"] += 1
+                results["details"].append(f"❌ {row['date']} {row.get('symbol','')}: Δ={delta} (ours={row['value']}, truth={truth})")
+        except Exception as e:
+            results["errors"] += 1
+            results["details"].append(f"⚠️ {row['date']}: {e}")
+    
+    # Verdict
+    accuracy = results["matches"] / max(results["matches"] + results["mismatches"], 1)
+    results["accuracy"] = accuracy
+    results["verdict"] = "PASS" if accuracy >= 0.95 else "FAIL"
+    
+    return results
+```
+
+### Pass criteria:
+- **≥95% of sampled rows match** independent truth within tolerance
+- **0 schema violations** in the cleaned data
+- **0 duplicate rows** after cleaning
+- **Manifest is complete and accurate**
+
+---
+
+## Source-Specific Playbooks
+
+### Playbook A: FINRA Short Sale Volume
+
+```
+Gate 1 — PROBE:
+  URL: cdn.finra.org/equity/regsho/daily/CNMSshvol{YYYYMMDD}.txt
+  Format: Pipe-delimited text
+  Auth: None
+  Rate limits: None known (it's static files)
+  Size: ~2MB per day × 252 trading days = ~500MB/year
+  Schema: Date|Symbol|ShortVolume|ShortExemptVolume|TotalVolume|Market
+
+Gate 2 — SAMPLE:
+  Download ONE day: yesterday's file
+  Check: Does SPY row exist? Is short_volume numeric? Is total_volume > 0?
+
+Gate 3 — CLEAN:
+  Parse pipe delimiter
+  Filter to our tickers: SPY, QQQ, AAPL, TSLA, NVDA, IWM
+  Compute: short_volume_pct = short_volume / total_volume * 100
+  Drop rows where total_volume = 0
+
+Gate 4 — STORE:
+  data/external/finra_short/raw/CNMS_{date}.txt  (original)
+  data/external/finra_short/clean/short_vol_{date}.parquet
+  data/external/finra_short/db/finra_short.db → table: daily_short_volume
+
+Gate 5 — VERIFY:
+  For yesterday: compare our short_volume_pct(SPY) vs Stockgrid's value
+  Tolerance: ±2 percentage points
+  If mismatch > 2pp: investigate before loading more days
+```
+
+### Playbook B: CFTC COT Archives
+
+```
+Gate 1 — PROBE:
+  URL: cftc.gov/files/dea/history/deacot{YEAR}.zip
+  Format: CSV inside ZIP
+  Auth: None
+  Size: ~20MB/year compressed
+  Schema: 100+ columns including Market_and_Exchange_Names,
+          NonComm_Positions_Long_All, NonComm_Positions_Short_All, etc.
+  Python lib: cot_reports (pip install cot_reports)
+
+Gate 2 — SAMPLE:
+  Use cot_reports lib to fetch current year only
+  Filter to our 6 contracts: ES, NQ, TY, GC, CL, VX
+  Check: Do specs_net / comm_net values look reasonable? (±1M range)
+
+Gate 3 — CLEAN:
+  Map CFTC contract names to our short keys (ES, NQ, etc.)
+  Extract: report_date, specs_long, specs_short, specs_net, comm_long, comm_short, comm_net, open_interest
+  Compute: specs_ratio = specs_net / open_interest
+  Drop duplicate report dates
+
+Gate 4 — STORE:
+  data/external/cftc_cot/raw/deacot{YEAR}.csv
+  data/external/cftc_cot/clean/cot_positioning.parquet
+  data/external/cftc_cot/db/cot_history.db → table: weekly_positioning
+
+Gate 5 — VERIFY:
+  Compare latest week's specs_net for ES vs our /cot/positioning API
+  Must be EXACT match (same source data)
+  If mismatch: our parser has a bug — fix before loading history
+```
+
+### Playbook C: Kaggle SPY Options Chains
+
+```
+Gate 1 — PROBE:
+  URL: kaggle.com/datasets/kylegraupe/spy-daily-eod-options-quotes-2020-2024
+  Format: CSV (possibly multiple files)
+  Auth: Kaggle API token
+  Size: ~2-5GB compressed
+  Schema: underlying, expiry, type, strike, bid, ask, volume, open_interest,
+          implied_vol, delta, gamma, theta, vega
+  ⚠️ LARGE — needs chunking strategy
+
+Gate 2 — SAMPLE:
+  Download metadata only first (kaggle datasets info)
+  Then download ONE file or filter to ONE trading day
+  Check: SPY has ≥500 option contracts per day? Greeks are populated?
+
+Gate 3 — CLEAN:
+  Filter to SPY only (if multi-ticker)
+  Parse expiry dates to standard format
+  Compute per-strike GEX = gamma × open_interest × 100 × spot²
+  Aggregate: total_gex = sum(call_gex) - sum(put_gex)
+  Classify: POSITIVE if total_gex > 0, NEGATIVE if < 0
+
+Gate 4 — STORE:
+  data/external/kaggle_options/raw/  (original CSVs, DO NOT modify)
+  data/external/kaggle_options/clean/spy_options_{date}.parquet
+  data/external/kaggle_options/db/gex_history.db → table: daily_gex
+    Columns: date, total_gex, regime, gamma_flip, max_pain, top_walls_json
+
+Gate 5 — VERIFY:
+  For any date in the dataset: independently compute RSI from yfinance prices
+  Compare day's GEX regime to next-day realized volatility
+  Does NEGATIVE gamma → higher abs(daily_return)?
+  This is the CORE THESIS test — if it fails, our entire gamma theory is wrong
+```
+
+### Playbook D: FRED Economic Data
+
+```
+Gate 1 — PROBE:
+  URL: api.stlouisfed.org/fred/series/observations
+  Format: JSON via API
+  Auth: Free API key (fred.stlouisfed.org registration)
+  Rate limits: 120 requests/min
+  Size: ~10KB per series per request
+  Python lib: fredapi (pip install fredapi)
+
+Gate 2 — SAMPLE:
+  Fetch CPI (CPIAUCSL) for last 12 months only
+  Check: values match what we have in economic_intelligence.db?
+
+Gate 3 — CLEAN:
+  Parse dates to UTC
+  Align to release dates (FRED gives observation_date, not release_date)
+  ⚠️ GOTCHA: CPI observation date (Jan 2026) ≠ release date (Feb 12, 2026)
+  Need: tradingeconomics or BLS for actual release dates
+
+Gate 4 — STORE:
+  data/external/fred/raw/cpi_raw.json
+  data/external/fred/clean/economic_indicators.parquet
+  data/external/fred/db/fred_history.db → table: indicator_values
+
+Gate 5 — VERIFY:
+  Compare FRED CPI value vs our economic_intelligence.db for same dates
+  Should be EXACT match (same underlying BLS data)
+  Also: for each release date, fetch SPY close via yfinance
+  Compute actual 1hr/24hr price change to FILL the 60% gap in our DB
+```
+
+### Playbook E: CBOE VIX Futures
+
+```
+Gate 1 — PROBE:
+  URL: cboe.com/us/futures/market_statistics/historical_data/ → VX+VXT
+  Format: CSV per contract month
+  Auth: None
+  Size: ~100KB per contract month
+  Schema: Trade Date, Futures, Open, High, Low, Close, Settle, Volume, OI
+
+Gate 2 — SAMPLE:
+  Download ONE contract month (e.g., current front month)
+  Check: Settlement prices look reasonable (VIX ~15-80 range)?
+
+Gate 3 — CLEAN:
+  Parse trade dates
+  Compute term structure: front_month_settle / second_month_settle
+  Flag: contango (ratio < 1) vs backwardation (ratio > 1)
+
+Gate 4 — STORE:
+  data/external/cboe_vix/raw/VX_{contract}.csv
+  data/external/cboe_vix/clean/vix_term_structure.parquet
+  data/external/cboe_vix/db/vix_history.db → table: daily_vix_futures
+
+Gate 5 — VERIFY:
+  Compare CBOE VIX settlement vs yfinance ^VIX close for same date
+  Tolerance: ±$0.10 (closing vs settlement time difference)
+```
+
+### Playbook F: yfinance Price Outcome Data
+
+```
+Gate 1 — PROBE:
+  URL: Via Python yfinance library
+  Format: pandas DataFrame
+  Auth: None
+  Rate limits: Unofficial — can get throttled at ~2000 req/hr
+  Size: ~50KB per ticker per year (1d bars)
+  ⚠️ yfinance is NOT an official API — data could disappear
+
+Gate 2 — SAMPLE:
+  Fetch SPY last 5 days at 1d resolution
+  Check: OHLCV matches what we see on Google Finance?
+
+Gate 3 — CLEAN:
+  Adjust for splits/dividends (yfinance does this by default)
+  Compute: daily_return = (close - prev_close) / prev_close
+  Compute: realized_vol_5d = std(daily_returns, 5) * sqrt(252)
+  Flag: any days with volume = 0 (holidays misidentified?)
+
+Gate 4 — STORE:
+  data/external/yfinance/raw/  (NOT stored — re-fetchable)
+  data/external/yfinance/clean/price_history.parquet
+  data/external/yfinance/db/prices.db → table: daily_ohlcv
+
+Gate 5 — VERIFY:
+  Compare yfinance SPY close vs CBOE settlement for same dates
+  Should match within ±$0.02 (rounding)
+  Also compare vs our historical_cache/ CSVs where overlap exists
+```
+
+---
+
+## Execution Order
+
+Do NOT parallelize data downloads. Process ONE source at a time, all 5 gates:
+
+```
+1. yfinance prices       (smallest, fastest, foundation for all others)
+2. FINRA short volume     (one HTTP GET per day, simple schema)
+3. CFTC COT               (existing Python lib, small dataset)
+4. FRED economic           (API with lib, small dataset)
+5. CBOE VIX futures        (simple CSVs)
+6. Kaggle options chains   (LAST — largest, most complex, needs all others for verification)
+```
+
+**Why this order?** Each source VERIFIES against previous ones:
+- FINRA verifies against our Stockgrid (which uses yfinance prices)
+- COT verifies against our existing COT endpoint
+- FRED fills gaps in our economic DB (which needs yfinance for SPY changes)
+- VIX futures verify against yfinance ^VIX
+- Kaggle options need prices (yfinance) + VIX for GEX computation
+
+---
+
+## Failure Modes & Recovery
+
+| Failure | What to do |
+|---------|-----------|
+| Gate 2 sample has wrong schema | STOP. Re-read docs. Schema may have changed. |
+| Gate 3 cleaning produces > 5% dropped rows | Investigate BEFORE proceeding. Why so much bad data? |
+| Gate 5 verification < 95% match | DO NOT use dataset. Fix parser or find alternative source. |
+| Download interrupted mid-file | Delete partial file. Re-download from scratch. Never resume into corrupted file. |
+| Rate limited | Add exponential backoff. Never retry more than 3x. |
+| Disk space concern | Check `df -h` BEFORE starting large downloads. |
+
+---
+
+## Golden Rules
+
+1. **Sample before bulk** — 10 rows before 10 million
+2. **Raw is sacred** — never modify files in `raw/`
+3. **Clean is reproducible** — delete `clean/` and regenerate from `raw/`
+4. **Verify against independent truth** — not against yourself
+5. **Manifest everything** — if it's not in manifest.json, it didn't happen
+6. **One source at a time** — finish all 5 gates before starting the next source
+7. **Fail loud, fail fast** — a ValueError is better than silently wrong data

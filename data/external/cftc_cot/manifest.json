@@ -1,0 +1,22 @@
+{
+  "source_name": "cftc_cot",
+  "download_date": "2026-03-10T01:45:22.863378",
+  "total_rows": 1586,
+  "contracts": [
+    "CL",
+    "ES",
+    "GC",
+    "NQ",
+    "TY",
+    "VX"
+  ],
+  "years_covered": [
+    2021,
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "verification_status": "expanded"
+}

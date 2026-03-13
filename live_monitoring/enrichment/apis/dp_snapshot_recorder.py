@@ -81,8 +81,13 @@ class DPSnapshotRecorder:
                 detail = self.client.get_ticker_detail(symbol)
                 
                 if detail:
+                    # Also fetch the current price
+                    info = self.client.get_symbol_info(symbol)
+                    current_price = info.get("symbol", {}).get("close", 0) if info else 0
+
                     short_vol = detail.short_volume_pct or 0
                     sentiment = {
+                        "price": current_price,
                         "short_volume_pct": short_vol,
                         "dp_position_shares": detail.dp_position_shares,
                         "dp_position_dollars": detail.dp_position_dollars,

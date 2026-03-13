@@ -59,6 +59,7 @@ def extract_macro_data(event_schedule: List[Dict[str, Any]]) -> Dict[str, Any]:
         "pmi_services_miss": False,
         "pmi_manufacturing_miss": False,
         "consumer_sentiment": None,
+        "net_surprise_sigma": 0.0,
     }
     
     for event in event_schedule:
@@ -79,6 +80,14 @@ def extract_macro_data(event_schedule: List[Dict[str, Any]]) -> Dict[str, Any]:
                 except (ValueError, TypeError):
                     pass
         
+        # Accumulate Net Surprise Sigma
+        surprise = event.get('surprise_sigma')
+        if surprise is not None:
+            try:
+                data['net_surprise_sigma'] += float(surprise)
+            except (ValueError, TypeError):
+                pass
+                
         # Consumer sentiment
         if 'consumer sentiment' in title or 'michigan' in title:
             actual = event.get('actual')

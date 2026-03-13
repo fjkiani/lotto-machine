@@ -1,0 +1,194 @@
+[
+  {
+    "date": "2024-01-01",
+    "actual_index": 309.698,
+    "previous_index": null,
+    "mom_pct": null,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2024-02-01",
+    "actual_index": 310.967,
+    "previous_index": 309.698,
+    "mom_pct": 0.41,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2024-03-01",
+    "actual_index": 312.345,
+    "previous_index": 310.967,
+    "mom_pct": 0.443,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2024-04-01",
+    "actual_index": 313.023,
+    "previous_index": 312.345,
+    "mom_pct": 0.217,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2024-05-01",
+    "actual_index": 313.175,
+    "previous_index": 313.023,
+    "mom_pct": 0.049,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2024-06-01",
+    "actual_index": 313.044,
+    "previous_index": 313.175,
+    "mom_pct": -0.042,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2024-07-01",
+    "actual_index": 313.569,
+    "previous_index": 313.044,
+    "mom_pct": 0.168,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2024-08-01",
+    "actual_index": 314.062,
+    "previous_index": 313.569,
+    "mom_pct": 0.157,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2024-09-01",
+    "actual_index": 314.732,
+    "previous_index": 314.062,
+    "mom_pct": 0.213,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2024-10-01",
+    "actual_index": 315.631,
+    "previous_index": 314.732,
+    "mom_pct": 0.286,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2024-11-01",
+    "actual_index": 316.528,
+    "previous_index": 315.631,
+    "mom_pct": 0.284,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2024-12-01",
+    "actual_index": 317.604,
+    "previous_index": 316.528,
+    "mom_pct": 0.34,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2025-01-01",
+    "actual_index": 318.961,
+    "previous_index": 317.604,
+    "mom_pct": 0.427,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2025-02-01",
+    "actual_index": 319.679,
+    "previous_index": 318.961,
+    "mom_pct": 0.225,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2025-03-01",
+    "actual_index": 319.785,
+    "previous_index": 319.679,
+    "mom_pct": 0.033,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2025-04-01",
+    "actual_index": 320.302,
+    "previous_index": 319.785,
+    "mom_pct": 0.162,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2025-05-01",
+    "actual_index": 320.62,
+    "previous_index": 320.302,
+    "mom_pct": 0.099,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2025-06-01",
+    "actual_index": 321.435,
+    "previous_index": 320.62,
+    "mom_pct": 0.254,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2025-07-01",
+    "actual_index": 322.169,
+    "previous_index": 321.435,
+    "mom_pct": 0.228,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2025-08-01",
+    "actual_index": 323.291,
+    "previous_index": 322.169,
+    "mom_pct": 0.348,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2025-09-01",
+    "actual_index": 324.245,
+    "previous_index": 323.291,
+    "mom_pct": 0.295,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2025-11-01",
+    "actual_index": 325.063,
+    "previous_index": null,
+    "mom_pct": null,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2025-12-01",
+    "actual_index": 326.031,
+    "previous_index": 325.063,
+    "mom_pct": 0.298,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  },
+  {
+    "date": "2026-01-01",
+    "actual_index": 326.588,
+    "previous_index": 326.031,
+    "mom_pct": 0.171,
+    "unit": "index level",
+    "series": "CPIAUCSL"
+  }
+]

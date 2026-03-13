@@ -2,8 +2,8 @@
 Pivot Calculator — Technical Pivot Agent
 =========================================
 
-Calculates Classic, Fibonacci, and Camarilla pivot points from prior day's HLC.
-Pure math — no external API dependency. Uses yfinance only for prior day OHLC.
+Calculates Classic, Fibonacci, Camarilla, and Woodie pivot points from prior day's OHLC.
+Pure math — no external API dependency. Uses yfinance only for prior day OHLC + 200-day EMA.
 
 Cadence: Daily pre-open (9:25am EST) + on-demand if price moves >1%
 Cache TTL: 86400s (24h) — pivots only change at market open
@@ -15,7 +15,7 @@ Each agent owns exactly one data domain with its own cadence and failure mode.
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,8 @@ class PivotResult:
     classic: PivotSet
     fibonacci: PivotSet
     camarilla: PivotSet
+    woodie: Optional[PivotSet] = None
+    ema_200: Optional[float] = None
     computed_at: str = ""
     stale: bool = False
 
@@ -75,6 +77,8 @@ class PivotResult:
             "classic": self.classic.to_dict(),
             "fibonacci": self.fibonacci.to_dict(),
             "camarilla": self.camarilla.to_dict(),
+            "woodie": self.woodie.to_dict() if self.woodie else None,
+            "ema_200": round(self.ema_200, 2) if self.ema_200 else None,
             "computed_at": self.computed_at,
             "stale": self.stale,
         }
@@ -82,7 +86,10 @@ class PivotResult:
     def all_levels_flat(self) -> list:
         """Return all pivot levels as a flat list of {price, label, type} dicts."""
         levels = []
-        for pset in [self.classic, self.fibonacci, self.camarilla]:
+        all_sets = [self.classic, self.fibonacci, self.camarilla]
+        if self.woodie:
+            all_sets.append(self.woodie)
+        for pset in all_sets:
             d = pset.to_dict()
             prefix = pset.name[:3].upper()
             for key, val in d.items():
@@ -93,6 +100,13 @@ class PivotResult:
                     "type": level_type,
                     "set": pset.name,
                 })
+        if self.ema_200:
+            levels.append({
+                "price": round(self.ema_200, 2),
+                "label": "EMA_200",
+                "type": "MOVING_AVERAGE",
+                "set": "EMA",
+            })
         return levels
 
 
@@ -100,7 +114,7 @@ class PivotResult:
 
 class PivotCalculator:
     """
-    Pivot Agent — calculates Classic, Fibonacci, Camarilla pivots.
+    Pivot Agent — calculates Classic, Fibonacci, Camarilla, Woodie pivots + 200-day EMA.
     
     Pure math. No external API dependency beyond yfinance for prior OHLC.
     Cache TTL: 86400s (24h).
@@ -158,6 +172,34 @@ class PivotCalculator:
         S4 = C - 1.1 * diff / 2
         return PivotSet(name="Camarilla", pivot=P, r1=R1, r2=R2, r3=R3, s1=S1, s2=S2, s3=S3, r4=R4, s4=S4)
 
+    @staticmethod
+    def _woodie(H: float, L: float, C: float, O: float) -> PivotSet:
+        """Woodie pivot uses Open price instead of Close for pivot point."""
+        P = (H + L + 2 * O) / 4  # Woodie: weight Open
+        R1 = 2 * P - L
+        S1 = 2 * P - H
+        R2 = P + (H - L)
+        S2 = P - (H - L)
+        R3 = H + 2 * (P - L)
+        S3 = L - 2 * (H - P)
+        return PivotSet(name="Woodie", pivot=P, r1=R1, r2=R2, r3=R3, s1=S1, s2=S2, s3=S3)
+
+    @staticmethod
+    def _compute_ema_200(hist) -> Optional[float]:
+        """Compute 200-day EMA from historical close prices."""
+        try:
+            if hist is None or len(hist) < 200:
+                return None
+            closes = hist["Close"].values
+            # EMA with span=200
+            multiplier = 2 / (200 + 1)
+            ema = float(closes[0])
+            for price in closes[1:]:
+                ema = (float(price) - ema) * multiplier + ema
+            return ema
+        except Exception:
+            return None
+
     # ── Public API ───────────────────────────────────────────────────────
 
     def compute(self, symbol: str) -> Optional[PivotResult]:
@@ -179,8 +221,8 @@ class PivotCalculator:
             from datetime import datetime
 
             ticker = yf.Ticker(symbol)
-            # Get last 5 trading days to ensure we have prior day data
-            hist = ticker.history(period="5d")
+            # Get 250 trading days for 200-day EMA + prior day OHLC
+            hist = ticker.history(period="1y")
 
             if hist is None or len(hist) < 2:
                 logger.warning(f"Insufficient history for {symbol}")
@@ -195,7 +237,11 @@ class PivotCalculator:
             H = float(prior["High"])
             L = float(prior["Low"])
             C = float(prior["Close"])
+            O = float(prior["Open"])
             prior_date = str(hist.index[-2].date())
+
+            # 200-day EMA (use all history up to and including prior day)
+            ema_200 = self._compute_ema_200(hist.iloc[:-1])
 
             result = PivotResult(
                 symbol=symbol,
@@ -206,6 +252,8 @@ class PivotCalculator:
                 classic=self._classic(H, L, C),
                 fibonacci=self._fibonacci(H, L, C),
                 camarilla=self._camarilla(H, L, C),
+                woodie=self._woodie(H, L, C, O),
+                ema_200=ema_200,
                 computed_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 stale=False,
             )
@@ -217,7 +265,8 @@ class PivotCalculator:
             logger.info(
                 f"✅ Pivots computed for {symbol} from {prior_date}: "
                 f"Classic P={result.classic.pivot:.2f}, "
-                f"Fib P={result.fibonacci.pivot:.2f}"
+                f"Woodie P={result.woodie.pivot:.2f}, "
+                f"EMA200={'%.2f' % ema_200 if ema_200 else 'N/A'}"
             )
             return result
 
@@ -236,11 +285,14 @@ class PivotCalculator:
             return f"No pivot data available for {symbol}"
 
         c = result.classic
+        ema_str = f" | EMA200={result.ema_200:.2f}" if result.ema_200 else ""
+        woodie_str = f" | Woodie P={result.woodie.pivot:.2f}" if result.woodie else ""
         return (
             f"📐 PIVOTS ({symbol}) — Prior {result.prior_date}\n"
             f"Classic: S3={c.s3:.2f} | S2={c.s2:.2f} | S1={c.s1:.2f} | "
             f"P={c.pivot:.2f} | R1={c.r1:.2f} | R2={c.r2:.2f} | R3={c.r3:.2f}\n"
             f"Fib R1={result.fibonacci.r1:.2f} | Cam R3={result.camarilla.r3:.2f}"
+            f"{woodie_str}{ema_str}"
         )
 
 

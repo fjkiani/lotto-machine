@@ -1,0 +1,24 @@
+{
+  "source_name": "fred_economic",
+  "source_url": "https://api.stlouisfed.org/fred/",
+  "download_date": "2026-03-10T01:33:28.281468",
+  "total_rows": 3429,
+  "series": [
+    "CPIAUCSL",
+    "DGS10",
+    "DGS2",
+    "FEDFUNDS",
+    "PAYEMS",
+    "T10Y2Y",
+    "UNRATE"
+  ],
+  "schema_version": 1,
+  "columns": [
+    "series_id",
+    "series_name",
+    "date",
+    "value"
+  ],
+  "has_fred_key": true,
+  "verification_status": "pending"
+}

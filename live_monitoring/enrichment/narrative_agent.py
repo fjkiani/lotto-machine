@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
-COHERE_MODEL = "command-a-reasoning-08-2025"
+COHERE_MODEL = "command-r-plus-08-2024"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -307,6 +307,58 @@ class NarrativeAgent:
                         lines.append(f"  ⚠️  {a}")
         else:
             lines.append("── KILL CHAIN ──\n  Intelligence not available")
+
+        lines.append("")
+
+        # ── Fed Officials Brain (Hidden Conviction Layer) ───────────────────
+        try:
+            from live_monitoring.core.brain_manager import BrainManager
+            brain_manager = BrainManager()
+            report = brain_manager.get_report()
+            
+            if not report:
+                lines.append("── FED OFFICIALS BRAIN ──\n  Report not available")
+                return "\n".join(lines)
+
+            # Fed tone
+            lines.append("── FED OFFICIALS INTELLIGENCE ──")
+            lines.append(f"  Overall Tone: {report.get('fed_overall_tone', 'NEUTRAL')}")
+            for speech in report.get("fed_tone_summary", [])[:3]:
+                lines.append(f"  • {speech.get('official', '?')}: {speech.get('tone', '?')} "
+                             f"({speech.get('confidence', 0)*100:.0f}%) — {speech.get('title', '')[:60]}")
+
+            lines.append("")
+
+            # Hidden hands
+            hands = report.get("hidden_hands", {})
+            lines.append("── HIDDEN HANDS (Politicians + Insiders) ──")
+            lines.append(f"  Politician Trades: {hands.get('politician_cluster', 0)} "
+                         f"({hands.get('politician_buys', 0)} buys / {hands.get('politician_sells', 0)} sells)")
+            lines.append(f"  Insider Net Buying: ${hands.get('insider_net_usd', 0)/1e6:.1f}M "
+                         f"({hands.get('insider_count', 0)} trades)")
+            lines.append(f"  Hot Tickers: {', '.join(hands.get('hot_tickers', [])[:8])}")
+            
+            # Detail rows
+            for p in hands.get("politician_details", [])[:3]:
+                lines.append(f"    🏛️ {p.get('name', '?')} → {p.get('ticker', '?')} "
+                             f"({p.get('type', '?')}, {p.get('size', '?')})")
+            for i in hands.get("insider_details", [])[:3]:
+                val = i.get('value', 0)
+                val_str = f"${val/1e6:.1f}M" if isinstance(val, (int, float)) and val > 0 else "N/A"
+                lines.append(f"    🕵️ {i.get('company', '?')} ({i.get('ticker', '?')}) → "
+                             f"{i.get('type', '?')} {val_str}")
+
+            lines.append("")
+
+            # Divergence boost
+            boost = report.get("divergence_boost", 0)
+            if boost != 0:
+                lines.append(f"  ⚡ CONVICTION BOOST: +{boost} divergence points")
+                for r in report.get("reasons", []):
+                    lines.append(f"    → {r}")
+
+        except Exception as e:
+            logger.debug(f"Fed Officials Brain not available: {e}")
 
         return "\n".join(lines)
 

@@ -3,7 +3,7 @@ DP Signal Analyzer — Pure signal analysis logic.
 
 Extracted from dp_divergence_checker.py. Contains:
 - DP bias calculation (volume-weighted support/resistance)
-- Confluence signal generation (89.8% WR proven edge)
+- Confluence signal generation (bounce-rate driven)
 - Options divergence detection (contrarian edge)
 - dp_learning.db stats reader
 
@@ -84,9 +84,10 @@ def generate_confluence_signal(
     config: Dict = None,
 ) -> Optional[DPDivergenceSignal]:
     """
-    Generate a DP CONFLUENCE signal (89.8% WR strategy).
+    Generate a DP CONFLUENCE signal.
 
-    This is the PROVEN edge - trading WITH DP levels.
+    SUPPORT levels break 2.5× more than RESISTANCE (p=0.0001).
+    Bounce rate from dp_learning.db is used for reasoning.
     """
     cfg = config or DP_SIGNAL_CONFIG
 
@@ -102,12 +103,17 @@ def generate_confluence_signal(
         return None
 
     # Determine direction based on DP bias
+    # Pull real stats for honest reasoning
+    stats = get_dp_learning_stats()
+    bounce_rate = stats.get('win_rate', 0)
+    
     if dp_bias == 'BULLISH':
         direction = 'LONG'
-        reasoning = f"DP CONFLUENCE: Price near support ${level_price:.2f} ({level_vol:,} shares). 89.8% bounce rate proven."
+        # SUPPORT levels bounce ~80.7%, RESISTANCE ~94.9%
+        reasoning = f"DP CONFLUENCE: Price near support ${level_price:.2f} ({level_vol:,} shares). {bounce_rate:.0f}% historical bounce rate."
     else:
         direction = 'SHORT'
-        reasoning = f"DP CONFLUENCE: Price near resistance ${level_price:.2f} ({level_vol:,} shares). 89.8% rejection rate proven."
+        reasoning = f"DP CONFLUENCE: Price near resistance ${level_price:.2f} ({level_vol:,} shares). {bounce_rate:.0f}% rejection rate."
 
     # Calculate confidence based on DP strength
     base_confidence = 75  # High base confidence (proven edge)

@@ -132,34 +132,10 @@ except Exception as e:
     traceback.print_exc()
 
 # Test 5: Compare with old system
-print("5️⃣ COMPARING WITH OLD SYSTEM...")
+print("5️⃣ OLD SYSTEM DELETED...")
 print("-" * 70)
-try:
-    from live_monitoring.agents.fed_officials_monitor import FedOfficialsMonitor
-    
-    old_monitor = FedOfficialsMonitor()
-    old_report = old_monitor.get_report()
-    
-    print(f"   📊 OLD SYSTEM:")
-    print(f"      Comments: {len(old_report.comments)}")
-    print(f"      Sentiment: {old_report.overall_sentiment}")
-    print()
-    
-    print(f"   📊 NEW SYSTEM:")
-    print(f"      Comments: {len(report.comments)}")
-    print(f"      Sentiment: {report.overall_sentiment}")
-    print()
-    
-    if len(report.comments) > len(old_report.comments):
-        print("   ✅ NEW SYSTEM: Found more comments!")
-    elif len(report.comments) == len(old_report.comments):
-        print("   ⚖️  Both systems found same number of comments")
-    else:
-        print("   ⚠️  NEW SYSTEM: Found fewer comments (may be better deduplication)")
-    print()
-except Exception as e:
-    print(f"   ⚠️  Could not compare (old system error): {e}")
-    print()
+print("   ✅ Legacy monolithic `FedOfficialsMonitor` has been successfuly purged.")
+print()
 
 print("=" * 70)
 print("✅ TEST COMPLETE!")

@@ -1,0 +1,21 @@
+{
+  "source_name": "finra_short_volume",
+  "source_url": "https://cdn.finra.org/equity/regsho/daily/",
+  "download_date": "2026-03-10T01:45:09.596518",
+  "date_range": {
+    "start": "2025-03-06",
+    "end": "2026-03-09"
+  },
+  "total_rows": 1518,
+  "total_files": 253,
+  "unique_trading_days": 253,
+  "tickers": [
+    "SPY",
+    "QQQ",
+    "AAPL",
+    "TSLA",
+    "NVDA",
+    "IWM"
+  ],
+  "verification_status": "expanded"
+}

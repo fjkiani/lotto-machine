@@ -57,7 +57,7 @@ async def kill_chain_scan():
             data = getattr(report, name, None)
             if data:
                 # Strip narrative from layer data (it's in the main narrative)
-                layers[name] = {k: v for k, v in data.items() if k != "narrative"}
+                layers[name] = data  # Include per-layer narrative
 
         # Serialize mismatches
         mismatches = []
@@ -178,11 +178,17 @@ async def kill_chain_narrative():
 
     try:
         report = engine.run_full_scan()
+        # report.timestamp may be str or datetime — handle both
+        ts = report.timestamp
+        if hasattr(ts, 'isoformat'):
+            ts = ts.isoformat()
+        elif ts is None:
+            ts = datetime.utcnow().isoformat()
         return {
             "narrative": report.narrative,
             "alert_level": report.alert_level,
             "mismatches_count": len(report.mismatches or []),
-            "timestamp": report.timestamp.isoformat() if report.timestamp else datetime.utcnow().isoformat(),
+            "timestamp": ts,
         }
     except Exception as e:
         logger.error(f"Narrative generation failed: {e}", exc_info=True)

@@ -178,11 +178,16 @@ class ConfluenceScorer:
         The learning engine tracks outcomes (bounce/break) and learns patterns.
         Higher bounce probability + alignment with DP bias = higher score.
         
+        SUPPORT ASYMMETRY: Our audit (n=346, p=0.0001) shows SUPPORT levels
+        break 2.5× more than RESISTANCE. When predicting on a SUPPORT level,
+        we weight BREAK signals heavier.
+        
         Args:
             prediction: {
                 'bounce_probability': 0.78,
                 'confidence': 'HIGH',  # HIGH/MEDIUM/LOW
                 'patterns': ['vol_2m_plus', 'support', 'touch_1'],
+                'level_type': 'SUPPORT' or 'RESISTANCE',
             }
             dp_bias: Current DP-based bias
         """
@@ -191,10 +196,23 @@ class ConfluenceScorer:
         
         prob = prediction.get('bounce_probability', 0.5)
         confidence = prediction.get('confidence', 'MEDIUM')
+        level_type = prediction.get('level_type', 'UNKNOWN')
         
         # Convert probability to score
         # 50% = 0.5, 80% = 0.8, etc.
         base_score = prob
+        
+        # SUPPORT ASYMMETRY: SUPPORT breaks 2.5× more than RESISTANCE
+        # (audit: SUPPORT bounce=80.7%, RESISTANCE bounce=94.9%, χ²=15.81, p=0.0001)
+        # If this is a SUPPORT level and break looks likely, boost the signal
+        if level_type == 'SUPPORT' and prob < 0.60:
+            # SUPPORT + low bounce prob = higher BREAK confidence
+            # Shift probability towards break by 10% (conservative application)
+            base_score = max(0.05, prob - 0.10)
+            logger.debug(f"SUPPORT asymmetry: bounce {prob:.0%} → {base_score:.0%} (SUPPORT breaks 2.5× more)")
+        elif level_type == 'RESISTANCE' and prob > 0.70:
+            # RESISTANCE + high bounce prob = extra confidence in bounce
+            base_score = min(0.95, prob + 0.05)
         
         # Confidence modifier
         confidence_mod = {

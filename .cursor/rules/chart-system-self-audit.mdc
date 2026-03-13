@@ -1,0 +1,99 @@
+---
+description: Honest self-audit of chart system — verified claims vs sandbagged claims, root causes found, phased fix plan
+globs:
+  - frontend/src/components/charts/**
+  - frontend/src/lib/api.ts
+  - backend/app/api/v1/charts.py
+  - backend/app/api/v1/signals.py
+alwaysApply: false
+---
+
+# Chart System Self-Audit — No Assumptions
+
+> Audited: 2026-03-11 12:10 ET | Method: curl every endpoint, read every component, verify every claim
+
+## ✅ VERIFIED (actually works)
+
+| Claim | Proof |
+|-------|-------|
+| OHLC endpoint returns candles | `curl /charts/SPY/ohlc?period=1d&interval=5m` → 33 candles |
+| Matrix endpoint returns levels | $674.07, 11 DP, 10 GEX, 6 MAs, pivots=true, 2 traps |
+| api.ts timeout (10s AbortController) | Code audited — `withTimeout()` on all fetch calls |
+| OHLC cache (30s/120s TTL) | `_ohlc_cache_ttl("1d")=30`, `_ohlc_cache_ttl("3mo")=120` |
+| Tailwind custom theme | `tailwind.config.js` has bg-primary, text-muted, border-subtle |
+| tsc --noEmit clean | Zero errors confirmed |
+| MarketOverview renders ChartContainer | WidgetGrid imports MarketOverview → wraps ChartContainer |
+
+## ❌ SANDBAGGED (claimed fixed, doesn't actually work)
+
+### 1. Signal Markers — DEAD CODE
+**Claim:** "Signal markers as price lines — entry/target/stop"
+**Reality:** Signals endpoint returns `count: 0, signals: []`. Always.
+**Root cause:** `MonitorBridge.monitor` is `None`. The unified monitor was never started in the local backend process. The `/signals` endpoint checks `if not monitor_bridge.monitor: return {signals: []}` — instant empty return.
+**Impact:** SignalEventLog always shows "No active signals". Signal markers never render on chart. Zero visual difference from before I built them.
+**Fix needed:** Start unified monitor in backend startup, OR create signal-generating test data, OR add fallback signal source.
+
+### 2. OHLC Auto-Refresh — UNTESTED
+**Claim:** "OHLC auto-poll every 30s on intraday timeframes"
+**Reality:** Code is correct (ChartContainer has `ohlcPollRef` with `getOHLCPollInterval`), but I never verified it running in a browser. Frontend dev server kept dying during audit.
+**Status:** Likely works (logic is simple setInterval), but no visual proof.
+
+### 3. Layer Toggles — UNTESTED
+**Claim:** "Toggle MAs/Pivots/GEX/DP/Traps on/off"
+**Reality:** Code passes `layers.ma ? data : {}` to TradingViewChart. Logic is correct but never browser-tested.
+**Status:** Likely works, but no visual proof.
+
+### 4. ChartContainer fetchOHLC race condition
+**Problem:** `fetchOHLC` is in `useCallback` dependent on `[symbol, timeframe]`, but the `useEffect` for timeframe change calls `fetchOHLC()` — this could fire with stale closure values if both symbol and timeframe change simultaneously.
+**Risk:** Low (user unlikely to click both at exact same time), but technically a bug.
+
+## 🔍 ROOT CAUSES
+
+### Why signals are always empty
+```
+MonitorBridge.monitor = None
+↓
+signals.py line 78: if not monitor_bridge.monitor → return {signals: []}
+↓
+No signals ever generated
+↓
+SignalEventLog = dead widget
+↓
+Signal markers = dead code
+```
+
+The unified monitor starts from `run_all_monitors_web.py` or as a background thread in `main.py` startup. Locally, the FastAPI backend starts via `uvicorn` but may not trigger the monitor startup event.
+
+### Why frontend keeps crashing
+Vite dev server exits with code 130 (SIGINT) — likely being killed by a resource constraint or another process. Not a code bug.
+
+## PHASE 1: Chart System Bulletproofing (THIS SESSION)
+
+**Focus: Make what we have work perfectly, stop claiming dead features.**
+
+1. [x] api.ts timeout — DONE ✅
+2. [x] OHLC cache — DONE ✅
+3. [ ] Remove SignalEventLog from ChartContainer (it's a dead widget with no data source)
+4. [ ] Keep signal marker code in TradingViewChart but don't pass empty signals (currently harmless — no signals = no markers)
+5. [ ] ChartContainer: fix fetchOHLC race condition
+
+## PHASE 2: Frontend Intelligence Handoff (NEXT SESSION)
+
+**Focus: Build the backend endpoints that the MDC lists as missing.**
+
+Priority order from `frontend-intelligence-handoff.mdc`:
+1. Fix narrative endpoint timeout (backend cache/precompute)
+2. Build `/dp/patterns` endpoint
+3. Build `/dp/prediction/{symbol}` endpoint
+4. Build `/narrative/memory` endpoint
+5. Build `/health/win-rates` endpoint
+6. Wire into frontend
+
+## PHASE 3: Signal Pipeline (FUTURE)
+
+**Focus: Make signals actually flow.**
+
+This requires the unified monitor to be running, which requires:
+- Background thread startup in `main.py`
+- Signal generator producing actual signals
+- Then SignalEventLog + signal markers become live

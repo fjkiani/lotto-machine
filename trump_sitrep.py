@@ -35,7 +35,7 @@ from live_monitoring.agents.trump_calendar import TrumpCalendar
 from live_monitoring.agents.trump_exploiter import TrumpExploiter
 from live_monitoring.agents.trump_news_monitor import TrumpNewsMonitor
 from live_monitoring.agents.fed_watch_monitor import FedWatchMonitor
-from live_monitoring.agents.fed_officials_monitor import FedOfficialsMonitor
+from live_monitoring.agents.fed_officials.engine import FedOfficialsEngine
 
 logging.basicConfig(level=logging.WARNING)  # Suppress info logs for clean output
 
@@ -215,9 +215,9 @@ def run_fed_full():
     print("\n═══════════════════════════════════════════════════════════════════════════")
     print("  🎤 FED OFFICIALS COMMENTS (Who Said What?)")
     print("═══════════════════════════════════════════════════════════════════════════")
-    fed_officials = FedOfficialsMonitor()
+    fed_officials = FedOfficialsEngine()
     report = fed_officials.get_report()
-    fed_officials.print_fed_officials_report(report)
+    fed_officials.print_report(report)
     
     print("\n")
 

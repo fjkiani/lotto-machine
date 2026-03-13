@@ -1,0 +1,229 @@
+---
+description: Diffbot Hidden Layers — Full extraction, storage, and firing architecture for Fed Intel, Politicians, Insiders, and Economics.
+---
+
+# 🔮 Diffbot Hidden Layers — Master Extraction Plan
+
+> **Status**: Phase 4 (Fed Intel) LIVE ✅ | Phase 5 (Politicians/Insiders/Economics) STUBBED — needs hardening.
+> **API Key**: `DIFFBOT_TOKEN` (in `.env`) — one key powers ALL extraction layers.
+> **Last tested**: 2026-03-09 — Bowman speech extracted (8,539 chars), Calendar parsed (2,520 events).
+
+---
+
+## 1. EXTRACTION ENGINE — `diffbot_extractor.py`
+
+**Location**: `live_monitoring/enrichment/apis/diffbot_extractor.py`
+
+Two core methods that power everything:
+
+```python
+# METHOD 1: Article API — for speeches, testimony, FOMC minutes
+extractor.extract_article(url)  
+# Returns: { speaker, title, date, full_text (clean transcript), raw_html }
+
+# METHOD 2: Analyze API — for tables (politicians, insiders, economics)
+extractor.extract_analyze(url)  
+# Returns: Diffbot's automatic page analysis with embedded table rows
+```
+
+### Current Gaps ⚠️
+- `extract_analyze()` returns empty for JS-heavy sites (CapitolTrades, QuiverQuant).
+- **Fix needed**: Add `timeout` param (Diffbot supports `?timeout=30000` for JS rendering).
+- **Fallback needed**: Add BeautifulSoup HTML table parser for static sites like OpenInsider.
+- No retry logic or rate-limiting protection.
+
+---
+
+## 2. DATA SOURCES — Every URL We Hit
+
+### Layer A: Fed Speeches & Testimony (✅ LIVE)
+
+| Source | URL | Method | Status |
+|--------|-----|--------|--------|
+| Speeches RSS | `https://www.federalreserve.gov/feeds/speeches.xml` | `feedparser` → Diffbot Article | ✅ Working |
+| Speeches+Testimony RSS | `https://www.federalreserve.gov/feeds/speeches_and_testimony.xml` | `feedparser` → Diffbot Article | ✅ Working |
+| Testimony RSS | `https://www.federalreserve.gov/feeds/testimony.xml` | `feedparser` → Diffbot Article | 🔲 Not wired |
+| Calendar JSON | `https://www.federalreserve.gov/json/calendar.json` | `requests` + `utf-8-sig` decode | ✅ Working |
+| FOMC Minutes | `https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm` | Diffbot Article | 🔲 Not wired |
+| Press Conferences | `https://www.federalreserve.gov/newsevents/pressreleases.htm` | Diffbot Article | 🔲 Not wired |
+
+**Module**: `live_monitoring/agents/fed_officials/fed_rss_calendar.py`
+**Storage**: SQLite → `data/fed_officials.db` → `comments` table (deduped by `comment_hash`)
+**Pipeline**: RSS entry → Diffbot transcript → SentimentAnalyzer (LLM) → FedComment → DB → Signal Generator
+
+### Layer B: Politician Trades (🔲 STUBBED)
+
+| Source | URL | Method | Status |
+|--------|-----|--------|--------|
+| CapitolTrades (all) | `https://www.capitoltrades.com/trades` | Diffbot Analyze | ❌ Empty (JS) |
+| CapitolTrades (Pelosi) | `https://www.capitoltrades.com/politicians/P000197` | Diffbot Analyze | ❌ Empty (JS/React) |
+| QuiverQuant (Pelosi) | `https://www.quiverquant.com/congresstrading/politician/Nancy%20Pelosi-P000197` | Diffbot Analyze | ❌ Empty (JS) |
+| QuiverQuant (All) | `https://www.quiverquant.com/congresstrading` | Diffbot Analyze | 🔲 Not tested |
+| House Disclosures | `https://disclosures-clerk.house.gov/PublicDisclosure/FinancialDisclosure` | Diffbot Article | 🔲 Not tested |
+
+**Module**: `live_monitoring/agents/hidden_layers/politician_monitor.py`
+**Storage**: ❌ **NO DATABASE TABLE YET** — needs `politician_trades` table in SQLite
+**Fix needed**:
+1. Add `?timeout=30000` to Diffbot calls for JS rendering
+2. Add BeautifulSoup fallback for QuiverQuant (`div.table-inner` class)
+3. Create `politician_trades` table in `database.py`
+4. Wire output into `MacroContextProvider` / Signal Generator
+
+### Layer C: Insider Trades (🔲 STUBBED)
+
+| Source | URL | Method | Status |
+|--------|-----|--------|--------|
+| OpenInsider (cluster buys) | `http://openinsider.com/latest-cluster-buys` | Diffbot Analyze | ❌ Empty |
+| OpenInsider (homepage) | `http://openinsider.com/` | Diffbot Analyze | ❌ Empty |
+| EDGAR Form 4 | `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&type=4` | Diffbot Article | 🔲 Not tested |
+
+**Module**: `live_monitoring/agents/hidden_layers/insider_monitor.py`
+**Storage**: ❌ **NO DATABASE TABLE YET** — needs `insider_trades` table
+**Fix needed**:
+1. OpenInsider uses static HTML `<table>` — use BeautifulSoup directly (faster + guaranteed)
+2. Create `insider_trades` table in `database.py`
+3. Add cluster-buy scoring (3+ execs buying = HIGH signal)
+4. Wire output into Signal Generator divergence logic
+
+### Layer D: Economic Surprises (🔲 NOT STARTED)
+
+| Source | URL | Method | Status |
+|--------|-----|--------|--------|
+| FRED (Jobs) | `https://fred.stlouisfed.org/series/PAYEMS` | Diffbot Article | 🔲 Not started |
+| BLS Jobs Report | `https://www.bls.gov/news.release/empsit.nr0.htm` | Diffbot Article | 🔲 Not started |
+| BLS CPI | `https://www.bls.gov/news.release/cpi.nr0.htm` | Diffbot Article | 🔲 Not started |
+| ISM Manufacturing | `https://www.ismworld.org/supply-management-news-and-reports/reports/ism-report-on-business/` | Diffbot Article | 🔲 Not started |
+
+**Module**: 🔲 **NOT CREATED** — needs `live_monitoring/agents/hidden_layers/econ_monitor.py`
+**Storage**: 🔲 Needs `econ_surprises` table
+
+---
+
+## 3. STORAGE ARCHITECTURE
+
+### Current: `data/fed_officials.db` (SQLite)
+
+| Table | Purpose | Status |
+|-------|---------|--------|
+| `comments` | Fed speech transcripts + sentiment + market impact | ✅ Live |
+| `officials` | Learned Fed official profiles (name, position, frequency) | ✅ Live |
+| `query_performance` | Which search queries yield best results | ✅ Live |
+| `sentiment_patterns` | Learned phrase → sentiment mappings | ✅ Live |
+| `market_impact_patterns` | Official + Sentiment → actual SPY move | ✅ Live |
+| `politician_trades` | Congressional stock trades | ❌ **MISSING** |
+| `insider_trades` | Corporate insider buys/sells | ❌ **MISSING** |
+| `econ_surprises` | Jobs/CPI actual vs expected | ❌ **MISSING** |
+| `calendar_events` | Upcoming Fed events | ❌ **MISSING** |
+
+---
+
+## 4. SIGNAL FIRING — How Extracted Data Becomes Alpha
+
+### Currently Wired (✅)
+
+```
+FedRSSCalendarPoller.poll_speeches()
+  → DiffbotExtractor.extract_article(speech_url)
+  → SentimentAnalyzer.analyze(text_chunk, speaker)
+  → FedComment(sentiment=HAWKISH/DOVISH/NEUTRAL)
+  → engine.py saves to DB
+  → signal_generator._apply_holistic_kill_shots()
+      → Compares fed_tone vs dark_pool_volume
+      → divergence_score += 7 if mismatch
+      → VETO or BOOST the trade signal
+```
+
+### Not Yet Wired (🔲)
+
+```
+PoliticianMonitor.poll_latest_trades()
+  → ✅ Extracted via Diffbot + BS4 fallback
+  → ✅ Stored in politician_trades table (MD5 dedup)
+  → ✅ Queried by signal_generator → divergence_score += 2 when pol buys + DP spike
+
+InsiderMonitor.poll_latest_trades()
+  → ✅ Extracted via BS4 (tinytable class)
+  → ✅ Stored in insider_trades table (MD5 dedup)
+  → ✅ Queried by signal_generator → divergence_score += 3 when cluster buys + DP spike
+  → ✅ divergence_score -= 2 when insider exits > buys
+
+EconMonitor (doesn't exist yet)
+  → ❌ No surprise calculation (actual vs consensus)
+  → ❌ Not connected to NarrativeEngine
+```
+
+---
+
+## 5. IMMEDIATE ACTION ITEMS
+
+### Priority 1: Make Extraction Actually Work
+- [x] Add `?timeout=30000` to Diffbot Analyze calls for JS-rendered pages
+- [x] Build `extract_table_bs4()` for OpenInsider HTML tables
+- [x] BS4 fallback for CapitolTrades (Diffbot fails → BS4 catches)
+- [ ] Add retry logic (3 attempts with exponential backoff) to `diffbot_extractor.py`
+
+### Priority 2: Storage for Hidden Layers
+- [x] Add `politician_trades` table to `database.py`
+- [x] Add `insider_trades` table to `database.py`
+- [x] Add `calendar_events` table to `database.py`
+- [x] Wire `PoliticianMonitor` output into DB via engine
+- [x] Wire `InsiderMonitor` output into DB via engine
+- [x] Add `get_politician_flow()` DB getter
+- [x] Add `get_insider_flow()` DB getter
+
+### Priority 3: Signal Firing for Hidden Layers
+- [x] Score insider cluster buys (3+ buys + DP spike = +3)
+- [x] Score politician buys (any buys + DP spike = +2)
+- [x] Score insider exits (sells > buys = -2)
+- [x] Feed politician/insider signals into `_apply_holistic_kill_shots()`
+- [ ] Cross-reference politician trades with upcoming Fed events
+
+### Priority 4: Economics Layer
+- [ ] Create `econ_monitor.py` with BLS/FRED polling
+- [ ] Build surprise calculator (actual vs Bloomberg consensus)
+- [ ] Connect to NarrativeEngine divergence scoring
+
+---
+
+## 6. FILE MAP
+
+```
+live_monitoring/
+├── enrichment/apis/
+│   └── diffbot_extractor.py        # ✅ Core API wrapper (Article + Analyze)
+│
+├── agents/
+│   ├── fed_officials/
+│   │   ├── engine.py               # ✅ Orchestrator (routes through poller)
+│   │   ├── fed_rss_calendar.py     # ✅ RSS + Calendar polling + Diffbot
+│   │   ├── database.py             # ✅ SQLite (needs new tables)
+│   │   ├── sentiment_analyzer.py   # ✅ LLM tone analysis
+│   │   ├── impact_learner.py       # ✅ Learns market impact
+│   │   ├── official_tracker.py     # ✅ Dynamic official discovery
+│   │   ├── query_generator.py      # ✅ Dynamic query learning
+│   │   └── models.py               # ✅ Data contracts
+│   │
+│   └── hidden_layers/
+│       ├── politician_monitor.py   # 🔲 Stub — extraction empty
+│       ├── insider_monitor.py      # 🔲 Stub — extraction empty
+│       └── econ_monitor.py         # ❌ NOT CREATED
+│
+└── core/
+    └── signal_generator.py         # ✅ Kill Shot divergence wired (Fed only)
+```
+
+---
+
+## 7. ENV REQUIREMENTS
+
+```bash
+# .env — Required keys
+DIFFBOT_TOKEN=a70dd1...        # ✅ Powers all extraction layers
+OPENAI_API_KEY=sk-...          # ✅ Powers SentimentAnalyzer LLM
+PERPLEXITY_API_KEY=pplx-...    # ⚠️ Legacy (no longer primary, but available)
+```
+
+```bash
+# Python dependencies
+pip install feedparser requests beautifulsoup4
+```

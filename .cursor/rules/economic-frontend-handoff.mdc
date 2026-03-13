@@ -1,0 +1,309 @@
+---
+description: Front-End Handoff — Economic Exploitation Widgets. Render static data from verified backend modules while signals/predictions are built separately.
+globs: frontend/src/components/widgets/EconomicCalendar*.tsx, frontend/src/components/widgets/FedWatch*.tsx, frontend/src/components/widgets/CPI*.tsx
+---
+
+# Economic Exploitation — Front-End Handoff
+
+> For the agent building front-end widgets. Data is STATIC (read-only display). Predictions/signals are built separately.
+
+---
+
+## What Exists Today
+
+### Widgets Already Built (for reference patterns)
+
+| Widget | File | Pattern | Data Source |
+|--------|------|---------|-------------|
+| KillChainDashboard | `components/widgets/KillChainDashboard.tsx` (259 lines) | Fetches `/api/v1/killchain/scan` → renders alert banner + 5 layer cards | REST API on Render |
+| FedTonePanel | `components/agentx/panels/FedTonePanel.tsx` (52 lines) | Receives `BrainReport` props → renders speaker cards with ToneBadge | Props from parent |
+| MarketOverview | `components/widgets/MarketOverview.tsx` | Market data display | REST API |
+| GammaTracker | `components/widgets/GammaTracker.tsx` | Gamma exposure chart | REST API |
+
+### API Pattern
+
+```typescript
+const API_BASE = import.meta.env.VITE_API_URL || 'https://lotto-machine-3.onrender.com';
+// All widgets fetch from: `${API_BASE}/api/v1/<endpoint>`
+```
+
+### UI Primitives Available
+
+- `Card` from `components/ui/Card`
+- `Badge` from `components/ui/Badge`
+- `ToneBadge` from `components/agentx/primitives/ToneBadge`
+
+---
+
+## NEW WIDGETS TO BUILD
+
+### Widget 1: Economic Calendar (`EconomicCalendar.tsx`)
+
+**What it renders:** This week's economic releases in a timeline view.
+
+**Data contract (from `TECalendarScraper.get_us_calendar()`):**
+
+```typescript
+interface EconEvent {
+  date: string;         // "Wednesday March 11 2026"
+  time: string;         // "12:30"
+  event: string;        // "CPIFEB"
+  actual: string | null;    // "326.7" or null (not yet released)
+  previous: string | null;  // "325.25"
+  consensus: string | null; // "326.7"
+  forecast: string | null;  // "326.7"
+  importance: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+}
+```
+
+**Rendering rules:**
+- Group events by date (Monday → Friday)
+- Color-code by importance: CRITICAL = red accent, HIGH = orange, MEDIUM = gray
+- Released events (actual ≠ null): show actual with ✅ and surprise badge if actual ≠ consensus
+- Upcoming events (actual = null): show consensus + forecast, highlight if consensus ≠ forecast
+- Current day's events get expanded view
+
+**API endpoint needed:** `GET /api/v1/economic/calendar`
+
+**Static fallback:** Can hardcode this week's data from TE scraper output:
+
+```json
+[
+  {"date": "Wednesday March 11 2026", "event": "CPIFEB", "actual": null, "previous": "325.25", "consensus": "326.7", "forecast": "326.7", "importance": "CRITICAL"},
+  {"date": "Wednesday March 11 2026", "event": "CPI s.aFEB", "actual": null, "previous": "326.588", "consensus": null, "forecast": "327.57", "importance": "CRITICAL"},
+  {"date": "Wednesday March 11 2026", "event": "Core CPI MoMFEB", "actual": null, "previous": "0.4%", "consensus": "0.3%", "forecast": null, "importance": "CRITICAL"},
+  {"date": "Wednesday March 11 2026", "event": "Core Inflation Rate MoMFEB", "actual": null, "previous": null, "consensus": "0.2%", "forecast": null, "importance": "CRITICAL"},
+  {"date": "Wednesday March 11 2026", "event": "Core CPI YoYFEB", "actual": null, "previous": "3.3%", "consensus": "3.2%", "forecast": null, "importance": "CRITICAL"},
+  {"date": "Thursday March 12 2026", "event": "Housing StartsJAN", "actual": null, "previous": "1.404M", "consensus": "1.35M", "forecast": null, "importance": "HIGH"},
+  {"date": "Thursday March 12 2026", "event": "Balance of TradeJAN", "actual": null, "previous": "$-70.3B", "consensus": "$-68B", "forecast": null, "importance": "HIGH"},
+  {"date": "Thursday March 12 2026", "event": "Initial Jobless ClaimsMAR/07", "actual": null, "previous": "213K", "consensus": "215K", "forecast": null, "importance": "HIGH"},
+  {"date": "Friday March 13 2026", "event": "GDP Growth Rate QoQ 2nd EstQ4", "actual": null, "previous": "4.4%", "consensus": null, "forecast": null, "importance": "CRITICAL"},
+  {"date": "Friday March 13 2026", "event": "Core PCE Price Index MoMJAN", "actual": null, "previous": "0.4%", "consensus": null, "forecast": null, "importance": "CRITICAL"},
+  {"date": "Friday March 13 2026", "event": "JOLTs Job OpeningsJAN", "actual": null, "previous": null, "consensus": null, "forecast": null, "importance": "HIGH"},
+  {"date": "Friday March 13 2026", "event": "Michigan Consumer Sentiment PrelMAR", "actual": null, "previous": "56.6", "consensus": null, "forecast": null, "importance": "HIGH"}
+]
+```
+
+> ⚠️ **Note:** There are TWO Core CPI MoM events: "Core CPI MoMFEB" (cons=0.3%) and "Core Inflation Rate MoMFEB" (cons=0.2%). The 0.2% from "Core Inflation Rate" is the verified consensus. Use this for scenario classification.
+
+---
+
+### Widget 2: Fed Watch Rate Path (`FedWatchRatePath.tsx`)
+
+**What it renders:** FOMC meeting-by-meeting rate probability visualization.
+
+**Data contract (from `FedWatchEngine.get_probabilities()`):**
+
+```typescript
+interface FedWatchData {
+  current_rate: number;       // 3.64
+  current_range: number[];    // [3.5, 3.75]
+  total_cuts_bps: number;     // 45.7
+  total_cuts_count: number;   // 1.8
+  summary: string;            // "Market pricing 46bp of cuts..."
+  rate_path: FOMCMeeting[];
+}
+
+interface FOMCMeeting {
+  date: string;           // "2026-03-19"
+  label: string;          // "Mar 18-19"
+  days_away: number;      // 10
+  p_cut_25: number;       // 0.0
+  p_hold: number;         // 85.6
+  p_hike_25: number;      // 14.4
+  cumulative_bps: number; // -3.6
+  implied_rate: number;   // 3.64
+}
+```
+
+**Rendering rules:**
+- Horizontal timeline: one card per FOMC meeting
+- Each card shows: date, P(cut) bar (green), P(hold) bar (gray), P(hike) bar (red)
+- Highlight next meeting (Mar 18-19) with "NEXT" badge
+- Show cumulative rate path as a line below the cards
+- Summary text at top: "Market pricing 46bp of cuts (1.8 moves) through Dec"
+
+**API endpoint needed:** `GET /api/v1/economic/fedwatch`
+
+**Static fallback data:**
+
+```json
+{
+  "current_rate": 3.64,
+  "current_range": [3.5, 3.75],
+  "total_cuts_bps": 45.7,
+  "total_cuts_count": 1.8,
+  "summary": "Market pricing 46bp of cuts (1.8 moves) through Dec 16-17",
+  "rate_path": [
+    {"label": "Mar 18-19", "days_away": 10, "p_cut_25": 0.0, "p_hold": 85.6, "p_hike_25": 14.4},
+    {"label": "May 6-7", "days_away": 59, "p_cut_25": 27.6, "p_hold": 72.4, "p_hike_25": 0.0},
+    {"label": "Jun 17-18", "days_away": 101, "p_cut_25": 24.4, "p_hold": 75.6, "p_hike_25": 0.0},
+    {"label": "Jul 29-30", "days_away": 143, "p_cut_25": 8.0, "p_hold": 92.0, "p_hike_25": 0.0},
+    {"label": "Sep 16-17", "days_away": 192, "p_cut_25": 98.4, "p_hold": 1.6, "p_hike_25": 0.0},
+    {"label": "Nov 4-5", "days_away": 241, "p_cut_25": 0.0, "p_hold": 90.0, "p_hike_25": 10.0},
+    {"label": "Dec 16-17", "days_away": 283, "p_cut_25": 48.0, "p_hold": 52.0, "p_hike_25": 0.0}
+  ]
+}
+```
+
+---
+
+### Widget 3: CPI Exploitation Card (`CPIExploitCard.tsx`)
+
+**What it renders:** The CPI-specific exploitation briefing for Wednesday.
+
+**Data contract (assembled from multiple sources):**
+
+```typescript
+interface CPIExploitBrief {
+  release_date: string;       // "2026-03-11"
+  release_time: string;       // "8:30 AM ET"
+  countdown_hours: number;    // computed from now
+  
+  // Current state
+  current_cpi_index: number;  // 326.588
+  current_cpi_yoy: string;    // "2.4%"
+  current_core_yoy: string;   // "2.5%"
+  
+  // Expectations
+  consensus_index: string;    // "326.7"
+  te_forecast: string;        // "326.7"
+  core_mom_consensus: string; // "0.2%" — ✅ VERIFIED from TE (event: "Core Inflation Rate MoMFEB")
+  
+  // Hypothesis
+  scenarios: CPIScenario[];
+  
+  // Fed context
+  next_fomc_date: string;     // "2026-03-19"
+  next_fomc_days: number;     // 10
+  fomc_hold_prob: number;     // 85.6
+  first_cut_meeting: string;  // "Sep 16-17"
+  first_cut_prob: number;     // 98.4
+}
+
+interface CPIScenario {
+  name: string;           // "HOT"
+  core_mom: string;       // "≥ 0.4%"
+  probability: string;    // "25%"
+  signal: string;         // "HAWKISH"
+  spy_direction: '↑' | '↓' | '—';
+  tlt_direction: '↑' | '↓' | '—';
+  dxy_direction: '↑' | '↓' | '—';
+  confidence: number;     // 0.8
+}
+```
+
+**Rendering rules:**
+- Countdown timer to 8:30 AM Wed
+- Market State section: current CPI, YoY, Core (from FRED)
+- Expectations section: consensus vs TE forecast (highlight if different)
+- Scenario table: 5 rows (HOT → COLD) with direction arrows color-coded (green ↑ / red ↓)
+- Fed Context sidebar: next FOMC date, hold probability, first cut meeting
+- After release: replace countdown with ACTUAL value + surprise badge + signal fired
+
+**Static data (use to render NOW):**
+
+```json
+{
+  "release_date": "2026-03-11",
+  "release_time": "8:30 AM ET",
+  "current_cpi_index": 326.588,
+  "current_cpi_yoy": "2.4%",
+  "current_core_yoy": "2.5%",
+  "consensus_index": "326.7",
+  "te_forecast": "326.7",
+  "core_mom_consensus": "0.2%",
+  "next_fomc_date": "2026-03-19",
+  "next_fomc_days": 10,
+  "fomc_hold_prob": 85.6,
+  "first_cut_meeting": "Sep 16-17",
+  "first_cut_prob": 98.4,
+  "scenarios": [
+    {"name": "HOT", "core_mom": "≥ 0.4%", "probability": "25%", "signal": "HAWKISH", "spy_direction": "↓", "tlt_direction": "↓", "dxy_direction": "↑", "confidence": 0.8},
+    {"name": "WARM", "core_mom": "0.3%", "probability": "—", "signal": "HAWKISH_MILD", "spy_direction": "↓", "tlt_direction": "↓", "dxy_direction": "—", "confidence": 0.5},
+    {"name": "IN-LINE", "core_mom": "0.2%", "probability": "60%", "signal": "NEUTRAL", "spy_direction": "—", "tlt_direction": "—", "dxy_direction": "—", "confidence": 0.2},
+    {"name": "COOL", "core_mom": "0.1%", "probability": "—", "signal": "DOVISH_MILD", "spy_direction": "↑", "tlt_direction": "↑", "dxy_direction": "—", "confidence": 0.5},
+    {"name": "COLD", "core_mom": "≤ 0.0%", "probability": "15%", "signal": "DOVISH", "spy_direction": "↑", "tlt_direction": "↑", "dxy_direction": "↓", "confidence": 0.8}
+  ]
+}
+```
+
+---
+
+### Widget 4: Macro Snapshot (`MacroSnapshot.tsx`)
+
+**What it renders:** Current FRED data in a compact grid.
+
+**Data contract (from `FREDClient.get_macro_snapshot()`):**
+
+```typescript
+interface MacroIndicator {
+  name: string;        // "CPI"
+  value: number;       // 326.588
+  change_pct: number;  // +0.17
+  date: string;        // "2026-01-14"
+}
+
+interface MacroSnapshot {
+  timestamp: string;
+  indicators: Record<string, MacroIndicator>;
+}
+```
+
+**Rendering rules:**
+- 2x3 or 3x2 grid of indicator cards
+- Each card: name, value, change % with arrow (green ↑ positive, red ↓ negative)
+- Indicators to show: CPI, PCE, Unemployment, NFP, Fed Funds, 10Y Yield
+
+**Static fallback data:**
+
+```json
+{
+  "indicators": {
+    "CPI": {"value": 326.588, "change_pct": 0.17, "date": "2026-01-14"},
+    "PCE": {"value": 128.605, "change_pct": 0.15, "date": "2026-01-31"},
+    "Unemployment": {"value": 4.4, "change_pct": 2.33, "date": "2026-02-07"},
+    "NFP": {"value": 158466, "change_pct": 0.04, "date": "2026-02-07"},
+    "FedFunds": {"value": 3.64, "change_pct": -0.27, "date": "2026-03-01"},
+    "10Y_Yield": {"value": 4.15, "change_pct": -0.48, "date": "2026-03-07"}
+  }
+}
+```
+
+---
+
+## API Endpoints Needed (Backend Team)
+
+These endpoints wrap existing live backend modules. **Note: these API routes do NOT exist yet — they must be built as Flask/FastAPI endpoints.**
+
+| Endpoint | Backend Module | Method | What It Returns |
+|----------|---------------|--------|-----------------|
+| `GET /api/v1/economic/calendar` | `TECalendarScraper.get_us_calendar()` | Direct call | Array of EconEvent |
+| `GET /api/v1/economic/fedwatch` | `FedWatchEngine.get_probabilities()` | Direct call | FedWatchData |
+| `GET /api/v1/economic/macro` | `FREDClient.get_macro_snapshot()` | Direct call | MacroSnapshot |
+| `GET /api/v1/economic/cpi-brief` | Assembled from all 3 above | Composite | CPIExploitBrief |
+
+> **Until endpoints are built:** Use the static fallback JSON provided with each widget spec. All data is real — scraped 2026-03-09. Swap in live fetch once API is wired.
+
+---
+
+## File Structure
+
+```
+frontend/src/components/widgets/
+├── EconomicCalendar.tsx      ← NEW (Widget 1)
+├── FedWatchRatePath.tsx       ← NEW (Widget 2)
+├── CPIExploitCard.tsx         ← NEW (Widget 3)
+├── MacroSnapshot.tsx          ← NEW (Widget 4)
+├── KillChainDashboard.tsx     ← EXISTING (pattern reference)
+├── MarketOverview.tsx         ← EXISTING
+└── ...
+```
+
+## Design Notes
+
+- Follow existing widget patterns from `KillChainDashboard.tsx`
+- Use `Card` component for all containers
+- Use `Badge` for status indicators (CRITICAL, HIGH, etc.)
+- Dark theme with accent colors matching existing widget palette
+- Responsive: widgets should work in the existing grid layout

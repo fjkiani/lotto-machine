@@ -1,20 +1,24 @@
 """
-Stockgrid Dark Pool Client — Free Dark Pool Flow Intelligence
+AXLFI Dark Pool & Market Intelligence Client
+(formerly Stockgrid — rebranded March 2026)
 
-Source: stockgrid.io (public API, no auth, no rate limit encountered)
-Data:   Daily dark pool positions, net short volume, short volume %
-Tickers: All US equities with dark pool activity
-Freshness: T+0 (updated daily after market close)
+All endpoints discovered via Playwright network interception.
+All data accessible via plain requests with browser-like headers.
 
-Endpoints:
-  GET /get_dark_pool_data?top={metric}&minmax={sort}  → Top positions
-  GET /get_dark_pool_individual_data?ticker={ticker}   → Per-ticker history
-
-Discovery: aluay/Insight repo is a 361-byte Express wrapper around this API.
-We call Stockgrid directly — no middleware needed.
+Full API Surface:
+  /api/dashboard/all           — 365KB master feed (movers, signals, strategy, VIX regime)
+  /api/dark_pools/leaderboard  — 200 tickers by dark pool position
+  /api/dark_pools/symbol       — per-ticker daily DP + short volume history
+  /api/option_walls/data       — SPY/QQQ/IWM call/put walls + POC + expirations
+  /api/option_walls/market_snapshot — current market summary
+  /api/option_walls/symbols    — available option wall tickers
+  /api/clusters/table          — 214KB universe (SP500, NASDAQ100, all)
+  /api/symbols/info            — ticker metadata (price, sector, vol, 52w)
 """
 import logging
 import time
+import json
+import os
 import requests
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Any
@@ -35,6 +39,21 @@ class DarkPoolPosition:
     net_short_dollars: float = 0.0
     short_volume: float = 0.0
     short_volume_pct: float = 0.0
+    company: str = ""
+    sector: str = ""
+
+
+@dataclass
+class OptionWall:
+    """Option wall levels for a given date."""
+    date: str
+    call_wall: float = 0.0
+    call_wall_2: float = 0.0
+    call_wall_3: float = 0.0
+    put_wall: float = 0.0
+    put_wall_2: float = 0.0
+    put_wall_3: float = 0.0
+    poc: float = 0.0
 
 
 @dataclass
@@ -44,186 +63,287 @@ class DarkPoolSummary:
     spy_detail: Optional[DarkPoolPosition] = None
     qqq_detail: Optional[DarkPoolPosition] = None
     timestamp: str = ""
-    source: str = "stockgrid.io"
+    source: str = "axlfi.com (ex-stockgrid)"
 
 
-# ─── Stockgrid Client ──────────────────────────────────────────────────────
+# ─── AXLFI Client ──────────────────────────────────────────────────────────
 
 class StockgridClient:
     """
-    Dark pool flow data from Stockgrid.io.
+    Dark pool flow + option wall + market intelligence from AXLFI.
     
-    Free, no auth, no API key. Returns daily dark pool positions,
-    net short volume, and short volume % for all US equities.
+    Uses plain requests with browser-like headers (no auth needed).
     """
 
-    BASE_URL = "https://www.stockgrid.io"
-    HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
-    
-    def __init__(self, cache_ttl: int = 300):
-        """
-        Args:
-            cache_ttl: Cache time-to-live in seconds (default 5 min).
-        """
+    BASE = "https://axlfi.com/axlfi-app-backend/api"
+
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Referer": "https://axlfi.com/dashboard",
+        "Origin": "https://axlfi.com",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    def __init__(self, cache_ttl: int = 300, max_retries: int = 3):
         self._cache: Dict[str, Any] = {}
         self._cache_ts: Dict[str, float] = {}
         self._cache_ttl = cache_ttl
-        logger.info("📊 StockgridClient initialized (no auth needed)")
+        self._max_retries = max_retries
+        self._data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "data")
+        logger.info("📊 StockgridClient initialized (AXLFI pure-requests mode)")
+
+    # ── Internal helpers ─────────────────────────────────────────────────
 
     def _is_cached(self, key: str) -> bool:
         return key in self._cache and (time.time() - self._cache_ts.get(key, 0)) < self._cache_ttl
 
-    # ── Top Dark Pool Positions ──────────────────────────────────────────
+    def _set_cache(self, key: str, data: Any):
+        self._cache[key] = data
+        self._cache_ts[key] = time.time()
 
-    def get_top_positions(self, limit: int = 20, sort_by: str = "Dark Pools Position $") -> List[DarkPoolPosition]:
-        """
-        Get top tickers by dark pool position.
-        
-        Args:
-            limit: Number of results (API returns up to ~200).
-            sort_by: Sort metric. Options:
-                - "Dark Pools Position $" (default, total dollar position)
-                - "Dark Pools Position" (shares)
-                - "Net Short Volume $"
-                - "Short Volume %"
-        
-        Returns:
-            List of DarkPoolPosition objects.
-        """
-        cache_key = f"top_{sort_by}_{limit}"
+    def _get(self, path: str, params: dict = None) -> Optional[dict]:
+        """Make a GET request with retries."""
+        url = f"{self.BASE}{path}"
+        for attempt in range(self._max_retries):
+            try:
+                r = requests.get(url, headers=self.HEADERS, params=params, timeout=10)
+                if r.status_code == 200 and "json" in r.headers.get("content-type", ""):
+                    return r.json()
+                logger.warning(f"⚠️ {path}: status={r.status_code} (attempt {attempt+1})")
+            except Exception as e:
+                logger.warning(f"⚠️ {path}: {e} (attempt {attempt+1})")
+            time.sleep(1)
+        return None
+
+    def _save_to_disk(self, key: str, data: Any):
+        try:
+            os.makedirs(self._data_dir, exist_ok=True)
+            with open(os.path.join(self._data_dir, f"axlfi_{key}.json"), "w") as f:
+                json.dump(data, f)
+        except Exception:
+            pass
+
+    # ── Dark Pool Endpoints ──────────────────────────────────────────────
+
+    def get_top_positions(self, limit: int = 200, sort_by: str = "Dark Pools Position $") -> List[DarkPoolPosition]:
+        """Get top tickers by dark pool position (200 available)."""
+        cache_key = f"leaderboard_{limit}"
         if self._is_cached(cache_key):
             return self._cache[cache_key]
 
-        try:
-            url = f"{self.BASE_URL}/get_dark_pool_data"
-            params = {"top": sort_by, "minmax": "desc"}
-            r = requests.get(url, params=params, headers=self.HEADERS, timeout=15)
-            r.raise_for_status()
-            
-            raw = r.json()
-            # API returns {"data": [...], "schema": [...]}
-            items = raw.get("data", raw) if isinstance(raw, dict) else raw
-            if not isinstance(items, list):
-                items = []
-            
-            positions = []
-            
-            for item in items[:limit]:
-                pos = DarkPoolPosition(
-                    ticker=item.get("Ticker", ""),
-                    date=item.get("Date", ""),
-                    dp_position_shares=float(item.get("Dark Pools Position", 0) or 0),
-                    dp_position_dollars=float(item.get("Dark Pools Position $", 0) or 0),
-                    net_short_volume=float(item.get("Net Short Volume", 0) or 0),
-                    net_short_dollars=float(item.get("Net Short Volume $", 0) or 0),
-                    short_volume=float(item.get("Short Volume", 0) or 0),
-                    short_volume_pct=float(item.get("Short Volume %", 0) or 0),
-                )
-                positions.append(pos)
-            
-            self._cache[cache_key] = positions
-            self._cache_ts[cache_key] = time.time()
-            logger.info(f"✅ Fetched {len(positions)} dark pool positions from Stockgrid")
-            return positions
-            
-        except Exception as e:
-            logger.error(f"❌ Stockgrid top positions error: {e}")
-            return self._cache.get(cache_key, [])
+        data = self._get("/dark_pools/leaderboard", {
+            "metric": "dark_pool_position_dollars",
+            "sort": "desc",
+            "limit": str(limit),
+        })
+        if not data:
+            return []
 
-    # ── Individual Ticker Detail ─────────────────────────────────────────
+        positions = []
+        for item in data.get("data", []):
+            positions.append(DarkPoolPosition(
+                ticker=item.get("ticker", ""),
+                date=item.get("date", data.get("as_of_date", "")),
+                dp_position_shares=float(item.get("dp_position", 0) or 0),
+                dp_position_dollars=float(item.get("dollar_dp_position", 0) or 0),
+                net_short_volume=float(item.get("net_volume", 0) or 0),
+                net_short_dollars=float(item.get("dollar_net_volume", 0) or 0),
+                short_volume=float(item.get("short_volume", 0) or 0),
+                short_volume_pct=float(item.get("short_volume_percent", 0) or 0),
+                company=item.get("company", ""),
+                sector=item.get("sector", ""),
+            ))
 
-    def get_ticker_detail(self, ticker: str = "SPY") -> Optional[DarkPoolPosition]:
+        self._set_cache(cache_key, positions)
+        return positions
+
+    def get_ticker_detail(self, ticker: str = "SPY", window: int = 252) -> Optional["DarkPoolPosition"]:
         """
-        Get dark pool detail for a specific ticker (latest day).
-        
-        Args:
-            ticker: Stock ticker symbol (e.g., "SPY", "QQQ").
-        
-        Returns:
-            DarkPoolPosition with latest data, or None.
+        Get latest dark pool position for a ticker.
+        Returns a DarkPoolPosition dataclass (backward compatible with all consumers).
+        Use get_ticker_detail_raw() for the full historical dict.
         """
-        cache_key = f"detail_{ticker}"
+        return self.get_ticker_latest(ticker)
+
+    def get_ticker_detail_raw(self, ticker: str = "SPY", window: int = 252) -> Optional[dict]:
+        """
+        Get full dark pool history for a ticker.
+        Returns raw dict with: individual_dark_pool_position_data, individual_short_volume_table,
+        latest, prices, symbol.
+        """
+        cache_key = f"detail_raw_{ticker}"
         if self._is_cached(cache_key):
             return self._cache[cache_key]
 
-        try:
-            url = f"{self.BASE_URL}/get_dark_pool_individual_data"
-            r = requests.get(url, params={"ticker": ticker}, headers=self.HEADERS, timeout=15)
-            r.raise_for_status()
-            
-            raw = r.json()
-            if not raw:
-                logger.warning(f"⚠️ No Stockgrid data for {ticker}")
-                return None
-            
-            # Individual endpoint returns:
-            # {"individual_dark_pool_position_data": {"data": [...], ...},
-            #  "individual_short_volume": {"data": [...], ...},
-            #  "individual_short_volume_table": {"data": [...], ...},
-            #  "prices": {"data": [...], ...}}
-            latest = None
-            
-            if isinstance(raw, dict):
-                # Extract from nested structure
-                dp_data = raw.get("individual_dark_pool_position_data", {})
-                sv_table = raw.get("individual_short_volume_table", {})
-                
-                # DP position data
-                dp_items = dp_data.get("data", []) if isinstance(dp_data, dict) else []
-                sv_items = sv_table.get("data", []) if isinstance(sv_table, dict) else []
-                
-                if dp_items and isinstance(dp_items, list):
-                    item = dp_items[-1]  # Most recent
-                    latest = DarkPoolPosition(
-                        ticker=ticker,
-                        date=item.get("Date", item.get("date", "")),
-                        dp_position_shares=float(item.get("Net Volume", item.get("Dark Pools Position", 0)) or 0),
-                        dp_position_dollars=float(item.get("Position", item.get("Dark Pools Position $", 0)) or 0),
-                    )
-                
-                # Enrich with short volume data
-                if sv_items and isinstance(sv_items, list) and latest:
-                    sv_item = sv_items[-1]  # Most recent
-                    latest.short_volume = float(sv_item.get("Short Volume", 0) or 0)
-                    latest.short_volume_pct = float(sv_item.get("Short Volume %", sv_item.get("Short Exempt Volume %", 0)) or 0)
-                    latest.net_short_volume = float(sv_item.get("Net Short Volume", 0) or 0)
-                    latest.net_short_dollars = float(sv_item.get("Net Short Volume $", 0) or 0)
-                    if not latest.date:
-                        latest.date = sv_item.get("Date", sv_item.get("date", ""))
-                
-                # Fallback: try flat data/schema format
-                if not latest:
-                    flat_data = raw.get("data", [])
-                    if isinstance(flat_data, list) and flat_data:
-                        item = flat_data[-1]
-                        latest = DarkPoolPosition(
-                            ticker=ticker,
-                            date=item.get("Date", ""),
-                            dp_position_dollars=float(item.get("Dark Pools Position $", 0) or 0),
-                            net_short_dollars=float(item.get("Net Short Volume $", 0) or 0),
-                            short_volume=float(item.get("Short Volume", 0) or 0),
-                            short_volume_pct=float(item.get("Short Volume %", 0) or 0),
-                        )
-            
-            if latest:
-                self._cache[cache_key] = latest
-                self._cache_ts[cache_key] = time.time()
-                logger.info(f"✅ Fetched {ticker} dark pool detail: ${latest.dp_position_dollars/1e9:.1f}B")
-            
-            return latest
-            
-        except Exception as e:
-            logger.error(f"❌ Stockgrid {ticker} detail error: {e}")
-            return self._cache.get(cache_key)
+        data = self._get("/dark_pools/symbol", {"symbol": ticker, "window": str(window)})
+        if data:
+            self._set_cache(cache_key, data)
+        return data
 
-    # ── Summary & Narrative ──────────────────────────────────────────────
+    def get_ticker_latest(self, ticker: str) -> Optional[DarkPoolPosition]:
+        """Get latest dark pool position for a single ticker."""
+        data = self.get_ticker_detail_raw(ticker)
+        if not data:
+            return None
+
+        dp = data.get("individual_dark_pool_position_data", {})
+        dates = dp.get("dates", [])
+        if not dates:
+            return None
+
+        dps = dp.get("dp_position", [])
+        ddp = dp.get("dollar_dp_position", [])
+        dnv = dp.get("dollar_net_volume", [])
+
+        sv_items = []
+        sv_raw = data.get("individual_short_volume_table", {})
+        if isinstance(sv_raw, dict):
+            sv_items = sv_raw.get("data", [])
+        elif isinstance(sv_raw, list):
+            sv_items = sv_raw
+
+        sv_pct = 0.0
+        sv_vol = 0.0
+        # Sort by date to ensure [-1] picks the most recent row
+        if sv_items:
+            sv_items = sorted(sv_items, key=lambda x: x.get("date", "") if isinstance(x, dict) else "")
+        if sv_items and isinstance(sv_items[-1], dict):
+            last_sv = sv_items[-1]
+            # API returns key as 'short_volume_pct' (already a %) or 'short_volume%' (ratio 0-1)
+            raw_sv = float(last_sv.get("short_volume_pct",
+                           last_sv.get("short_volume%",
+                           last_sv.get("short_volume_percent", 0))) or 0)
+            # If it's a ratio (0-1), convert to percentage; if already % (>1), keep as-is
+            sv_pct = raw_sv if raw_sv > 1.0 else raw_sv * 100.0
+            sv_vol = float(last_sv.get("short_volume", 0) or 0)
+
+        # dollar_dp_position from per-ticker API is in millions ($36,811 = $36.8B)
+        raw_ddp = float(ddp[-1] or 0) if ddp else 0
+        dp_dollars = raw_ddp * 1e6 if abs(raw_ddp) < 1e6 else raw_ddp
+
+        return DarkPoolPosition(
+            ticker=ticker,
+            date=dates[-1],
+            dp_position_shares=float(dps[-1] or 0) if dps else 0,
+            dp_position_dollars=dp_dollars,
+            net_short_dollars=float(dnv[-1] or 0) if dnv else 0,
+            short_volume=sv_vol,
+            short_volume_pct=sv_pct,
+        )
+
+    # ── Option Walls ─────────────────────────────────────────────────────
+
+    def get_option_walls(self, symbol: str = "SPY") -> Optional[dict]:
+        """
+        Get option wall data for SPY/QQQ/IWM.
+        Returns: {as_of_date, expirations, option_minmax, option_walls, symbol}
+        option_walls is keyed by date with call_wall, put_wall, poc, etc.
+        """
+        cache_key = f"walls_{symbol}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+
+        data = self._get("/option_walls/data", {"symbol": symbol})
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_option_walls_today(self, symbol: str = "SPY") -> Optional[OptionWall]:
+        """Get today's option wall levels."""
+        data = self.get_option_walls(symbol)
+        if not data:
+            return None
+
+        walls = data.get("option_walls", {})
+        if not walls:
+            return None
+
+        # Get the most recent date
+        latest_date = sorted(walls.keys())[-1] if walls else None
+        if not latest_date:
+            return None
+
+        w = walls[latest_date]
+        return OptionWall(
+            date=latest_date,
+            call_wall=float(w.get("call_wall", 0)),
+            call_wall_2=float(w.get("call_wall_2", 0)),
+            call_wall_3=float(w.get("call_wall_3", 0)),
+            put_wall=float(w.get("put_wall", 0)),
+            put_wall_2=float(w.get("put_wall_2", 0)),
+            put_wall_3=float(w.get("put_wall_3", 0)),
+            poc=float(w.get("poc", 0)),
+        )
+
+    def get_market_snapshot(self) -> Optional[dict]:
+        """Get option walls market snapshot (SPY/QQQ/IWM current prices)."""
+        return self._get("/option_walls/market_snapshot")
+
+    # ── Dashboard / Strategy ─────────────────────────────────────────────
+
+    def get_dashboard(self) -> Optional[dict]:
+        """
+        Get the master dashboard feed (365KB).
+        Returns: index_returns, movers, signal_symbols, spy_history,
+                 status, strategy_metrics, tactical_allocation
+        """
+        cache_key = "dashboard"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+
+        data = self._get("/dashboard/all")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_signal_symbols(self) -> List[dict]:
+        """Get current signal symbols (from dashboard)."""
+        dash = self.get_dashboard()
+        if dash:
+            return dash.get("signal_symbols", [])
+        return []
+
+    def get_volatility_regime(self) -> Optional[dict]:
+        """Get current VIX climax / volatility regime."""
+        dash = self.get_dashboard()
+        if dash:
+            return dash.get("strategy_metrics", {}).get("volatility_regime")
+        return None
+
+    def get_movers(self) -> Optional[dict]:
+        """Get today's market movers."""
+        dash = self.get_dashboard()
+        if dash:
+            return dash.get("movers", {})
+        return None
+
+    # ── Cluster Universe ─────────────────────────────────────────────────
+
+    def get_clusters(self) -> Optional[dict]:
+        """Get cluster table (SP500, NASDAQ100, all universes)."""
+        cache_key = "clusters"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+
+        data = self._get("/clusters/table")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    # ── Symbol Info ──────────────────────────────────────────────────────
+
+    def get_symbol_info(self, ticker: str) -> Optional[dict]:
+        """Get ticker metadata (price, sector, volatility, 52w range)."""
+        return self._get("/symbols/info", {"symbol": ticker})
+
+    # ── Summary/Narrative (backward compat) ──────────────────────────────
 
     def get_summary(self) -> DarkPoolSummary:
         """Get combined dark pool summary with SPY + QQQ detail."""
         top = self.get_top_positions(limit=10)
-        spy = self.get_ticker_detail("SPY")
-        qqq = self.get_ticker_detail("QQQ")
-
+        spy = self.get_ticker_latest("SPY")
+        qqq = self.get_ticker_latest("QQQ")
         return DarkPoolSummary(
             top_positions=top,
             spy_detail=spy,
@@ -232,65 +352,158 @@ class StockgridClient:
         )
 
     def get_narrative(self) -> str:
-        """Generate narrative-ready text for SavageAgents."""
+        """Generate narrative-ready text for agents/systems."""
         try:
             summary = self.get_summary()
             parts = []
-
             if summary.spy_detail:
                 s = summary.spy_detail
-                parts.append(
-                    f"SPY dark pool position: ${s.dp_position_dollars/1e9:.1f}B, "
-                    f"net short ${s.net_short_dollars/1e9:.1f}B, "
-                    f"short vol {s.short_volume_pct:.1f}%"
-                )
-            
+                parts.append(f"SPY DP: {s.dp_position_shares:,.0f} shares (${s.dp_position_dollars/1e9:.1f}B)")
             if summary.qqq_detail:
                 q = summary.qqq_detail
-                parts.append(
-                    f"QQQ dark pool position: ${q.dp_position_dollars/1e9:.1f}B, "
-                    f"net short ${q.net_short_dollars/1e9:.1f}B"
-                )
-            
+                parts.append(f"QQQ DP: {q.dp_position_shares:,.0f} shares (${q.dp_position_dollars/1e9:.1f}B)")
             if summary.top_positions:
-                top3 = [f"{p.ticker} (${p.dp_position_dollars/1e9:.1f}B)" for p in summary.top_positions[:3]]
-                parts.append(f"Top dark pool positions: {', '.join(top3)}")
-            
+                top3 = [f"{p.ticker}(${p.dp_position_dollars/1e9:.1f}B)" for p in summary.top_positions[:3]]
+                parts.append(f"Top: {', '.join(top3)}")
             return " | ".join(parts) if parts else "Dark pool data unavailable"
-            
         except Exception as e:
-            logger.error(f"❌ Dark pool narrative error: {e}")
+            logger.error(f"❌ Narrative error: {e}")
             return "Dark pool data unavailable"
+
+    # ── Earnings-Specific Intelligence ───────────────────────────────────
+
+    def get_earnings_intel(self, tickers: List[str]) -> Dict[str, dict]:
+        """
+        Pull consolidated dark pool + option wall intelligence for earnings targets.
+        Returns {ticker: {dp data, trend, option walls, info}} for each ticker.
+        """
+        intel = {}
+
+        for ticker in tickers:
+            detail = self.get_ticker_detail_raw(ticker)
+            info = self.get_symbol_info(ticker)
+            sym_info = info.get("symbol", {}) if info else {}
+
+            if not detail:
+                intel[ticker] = {"status": "no_data"}
+                continue
+
+            dp = detail.get("individual_dark_pool_position_data", {})
+            dates = dp.get("dates", [])
+            dps = dp.get("dp_position", [])
+            ddp = dp.get("dollar_dp_position", [])
+            dnv = dp.get("dollar_net_volume", [])
+
+            sv_raw = detail.get("individual_short_volume_table", {})
+            sv_items = sv_raw.get("data", []) if isinstance(sv_raw, dict) else sv_raw if isinstance(sv_raw, list) else []
+
+            # 5-day trend
+            trend = []
+            for i in range(max(0, len(dates) - 5), len(dates)):
+                trend.append({
+                    "date": dates[i],
+                    "shares": dps[i] if i < len(dps) else None,
+                    "dollars": ddp[i] if i < len(ddp) else None,
+                    "net_vol": dnv[i] if i < len(dnv) else None,
+                })
+
+            sv_pct = 0.0
+            if sv_items:
+                # Sort by date to ensure we get the newest row (table order is NOT guaranteed)
+                sv_sorted = sorted([r for r in sv_items if isinstance(r, dict)],
+                                   key=lambda x: x.get("date", ""), reverse=True)
+                if sv_sorted:
+                    newest = sv_sorted[0]
+                    # API uses key 'short_volume_pct' and value is already a % (e.g. 46.11)
+                    raw_sv = newest.get("short_volume_pct",
+                             newest.get("short_volume%",
+                             newest.get("short_volume_percent", 0)))
+                    sv_pct = float(raw_sv or 0)
+                    # Guard: if ratio (0-1) format, scale to percentage
+                    if 0 < sv_pct <= 1.0:
+                        sv_pct *= 100
+
+            intel[ticker] = {
+                "status": "live",
+                "as_of": detail.get("as_of_date", ""),
+                "close": sym_info.get("close"),
+                "change_pct": sym_info.get("change_pct"),
+                "company": sym_info.get("company", ""),
+                "sector": sym_info.get("sector", ""),
+                "industry": sym_info.get("industry", ""),
+                "volatility": sym_info.get("volatility"),
+                "52w_range": f"${sym_info.get('52_week_low','?')}-${sym_info.get('52_week_high','?')}",
+                "latest_dp_shares": dps[-1] if dps else None,
+                "latest_dp_dollars": ddp[-1] if ddp else None,
+                "latest_net_vol": dnv[-1] if dnv else None,
+                "short_volume_pct": sv_pct,
+                "trend_5d": trend,
+            }
+
+        # Add option walls for SPY/QQQ context
+        for sym in ["SPY", "QQQ"]:
+            wall = self.get_option_walls_today(sym)
+            if wall:
+                intel[f"{sym}_walls"] = {
+                    "date": wall.date,
+                    "call_wall": wall.call_wall,
+                    "put_wall": wall.put_wall,
+                    "poc": wall.poc,
+                }
+
+        # Add volatility regime
+        regime = self.get_volatility_regime()
+        if regime:
+            intel["_regime"] = regime
+
+        # Add signal symbols
+        signals = self.get_signal_symbols()
+        if signals:
+            intel["_signals"] = signals
+
+        return intel
 
 
 # ─── Standalone Test ────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import json
-
     logging.basicConfig(level=logging.INFO)
     client = StockgridClient()
-    
+
     print("=" * 60)
-    print("🐺 Stockgrid Dark Pool Client — Live Test")
+    print("🐺 AXLFI Market Intelligence — Full Test")
     print("=" * 60)
-    
-    # Top positions
-    top = client.get_top_positions(limit=5)
-    print("\nTop 5 Dark Pool Positions:")
-    for p in top:
-        print(f"  {p.ticker:>5}: ${p.dp_position_dollars/1e9:.1f}B  "
-              f"Net Short: ${p.net_short_dollars/1e9:.1f}B  "
-              f"Short Vol: {p.short_volume_pct:.1f}%")
-    
-    # SPY detail
-    spy = client.get_ticker_detail("SPY")
-    if spy:
-        print(f"\nSPY Detail ({spy.date}):")
-        print(f"  DP Position: ${spy.dp_position_dollars/1e9:.1f}B")
-        print(f"  Net Short: ${spy.net_short_dollars/1e9:.1f}B")
-        print(f"  Short Vol %: {spy.short_volume_pct:.1f}%")
-    
-    # Narrative
-    print(f"\n--- Narrative ---")
-    print(client.get_narrative())
+
+    # Earnings targets
+    intel = client.get_earnings_intel(["ADBE", "ORCL", "LEN"])
+    for key, data in intel.items():
+        if key.startswith("_"):
+            continue
+        print(f"\n{'─'*50}")
+        if "_walls" in key:
+            print(f"  📊 {key}: call={data['call_wall']} put={data['put_wall']} poc={data['poc']}")
+        elif data.get("status") == "live":
+            print(f"  🎯 {key}: ${data.get('close')} ({data.get('change_pct')}%)")
+            print(f"     {data.get('company')} | {data.get('sector')}")
+            s = data.get("latest_dp_shares")
+            if s: print(f"     DP Shares: {s:>12,.0f}")
+            print(f"     SV%: {data.get('short_volume_pct',0):.1f}%")
+            for d in data.get("trend_5d", []):
+                shares = d.get("shares", 0) or 0
+                print(f"       {d['date']}: {shares:>12,.0f} shares")
+
+    # Regime
+    regime = intel.get("_regime", {})
+    print(f"\n  ⚡ VIX Regime: {regime.get('tier_label', '?')} (level {regime.get('current_regime', '?')})")
+
+    # Signals
+    signals = intel.get("_signals", [])
+    if signals:
+        tickers = [s["symbol"] for s in signals if s.get("dir") == 1]
+        print(f"  📡 Bullish Signals: {', '.join(tickers)}")
+
+
+# ─── Backward Compatibility Aliases ─────────────────────────────────────────
+
+# dp_snapshot_recorder.py imports StockGridClient (capital G)
+StockGridClient = StockgridClient

@@ -15,6 +15,8 @@ import os
 import sys
 import time
 import logging
+import threading
+from collections import deque
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Callable
 
@@ -100,6 +102,11 @@ class UnifiedAlphaMonitor:
         self.last_synthesis_sent = None
         self.last_narrative_sent = None
         self._last_level_directions = {}
+
+        # 🔥 Signal buffer: stores recent LiveSignal objects for API retrieval.
+        # TTL-based: signals older than 60 minutes are pruned on read.
+        self._signal_buffer: deque = deque(maxlen=200)
+        self._signal_lock = threading.Lock()
         self._last_regime_details = {}
 
         # Initialize monitors (sets up Fed, Trump, DP, Brain, Narrative, Econ)
@@ -405,6 +412,25 @@ class UnifiedAlphaMonitor:
         return result.get('regime', 'NEUTRAL')
 
     # ═══════════════════════════════════════════════════════════════
+    # SIGNAL BUFFER (API reads from this)
+    # ═══════════════════════════════════════════════════════════════
+
+    def get_active_signals(self, max_age_minutes: int = 60) -> List:
+        """Return recent signals younger than max_age_minutes.
+        Called by the /signals API endpoint."""
+        cutoff = datetime.now() - timedelta(minutes=max_age_minutes)
+        with self._signal_lock:
+            # Prune expired
+            while self._signal_buffer and self._signal_buffer[0].timestamp < cutoff:
+                self._signal_buffer.popleft()
+            return list(self._signal_buffer)
+
+    def _store_signal(self, signal) -> None:
+        """Thread-safe append a LiveSignal to the buffer."""
+        with self._signal_lock:
+            self._signal_buffer.append(signal)
+
+    # ═══════════════════════════════════════════════════════════════
     # MOMENTUM DETECTION (delegates to MomentumDetector)
     # ═══════════════════════════════════════════════════════════════
 
@@ -434,6 +460,7 @@ class UnifiedAlphaMonitor:
                 if market_regime in ["DOWNTREND", "STRONG_DOWNTREND"] and signal.action.value == "LONG":
                     logger.warning(f"   ⛔ REGIME FILTER: Blocking LONG selloff signal in {market_regime}")
                     continue
+                self._store_signal(signal)  # 🔥 Store before discarding
                 self.send_discord(embed, content=content, alert_type="selloff", source="selloff_detector", symbol=symbol)
                 alert_count += 1
                 self.health_registry.record_alert('selloff_rally', 'selloff', symbol, signal.action.value, signal.entry_price)
@@ -471,6 +498,7 @@ class UnifiedAlphaMonitor:
                 if market_regime == "STRONG_DOWNTREND" and signal.action.value == "BUY":
                     logger.warning(f"   ⛔ REGIME FILTER: Blocking BUY rally signal in {market_regime} (don't chase)")
                     continue
+                self._store_signal(signal)  # 🔥 Store before discarding
                 self.send_discord(embed, content=content, alert_type="rally", source="rally_detector", symbol=symbol)
                 alert_count += 1
                 self.health_registry.record_alert('selloff_rally', 'rally', symbol, signal.action.value, signal.entry_price)

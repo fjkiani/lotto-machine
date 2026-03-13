@@ -153,9 +153,9 @@ class _LegacyUnifiedAlphaMonitor_DEPRECATED:
         # Fed Watch Monitor
         try:
             from live_monitoring.agents.fed_watch_monitor import FedWatchMonitor
-            from live_monitoring.agents.fed_officials_monitor import FedOfficialsMonitor
+            from live_monitoring.agents.fed_officials.engine import FedOfficialsEngine
             self.fed_watch = FedWatchMonitor(alert_threshold=5.0)
-            self.fed_officials = FedOfficialsMonitor()
+            self.fed_officials = FedOfficialsEngine()
             self.fed_enabled = True
             logger.info("   ✅ Fed monitors initialized")
         except Exception as e:
@@ -595,9 +595,9 @@ class _LegacyUnifiedAlphaMonitor_DEPRECATED:
                 for comment in report.comments[:3]:
                     # Create unique ID from hash of full content + official name
                     content_hash = hashlib.md5(
-                        f"{comment.official.name}:{comment.content}".encode()
+                        f"{comment.official_name}:{comment.content}".encode()
                     ).hexdigest()[:12]
-                    comment_id = f"{comment.official.name}:{content_hash}"
+                    comment_id = f"{comment.official_name}:{content_hash}"
                     
                     # Only alert if we haven't seen this exact comment before
                     if comment_id not in self.seen_fed_comments:
@@ -610,26 +610,26 @@ class _LegacyUnifiedAlphaMonitor_DEPRECATED:
                         
                         # In unified mode, suppress individual alerts (Signal Brain will synthesize)
                         # Only send CRITICAL alerts (Powell with high confidence)
-                        is_critical = comment.official.name == "Jerome Powell" and comment.confidence >= 0.8
-                        should_alert = comment.official.name == "Jerome Powell" or comment.confidence >= 0.5
+                        is_critical = comment.official_name == "Jerome Powell" and comment.sentiment_confidence >= 0.8
+                        should_alert = comment.official_name == "Jerome Powell" or comment.sentiment_confidence >= 0.5
                         
                         if should_alert and (not self.unified_mode or is_critical):
                             # Alert on significant Fed comments
                             sent_emoji = {"HAWKISH": "🦅", "DOVISH": "🕊️", "NEUTRAL": "➡️"}.get(comment.sentiment, "❓")
                             embed = {
-                                "title": f"🎤 {comment.official.name} - {comment.sentiment}",
+                                "title": f"🎤 {comment.official_name} - {comment.sentiment}",
                                 "color": 3066993 if comment.sentiment == "DOVISH" else 15548997 if comment.sentiment == "HAWKISH" else 3447003,
                                 "description": f'"{comment.content[:200]}..."',
                                 "fields": [
                                     {"name": f"{sent_emoji} Sentiment", "value": comment.sentiment, "inline": True},
-                                    {"name": "📊 Impact", "value": comment.market_impact, "inline": True},
+                                    {"name": "📊 Impact", "value": comment.predicted_market_impact, "inline": True},
                                 ],
                                 "footer": {"text": "Fed Officials Monitor"},
                                 "timestamp": datetime.utcnow().isoformat()
                             }
                             self.send_discord(embed, alert_type="fed_official", source="fed_monitor", symbol="SPY")
                         elif should_alert:
-                            logger.debug(f"   📊 Fed comment buffered for synthesis: {comment.official.name} - {comment.sentiment}")
+                            logger.debug(f"   📊 Fed comment buffered for synthesis: {comment.official_name} - {comment.sentiment}")
             
         except Exception as e:
             logger.error(f"   ❌ Fed check error: {e}")

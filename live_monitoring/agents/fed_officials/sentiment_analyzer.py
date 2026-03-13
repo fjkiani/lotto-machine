@@ -1,10 +1,13 @@
 """
-🧠 LLM-Based Sentiment Analyzer - Not Keyword Matching!
-========================================================
-Uses LLM to understand context, not just keyword counting.
+🧠 LLM-Based Sentiment Analyzer — Cohere command-a-reasoning
+==============================================================
+Uses the SAME Cohere model as NarrativeAgent. One brain, one model.
+No more dead Perplexity, no more keyword fallback.
 """
 
 import logging
+import json
+import re
 import os
 from datetime import datetime
 from typing import Tuple
@@ -12,36 +15,32 @@ from .database import FedOfficialsDatabase
 
 logger = logging.getLogger(__name__)
 
+COHERE_MODEL = "command-a-reasoning-08-2025"
+
 
 class SentimentAnalyzer:
-    """LLM-based sentiment analysis (learns from patterns)."""
+    """LLM-based sentiment analysis via Cohere (same model as NarrativeAgent)."""
     
     def __init__(self, database: FedOfficialsDatabase):
         self.db = database
-        self.llm_client = None
+        self._cohere_client = None
         
-        # Try to load LLM client
+        # Initialize Cohere — one brain, one model
         try:
             from dotenv import load_dotenv
             load_dotenv()
             
-            # Try Perplexity first (we already have it)
-            api_key = os.getenv('PERPLEXITY_API_KEY')
+            api_key = os.getenv('COHERE_API_KEY')
             if api_key:
-                try:
-                    from live_monitoring.enrichment.apis.perplexity_search import PerplexitySearchClient
-                    self.llm_client = PerplexitySearchClient(api_key=api_key)
-                except ImportError:
-                    # Fallback: direct path
-                    import sys
-                    base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
-                    sys.path.insert(0, os.path.join(base_path, 'live_monitoring', 'enrichment', 'apis'))
-                    from perplexity_search import PerplexitySearchClient
-                    self.llm_client = PerplexitySearchClient(api_key=api_key)
-                
-                logger.info("✅ LLM client initialized for sentiment analysis")
+                import cohere
+                self._cohere_client = cohere.ClientV2(api_key=api_key)
+                logger.info("✅ LLM client initialized for sentiment analysis (Cohere v2)")
+            else:
+                logger.warning("COHERE_API_KEY not found. Sentiment analysis will use keyword fallback.")
+        except ImportError:
+            logger.warning("cohere not installed — run: pip install cohere")
         except Exception as e:
-            logger.warning(f"LLM client not available: {e}")
+            logger.warning(f"Cohere client not available: {e}")
     
     def analyze(self, text: str, official_name: str) -> Tuple[str, float, str]:
         """
@@ -53,72 +52,78 @@ class SentimentAnalyzer:
         patterns = self.db.get_sentiment_patterns(limit=20)
         for pattern in patterns:
             if pattern.phrase.lower() in text.lower():
-                # Found a learned pattern
                 logger.debug(f"Using learned pattern: {pattern.phrase} → {pattern.sentiment}")
                 return pattern.sentiment, pattern.confidence, f"Matched pattern: {pattern.phrase}"
         
-        # If no pattern, use LLM
-        if self.llm_client:
-            return self._analyze_with_llm(text, official_name)
+        # If no pattern, use Cohere LLM
+        if self._cohere_client:
+            return self._analyze_with_cohere(text, official_name)
         else:
-            # Fallback to simple keyword matching (temporary)
             return self._analyze_fallback(text)
     
-    def _analyze_with_llm(self, text: str, official_name: str) -> Tuple[str, float, str]:
-        """Use LLM to analyze sentiment."""
-        prompt = f"""
-Analyze this Fed official comment for monetary policy sentiment.
+    def _analyze_with_cohere(self, text: str, official_name: str) -> Tuple[str, float, str]:
+        """Use Cohere command-a-reasoning for sentiment analysis."""
+        system_prompt = (
+            "You are a Fed monetary policy tone analyzer. "
+            "Analyze the text and return ONLY a JSON object. No markdown, no explanation."
+        )
+        
+        user_prompt = f"""Analyze this Fed official comment for monetary policy sentiment.
 
 Official: {official_name}
-Comment: "{text}"
+Comment: "{text[:2000]}"
 
-Determine if this is:
-- HAWKISH (suggests higher rates, fighting inflation, restrictive policy)
-- DOVISH (suggests lower rates, easing, accommodative policy)
-- NEUTRAL (data-dependent, balanced, no clear direction)
-
-Respond in JSON format:
+Return ONLY this JSON:
 {{
     "sentiment": "HAWKISH|DOVISH|NEUTRAL",
     "confidence": 0.0-1.0,
     "reasoning": "Brief explanation"
-}}
-"""
+}}"""
+        
         try:
-            result = self.llm_client.search(prompt)
-            if result and 'answer' in result:
-                answer = result['answer']
-                
-                # Parse JSON from answer
-                import json
-                import re
-                
-                # Try to extract JSON
-                json_match = re.search(r'\{[^}]+\}', answer)
-                if json_match:
-                    data = json.loads(json_match.group())
-                    sentiment = data.get('sentiment', 'NEUTRAL')
-                    confidence = float(data.get('confidence', 0.5))
-                    reasoning = data.get('reasoning', 'LLM analysis')
-                    
-                    # Learn this pattern
-                    if len(text) < 100:  # Only learn short phrases
-                        from .models import SentimentPattern
-                        pattern = SentimentPattern(
-                            phrase=text[:50],
-                            sentiment=sentiment,
-                            confidence=confidence,
-                            sample_count=1,
-                            last_seen=datetime.now()
-                        )
-                        self.db.save_sentiment_pattern(pattern)
-                    
-                    return sentiment, confidence, reasoning
+            response = self._cohere_client.chat(
+                model=COHERE_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ]
+            )
             
-            # Fallback if LLM fails
+            # Cohere V2 response - extract text from content blocks
+            raw_text = ""
+            msg = response.message
+            if hasattr(msg, 'content') and msg.content:
+                for block in msg.content:
+                    if hasattr(block, 'text') and block.text:
+                        raw_text += block.text
+            elif hasattr(response, 'text'):
+                raw_text = response.text
+            
+            # Parse JSON
+            json_match = re.search(r'\{[^}]+\}', raw_text)
+            if json_match:
+                data = json.loads(json_match.group())
+                sentiment = data.get('sentiment', 'NEUTRAL').upper()
+                confidence = float(data.get('confidence', 0.5))
+                reasoning = data.get('reasoning', 'Cohere analysis')
+                
+                # Learn this pattern for future fast lookups
+                if len(text) < 100:
+                    from .models import SentimentPattern
+                    pattern = SentimentPattern(
+                        phrase=text[:50],
+                        sentiment=sentiment,
+                        confidence=confidence,
+                        sample_count=1,
+                        last_seen=datetime.now()
+                    )
+                    self.db.save_sentiment_pattern(pattern)
+                
+                return sentiment, confidence, reasoning
+            
             return self._analyze_fallback(text)
         except Exception as e:
-            logger.warning(f"LLM analysis failed: {e}")
+            logger.warning(f"Cohere sentiment analysis failed: {e}")
             return self._analyze_fallback(text)
     
     def _analyze_fallback(self, text: str) -> Tuple[str, float, str]:

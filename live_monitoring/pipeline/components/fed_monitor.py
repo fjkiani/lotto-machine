@@ -131,9 +131,9 @@ class FedMonitor:
                 for comment in report.comments[:3]:
                     # Create unique ID from hash
                     content_hash = hashlib.md5(
-                        f"{comment.official.name}:{comment.content}".encode()
+                        f"{comment.official_name}:{comment.content}".encode()
                     ).hexdigest()[:12]
-                    comment_id = f"{comment.official.name}:{content_hash}"
+                    comment_id = f"{comment.official_name}:{content_hash}"
                     
                     # Deduplicate
                     if comment_id in self.seen_comments:
@@ -146,18 +146,18 @@ class FedMonitor:
                         self.seen_comments = set(list(self.seen_comments)[-100:])
                     
                     # In unified mode, only send CRITICAL (Powell with high confidence)
-                    is_critical = comment.official.name == "Jerome Powell" and comment.confidence >= 0.8
-                    should_alert = comment.official.name == "Jerome Powell" or comment.confidence >= 0.5
+                    is_critical = comment.official_name == "Jerome Powell" and comment.sentiment_confidence >= 0.8
+                    should_alert = comment.official_name == "Jerome Powell" or comment.sentiment_confidence >= 0.5
                     
                     if should_alert and (not self.unified_mode or is_critical):
                         sent_emoji = {"HAWKISH": "🦅", "DOVISH": "🕊️", "NEUTRAL": "➡️"}.get(comment.sentiment, "❓")
                         embed = {
-                            "title": f"🎤 {comment.official.name} - {comment.sentiment}",
+                            "title": f"🎤 {comment.official_name} - {comment.sentiment}",
                             "color": 3066993 if comment.sentiment == "DOVISH" else 15548997 if comment.sentiment == "HAWKISH" else 3447003,
                             "description": f'"{comment.content[:200]}..."',
                             "fields": [
                                 {"name": f"{sent_emoji} Sentiment", "value": comment.sentiment, "inline": True},
-                                {"name": "📊 Impact", "value": comment.market_impact, "inline": True},
+                                {"name": "📊 Impact", "value": comment.predicted_market_impact, "inline": True},
                             ],
                             "footer": {"text": "Fed Officials Monitor"},
                             "timestamp": datetime.utcnow().isoformat()
@@ -177,7 +177,7 @@ class FedMonitor:
                         if self.alert_callback:
                             self.alert_callback(alert)
                     elif should_alert:
-                        logger.debug(f"   📊 Fed comment buffered for synthesis: {comment.official.name} - {comment.sentiment}")
+                        logger.debug(f"   📊 Fed comment buffered for synthesis: {comment.official_name} - {comment.sentiment}")
                         result['comments'].append(comment)
             
         except Exception as e:

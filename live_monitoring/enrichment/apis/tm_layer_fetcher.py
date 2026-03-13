@@ -132,32 +132,67 @@ class LayerFetcher:
             return
         try:
             detail = self._stockgrid.get_ticker_detail(symbol)
-            top = self._stockgrid.get_top_positions(limit=20)
             levels = []
 
+            # 1. LIVE LEVEL: Current Day Positioning
             if detail:
-                vol = abs(detail.net_short_dollars or detail.dp_position_dollars or 0)
+                # Stockgrid gives SV as 59.2. Threshold is 55.
                 short_pct = detail.short_volume_pct or 50.0
+                is_resistance = short_pct > 55
+                is_support = short_pct < 45
+                
                 levels.append({
                     "price": round(state.current_price, 2),
                     "volume": int(abs(detail.dp_position_dollars or 0)),
-                    "type": "SUPPORT" if short_pct < 50 else "RESISTANCE",
+                    "type": "RESISTANCE" if is_resistance else "SUPPORT" if is_support else "BATTLEGROUND",
                     "strength": "STRONG" if abs(detail.dp_position_dollars or 0) > 1e9 else "MODERATE",
                     "short_pct": round(short_pct, 1),
+                    "is_live": True,
+                    "bounce_rate": None,
                 })
 
-            for pos in top[:10]:
-                if pos.ticker and pos.dp_position_dollars:
+            # 2. HISTORIC LEVELS: dp_learning.db clusters
+            import sqlite3
+            import os
+            db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "data", "dp_learning.db")
+            if os.path.exists(db_path):
+                conn = sqlite3.connect(db_path)
+                c = conn.cursor()
+                # Find top 5 clustered zones within 5% of current price
+                c.execute('''
+                    SELECT ROUND(level_price, 1) as zone, 
+                           COUNT(*) as touches,
+                           SUM(CASE WHEN outcome='BOUNCE' THEN 1 ELSE 0 END) as bounces,
+                           AVG(level_volume) as avg_vol
+                    FROM dp_interactions 
+                    WHERE symbol = ? 
+                      AND level_price BETWEEN ? AND ?
+                    GROUP BY ROUND(level_price, 1) 
+                    HAVING touches >= 3
+                    ORDER BY touches DESC 
+                    LIMIT 5
+                ''', (symbol, state.current_price * 0.95, state.current_price * 1.05))
+                
+                for r in c.fetchall():
+                    price, touches, bounces, avg_vol = r
+                    bounce_rate = round((bounces / touches) * 100) if touches > 0 else 0
+                    
                     levels.append({
-                        "price": 0,
-                        "ticker": pos.ticker,
-                        "volume": int(abs(pos.dp_position_dollars)),
-                        "type": "SUPPORT" if pos.short_volume_pct < 50 else "RESISTANCE",
-                        "strength": "STRONG" if abs(pos.dp_position_dollars) > 1e9 else "MODERATE",
-                        "short_pct": round(pos.short_volume_pct, 1),
+                        "price": price,
+                        "volume": int(avg_vol),
+                        "type": "SUPPORT" if bounce_rate > 60 else "RESISTANCE" if bounce_rate < 40 else "BATTLEGROUND",
+                        "strength": "STRONG" if touches > 10 else "MODERATE",
+                        "short_pct": None,
+                        "is_live": False,
+                        "bounce_rate": bounce_rate,
+                        "touches": touches,
                     })
+                conn.close()
 
+            # Sort by volume descending
+            levels.sort(key=lambda x: x["volume"], reverse=True)
             state.dp_levels = levels
+
             state.staleness["dp"] = StalenessInfo(
                 source="dark_pool",
                 age_seconds=0,

@@ -104,6 +104,53 @@ async def startup():
             monitor = UnifiedAlphaMonitor()
             set_monitor_bridge(monitor)
             logger.info("✅ Monitor bridge initialized")
+
+            # 🔥 FIX #1: Start the monitor's main run loop as a daemon thread.
+            # Without this, the 17-checker scheduler + momentum detection never ticks.
+            threading.Thread(target=monitor.run, daemon=True, name="monitor-run-loop").start()
+            logger.info("✅ Monitor run loop thread launched")
+
+            # 🔥 FIX #2: Start the Kill Chain triple-confluence logger.
+            # This tracks COT divergence + GEX + DVR and fires on activation/deactivation.
+            try:
+                from live_monitoring.kill_chain_logger import start_kill_chain_logger_thread
+                kc_thread, kc_logger_instance = start_kill_chain_logger_thread(check_interval_min=30)
+                _pipe_instances['kill_chain_logger'] = kc_logger_instance
+                _thread_status['kill_chain_logger'] = {
+                    'status': 'running',
+                    'started': datetime.now().isoformat(),
+                }
+                logger.info("✅ Kill Chain Logger thread launched")
+            except Exception as kc_e:
+                logger.error(f"⚠️ Kill Chain Logger failed to init: {kc_e}")
+                _thread_status['kill_chain_logger'] = {'status': f'init_failed: {kc_e}'}
+
+            # 🔥 FIX #3: Share the monitor's health registry with the health API.
+            # health.py creates its own orphan CheckerHealthRegistry() — replace it with
+            # the live one that the monitor's checkers actually write to.
+            try:
+                from backend.app.api.v1 import health as health_module
+                health_module.health_registry = monitor.health_registry
+                logger.info("✅ Health registry connected to monitor's live registry")
+            except Exception as hr_e:
+                logger.warning(f"⚠️ Could not connect health registry: {hr_e}")
+
+            # 🔥 FIX #4: Start the paper trade scheduler (built but never started locally).
+            # Watches TE calendar for CPI/Housing releases, runs SurpriseEngine,
+            # pulls 30m Alpaca bars, logs to Discord. 476 lines — fully sandbagged.
+            try:
+                from live_monitoring.paper_trade_scheduler import start_scheduler_thread
+                pt_thread, pt_scheduler = start_scheduler_thread()
+                _pipe_instances['paper_trade_scheduler'] = pt_scheduler
+                _thread_status['paper_trade_scheduler'] = {
+                    'status': 'running',
+                    'started': datetime.now().isoformat(),
+                }
+                logger.info("✅ Paper trade scheduler thread launched")
+            except Exception as pt_e:
+                logger.warning(f"⚠️ Paper trade scheduler failed to init: {pt_e}")
+                _thread_status['paper_trade_scheduler'] = {'status': f'init_failed: {pt_e}'}
+
         except Exception as e:
             logger.error(f"Error initializing monitor: {e}", exc_info=True)
     else:

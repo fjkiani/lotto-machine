@@ -1,0 +1,73 @@
+---
+description: Chart real-time gaps audit — what's actually dynamic, what's sandbagged, and the fix plan
+globs:
+  - frontend/src/components/charts/**
+  - backend/app/api/v1/charts.py
+  - backend/app/api/v1/signals.py
+  - live_monitoring/enrichment/apis/tm_*.py
+alwaysApply: false
+---
+
+# Chart Real-Time Intelligence Gaps
+
+## Current State: What's Actually Dynamic
+
+| Layer | Cache TTL | Cadence | Intraday? | Source |
+|-------|-----------|---------|-----------|--------|
+| Pivots | 24h | Daily pre-open | ❌ Fixed | yfinance prior day HLC |
+| MAs (50/100/200) | 1h | Hourly | ❌ Stale within session | yfinance daily close |
+| COT | 1h | Weekly (Fri 3:30pm) | ❌ Stale Mon–Thu | CFTC / cot_reports |
+| Dark Pool | 5m cache, EOD data | Daily | ❌ Not intraday | Stockgrid.io |
+| GEX | 5m | Every 5 min | ✅ Yes | CBOE direct |
+
+**Matrix poll:** Every 60s (ChartContainer POLL_INTERVAL_MS).
+**OHLC candles:** Fetched ONCE on load/timeframe switch. NOT auto-refreshed.
+
+## Sandbag #1: OHLC Candles Don't Auto-Refresh
+
+**Problem:** User loads 1D/5D chart → candles are stale until they switch timeframes.
+During market hours on intraday timeframes, the chart should show new candles forming.
+
+**Fix:**
+- `ChartContainer.tsx`: Add OHLC polling for intraday timeframes (1D → 30s, 5D → 60s)
+- Non-intraday (1M/3M/6M/1Y) → no polling needed (daily/weekly candles don't change mid-session)
+- Poll uses same `chartApi.getOHLC()` — no backend change needed
+
+## Sandbag #2: Signals Not Plotted as Chart Markers
+
+**Problem:** Backend has full signal system (`SignalResponse` in signals.py):
+- `action`: BUY / SELL
+- `entry_price`, `stop_price`, `target_price`
+- `timestamp`, `confidence`, `reasoning`
+- `source`: which checker generated it
+
+None of this data reaches the chart. Zero markers, zero entry/exit lines.
+
+**Fix:**
+- `api.ts`: Add `signalsApi.getForSymbol(symbol)` (already has `signalsApi.getAll()`)
+- `ChartContainer.tsx`: Fetch signals alongside matrix, poll every 60s
+- `TradingViewChart.tsx`: Add `setMarkers()` — lightweight-charts supports markers natively
+  - Green ▲ at `entry_price` for BUY signals
+  - Red ▼ at `entry_price` for SELL signals
+  - Dashed green line at `target_price`, dashed red line at `stop_price`
+- New component: `SignalEventLog.tsx` — scrollable feed below chart
+
+## Sandbag #3: No Chart Event Log
+
+**Problem:** Signals fire, traps are classified — but there's no visible timeline.
+No way to see "what happened" during the session without switching to another widget.
+
+**Fix:**
+- `SignalEventLog.tsx`: Scrollable vertical feed showing:
+  - Signal events: "🔴 SELL SPY $677.48 @ 11:42 | Target: $665 | Stop: $682"
+  - Trap changes: "🟢 New BEAR_TRAP_COIL [5/5] detected @ 11:30"
+- Integrated into ChartContainer between TrapZoneLegend and StalenessRow
+
+## Build Order
+
+1. ✅ MDC file (this file)
+2. ✅ OHLC auto-refresh in ChartContainer (30s/60s/120s by timeframe)
+3. ✅ Signal markers on TradingViewChart (price lines — LWC v5 has no setMarkers)
+4. ✅ SignalEventLog component (scrollable feed with entry/target/stop/R:R)
+5. ✅ Wired into ChartContainer (3 polling intervals: matrix 60s, OHLC 30-120s, signals 60s)
+6. ✅ tsc --noEmit — zero errors

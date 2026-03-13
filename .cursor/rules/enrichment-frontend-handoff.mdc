@@ -1,0 +1,241 @@
+---
+description: Economic Calendar — Consolidated Debrief & Build Plan (Single Source of Truth)
+globs: live_monitoring/enrichment/apis/econ_calendar.py, live_monitoring/enrichment/apis/consensus_fetcher.py
+---
+
+# Economic Calendar Intelligence — Consolidated Debrief
+
+> Audited 2026-03-09. Every claim verified with live terminal queries.
+> 4 legacy docs merged + audited. Dead APIs identified. Working path defined.
+
+---
+
+## LEGACY DOCS (Superseded)
+
+| Doc | Claimed | Reality |
+|-----|---------|---------|
+| `ECONOMIC_CALENDAR_FIX_SUMMARY.md` | Trading Economics PRIMARY | ❌ TE returns 0 events |
+| `ECONOMIC_CALENDAR_FIX.md` | EventLoader (Baby-Pips) | ❌ Yahoo Finance 404 |
+| `ECONOMIC_CALENDAR_INTEGRATION_PLAN.md` | 4-phase lifecycle | Phase 3-4 never built |
+| `ECONOMIC_CALENDAR_STRATEGY.md` | Same 4-phase, TE | ❌ TE dead, 3-4 unbuilt |
+
+---
+
+## API AUDIT (Live Terminal, 2026-03-09)
+
+| API | Status | Evidence |
+|-----|--------|----------|
+| Trading Economics | ❌ DEAD | `get_us_events()` → 0 events |
+| EventLoader (Baby-Pips) | ❌ DEAD | Yahoo Finance → 404 |
+| EconomicIntelligenceEngine | ❌ NEVER BUILT | `ModuleNotFoundError` |
+| Static EconomicCalendar | ❌ NEVER BUILT | `ModuleNotFoundError` |
+| **EconCalendar (FRED)** | ✅ LIVE | 148 releases / 3 days |
+| **ConsensusFetcher (Tavily)** | ✅ LIVE | Multi-metric consensus |
+| **FREDClient** | ✅ LIVE | Full macro snapshot |
+
+---
+
+## FULL COVERAGE MATRIX: March 2026 Calendar vs Our System
+
+### `check_release()` — ALL 15 FRED-mapped metrics tested live
+
+| Metric | FRED Series | Actual | Previous | Surprise | Status |
+|--------|-------------|--------|----------|----------|--------|
+| CPI | CPIAUCSL | 326.588 | 326.031 | +0.17% | ✅ |
+| Core CPI | CPILFESL | 332.793 | 331.814 | +0.30% | ✅ |
+| GDP | GDP | 31490.07 | 31098.03 | +1.26% | ✅ |
+| Employment (NFP) | PAYEMS | 158466 | 158558 | -0.06% | ✅ |
+| PCE | PCEPI | 128.605 | 128.149 | +0.36% | ✅ |
+| FOMC (Fed Funds) | FEDFUNDS | 3.64 | 3.64 | 0.00% | ✅ |
+| PPI | PPIACO | 261.524 | 260.817 | +0.27% | ✅ |
+| Retail Sales | RSAFS | 733537 | 734685 | -0.16% | ✅ |
+| JOLTS | JTSJOL | 6542 | 6928 | -5.57% | ✅ |
+| ISM Manufacturing | MANEMP | 12573 | 12585 | -0.10% | ✅ |
+| Consumer Sentiment | UMCSENT | 56.4 | 52.9 | +6.62% | ✅ |
+| Interest Rates (10Y) | DGS10 | 4.15 | 4.13 | +0.48% | ✅ |
+| Fed Funds Rate | DFF | 3.64 | 3.64 | 0.00% | ✅ |
+| Housing Starts | HOUST | 1404 | 1322 | +6.20% | ✅ |
+| Industrial Production | INDPRO | 102.34 | 101.63 | +0.70% | ✅ |
+
+### ConsensusFetcher — Multi-Metric Test (NOT just CPI)
+
+| Metric | Date | Consensus Extracted | Source Score | Status |
+|--------|------|-------------------|-------------|--------|
+| CPI | 2026-03-12 | 0.3% MoM | 0.9996 | ✅ |
+| GDP | 2026-03-13 | 2.1% annualized | 0.870 | ✅ |
+| NFP | 2026-04-04 | 50,000 jobs | 1.000 | ✅ |
+| PCE | 2026-03-13 | 0.4% MoM | 0.998 | ✅ |
+| FOMC | 2026-03-18 | Hold (maintain rate) | 0.819 | ✅ |
+| JOLTS | 2026-03-13 | 7.1M (in text, regex missed) | 1.000 | ⚠️ Fix regex |
+
+**Budget:** 18/30 Tavily calls remaining after all tests.
+
+---
+
+## COVERAGE GAP: March Calendar vs HIGH_IMPACT_RELEASES
+
+Alpha's March calendar has **~55 releases**. Our system maps **20** in `HIGH_IMPACT_RELEASES`.
+Here's every release from the real calendar and whether we cover it:
+
+### Week of March 10-13
+
+| Release | Time | Our Coverage | Gap? |
+|---------|------|-------------|------|
+| ADP Employment Change | 08:15 | ❌ Not mapped | MEDIUM — add |
+| Existing Home Sales | 10:00 | ❌ Not mapped | MEDIUM — add |
+| API Crude Oil Stock | 16:30 | ❌ Not mapped | LOW |
+| MBA 30-Year Mortgage Rate | 07:00 | ❌ Not mapped | LOW |
+| **Core Inflation Rate (CPI)** | **08:30** | **✅ CRITICAL** | — |
+| **Inflation Rate (CPI)** | **08:30** | **✅ CRITICAL** | — |
+| **CPI Index** | **08:30** | **✅ CRITICAL** | — |
+| Fed Bowman Speech | — | ❌ Not mapped | MEDIUM — add |
+| EIA Crude Oil Stocks | 10:30 | ❌ Not mapped | LOW |
+| EIA Gasoline Stocks | 10:30 | ❌ Not mapped | LOW |
+| Monthly Budget Statement | 14:00 | ❌ Not mapped | MEDIUM — add |
+| Building Permits | 08:30 | ❌ Not mapped | MEDIUM — add |
+| **Housing Starts** | **08:30** | **✅ MEDIUM** | — |
+| Balance of Trade | 08:30 | ❌ Not mapped | HIGH — add |
+| Exports / Imports | 08:30 | ❌ Not mapped | MEDIUM — add |
+| **Initial Jobless Claims** | **08:30** | ❌ Not mapped | **HIGH — ADD** |
+| **Core PCE MoM** | **08:30** | **✅ CRITICAL** | — |
+| **Durable Goods Orders** | **08:30** | ❌ Not mapped | **HIGH — ADD** |
+| **GDP Growth Rate** | **08:30** | **✅ CRITICAL** | — |
+| GDP Price Index | 08:30 | ❌ Not mapped | MEDIUM |
+| Personal Income / Spending | 08:30 | ❌ Not mapped | HIGH — add |
+| **PCE Price Index** | **08:30** | **✅ CRITICAL** | — |
+| **JOLTS Job Openings** | **10:00** | **✅ HIGH** | — |
+| **Michigan Consumer Sent** | **10:00** | **✅ HIGH** | — |
+
+### Week of March 16-19
+
+| Release | Time | Our Coverage | Gap? |
+|---------|------|-------------|------|
+| NY Empire State Mfg | 08:30 | ❌ Not mapped | MEDIUM — add |
+| **Industrial Production** | **09:15** | **✅ MEDIUM** | — |
+| NAHB Housing Market Index | 10:00 | ❌ Not mapped | MEDIUM — add |
+| Pending Home Sales | 10:00 | ❌ Not mapped | MEDIUM — add |
+| **PPI MoM** | **08:30** | **✅ HIGH** | — |
+| **Core PPI MoM** | **08:30** | ❌ Not mapped | **HIGH — ADD** |
+| Factory Orders | 10:00 | ❌ Not mapped | MEDIUM — add |
+| **Fed Interest Rate Decision** | **14:00** | **✅ CRITICAL** | — |
+| FOMC Economic Projections | 14:00 | ❌ Not mapped | **CRITICAL — ADD** |
+| Fed Press Conference | 14:30 | ❌ Not mapped | CRITICAL — add |
+| Net Long-term TIC Flows | 16:00 | ❌ Not mapped | LOW |
+| **Initial Jobless Claims** | **08:30** | ❌ Not mapped | **HIGH — ADD** |
+| Philadelphia Fed Mfg | 08:30 | ❌ Not mapped | MEDIUM — add |
+| New Home Sales | 10:00 | ❌ Not mapped | MEDIUM — add |
+
+### Week of March 23-27
+
+| Release | Time | Our Coverage | Gap? |
+|---------|------|-------------|------|
+| Chicago Fed National Activity | 08:30 | ❌ Not mapped | MEDIUM |
+| S&P Global PMI (Composite) | 09:45 | ❌ Not mapped | HIGH — add |
+| S&P Global PMI (Mfg) | 09:45 | ❌ Not mapped | HIGH — add |
+| S&P Global PMI (Services) | 09:45 | ❌ Not mapped | HIGH — add |
+| Current Account | 08:30 | ❌ Not mapped | MEDIUM |
+| Export / Import Prices | 08:30 | ❌ Not mapped | MEDIUM |
+| Michigan Consumer Sent Final | 10:00 | **✅ HIGH** | — |
+| Retail Inventories | — | ❌ Not mapped | LOW |
+| Wholesale Inventories | — | ❌ Not mapped | LOW |
+
+---
+
+## GAP SUMMARY
+
+| | Count |
+|---|---:|
+| **Mapped & working** | 20 |
+| **Missing HIGH/CRITICAL** | 10 |
+| **Missing MEDIUM** | 15 |
+| **Missing LOW** | 10 |
+| **Total March releases** | ~55 |
+
+### Top 10 Additions Needed (HIGH/CRITICAL priority)
+
+| # | Release | Importance | FRED Series | Why |
+|---|---------|-----------|-------------|-----|
+| 1 | Initial Jobless Claims | HIGH | ICSA | Weekly — most frequent market mover |
+| 2 | Durable Goods Orders | HIGH | DGORDER | Manufacturing capex indicator |
+| 3 | Balance of Trade | HIGH | BOPGSTB | USD impact, tariff sensitivity |
+| 4 | Core PPI MoM | HIGH | PPIFIS | Upstream inflation companion to PPI |
+| 5 | Personal Income/Spending | HIGH | PI / PCE | Consumer health, Fed favorite |
+| 6 | FOMC Projections/Dot Plot | CRITICAL | — | Rate path guidance |
+| 7 | S&P Global PMI Flash | HIGH | — | Real-time growth pulse |
+| 8 | Building Permits | MEDIUM | PERMIT | Housing leading indicator |
+| 9 | ADP Employment | MEDIUM | — | NFP preview (Wed before) |
+| 10 | Existing/New Home Sales | MEDIUM | EXHOSLUSM495S | Housing cycle |
+
+---
+
+## DATA SOURCE STACK (Working)
+
+```
+PRIMARY:  EconCalendar (FRED Releases API)
+          → All releases, dates, importance tagging
+          → 15 metrics with actual/previous/surprise
+          📍 econ_calendar.py — 20 mapped, 10+ to add
+
+CONSENSUS: ConsensusFetcher (Tavily → Morningstar/Reuters)
+           → CPI 0.3%, GDP 2.1%, NFP 50K, PCE 0.4%, FOMC hold
+           → SQLite cache, ~5-6 calls/month
+           📍 consensus_fetcher.py — JOLTS regex needs fix
+
+MACRO:     FREDClient (FRED Series API)
+           → CPI, Unemployment, Fed Funds, 10Y, Spread
+           → Regime: HAWKISH/DOVISH/RECESSIONARY
+           📍 fred_client.py — 11 methods
+
+SIGNAL:    Signal Veto (pre-release gating)
+           → ≤30min = EXTREME (block all)
+           → ≤2h = HIGH (confidence × 0.7)
+           📍 signal_generator.py:1037-1067
+```
+
+---
+
+## KILL CHAIN — ALL PHASES
+
+```
+T-24h  │ ConsensusFetcher fires for CRITICAL releases
+       │ → CPI 0.3%, GDP 2.1%, NFP 50K, PCE 0.4%
+       │ → Cached in SQLite
+       │ 📍 consensus_fetcher.py
+━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+T-2h   │ Signal Veto: confidence × 0.7
+       │ 📍 signal_generator.py:1044
+━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+T-30m  │ Signal Veto: EXTREME — ALL signals blocked
+       │ 📍 signal_generator.py:1037
+━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+T-0    │ RELEASE DROPS (CPI / GDP / NFP / etc.)
+━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+T+15m  │ [BUILD] ReleaseDetector polls FRED for actual
+       │ → Compare actual vs consensus from cache
+       │ → BEAT / MISS / IN-LINE classification
+       │ 📍 release_detector.py (TO BUILD)
+━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+T+15m  │ [BUILD] Signal feedback
+       │ → Boost/dampen signals based on surprise
+       │ → WebSocket push alert
+       │ 📍 signal_generator.py (TO WIRE)
+━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+T+60m  │ [FUTURE] Outcome logging for ML
+```
+
+---
+
+## BUILD ORDER
+
+| # | What | Status |
+|---|------|--------|
+| 1 | FRED calendar data | ✅ 15 metrics live |
+| 2 | Calendar API endpoints | ✅ 4 routes |
+| 3 | Consensus forecasts | ✅ 5 metrics tested |
+| 4 | Signal veto (pre-release) | ✅ wired |
+| **5** | **Add 10 missing HIGH releases to `HIGH_IMPACT_RELEASES`** | ⬜ NEXT |
+| **6** | **Fix JOLTS regex in ConsensusFetcher** | ⬜ NEXT |
+| **7** | **Release detector (post-release)** | ⬜ AFTER |
+| **8** | **Signal feedback (post-release)** | ⬜ AFTER |
+| 9 | Frontend EconCalendar widget | ⬜ PENDING |
+| 10 | WebSocket push alerts | ⬜ PENDING |

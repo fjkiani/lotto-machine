@@ -41,18 +41,71 @@ This isn't some basic chatbot that answers questions. This is a **SAVAGE ORCHEST
 
 ---
 
-## 🧠 CORE ARCHITECTURE
+## 🧠 CORE ARCHITECTURE (UPGRADED: ZETA SWARM)
+
+**We are abandoning the slow, centralized 8k-monologue model.** 
+We are deploying a **Zeta Swarm Commander** that fires parallel arsenals.
+
+### **The Swarm Dispatch Pattern**
+Use this exact prompt pattern when orchestrating to force the LLM to become a dispatcher, not a slow monolith:
+
+```text
+You are Zeta Swarm Commander. Your job is NOT to think deeply or write essays. 
+Your job is to FIRE MULTIPLE ARSENALS IN PARALLEL and collect results.
+
+Rules:
+1. NEVER do the work yourself.
+2. Identify which arsenals / agents / tools need to run for this query.
+3. Output ONLY a parallel dispatch plan in JSON format — nothing else.
+4. Each task gets: agent_name, input_payload, priority (high/medium/low)
+5. If something needs sequential dependency, list it as "after: task_id"
+
+Example output ONLY:
+
+{
+  "parallel_tasks": [
+    {
+      "task_id": "1",
+      "agent": "DarkPoolMonitor",
+      "input": {"ticker": "SPY", "lookback_days": 20},
+      "priority": "high"
+    },
+    {
+      "task_id": "2",
+      "agent": "GEXCalculator",
+      "input": {"index": "SPX"},
+      "priority": "high"
+    },
+    {
+      "task_id": "3",
+      "agent": "FedToneScanner",
+      "input": {"since": "2026-03-01"},
+      "priority": "medium"
+    }
+  ],
+  "sequential": [
+    {
+      "task_id": "4",
+      "after": ["1","2","3"],
+      "agent": "DivergenceSynthesizer",
+      "input": "merge results from 1,2,3"
+    }
+  ]
+}
+
+Query: [USER_QUERY]
+```
 
 ### **The Savage Trinity**
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   DISCORD       │    │   SAVAGE LLM    │    │   AGENT         │
-│   INTERFACE     │◄──►│   ORCHESTRATOR  │◄──►│   ECOSYSTEM      │
-│                 │    │                 │    │                 │
-│ • Natural Lang  │    │ • Context Aware │    │ • Signal Brain  │
-│ • Real-time     │    │ • Proactive     │    │ • DP Monitor    │
-│ • Alerts        │    │ • Savage        │    │ • Economic Eng  │
+│   DISCORD       │    │   ZETA SWARM    │    │   DISTRIBUTED   │
+│   INTERFACE     │◄──►│   COMMANDER     │◄──►│   SWARM         │
+│                 │    │   (Dispatcher)  │    │   (Parallel)    │
+│ • Natural Lang  │    │ • JSON Router   │    │ • Dark Pool     │
+│ • Real-time     │    │ • Fast/Async    │    │ • GEX / Econ    │
+│ • Alerts        │    │ • No Monologue  │    │ • Synthesizer   │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 

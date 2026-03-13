@@ -1,0 +1,93 @@
+[
+  {
+    "date": "2025-01-01",
+    "actual_raw": 4090000.0,
+    "actual_M": 4.09,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  },
+  {
+    "date": "2025-02-01",
+    "actual_raw": 4150000.0,
+    "actual_M": 4.15,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  },
+  {
+    "date": "2025-03-01",
+    "actual_raw": 4020000.0,
+    "actual_M": 4.02,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  },
+  {
+    "date": "2025-04-01",
+    "actual_raw": 4020000.0,
+    "actual_M": 4.02,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  },
+  {
+    "date": "2025-05-01",
+    "actual_raw": 4040000.0,
+    "actual_M": 4.04,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  },
+  {
+    "date": "2025-06-01",
+    "actual_raw": 3980000.0,
+    "actual_M": 3.98,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  },
+  {
+    "date": "2025-07-01",
+    "actual_raw": 4030000.0,
+    "actual_M": 4.03,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  },
+  {
+    "date": "2025-08-01",
+    "actual_raw": 4030000.0,
+    "actual_M": 4.03,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  },
+  {
+    "date": "2025-09-01",
+    "actual_raw": 4080000.0,
+    "actual_M": 4.08,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  },
+  {
+    "date": "2025-10-01",
+    "actual_raw": 4110000.0,
+    "actual_M": 4.11,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  },
+  {
+    "date": "2025-11-01",
+    "actual_raw": 4090000.0,
+    "actual_M": 4.09,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  },
+  {
+    "date": "2025-12-01",
+    "actual_raw": 4270000.0,
+    "actual_M": 4.27,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  },
+  {
+    "date": "2026-01-01",
+    "actual_raw": 3910000.0,
+    "actual_M": 3.91,
+    "unit": "SAAR millions",
+    "series": "EXHOSLUSM495S"
+  }
+]

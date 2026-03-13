@@ -181,10 +181,10 @@ class PipelineOrchestrator:
         if self.config.enable_fed:
             try:
                 from live_monitoring.agents.fed_watch_monitor import FedWatchMonitor
-                from live_monitoring.agents.fed_officials_monitor import FedOfficialsMonitor
+                from live_monitoring.agents.fed_officials.engine import FedOfficialsEngine
                 
                 fed_watch = FedWatchMonitor(alert_threshold=self.config.fed.alert_threshold)
-                fed_officials = FedOfficialsMonitor()
+                fed_officials = FedOfficialsEngine()
                 
                 self.fed_monitor = FedMonitor(
                     fed_watch_monitor=fed_watch,

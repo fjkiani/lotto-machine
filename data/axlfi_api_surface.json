@@ -1,0 +1,100 @@
+{
+  "https://axlfi.com/axlfi-app-backend/api/clusters/table": {
+    "size": 214700,
+    "keys": [
+      "all",
+      "nasdaq100",
+      "sp500"
+    ],
+    "status": 200
+  },
+  "https://axlfi.com/axlfi-app-backend/api/dashboard/all": {
+    "size": 338041,
+    "keys": [
+      "index_returns",
+      "movers",
+      "signal_symbols",
+      "spy_history",
+      "status",
+      "strategy_metrics"
+    ],
+    "status": 200
+  },
+  "https://axlfi.com/axlfi-app-backend/api/dark_pools/leaderboard?metric=dark_pool_position_dollars&sort=desc&limit=200": {
+    "size": 75008,
+    "keys": [
+      "as_of_date",
+      "data",
+      "metric",
+      "sort"
+    ],
+    "status": 200
+  },
+  "https://axlfi.com/axlfi-app-backend/api/symbols/info?symbol=SPY": {
+    "size": 334,
+    "keys": [
+      "symbol"
+    ],
+    "status": 200
+  },
+  "https://axlfi.com/axlfi-app-backend/api/dark_pools/symbol?symbol=SPY&window=252": {
+    "size": 56283,
+    "keys": [
+      "as_of_date",
+      "individual_dark_pool_position_data",
+      "individual_short_volume",
+      "individual_short_volume_table",
+      "latest",
+      "prices"
+    ],
+    "status": 200
+  },
+  "https://axlfi.com/axlfi-app-backend/api/option_walls/data?symbol=QQQ": {
+    "size": 29580,
+    "keys": [
+      "as_of_date",
+      "expirations",
+      "option_minmax",
+      "option_walls",
+      "symbol"
+    ],
+    "status": 200
+  },
+  "https://axlfi.com/axlfi-app-backend/api/option_walls/data?symbol=SPY": {
+    "size": 34046,
+    "keys": [
+      "as_of_date",
+      "expirations",
+      "option_minmax",
+      "option_walls",
+      "symbol"
+    ],
+    "status": 200
+  },
+  "https://axlfi.com/axlfi-app-backend/api/option_walls/symbols": {
+    "size": 32,
+    "keys": [
+      "symbols"
+    ],
+    "status": 200
+  },
+  "https://axlfi.com/axlfi-app-backend/api/option_walls/data?symbol=IWM": {
+    "size": 16462,
+    "keys": [
+      "as_of_date",
+      "expirations",
+      "option_minmax",
+      "option_walls",
+      "symbol"
+    ],
+    "status": 200
+  },
+  "https://axlfi.com/axlfi-app-backend/api/option_walls/market_snapshot": {
+    "size": 342,
+    "keys": [
+      "market_snapshot",
+      "symbols"
+    ],
+    "status": 200
+  }
+}

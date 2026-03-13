@@ -41,7 +41,7 @@ class ReplayReporter:
                 "total_losses": results.get("total_losses", 0),
                 "win_rate": results.get("win_rate", 0),
                 "total_pnl": results.get("total_pnl", 0),
-                "mission_wallet_donation_usd": max(0, results.get("total_pnl", 0) * 0.5 * 100) # Assuming $100 per 1% point for simulation
+                "mission_wallet_donation_usd": results.get("mission_wallet_donation_usd", 0.0)
             },
             "trade_log": results.get("trades", [])
         }
