@@ -667,7 +667,28 @@ Blockers: None
 
 ### Agent 2 — Tasks 3.2, 3.3, 3.5 Update
 ```
-Status: NOT STARTED
+Status: ✅ COMPLETE | Commit: 165bd07
+
+=== TASK 3.2: Discord thesis invalidation webhook ===
+File: live_monitoring/intraday_guardian.py
+  Added _send_thesis_invalidation_webhook() method
+  Fires when _invalidate_signals() detects active→invalidated flip
+  Uses DISCORD_THESIS_WEBHOOK or DISCORD_WEBHOOK_URL env var
+  V: grep -n "discord\|webhook\|THESIS INVALID" intraday_guardian.py → 6 lines ✅
+
+=== TASK 3.3: Signal invalidation E2E ===
+  Before: SPY=active, QQQ=active
+  After:  SPY=invalidated (reason: E2E TEST: thesis broke)
+          QQQ=invalidated (reason: E2E TEST: thesis broke)
+  E2E PASS: All signals flipped to invalidated ✅
+
+=== TASK 3.5: Tradytics listener thesis check ===
+File: live_monitoring/orchestrator/checkers/tradytics_checker.py
+  Added thesis_valid check at top of check()
+  If thesis_valid=false and market_open: returns empty (blocks all alerts)
+  V: grep -c "thesis_valid" tradytics_checker.py → 1 ✅
+
+Blockers: None
 ```
 
 ### Agent 3 — Tasks 3.6, 3.7 Update
@@ -763,7 +784,20 @@ Blockers: None. Agent 3 may optionally enhance /live to embed TodaysBrief data.
 
 ### Agent 2 — Task 4.3 Update
 ```
-Status: NOT STARTED
+Status: ✅ COMPLETE | Commit: 165bd07
+
+=== TASK 4.3: Circuit breaker wiring to RiskManager ===
+File: live_monitoring/core/risk_manager.py
+  can_open_position() now reads /tmp/intraday_snapshot.json
+  Checks circuit_breaker_active and thesis_valid from snapshot
+  Test A: circuit_breaker_active → BLOCKED: Gate circuit breaker: 2 consecutive losses ✅
+  Test B: thesis_valid=false → BLOCKED: Thesis invalid: SPY broke wall ✅
+  Test C: no snapshot → falls through to standard RiskManager checks ✅
+
+  V: grep -c "thesis_valid" risk_manager.py → 1 ✅
+  V: grep -c "circuit_breaker_active" risk_manager.py → 1 ✅
+
+Blockers: None
 ```
 
 ### Agent 3 — Task 4.2 Update
