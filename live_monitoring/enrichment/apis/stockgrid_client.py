@@ -308,7 +308,8 @@ class StockgridClient:
         """Get current VIX climax / volatility regime."""
         dash = self.get_dashboard()
         if dash:
-            return dash.get("strategy_metrics", {}).get("volatility_regime")
+            # AXLFI returns this under "market_regime", NOT "volatility_regime"
+            return dash.get("strategy_metrics", {}).get("market_regime")
         return None
 
     def get_movers(self) -> Optional[dict]:
