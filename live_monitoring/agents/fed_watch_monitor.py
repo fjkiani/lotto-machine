@@ -394,6 +394,52 @@ class FedWatchFetcher:
         
         return None
     
+    def _finalize_status(self, status: FedWatchStatus) -> FedWatchStatus:
+        """Normalize, determine outcome, bias, and cache the status.
+        
+        Shared by both the new FedWatchEngine path and legacy CME/Perplexity path.
+        """
+        # Normalize to 100%
+        total = status.prob_cut + status.prob_hold + status.prob_hike
+        if total > 0:
+            status.prob_cut = (status.prob_cut / total) * 100
+            status.prob_hold = (status.prob_hold / total) * 100
+            status.prob_hike = (status.prob_hike / total) * 100
+        
+        # Determine most likely outcome
+        if status.prob_cut >= status.prob_hold and status.prob_cut >= status.prob_hike:
+            status.most_likely_outcome = "CUT"
+            status.most_likely_probability = status.prob_cut
+        elif status.prob_hike >= status.prob_hold:
+            status.most_likely_outcome = "HIKE"
+            status.most_likely_probability = status.prob_hike
+        else:
+            status.most_likely_outcome = "HOLD"
+            status.most_likely_probability = status.prob_hold
+        
+        # Calculate changes from last check
+        if self.last_status:
+            status.prob_cut_change = status.prob_cut - self.last_status.prob_cut
+            status.prob_hold_change = status.prob_hold - self.last_status.prob_hold
+            status.prob_hike_change = status.prob_hike - self.last_status.prob_hike
+        
+        # Determine market bias
+        if status.prob_cut > 60:
+            status.market_bias = "BULLISH"
+            status.affected_sectors = ["Tech (QQQ)", "Real Estate (XLRE)", "Utilities (XLU)", "Small Caps (IWM)"]
+        elif status.prob_hike > 30:
+            status.market_bias = "BEARISH"
+            status.affected_sectors = ["Banks (XLF)", "Value (IVE)", "Cash-heavy companies"]
+        else:
+            status.market_bias = "NEUTRAL"
+            status.affected_sectors = ["Monitor for changes"]
+        
+        # Cache
+        self.last_status = status
+        self.cache_time = datetime.now()
+        
+        return status
+    
     def get_status(self, force_refresh: bool = False) -> FedWatchStatus:
         """
         Get current Fed Watch status.
@@ -407,7 +453,39 @@ class FedWatchFetcher:
         status = FedWatchStatus()
         status.next_meeting = self._get_next_fomc_meeting()
         
-        # Try DIRECT CME scraping FIRST (most accurate!)
+        # ── NEW: Try FedWatchEngine FIRST (live yfinance ZQ futures) ──
+        # This replaces dead CME scraping + Perplexity + hardcoded fallbacks.
+        # FedWatchEngine returns real FOMC meeting probabilities derived from
+        # Fed Funds Futures (ZQ contracts) — verified live 2026-03-09.
+        try:
+            from live_monitoring.enrichment.apis.fedwatch_diy import FedWatchEngine
+            engine = FedWatchEngine()
+            fw_data = engine.get_meeting_probabilities()
+            
+            if fw_data and len(fw_data) > 0:
+                # Use the NEXT meeting's probabilities
+                next_mtg = fw_data[0]
+                prob_hold = next_mtg.get('hold_pct', 0)
+                prob_cut = next_mtg.get('cut_pct', 0)
+                prob_hike = next_mtg.get('hike_pct', 0)
+                
+                if prob_hold > 0 or prob_cut > 0:
+                    status.prob_cut = prob_cut
+                    status.prob_hold = prob_hold
+                    status.prob_hike = prob_hike
+                    logger.info(
+                        f"   ✅ FedWatchEngine LIVE: Cut={prob_cut:.1f}% | "
+                        f"Hold={prob_hold:.1f}% | Hike={prob_hike:.1f}% "
+                        f"(meeting: {next_mtg.get('date', '?')})"
+                    )
+                    # Skip all the dead legacy sources below
+                    # Jump straight to outcome determination
+                    self._finalize_status(status)
+                    return status
+        except Exception as fw_e:
+            logger.warning(f"   ⚠️ FedWatchEngine failed, falling back to legacy: {fw_e}")
+        
+        # ── LEGACY FALLBACK: Try direct CME scraping (usually fails) ──
         cme_data = self._fetch_cme_direct()
         
         if cme_data and 'prob_cut' in cme_data and 'prob_hold' in cme_data:
@@ -527,45 +605,8 @@ class FedWatchFetcher:
             status.prob_hold = 12.8
             status.prob_hike = 0.0
         
-        # Normalize to 100%
-        total = status.prob_cut + status.prob_hold + status.prob_hike
-        if total > 0:
-            status.prob_cut = (status.prob_cut / total) * 100
-            status.prob_hold = (status.prob_hold / total) * 100
-            status.prob_hike = (status.prob_hike / total) * 100
-        
-        # Determine most likely outcome
-        if status.prob_cut >= status.prob_hold and status.prob_cut >= status.prob_hike:
-            status.most_likely_outcome = "CUT"
-            status.most_likely_probability = status.prob_cut
-        elif status.prob_hike >= status.prob_hold:
-            status.most_likely_outcome = "HIKE"
-            status.most_likely_probability = status.prob_hike
-        else:
-            status.most_likely_outcome = "HOLD"
-            status.most_likely_probability = status.prob_hold
-        
-        # Calculate changes from last check
-        if self.last_status:
-            status.prob_cut_change = status.prob_cut - self.last_status.prob_cut
-            status.prob_hold_change = status.prob_hold - self.last_status.prob_hold
-            status.prob_hike_change = status.prob_hike - self.last_status.prob_hike
-        
-        # Determine market bias
-        if status.prob_cut > 60:
-            status.market_bias = "BULLISH"  # Rate cuts are generally bullish
-            status.affected_sectors = ["Tech (QQQ)", "Real Estate (XLRE)", "Utilities (XLU)", "Small Caps (IWM)"]
-        elif status.prob_hike > 30:
-            status.market_bias = "BEARISH"  # Rate hikes are bearish
-            status.affected_sectors = ["Banks (XLF)", "Value (IVE)", "Cash-heavy companies"]
-        else:
-            status.market_bias = "NEUTRAL"
-            status.affected_sectors = ["Monitor for changes"]
-        
-        # Cache
-        self.last_status = status
-        self.cache_time = datetime.now()
-        
+        # Use shared finalization (normalize, outcome, bias, cache)
+        self._finalize_status(status)
         return status
 
 

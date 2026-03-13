@@ -151,9 +151,17 @@ class PaperTradeScheduler:
     """
     
     # Events we care about (keywords to match in TE event names)
+    # 🔥 FIX: Expanded from 2 → 8 categories. Morning brief showed
+    #    0/5 major releases captured this week (only Housing paper-traded).
     WATCHED_EVENTS = {
         'CPI': {'keywords': ['inflation rate', 'cpi'], 'release_time': '08:30'},
-        'Housing': {'keywords': ['existing home sales'], 'release_time': '10:00'},
+        'PCE': {'keywords': ['pce price index', 'personal consumption', 'core pce'], 'release_time': '08:30'},
+        'GDP': {'keywords': ['gdp growth', 'gdp annual'], 'release_time': '08:30'},
+        'PPI': {'keywords': ['producer price', 'ppi'], 'release_time': '08:30'},
+        'NFP': {'keywords': ['non farm payrolls', 'nonfarm'], 'release_time': '08:30'},
+        'Housing': {'keywords': ['existing home sales', 'housing starts', 'building permits'], 'release_time': '10:00'},
+        'Claims': {'keywords': ['initial jobless claims', 'jobless claims'], 'release_time': '08:30'},
+        'DurableGoods': {'keywords': ['durable goods', 'durables'], 'release_time': '08:30'},
     }
     
     def __init__(self):
@@ -363,7 +371,7 @@ class PaperTradeScheduler:
         
         logger.info("═" * 60)
         logger.info("📊 PAPER TRADE SCHEDULER STARTED")
-        logger.info("   Watching: CPI, Housing (Existing Home Sales)")
+        logger.info("   Watching: CPI, PCE, GDP, PPI, NFP, Housing, Claims, DurableGoods")
         logger.info("   Mode: auto-detect from TE calendar")
         logger.info("═" * 60)
         
