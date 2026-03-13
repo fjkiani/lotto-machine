@@ -151,6 +151,21 @@ async def startup():
                 logger.warning(f"⚠️ Paper trade scheduler failed to init: {pt_e}")
                 _thread_status['paper_trade_scheduler'] = {'status': f'init_failed: {pt_e}'}
 
+            # 🔥 FIX #5: Start the FRED economic release capture thread.
+            # Polls FRED every 15 min for CPI, PCE, GDP, PPI, unemployment, etc.
+            # Writes new releases to economic_intelligence.db + alerts_history.db.
+            try:
+                from live_monitoring.core.econ_release_capture import start_capture_thread
+                econ_thread, _ = start_capture_thread(interval_minutes=15)
+                _thread_status['econ_release_capture'] = {
+                    'status': 'running',
+                    'started': datetime.now().isoformat(),
+                }
+                logger.info("✅ Economic release capture thread launched (FRED → DB)")
+            except Exception as econ_e:
+                logger.warning(f"⚠️ Economic release capture failed to init: {econ_e}")
+                _thread_status['econ_release_capture'] = {'status': f'init_failed: {econ_e}'}
+
         except Exception as e:
             logger.error(f"Error initializing monitor: {e}", exc_info=True)
     else:

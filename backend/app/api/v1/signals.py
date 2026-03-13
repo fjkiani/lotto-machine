@@ -844,3 +844,40 @@ async def take_trade(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ── Economic Releases ────────────────────────────────────────────────
+
+@router.get("/economic-releases")
+async def get_economic_releases(days: int = 30):
+    """Get recent economic releases from the DB."""
+    try:
+        db_path = ROOT / "data" / "economic_intelligence.db"
+        if not db_path.exists():
+            return {"releases": [], "message": "No economic intelligence DB found"}
+
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+        rows = conn.execute(
+            "SELECT * FROM economic_releases WHERE date >= ? ORDER BY date DESC",
+            (cutoff,)
+        ).fetchall()
+        conn.close()
+
+        releases = [dict(r) for r in rows]
+        return {"releases": releases, "count": len(releases)}
+    except Exception as e:
+        logger.error(f"Economic releases error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/economic-releases/capture")
+async def capture_economic_releases():
+    """Manually trigger a FRED capture run."""
+    try:
+        from live_monitoring.core.econ_release_capture import capture_all_releases
+        result = capture_all_releases()
+        return result
+    except Exception as e:
+        logger.error(f"Economic capture error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
