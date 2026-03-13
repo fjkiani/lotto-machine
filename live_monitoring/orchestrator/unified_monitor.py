@@ -32,6 +32,7 @@ from .checker_health import CheckerHealthRegistry
 from .exploitation_manager import ExploitationManager
 from .checker_scheduler import CheckerScheduler
 from .overnight_manager import OvernightManager
+from .confluence_gate import ConfluenceGate
 from .checkers import (
     FedChecker,
     TrumpChecker,
@@ -273,10 +274,16 @@ class UnifiedAlphaMonitor:
             tradytics_analysis_interval=self.tradytics_analysis_interval, unified_mode=self.unified_mode
         ) if self.tradytics_llm_available else None
 
+        # ─── SHARED CONFLUENCE GATE (one instance, all checkers) ──────
+        self.confluence_gate = ConfluenceGate(
+            regime_detector=self.regime_detector,
+        )
+
         self.squeeze_checker = SqueezeChecker(
             alert_manager=self.alert_manager, squeeze_detector=self.squeeze_detector,
             opportunity_scanner=self.opportunity_scanner, squeeze_candidates=self.squeeze_candidates,
-            unified_mode=self.unified_mode
+            unified_mode=self.unified_mode,
+            confluence_gate=self.confluence_gate,
         ) if self.squeeze_enabled else None
 
         gamma_exposure_tracker = None
@@ -286,7 +293,8 @@ class UnifiedAlphaMonitor:
         self.gamma_checker = GammaChecker(
             alert_manager=self.alert_manager, gamma_tracker=self.gamma_tracker,
             gamma_exposure_tracker=gamma_exposure_tracker, symbols=self.symbols,
-            unified_mode=self.unified_mode
+            unified_mode=self.unified_mode,
+            confluence_gate=self.confluence_gate,
         ) if self.gamma_enabled else None
 
         self.scanner_checker = ScannerChecker(
@@ -319,7 +327,8 @@ class UnifiedAlphaMonitor:
         rapidapi_key = os.getenv('YAHOO_RAPIDAPI_KEY')
 
         self.options_flow_checker = OptionsFlowChecker(
-            alert_manager=self.alert_manager, api_key=rapidapi_key, unified_mode=self.unified_mode
+            alert_manager=self.alert_manager, api_key=rapidapi_key, unified_mode=self.unified_mode,
+            confluence_gate=self.confluence_gate,
         )
 
         self.news_intelligence_checker = NewsIntelligenceChecker(
@@ -543,6 +552,15 @@ class UnifiedAlphaMonitor:
                     alert_count += 1
                 if not narrative_alerts:
                     self.recent_dp_alerts = []
+
+            # ─── WIRE SYNTHESIS INTO GATE ──────────────────────────────
+            if synthesis_result and hasattr(synthesis_result, 'confluence'):
+                try:
+                    bias = synthesis_result.confluence.bias.value
+                    score = synthesis_result.confluence.score
+                    self.confluence_gate.update_synthesis(bias, score)
+                except Exception as e:
+                    logger.warning(f"⚠️ Gate synthesis update failed: {e}")
 
         except Exception as e:
             logger.error(f"❌ synthesis/narrative checker failed: {e}")
