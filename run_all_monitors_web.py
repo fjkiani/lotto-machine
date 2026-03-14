@@ -403,12 +403,82 @@ def run_discord_bot():
         logger.error(traceback.format_exc())
 
 
+# Global guardian instance (shared between thread + endpoint)
+guardian_instance = None
+
+
+def run_guardian():
+    """Run the Intraday Guardian in background thread — checks every 60s during market hours."""
+    global guardian_instance
+    import pytz
+
+    logger.info("🛡️ Intraday Guardian thread starting...")
+    try:
+        from live_monitoring.intraday_guardian import IntradayGuardian
+        guardian_instance = IntradayGuardian()
+        logger.info("   ✅ IntradayGuardian initialized")
+    except Exception as e:
+        logger.error(f"   ❌ Guardian init failed: {e}")
+        return
+
+    check_count = 0
+    while True:
+        try:
+            et = pytz.timezone('America/New_York')
+            now = datetime.now(pytz.UTC).astimezone(et)
+            hour, minute = now.hour, now.minute
+            weekday = now.weekday()  # 0=Mon, 6=Sun
+
+            # Only run during market hours: M-F 9:30-16:00 ET
+            is_market = (weekday < 5 and
+                         (hour > 9 or (hour == 9 and minute >= 30)) and
+                         hour < 16)
+
+            if is_market:
+                check_count += 1
+                snap = guardian_instance.check()
+                tv = snap.get('thesis_valid', True)
+                logger.info(f"🛡️ Guardian check #{check_count}: thesis_valid={tv}, "
+                            f"walls={snap.get('wall_status','?')}, "
+                            f"vol={snap.get('volume_character','?')}")
+            else:
+                if check_count == 0 or check_count % 30 == 0:
+                    logger.info(f"🛡️ Guardian idle — market closed ({now.strftime('%a %H:%M ET')})")
+
+            time.sleep(60)
+        except Exception as e:
+            logger.error(f"❌ Guardian check error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            time.sleep(60)
+
+
 class HealthHandler(BaseHTTPRequestHandler):
     """HTTP handler for health checks and status."""
 
     def do_POST(self):
         """Handle POST requests (webhooks)"""
-        global monitor
+        global monitor, guardian_instance
+
+        # ── Intraday Guardian force-invalidate (kill test) ──
+        if self.path == '/api/v1/intraday/force-invalidate':
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = json.loads(self.rfile.read(content_length).decode()) if content_length else {}
+                reason = body.get('reason', 'Forced invalidation via API')
+
+                if guardian_instance:
+                    snap = guardian_instance.force_invalidate(reason)
+                else:
+                    # No guardian thread — still write snapshot directly
+                    from live_monitoring.intraday_guardian import IntradayGuardian
+                    g = IntradayGuardian()
+                    snap = g.force_invalidate(reason)
+
+                self._send_cors_json(200, snap)
+            except Exception as e:
+                self._send_cors_json(500, {'error': str(e)})
+            return
 
         if self.path == '/tradytics-webhook' or self.path == '/tradytics-forward':
             try:
@@ -657,9 +727,52 @@ class HealthHandler(BaseHTTPRequestHandler):
         except Exception as e:
             logger.error(f"❌ Synthesis send error: {e}")
 
+    def _send_cors_json(self, code, data):
+        """Send JSON response with CORS headers."""
+        self.send_response(code)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+        self.wfile.write(json.dumps(data, indent=2, default=str).encode())
+
+    def do_OPTIONS(self):
+        """Handle CORS preflight."""
+        self.send_response(204)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
     def do_GET(self):
         global monitor
-        
+
+        # ── Intraday Guardian snapshot endpoint ──
+        if self.path == '/api/v1/intraday/snapshot':
+            try:
+                snap_path = '/tmp/intraday_snapshot.json'
+                if os.path.exists(snap_path):
+                    with open(snap_path) as f:
+                        data = json.load(f)
+                else:
+                    data = {
+                        'thesis_valid': True,
+                        'market_open': False,
+                        'wall_status': 'holding',
+                        'circuit_breaker_active': False,
+                        'circuit_breaker_reason': None,
+                        'consecutive_losses_today': 0,
+                        'signals_active': 0,
+                        'signals_invalidated': 0,
+                        'last_check': None,
+                        'error': 'No snapshot yet — guardian has not run',
+                    }
+                self._send_cors_json(200, data)
+            except Exception as e:
+                self._send_cors_json(500, {'error': str(e)})
+            return
+
         # CRITICAL: Handle /health and / FIRST for Render health checks and self-ping
         if self.path == '/health' or self.path == '/':
             # Log health check to show activity
@@ -1280,6 +1393,14 @@ def main():
         logger.info("   ✅ Option wall tracker started (30min intervals)")
     except Exception as e:
         logger.error(f"   ⚠️ Option wall tracker failed: {e}")
+
+    # Start Intraday Guardian thread (thesis enforcement, wall monitoring, circuit breaker)
+    try:
+        guardian_thread = threading.Thread(target=run_guardian, daemon=True, name="IntradayGuardianThread")
+        guardian_thread.start()
+        logger.info("   ✅ Intraday Guardian thread started (60s intervals during market hours)")
+    except Exception as e:
+        logger.error(f"   ⚠️ Intraday Guardian failed to start: {e}")
 
     # Start HTTP server
     port = int(os.getenv('PORT', 8000))
