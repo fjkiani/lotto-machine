@@ -22,12 +22,13 @@ alwaysApply: false
 
 # Intraday Guardian System — Master Audit
 
-**Audited: 2026-03-13 17:00 ET**
-**Verdict: NO INTRADAY PROTECTION EXISTS. The system is morning-only.**
+**Originally Audited: 2026-03-13 17:00 ET**
+**Updated: 2026-03-13 20:15 ET — reflects all shipped work**
+**Verdict: INTRADAY PROTECTION NOW EXISTS. 3 gaps remain (Discord commands, Tradytics, E2E load test).**
 
 ---
 
-## 1. THE REAL DATA PATH: Ingest → Gate → UI
+## 1. THE REAL DATA PATH: Ingest → Gate → Guardian → UI
 
 ```
 06:00 ET                         07:30 ET                    07:45 ET
@@ -42,22 +43,22 @@ alwaysApply: false
                                     │                          │
                                     ▼                          ▼
                              Backend routes              Backend route
-                             /killchain/scan             /agents/narrative
-                             /agents/narrative            │
-                                    │                     │
-                                    ▼                     ▼
+                             /killchain/scan             /morning-brief
+                                    │                          │
+                                    ▼                          ▼
                               Frontend pages         Frontend pages
                               (Kill Shots,           (Today's Brief,
                                Agent X)               AXLFI Intel)
 
-09:30 ET ────────────────────────────────────────────── 16:00 ET
+09:30 ET ────────────── NOW ACTIVE ──────────────── 16:00 ET
 │                                                          │
-│                    *** NOTHING RUNS ***                   │
-│                                                          │
-│   The scheduler enters time.sleep(300) loop              │
-│   No stage fires between 08:00 and 16:05                 │
-│   premarket_scheduler.py:212-227 — only checks           │
-│   h==6, h==7, h==16. Hours 8-15 = DEAD.                  │
+│   ✅ IntradayGuardian.check()    — every 15 min          │
+│   ✅ MorningBriefGenerator       — every 30 min refresh  │
+│   ✅ VolumeSpkeDetector          — wired into 15-min loop│
+│   ✅ intraday_snapshot.json      — written on every check │
+│   ✅ /api/v1/intraday/snapshot   — serves snapshot to UI  │
+│   ✅ LiveSession.tsx             — polls every 60s        │
+│   ✅ TodaysBrief.tsx             — auto-polls every 60s   │
 │                                                          │
 └──────────────────────────────────────────────────────────┘
                                                      16:05 ET
@@ -68,7 +69,7 @@ alwaysApply: false
                                                 └──────────┘
 ```
 
-**THE GAP:** From 9:30 AM to 4:00 PM, NOTHING updates. The morning brief is stale by 9:45 AM. Signals approved at 7:30 AM stay "active" all day regardless of what happens.
+**ORIGINAL GAP (CLOSED):** Guardian loop + brief refresh + volume spike detector all run 9:30–16:00.
 
 ---
 
@@ -80,211 +81,235 @@ alwaysApply: false
 | `GammaChecker` | `checkers/gamma_checker.py:92` | ✅ YES | ❌ Only when orchestrator runs |
 | `OptionsFlowChecker` | `checkers/options_flow_checker.py:290,313` | ✅ YES (2 calls) | ❌ Only when orchestrator runs |
 | `SynthesisChecker` | `checkers/synthesis_checker.py` | ❌ UPDATES gate synthesis, doesn't fire signals | ❌ Only when orchestrator runs |
+| `DpDivergenceChecker` | `checkers/dp_divergence_checker.py:130` | ✅ YES — **fixed, was bypassing** | ❌ Only when orchestrator runs |
+| `NarrativeChecker` | `checkers/narrative_checker.py:290` | ✅ YES — **fixed, was bypassing** | ❌ Only when orchestrator runs |
 
-### Checkers That BYPASS The Gate Entirely
+### Channels That STILL Bypass The Gate
 
-| Checker | What It Emits | Gate Enforced? | Risk |
+| Channel | What It Emits | Gate Enforced? | Risk |
 |---------|-------------|----------------|------|
-| `DarkPoolChecker` (if exists) | DP signals | ❓ UNKNOWN — not found calling should_fire | **HIGH** |
-| Discord `/alpha` command | Direct LLM answer | ❌ NO GATE | **HIGH** — user gets "bullish" answer even if gate would block |
-| Discord `/levels` command | DP levels | ❌ NO GATE | MEDIUM — informational but could mislead |
-| Discord `/setup` command | Trade setup | ❌ NO GATE | **HIGH** — gives entry/stop/target with no gate check |
-| `SignalIntelEngine` | Verdict (LONG/SHORT/HOLD) | ❌ NO GATE | **HIGH** — used by morning brief, never gated |
+| Discord `/alpha` command | Direct LLM answer | ❌ NO GATE | 🔴 **HIGH** — user gets "bullish" answer even if thesis is dead |
+| Discord `/setup` command | Trade setup with entry/stop | ❌ NO GATE | 🔴 **HIGH** — gives trade levels with no thesis check |
+| Discord `/levels` command | DP levels | ❌ NO GATE | 🟡 MEDIUM — informational but could mislead |
+| Tradytics listener | Flow data passthrough | ❌ NO GATE | 🟡 MEDIUM — context only |
 
 ---
 
-## 3. WHAT ACTUALLY UPDATES AFTER 9:30 AM — Complete List
+## 3. WHAT RUNS AFTER 9:30 AM — Updated
 
 | Process | Runs After 9:30? | Frequency | What It Reads | What It Writes |
 |---------|-----------------|-----------|-------------|---------------|
-| `premarket_scheduler` | ✅ Running, but time.sleep(300) loop | Every 5 min | Clock only | Nothing (no stage triggers 8:00-16:05) |
+| `IntradayGuardian.check()` | ✅ YES | Every 15 min | SPY price (yfinance), option walls (Stockgrid), brief, outcomes | `/tmp/intraday_snapshot.json` |
+| `MorningBriefGenerator` refresh | ✅ YES | Every 30 min | SignalIntelEngine live data | `/tmp/morning_briefs/{date}.json` |
+| `VolumeSpkeDetector.check_for_spikes()` | ✅ YES | Every 15 min | yfinance SPY intraday | Log output |
 | `unified_monitor` threads | ✅ If started | 5-15 min | yfinance, CBOE, etc | In-memory state + Discord alerts |
-| `signal_brain_monitor` | ✅ If started | 5-15 min | Various data sources | Discord alerts |
-| `VolumeSpkeDetector` | EXISTS, code is there | Not scheduled | yfinance intraday | `/tmp/volume_spikes/` |
-| `RegimeDetector` | Only runs when checkers call it | On-demand | yfinance 5m bars | In-memory only |
-| Nothing else | — | — | — | — |
+| TodaysBrief.tsx auto-poll | ✅ YES | Every 60s (market hours) | `GET /morning-brief` | UI re-render |
+| LiveSession.tsx poll | ✅ YES | Every 60s | `GET /api/v1/intraday/snapshot` | UI re-render |
 
-### What Does NOT Update After 9:30 AM
+### What Updates Now vs Original Audit
 
-| Thing | Last Updated | What Should Update It | Risk |
-|-------|-------------|----------------------|------|
-| `morning_brief.json` | 07:45 ET | **Nothing** — MorningBriefGenerator.generate() uses cache | **CRITICAL** — brief shows stale data all day |
-| `gate_signals_today.json` | 07:30 ET | **Nothing** — only written by ConfluenceGate.log_signal() when checkers run | **CRITICAL** — signals never invalidated |
-| Signal status (active/invalidated) | **NEVER** | **No mechanism exists** | **CRITICAL** — no signal lifecycle |
-| Thesis validity | **NEVER** | **No mechanism exists** | **CRITICAL** — no thesis tracking |
-| SPY vs call wall status | 07:30 ET | **Nothing** after confluence stage | **CRITICAL** — wall may break at 10:47 and nobody knows |
-| Circuit breaker state | Only in `risk_manager.py` | Only `run_lotto_machine.py` calls `close_position()` | **CRITICAL** — not wired to gate or UI |
+| Thing | Original Status | Current Status |
+|-------|----------------|----------------|
+| `morning_brief.json` | ❌ Stale after 7:45 | ✅ Refreshed every 30 min |
+| `gate_signals_today.json` status | ❌ No status field | ✅ `invalidate_signals()` flips to `invalidated` |
+| Thesis validity | ❌ NOWHERE | ✅ `intraday_snapshot.json` → `thesis_valid` |
+| SPY vs call wall | ❌ Stale after 7:30 | ✅ Checked every 15 min by guardian |
+| Circuit breaker | ❌ Disconnected | ✅ Wired: consecutive losses + RiskManager PnL |
+| Volume character | ❌ Not running | ✅ VolumeSpike in scheduler + guardian `volume_character` |
 
 ---
 
-## 4. EVERY PATH A TRADER CAN SEE A BAD SIGNAL
+## 4. EVERY PATH A TRADER CAN SEE A SIGNAL — Updated
 
-| # | Channel | Component / Route | Gate Enforced? | Intraday Invalidation? | Risk Level |
-|---|---------|-------------------|---------------|----------------------|------------|
-| 1 | Web UI — AXLFI Intel | `AXLFIIntel.tsx` → `axlfiApi.signals()` | ❌ NO — raw AXLFI signals, never gated | ❌ NO | 🔴 HIGH |
-| 2 | Web UI — Kill Chain Table | `KillChainTable.tsx` → `axlfiApi.earningsIntel()` | ❌ NO — shows enriched signals, no gate check | ❌ NO | 🔴 HIGH |
-| 3 | Web UI — Today's Brief | Reads `/agents/narrative/current` → `morning_brief.json` | ⚠️ DP divergence gate (not ConfluenceGate) | ❌ NO — cached from 7:45am | 🔴 HIGH |
-| 4 | Web UI — Agent X panels | Multiple panels, reads various routes | ❓ Varies by panel | ❌ NO | 🟡 MEDIUM |
-| 5 | Discord — `/alpha` command | `alpha.py` → LLM agent | ❌ NO GATE | ❌ NO | 🔴 HIGH |
-| 6 | Discord — `/setup` command | `alpha.py` → Direct setup generation | ❌ NO GATE | ❌ NO | 🔴 HIGH |
-| 7 | Discord — `/levels` command | `alpha.py` → DP levels | ❌ NO GATE | ❌ NO invalidation | 🟡 MEDIUM |
-| 8 | Discord — Unified monitor alerts | Signal brain → Discord webhook | ⚠️ Some checkers use gate | ❌ NO invalidation after firing | 🔴 HIGH |
-| 9 | Discord — Tradytics listener | `tradytics/listener.py` | ❌ NO GATE — passthrough | ❌ NO | 🟡 MEDIUM |
+| # | Channel | Gate? | Thesis Awareness? | Status |
+|---|---------|-------|--------------------|--------|
+| 1 | Web UI — AXLFI Intel | ❌ Raw AXLFI | ✅ RED banner when `thesis_valid=false` | ✅ PROTECTED |
+| 2 | Web UI — Kill Chain Table | ❌ Raw enriched | ✅ Grey + "(THESIS INVALID)" label | ✅ PROTECTED |
+| 3 | Web UI — Today's Brief | ⚠️ DP gate | ✅ Wall breach RED banner, auto-polls | ✅ PROTECTED |
+| 4 | Web UI — Live Session | N/A | ✅ Full thesis status + circuit breaker banner | ✅ PROTECTED |
+| 5 | Discord — `/alpha` | ❌ NO GATE | ❌ NO thesis check | 🔴 **OPEN GAP** |
+| 6 | Discord — `/setup` | ❌ NO GATE | ❌ NO thesis check | 🔴 **OPEN GAP** |
+| 7 | Discord — `/levels` | ❌ NO GATE | ❌ NO thesis check | 🟡 OPEN (info only) |
+| 8 | Discord — Unified alerts | ✅ Most gated | ⚠️ Prepends warning if thesis invalid | ✅ PROTECTED |
+| 9 | Discord — Tradytics | ❌ Passthrough | ❌ NO thesis check | 🟡 OPEN (context only) |
 
-**Summary: 0 of 9 channels enforce intraday invalidation. 5 of 9 don't even enforce the pre-market gate.**
-
----
-
-## 5. THESIS TRACKING — Does It Exist?
-
-### Answer: NO.
-
-- `grep -r "thesis_valid" .` → **0 results**
-- `grep -r "thesis" .` in all Python files → Only docstrings referencing "thesis" conceptually
-- No file, database, or in-memory state represents "today's thesis is valid/invalid"
-- No mechanism flips anything when SPY breaks a key level intraday
-
-### Where It SHOULD Live
-
-The concept of "thesis" already exists implicitly in two places:
-
-1. **`SignalIntelEngine.generate_report()`** — produces `verdict.signal` (LONG/SHORT/HOLD) and checks SPY vs call wall. This runs ONCE at 7:30am.
-2. **`MorningBriefGenerator.generate()`** — produces `verdict` field. This runs ONCE at 7:45am and caches.
-
-The natural owner of intraday thesis is a NEW module that:
-- Reads the morning brief verdict as the "starting thesis"
-- Every 15 min, re-checks SPY vs wall, volume character, signal status
-- Writes `intraday_snapshot.json` with `thesis_valid: true/false`
-- Everything else reads this file
-
-**This module does not exist. Nothing even approximates it.**
+**Updated Summary: 5 of 9 channels enforce thesis invalidation. 2 remain 🔴 HIGH gaps (Discord `/alpha` and `/setup`).**
 
 ---
 
-## 6. CIRCUIT BREAKER — Does It Exist?
+## 5. THESIS TRACKING — ✅ EXISTS
 
-### Answer: YES, but completely disconnected.
+### Grep Receipts (2026-03-13 20:15 ET)
 
-**Where it lives:** `live_monitoring/core/risk_manager.py`
+- `grep -rn "thesis_valid" --include="*.py"` → **17 hits** in `intraday_guardian.py`
+- `grep -rn "thesisValid" --include="*.tsx"` → **24 hits** across 4 frontend files
+- `intraday_guardian.py` → **498 lines**, contains `check()`, `force_invalidate()`, `_invalidate_signals()`
+- `/tmp/intraday_snapshot.json` → written every 15 min with `thesis_valid`, `thesis_invalidation_reason`
 
-```python
-# risk_manager.py:44
-circuit_breaker_pnl_pct: float = -0.03  # -3% P&L = stop all trading
+### Where Thesis Lives
 
-# risk_manager.py:59
-self.circuit_breaker_triggered: bool = False
+| Component | File | Mechanism |
+|-----------|------|-----------|
+| Backend — computation | `intraday_guardian.py:check()` | SPY vs walls → `thesis_valid` |
+| Backend — snapshot | `/tmp/intraday_snapshot.json` | Written every 15 min |
+| Backend — API | `backend/app/api/v1/intraday.py` | `GET /api/v1/intraday/snapshot` |
+| Frontend — hook | `hooks/useIntradaySnapshot.ts` | Polls every 60s |
+| Frontend — AXLFI | `AXLFIIntel.tsx:43` | `thesisValid` → RED banner |
+| Frontend — KillChain | `KillChainTable.tsx:21` | `thesisValid` prop → grey + label |
+| Frontend — Brief | `TodaysBrief.tsx` | Wall breach banner, market-open redirect |
+| Frontend — Live | `LiveSession.tsx` | Full thesis panel + circuit breaker |
+| Signal lifecycle | `intraday_guardian.py:_invalidate_signals()` | Flips `status: active → invalidated` |
+| Discord | `intraday_guardian.py:_send_thesis_invalidation_webhook()` | Fires when thesis flips to invalid |
 
-# risk_manager.py:296-298
-if self.daily_pnl_pct <= self.limits.circuit_breaker_pnl_pct:
-    self.circuit_breaker_triggered = True
-    logger.error("🚨 CIRCUIT BREAKER TRIGGERED")
+---
+
+## 6. CIRCUIT BREAKER — ✅ WIRED (Both Directions)
+
+### RiskManager → Guardian (PnL-based)
+
+```
+risk_manager.py:316-319  →  writes /tmp/risk_manager_circuit_breaker.json
+intraday_guardian.py:386-395  →  reads that file in _check_circuit_breaker()
 ```
 
-**Who uses it:** ONLY `run_lotto_machine.py` (the original automated trading engine)
+### Guardian → RiskManager (Thesis-based)
 
-**Who does NOT use it:**
-- ❌ `ConfluenceGate` — no `circuit_breaker_triggered` check
-- ❌ `MorningBriefGenerator` — no circuit breaker awareness
-- ❌ `GateOutcomeTracker` — no consecutive loss tracking
-- ❌ Frontend — no circuit breaker banner or state
-- ❌ Discord bot — no circuit breaker awareness
-- ❌ `premarket_scheduler` — no circuit breaker check
+```
+intraday_guardian.py:check()  →  writes /tmp/intraday_snapshot.json
+risk_manager.py:203-216  →  reads snapshot in can_open_position()
+                              Blocks if circuit_breaker_active OR thesis_valid=false
+```
 
-**What's needed:** The circuit breaker concept exists but is trapped inside an old engine. It needs to be:
-1. Extracted into `GateOutcomeTracker` (which already tracks wins/losses/streaks)
-2. Exposed via a backend route
-3. Read by the frontend
-4. Checked by `ConfluenceGate.should_fire()` before every signal
+### Guardian → Frontend
 
----
+```
+CircuitBreakerBanner.tsx (1117 bytes)  →  rendered in LiveSession.tsx
+```
 
-## 7. THE 5-QUESTION ANTI-BAD-TRADE CHECKLIST — Current Status
+### Two Circuit Breaker Sources
 
-| # | Question | Where Answer Lives | Currently Answered? | Fix |
-|---|----------|-------------------|--------------------| ----|
-| 1 | Is the morning thesis still valid? | **NOWHERE** | ❌ NO | Build `intraday_snapshot.json` with `thesis_valid` |
-| 2 | Has SPY held the key wall since open? | `SignalIntelEngine` checks at 7:30am only | ❌ STALE after 9:30 | Intraday refresh loop checks every 15 min |
-| 3 | Is the signal I'm looking at still active? | `gate_signals_today.json` has no `status` field | ❌ NO — no signal lifecycle | Add `status: active/invalidated/triggered/closed` |
-| 4 | Is the circuit breaker on? | `risk_manager.py` (not wired) | ❌ NOT VISIBLE | Wire to gate + UI |
-| 5 | Is volume accumulation or distribution? | `VolumeProfile.fetch_intraday_volume()` exists | ❌ NOT RUNNING | Add to intraday refresh loop |
-
-**Score: 0 / 5 questions are answered during market hours.**
+| Source | Trigger | Where Checked |
+|--------|---------|---------------|
+| Consecutive losses | 2+ LOSS in `gate_outcomes.json` today | `_check_circuit_breaker()` Source 1 |
+| RiskManager PnL | daily_pnl_pct ≤ -3% | `_check_circuit_breaker()` Source 2 |
 
 ---
 
-## 8. FILE INVENTORY — What Exists, What's Missing
+## 7. THE 5-QUESTION ANTI-BAD-TRADE CHECKLIST — Updated
 
-### EXISTS
+| # | Question | Where Answer Lives | Answered? | Proof |
+|---|----------|-------------------|-----------|-------|
+| 1 | Is the morning thesis still valid? | `intraday_snapshot.json → thesis_valid` | ✅ YES | `intraday_guardian.py:166-167` |
+| 2 | Has SPY held the key wall since open? | Guardian checks every 15 min | ✅ YES | `intraday_guardian.py:156-164` |
+| 3 | Is the signal I'm looking at still active? | `gate_signals_today.json → status` | ✅ YES | `_invalidate_signals()` + `force_invalidate()` |
+| 4 | Is the circuit breaker on? | Snapshot + frontend banner | ✅ YES | `CircuitBreakerBanner.tsx` + `_check_circuit_breaker()` |
+| 5 | Is volume accumulation or distribution? | Guardian + VolumeSpike | ✅ YES | `_get_volume_character()` + `check_for_spikes()` |
 
-| File | Role | Intraday? |
-|------|------|----------|
-| `premarket_scheduler.py` | 3-stage pipeline (6am/7:30am/7:45am) | ❌ Sleeps 8:00-16:05 |
-| `confluence_gate.py` | 3-tier signal gate (regime, bias, kill chain) | ⚠️ On-demand only — only fires when a checker calls it |
-| `gate_outcome_tracker.py` | Logs signals + settles at EOD | ❌ No intraday settlement |
-| `morning_brief_generator.py` | Generates brief with DP divergence | ❌ Generates once, caches |
-| `signal_intel_engine.py` | Produces verdict + SPY vs wall + volume profile | ❌ Runs once at 7:30am |
-| `risk_manager.py` | Position sizing + circuit breaker | ❌ Only used by `run_lotto_machine.py` |
-| `regime_detector.py` | Detects market regime from 5m bars | ⚠️ Only runs when a checker needs it |
-| `volume_spike_detector.py` | Detects SPY intraday volume spikes | ❌ EXISTS but not scheduled |
+**Score: 5 / 5 questions answered during market hours. ✅**
 
-### DOES NOT EXIST — Must Be Built
+---
 
-| File | Role | Priority |
-|------|------|----------|
-| `intraday_guardian.py` | 15-min loop: checks SPY vs wall, volume, thesis validity. Writes `intraday_snapshot.json` | 🔴 P0 |
-| `intraday_snapshot.json` | Single source of truth for thesis validity during market hours | 🔴 P0 |
-| `intraday_gate_check.py` | Reads snapshot, invalidates signals in `gate_signals_today.json` when thesis breaks | 🔴 P0 |
-| Backend route: `/intraday/snapshot` | Serves `intraday_snapshot.json` to frontend | 🔴 P0 |
-| Frontend: `IntradayGuardian.tsx` | Live session panel replacing static brief during market hours | 🔴 P0 |
-| Circuit breaker wiring into `GateOutcomeTracker` | Consecutive loss tracking → blocks remaining signals | 🟡 P1 |
-| Discord webhook: thesis invalidation alert | Push notify when thesis breaks | 🟡 P1 |
+## 8. FILE INVENTORY — Updated
+
+### EXISTS AND OPERATIONAL
+
+| File | Role | Intraday? | Lines |
+|------|------|----------|-------|
+| `intraday_guardian.py` | 15-min market-hours loop — SPY vs wall, volume, thesis | ✅ Every 15 min | 498 |
+| `premarket_scheduler.py` | 4 stages + intraday guardian + brief refresh + volume spike | ✅ 3 intraday stages | ~270 |
+| `confluence_gate.py` | Auto-logging gate with `_log_result()` wrapper | ⚠️ On-demand | ~300 |
+| `gate_outcome_tracker.py` | Log, settle, health metric | ✅ settle_day at 16:05 | 247 |
+| `morning_brief_generator.py` | DP-gated brief with wall breach detection | ✅ Refreshes every 30 min | ~175 |
+| `signal_intel_engine.py` | All 5 manager questions answered | ✅ Via `/signal-intel` live | 265 |
+| `risk_manager.py` | Position sizing + PnL circuit breaker → persists to disk | ✅ Both directions wired | 389 |
+| `volume_spike_detector.py` | SPY intraday volume anomaly detection | ✅ Wired in 15-min loop | ~122 |
+| `backend/app/api/v1/intraday.py` | `GET /api/v1/intraday/snapshot` | ✅ Serves snapshot | ~30 |
+| `backend/app/api/v1/gate.py` | Gate health + signals + outcomes API | ✅ 5 endpoints | 70 |
+| `frontend/src/pages/LiveSession.tsx` | Full thesis status panel | ✅ Polls every 60s | 140 |
+| `frontend/src/pages/TodaysBrief.tsx` | Auto-polling brief + wall breach + gate health | ✅ Auto-polls | ~400 |
+| `frontend/src/components/intraday/ThesisStatus.tsx` | Thesis valid/invalid indicator | ✅ | ~120 |
+| `frontend/src/components/intraday/CircuitBreakerBanner.tsx` | CB red banner | ✅ | 47 |
+| `frontend/src/components/intraday/ActiveSignals.tsx` | Active vs invalidated signals | ✅ | ~70 |
+| `frontend/src/hooks/useIntradaySnapshot.ts` | Shared hook — polls snapshot | ✅ Every 60s | ~55 |
+
+### STILL DOES NOT EXIST — Remaining Gaps
+
+| File / Feature | Role | Priority |
+|----------------|------|----------|
+| Discord `/alpha` thesis check | Read snapshot before LLM answer | 🔴 P0 |
+| Discord `/setup` thesis check | Read snapshot before trade setup | 🔴 P0 |
+| E2E load test / integration test | Proves full pipeline: signal → gate → guardian → UI → invalidation | 🟡 P1 |
+| Tradytics thesis annotation | Prepend warning to flow data if thesis invalid | 🟡 P2 |
 
 ---
 
 ## 9. SCENARIO SIMULATION — SPY Breaks $660 at 11:34 AM
 
-### Current Behavior (BROKEN)
+### Current Behavior (AFTER GUARDIAN BUILD)
 
 ```
 11:34 AM — SPY breaks $660 call wall on 2.1x volume
 
-What happens:
-  morning_brief.json:        Still says "Wall defended at $660". STALE.
-  gate_signals_today.json:   Still shows AMAT LONG active. NO STATUS FIELD.
-  Kill Chain Table (UI):     Still shows AMAT ▲ BULL with green signal. LIE.
-  Institutional Signals:     Still shows 6 bullish, 0 bearish. LIE.
-  Today's Brief (UI):        Still says "Clean entries: AMAT, LRCX". LIE.
-  Discord /setup SPY:        Still gives LONG setup. LIE.
-  Circuit breaker:           Not wired. OFF (not that it matters).
-  Thesis:                    No concept exists.
+What happens NOW:
+  intraday_guardian.py:      ✅ Detects SPY < $660 on next 15-min check.
+                             Sets thesis_valid = False.
+                             Reason: "SPY broke call wall $660 at 11:34 AM"
+  intraday_snapshot.json:    ✅ Updated:
+                             { thesis_valid: false, wall_status: "broken" }
+  gate_signals_today.json:   ✅ ALL active signals → status: "invalidated"
+  morning_brief.json:        ✅ Refreshed within 30 min — wall_breached: true
+  Kill Chain Table (UI):     ✅ Grey + "(THESIS INVALID)" on every row
+  AXLFI Intel (UI):          ✅ Full-width RED "⛔ THESIS INVALIDATED" banner
+  Today's Brief (UI):        ✅ Verdict banner overridden to "⚠️ BREACH" in red
+  Live Session (UI):         ✅ RED thesis panel + circuit breaker banner
+  Discord alert:             ✅ "🚨 THESIS INVALIDATED: SPY broke call wall..."
+  Circuit breaker:           ✅ Monitored — both consecutive losses + PnL
 
-Trader sees: GREEN EVERYWHERE. Enters LONG AMAT.
-Result: Bad trade. Thesis was already dead.
+Trader sees: RED EVERYWHERE on web UI. Nothing to trade.
 ```
 
-### Target Behavior (WITH INTRADAY GUARDIAN)
+### What STILL Escapes (Remaining Gaps)
 
 ```
-11:34 AM — SPY breaks $660 call wall on 2.1x volume
-
-What happens:
-  intraday_guardian.py:      Detects SPY < $660. Sets thesis_valid = False.
-                             Reason: "SPY broke call wall $660 at 11:34 AM on 2.1x volume"
-  intraday_snapshot.json:    Updated immediately:
-                             { thesis_valid: false, wall_status: "broken",
-                               volume_character: "distribution",
-                               thesis_invalidation_reason: "..." }
-  gate_signals_today.json:   ALL active signals → status: "invalidated"
-                             Reason copied from snapshot.
-  Kill Chain Table (UI):     All rows greyed out. "THESIS INVALIDATED" banner.
-  Institutional Signals:     Replaced by red warning.
-  Today's Brief → Live:      Switches to "THESIS INVALIDATED" red banner.
-  Discord alert:             "⛔ THESIS INVALIDATED: SPY broke $660 at 11:34 AM"
-  Circuit breaker:           Monitored separately.
-
-Trader sees: RED EVERYWHERE. Nothing to trade.
-Result: No trade. Architecture prevented it.
+  Discord /alpha SPY:        ❌ STILL gives LLM answer — no thesis check
+  Discord /setup SPY:        ❌ STILL gives LONG setup — no thesis check
+  Discord /levels:           ⚠️ Shows levels (informational, lower risk)
+  Tradytics listener:        ⚠️ Raw flow data passthrough (lower risk)
 ```
+
+---
+
+## 🔍 SANDBAG AUDIT — What Could Be Fake
+
+### Method: Every claim below was verified with `grep`, `wc -l`, and/or runtime E2E test.
+
+| Claim | Verification | Sandbagged? |
+|-------|-------------|-------------|
+| `intraday_guardian.py` exists (498L) | `wc -l` → 498 | ✅ Real file |
+| `thesis_valid` checked every 15 min | `grep thesis_valid intraday_guardian.py` → 17 hits, `check()` method at line 67 | ✅ Real |
+| `force_invalidate()` works E2E | Ran: signal `active` → `invalidated`, snapshot `thesis_valid=False` | ✅ E2E verified |
+| Circuit breaker reads RiskManager | `grep risk_manager_circuit_breaker intraday_guardian.py` → 2 hits | ✅ Real |
+| Circuit breaker E2E works | Wrote `{"triggered":true}`, guardian returned `active=True` | ✅ E2E verified |
+| `LiveSession.tsx` exists (140L) | `wc -l` → 140, contains `useIntradaySnapshot`, `ThesisStatus`, `CircuitBreakerBanner` | ✅ Real |
+| `TodaysBrief.tsx` auto-polls | `grep setInterval TodaysBrief.tsx` → found, 60s during market hours | ✅ Real |
+| `AXLFIIntel.tsx` thesis awareness | `grep thesisValid AXLFIIntel.tsx` → 4 hits (import, compute, banner, KillChain prop) | ✅ Real |
+| `KillChainTable.tsx` thesis awareness | `grep thesisValid KillChainTable.tsx` → 7 hits (prop, style, label) | ✅ Real |
+| `dp_divergence_checker` calls gate | `grep should_fire dp_divergence_checker.py` → line 130 | ✅ Fixed |
+| `narrative_checker` calls gate | `grep should_fire narrative_checker.py` → line 290 | ✅ Fixed |
+| `tsc --noEmit` clean compile | Ran: 0 errors | ✅ Real |
+| Discord `/alpha` has thesis check | `grep thesis discord_bot/` → 0 results | ❌ **NOT DONE** |
+| Discord `/setup` has thesis check | Same grep → 0 results | ❌ **NOT DONE** |
+| Tradytics has thesis check | `grep thesis tradytics_checker.py` → 0 results | ❌ **NOT DONE** |
+
+### ⚠️ POTENTIAL SANDBAG RISKS
+
+| Risk | What Could Be Fake | How To Verify |
+|------|-------------------|---------------|
+| Guardian runs but never fires during market hours | Could be that `market_open` check is wrong timezone | Run `python3 -c "from live_monitoring.intraday_guardian import IntradayGuardian; g = IntradayGuardian(); print(g.check())"` during market hours and check `market_open=True` |
+| `_invalidate_signals()` runs but doesn't write | Could be file permission issue on `/data/gate_signals_today.json` | Write test signal, call `force_invalidate()`, read file back |
+| Frontend polls but never re-renders | Could be React state not updating on identical data | Open `/live` in browser during market hours, inject invalid snapshot |
+| Brief refreshes every 30 min but yfinance rate-limited | StockGrid/yfinance may fail silently and return cached stale data | Check `/tmp/morning_briefs/{date}.json` timestamp after market hours |
+| Scheduler thread dies silently | Daemon thread crashes don't log to main process | Check `GET /threads/status` or equivalent health endpoint |
 
 ---
 
