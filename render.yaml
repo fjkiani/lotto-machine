@@ -4,7 +4,7 @@ services:
     name: alpha-intelligence-monitor
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python3 run_all_monitors_web.py
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DISCORD_WEBHOOK_URL
         sync: false  # Set this in Render dashboard

@@ -1,2 +1,2 @@
-web: python3 run_all_monitors_web.py
+web: uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}
 worker: python3 discord_bot.py
