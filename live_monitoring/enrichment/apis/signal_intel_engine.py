@@ -69,28 +69,29 @@ class SignalIntelEngine:
             intraday_1m = spy_ticker.history(period="1d", interval="1m")
 
             if len(intraday_5m) > 0 and spy_call_wall > 0:
-                opens_above = intraday_5m["Close"].iloc[0] > spy_call_wall
-                current = intraday_5m["Close"].iloc[-1]
-                delta = current - spy_call_wall
+                opens_above = bool(intraday_5m["Close"].iloc[0] > spy_call_wall)
+                current = float(intraday_5m["Close"].iloc[-1])
+                delta = float(current - spy_call_wall)
 
                 # Find cross events
                 crosses = []
                 for i in range(1, len(intraday_5m)):
-                    prev = intraday_5m["Close"].iloc[i - 1]
-                    curr = intraday_5m["Close"].iloc[i]
+                    prev = float(intraday_5m["Close"].iloc[i - 1])
+                    curr = float(intraday_5m["Close"].iloc[i])
                     ts = intraday_5m.index[i].strftime("%H:%M")
                     if prev <= spy_call_wall < curr:
-                        crosses.append({"time": ts, "direction": "ABOVE", "from": round(float(prev), 2), "to": round(float(curr), 2)})
+                        crosses.append({"time": ts, "direction": "ABOVE", "from": round(prev, 2), "to": round(curr, 2)})
                     elif prev >= spy_call_wall > curr:
-                        crosses.append({"time": ts, "direction": "BELOW", "from": round(float(prev), 2), "to": round(float(curr), 2)})
+                        crosses.append({"time": ts, "direction": "BELOW", "from": round(prev, 2), "to": round(curr, 2)})
 
                 # Session high/low vs wall
                 session_high = float(intraday_5m["High"].max())
                 session_low = float(intraday_5m["Low"].min())
 
                 # Trend: grinding up or down from open?
-                open_delta = float(intraday_5m["Close"].iloc[0]) - spy_call_wall
-                close_delta = float(current) - spy_call_wall
+                open_price = float(intraday_5m["Close"].iloc[0])
+                open_delta = open_price - spy_call_wall
+                close_delta = current - spy_call_wall
                 if open_delta > close_delta + 1:
                     wall_trend = "GRINDING_DOWN_TOWARD_WALL"
                 elif close_delta > open_delta + 1:
@@ -100,9 +101,9 @@ class SignalIntelEngine:
 
                 report["spy_vs_wall"] = {
                     "opened_above": opens_above,
-                    "current_price": round(float(current), 2),
-                    "delta_from_wall": round(float(delta), 2),
-                    "open_price": round(float(intraday_5m["Close"].iloc[0]), 2),
+                    "current_price": round(current, 2),
+                    "delta_from_wall": round(delta, 2),
+                    "open_price": round(open_price, 2),
                     "session_high": round(session_high, 2),
                     "session_low": round(session_low, 2),
                     "crosses": crosses,
@@ -126,7 +127,7 @@ class SignalIntelEngine:
                     if raw:
                         sv_raw = raw.get("individual_short_volume_table", {})
                         items = sv_raw.get("data", []) if isinstance(sv_raw, dict) else sv_raw if isinstance(sv_raw, list) else []
-                        sorted_items = sorted(items, key=lambda x: x.get("date", ""))
+                        sorted_items = sorted([r for r in items if isinstance(r, dict)], key=lambda x: x.get("date", ""))
 
                         trend_data = []
                         prev_sv = None
@@ -134,22 +135,22 @@ class SignalIntelEngine:
                             sv = float(row.get("short_volume_pct", row.get("short_volume%", 0)) or 0)
                             if sv <= 1.0:
                                 sv *= 100
-                            change = round(sv - prev_sv, 1) if prev_sv is not None else None
+                            change = float(round(sv - prev_sv, 1)) if prev_sv is not None else None
                             trend_data.append({
-                                "date": row.get("date", "?"),
-                                "sv_pct": round(sv, 1),
+                                "date": str(row.get("date", "?")),
+                                "sv_pct": float(round(sv, 1)),
                                 "change": change,
-                                "short_volume": int(row.get("short_volume", 0) or 0),
+                                "short_volume": int(float(row.get("short_volume", 0) or 0)),
                             })
                             prev_sv = sv
 
                         if len(trend_data) >= 2:
-                            latest = trend_data[-1]["sv_pct"]
-                            prev = trend_data[-2]["sv_pct"]
-                            if latest > prev + 1:
+                            latest_sv = trend_data[-1]["sv_pct"]
+                            prev_sv_val = trend_data[-2]["sv_pct"]
+                            if latest_sv > prev_sv_val + 1:
                                 direction = "RISING"
                                 read = "absorption ACCELERATING — institutions still loading"
-                            elif latest < prev - 1:
+                            elif latest_sv < prev_sv_val - 1:
                                 direction = "FALLING"
                                 read = "institutions DONE loading — positions built"
                             else:
@@ -171,7 +172,7 @@ class SignalIntelEngine:
         # ── Q3: Bull Signal Tickers DP Profile ───────────────────────
         try:
             if client:
-                # Get current bull signals from signal differ
+                # Get current bull signals from signal differ (no instance needed)
                 bull_tickers = []
                 try:
                     from live_monitoring.enrichment.apis.axlfi_signal_differ import AXLFISignalDiffer
@@ -186,7 +187,7 @@ class SignalIntelEngine:
                     try:
                         dp = client.get_ticker_latest(t)
                         if dp:
-                            sv = dp.short_volume_pct
+                            sv = float(dp.short_volume_pct)
                             if sv > 55:
                                 bias = "HEAVY_SHORT_VOL"
                             elif sv > 50:
@@ -197,10 +198,10 @@ class SignalIntelEngine:
                                 bias = "LOW_SHORT_VOL_BULLISH"
 
                             ticker_intel[t] = {
-                                "sv_pct": round(sv, 1),
-                                "dp_position_dollars": dp.dp_position_dollars,
+                                "sv_pct": float(round(sv, 1)),
+                                "dp_position_dollars": float(dp.dp_position_dollars),
                                 "bias": bias,
-                                "date": dp.date,
+                                "date": str(dp.date),
                             }
                     except Exception:
                         pass
@@ -224,11 +225,11 @@ class SignalIntelEngine:
                 first_hour_bars = min(12, len(vols))
                 first_hour_vol = int(sum(vols[:first_hour_bars]))
                 rest_vol = int(sum(vols[first_hour_bars:]))
-                ratio = first_hour_vol / rest_vol if rest_vol > 0 else 999
+                ratio = float(first_hour_vol / rest_vol if rest_vol > 0 else 999)
 
                 # 30-min buckets
                 buckets = []
-                times = [idx.strftime("%H:%M") for idx in intraday_5m.index]
+                times = [str(idx.strftime("%H:%M")) for idx in intraday_5m.index]
                 bucket_map = {}
                 for i, t in enumerate(times):
                     h = int(t[:2])
@@ -240,10 +241,16 @@ class SignalIntelEngine:
                     bucket_map[key]["count"] += 1
 
                 for k in sorted(bucket_map.keys()):
-                    pct = bucket_map[k]["vol"] / total_vol * 100 if total_vol > 0 else 0
-                    buckets.append({"period": k, "volume": bucket_map[k]["vol"], "pct_total": round(pct, 1)})
+                    pct = float(bucket_map[k]["vol"] / total_vol * 100 if total_vol > 0 else 0)
+                    buckets.append({"period": k, "volume": int(bucket_map[k]["vol"]), "pct_total": round(pct, 1)})
 
-                if ratio > 1.5:
+                # Bug 1 fix: sanity check — ratio > 20x is a data error, not a real signal
+                data_error = False
+                if ratio > 20.0:
+                    pattern = "DATA_ERROR"
+                    read = f"Volume ratio {ratio:.0f}x is anomalous — suppressing distribution tag. Data feed error or pre-market spike."
+                    data_error = True
+                elif ratio > 1.5:
                     pattern = "DISTRIBUTION"
                     read = "Volume dried up — front-loaded, distribution pattern"
                 elif ratio > 1.0:
@@ -254,14 +261,15 @@ class SignalIntelEngine:
                     read = "Sustained volume — accumulation, not distribution"
 
                 report["volume_profile"] = {
-                    "total": total_vol,
-                    "first_hour": first_hour_vol,
-                    "first_hour_pct": round(first_hour_vol / total_vol * 100, 1) if total_vol > 0 else 0,
-                    "rest_of_day": rest_vol,
-                    "front_back_ratio": round(ratio, 2),
+                    "total": int(total_vol),
+                    "first_hour": int(first_hour_vol),
+                    "first_hour_pct": float(round(first_hour_vol / total_vol * 100, 1)) if total_vol > 0 else 0,
+                    "rest_of_day": int(rest_vol),
+                    "front_back_ratio": float(round(ratio, 2)),
                     "pattern": pattern,
-                    "read": read,
+                    "read": str(read),
                     "buckets": buckets,
+                    "data_error": bool(data_error),
                 }
         except Exception as e:
             report["volume_profile"] = {"error": str(e)}
@@ -272,9 +280,9 @@ class SignalIntelEngine:
                 last15 = intraday_1m.tail(15)
                 close_vol = int(last15["Volume"].sum())
                 avg_15m_vol = int(intraday_1m["Volume"].rolling(15).sum().mean())
-                vol_ratio = close_vol / avg_15m_vol if avg_15m_vol > 0 else 0
+                vol_ratio = float(close_vol / avg_15m_vol if avg_15m_vol > 0 else 0)
 
-                below_wall = any(last15["Close"] < spy_call_wall)
+                below_wall = bool(any(last15["Close"] < spy_call_wall))
                 min_price = float(last15["Close"].min())
                 max_price = float(last15["Close"].max())
                 close_price = float(last15["Close"].iloc[-1])
@@ -296,18 +304,18 @@ class SignalIntelEngine:
                     read = "Wall held but volume normal. Cautious optimism."
 
                 report["close_defense"] = {
-                    "wall": spy_call_wall,
-                    "close_price": round(close_price, 2),
-                    "delta": round(close_price - spy_call_wall, 2),
-                    "below_wall_during_close": below_wall,
-                    "close_15m_volume": close_vol,
-                    "avg_15m_volume": avg_15m_vol,
-                    "vol_ratio": round(vol_ratio, 2),
-                    "last_bar_volume": last_bar_vol,
-                    "min_price": round(min_price, 2),
-                    "max_price": round(max_price, 2),
+                    "wall": float(spy_call_wall),
+                    "close_price": float(round(close_price, 2)),
+                    "delta": float(round(close_price - spy_call_wall, 2)),
+                    "below_wall_during_close": bool(below_wall),
+                    "close_15m_volume": int(close_vol),
+                    "avg_15m_volume": int(avg_15m_vol),
+                    "vol_ratio": float(round(vol_ratio, 2)),
+                    "last_bar_volume": int(last_bar_vol),
+                    "min_price": float(round(min_price, 2)),
+                    "max_price": float(round(max_price, 2)),
                     "defense": defense,
-                    "read": read,
+                    "read": str(read),
                 }
         except Exception as e:
             report["close_defense"] = {"error": str(e)}
@@ -315,6 +323,8 @@ class SignalIntelEngine:
         # ── VERDICT ──────────────────────────────────────────────────
         try:
             signals = []
+            data_warnings = []
+
             # Wall defense
             cd = report.get("close_defense", {})
             if cd.get("defense") == "DEFENDED":
@@ -322,9 +332,11 @@ class SignalIntelEngine:
             elif cd.get("defense") == "BREACHED":
                 signals.append(("BEARISH", "Wall breached during close"))
 
-            # Volume profile
+            # Volume profile — Bug 1 fix: skip DATA_ERROR patterns from verdict
             vp = report.get("volume_profile", {})
-            if vp.get("pattern") == "ACCUMULATION":
+            if vp.get("data_error"):
+                data_warnings.append(f"Volume ratio anomaly ({vp.get('front_back_ratio', '?')}x) — distribution tag unreliable")
+            elif vp.get("pattern") == "ACCUMULATION":
                 signals.append(("BULLISH", "Sustained volume = accumulation"))
             elif vp.get("pattern") == "DISTRIBUTION":
                 signals.append(("BEARISH", "Volume dried up = distribution"))
@@ -347,7 +359,12 @@ class SignalIntelEngine:
             bearish = sum(1 for s in signals if s[0] == "BEARISH")
             caution = sum(1 for s in signals if s[0] == "CAUTION")
 
-            if bullish >= 3:
+            # Bug 3 fix: resolve contradictions. If bullish AND bearish present,
+            # that's MIXED (confused), not NEUTRAL (no edge).
+            if bullish > 0 and bearish > 0:
+                verdict = "CAUTION"
+                data_warnings.append("Mixed signals: both bullish and bearish reads active — resolve before trading")
+            elif bullish >= 3:
                 verdict = "STRONG_BUY"
             elif bullish >= 2 and bearish == 0:
                 verdict = "BUY"
@@ -365,6 +382,7 @@ class SignalIntelEngine:
                 "caution_count": caution,
                 "signals": [{"bias": s[0], "reason": s[1]} for s in signals],
             }
+            report["data_warnings"] = data_warnings
         except Exception as e:
             report["verdict"] = {"error": str(e)}
 
