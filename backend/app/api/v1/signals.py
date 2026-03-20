@@ -328,81 +328,95 @@ async def get_signals(
         except Exception as e:
             logger.warning(f"Could not read alerts DB for signals: {e}")
 
-        # ── SOURCE 2B: Supabase fallback (when local SQLite is absent — e.g. Render free tier) ──
-        if not all_signals:
-            try:
-                from core.utils.supabase_storage import is_supabase_available, read_alerts
-                if is_supabase_available():
-                    cutoff_dt = datetime.utcnow() - timedelta(days=2)
-                    sb_alerts = read_alerts(limit=30)
-                    if sb_alerts:
-                        logger.info(f"📡 Supabase: fetched {len(sb_alerts)} alerts as fallback")
-                        for row_dict in sb_alerts:
-                            alert_type = row_dict.get('alert_type', '')
-                            alert_symbol = row_dict.get('symbol') or 'SPY'
+        # ── SOURCE 2B: Supabase (Persistent history — survivors Render restarts) ──
+        try:
+            from core.utils.supabase_storage import is_supabase_available, read_alerts
+            if is_supabase_available():
+                # Fetch more from Supabase to provide deep history
+                sb_alerts = read_alerts(limit=50)
+                if sb_alerts:
+                    logger.info(f"📡 Supabase: fetched {len(sb_alerts)} alerts")
+                    
+                    # Create set of keys we already have (dedup)
+                    seen_keys = set()
+                    for s in all_signals:
+                        # Use a combination of timestamp and symbol as a simple dedup key
+                        key = f"{s.get('timestamp')}_{s.get('symbol')}"
+                        seen_keys.add(key)
+                        
+                    for row_dict in sb_alerts:
+                        alert_symbol = row_dict.get('symbol') or 'SPY'
+                        timestamp = row_dict.get('timestamp')
+                        
+                        # Dedup check
+                        key = f"{timestamp}_{alert_symbol}"
+                        if key in seen_keys:
+                            continue
+                        seen_keys.add(key)
 
-                            if symbol and alert_symbol != symbol:
-                                continue
+                        alert_type = row_dict.get('alert_type', '')
+                        if symbol and alert_symbol != symbol:
+                            continue
 
-                            action = "WATCH"
-                            confidence = 60
-                            if 'bullish' in alert_type.lower():
-                                action = "LONG"; confidence = 70
-                            elif 'bearish' in alert_type.lower():
-                                action = "SHORT"; confidence = 70
-                            elif 'selloff' in alert_type.lower():
-                                action = "SHORT"; confidence = 75
-                            elif 'rally' in alert_type.lower():
-                                action = "LONG"; confidence = 75
-                            elif 'divergence' in alert_type.lower() or 'dp_' in alert_type.lower():
-                                action = "LONG"; confidence = 80
+                        action = "WATCH"
+                        confidence = 60
+                        if 'bullish' in alert_type.lower():
+                            action = "LONG"; confidence = 70
+                        elif 'bearish' in alert_type.lower():
+                            action = "SHORT"; confidence = 70
+                        elif 'selloff' in alert_type.lower():
+                            action = "SHORT"; confidence = 75
+                        elif 'rally' in alert_type.lower():
+                            action = "LONG"; confidence = 75
+                        elif 'divergence' in alert_type.lower() or 'dp_' in alert_type.lower():
+                            action = "LONG"; confidence = 80
 
-                            if master_only and confidence < 75:
-                                continue
+                        if master_only and confidence < 75:
+                            continue
 
-                            current_price = get_live_price(alert_symbol or "SPY")
-                            entry_price = round(current_price, 2)
+                        current_price = get_live_price(alert_symbol or "SPY")
+                        entry_price = round(current_price, 2)
 
-                            if action == "LONG":
-                                target_price = round(entry_price * 1.015, 2)
-                                stop_price = round(entry_price * 0.995, 2)
-                            elif action == "SHORT":
-                                target_price = round(entry_price * 0.985, 2)
-                                stop_price = round(entry_price * 1.005, 2)
-                            else:
-                                target_price = round(entry_price * 1.01, 2)
-                                stop_price = round(entry_price * 0.99, 2)
+                        if action == "LONG":
+                            target_price = round(entry_price * 1.015, 2)
+                            stop_price = round(entry_price * 0.995, 2)
+                        elif action == "SHORT":
+                            target_price = round(entry_price * 0.985, 2)
+                            stop_price = round(entry_price * 1.005, 2)
+                        else:
+                            target_price = round(entry_price * 1.01, 2)
+                            stop_price = round(entry_price * 0.99, 2)
 
-                            risk = abs(entry_price - stop_price)
-                            reward = abs(target_price - entry_price)
-                            rr = round(reward / risk, 1) if risk > 0 else 0
+                        risk = abs(entry_price - stop_price)
+                        reward = abs(target_price - entry_price)
+                        rr = round(reward / risk, 1) if risk > 0 else 0
 
-                            title = row_dict.get('title', alert_type)
-                            description = row_dict.get('description', '')
-                            reasoning_lines = []
-                            if title:
-                                reasoning_lines.append(title)
-                            if description and description != title:
-                                reasoning_lines.append(description)
+                        title = row_dict.get('title', alert_type)
+                        description = row_dict.get('description', '')
+                        reasoning_lines = []
+                        if title:
+                            reasoning_lines.append(title)
+                        if description and description != title:
+                            reasoning_lines.append(description)
 
-                            all_signals.append({
-                                "id": f"sb_alert_{row_dict.get('id', 0)}",
-                                "symbol": alert_symbol,
-                                "type": alert_type,
-                                "action": action,
-                                "confidence": confidence,
-                                "entry_price": entry_price,
-                                "stop_price": stop_price,
-                                "target_price": target_price,
-                                "risk_reward": rr,
-                                "reasoning": reasoning_lines[:10],
-                                "warnings": [],
-                                "timestamp": row_dict.get('timestamp', datetime.now().isoformat()),
-                                "source": f"Supabase:{row_dict.get('source', 'alert')}",
-                                "is_master": confidence >= 75,
-                            })
-            except Exception as e:
-                logger.warning(f"Supabase alerts fallback failed: {e}")
+                        all_signals.append({
+                            "id": f"sb_alert_{row_dict.get('id', 0)}",
+                            "symbol": alert_symbol,
+                            "type": alert_type,
+                            "action": action,
+                            "confidence": confidence,
+                            "entry_price": entry_price,
+                            "stop_price": stop_price,
+                            "target_price": target_price,
+                            "risk_reward": rr,
+                            "reasoning": reasoning_lines[:10],
+                            "warnings": [],
+                            "timestamp": row_dict.get('timestamp', datetime.now().isoformat()),
+                            "source": f"Supabase:{row_dict.get('source', 'alert')}",
+                            "is_master": confidence >= 75,
+                        })
+        except Exception as e:
+            logger.warning(f"Supabase alerts merge failed: {e}")
 
         # ── SOURCE 3: Kill chain triple confluence (from running instance or disk) ──
         try:
