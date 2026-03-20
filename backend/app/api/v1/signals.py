@@ -86,6 +86,122 @@ def get_live_price(symbol: str) -> float:
     except Exception:
         pass
         
+import re
+import logging
+
+def _classify_alert(alert_type: str, description: str = "", embed_json_str: str = "") -> tuple:
+    """Safely map alert_type + description to (action, confidence).
+    
+    Returns: (action: str, confidence: int) or (None, None) if excluded.
+    """
+    try:
+        at = str(alert_type or "").lower()
+        desc = str(description or "")
+        
+        # 1. EXCLUDE: Non-trading signals
+        if at in ('startup', 'daily_recap', 'health_ping') or 'startup' in at:
+            return None, None
+            
+        # 2. EARNINGS: Extract real 8-factor score
+        if 'earnings' in at:
+            # Case-insensitive, matches "**Score: 59/100**" or "score: 59 / 100"
+            m = re.search(r'score:\s*(\d+)\s*/\s*100', desc, re.IGNORECASE)
+            if m:
+                try:
+                    score = int(m.group(1))
+                    if score >= 75:
+                        return "LONG", min(score, 95)  # High conviction
+                    elif score >= 60:
+                        return "WATCH", score          # Directional, needs confirm
+                    else:
+                        return "WATCH", max(score, 40) # Low conviction
+                except ValueError:
+                    pass # Fallback to 55 if cast fails
+            return "WATCH", 55 
+            
+        # 3. DIRECTIONAL
+        if 'selloff' in at:
+             return "SHORT", 75
+        if 'rally' in at:
+             return "LONG", 75
+        if 'bearish' in at:
+             return "SHORT", 70
+        if 'bullish' in at:
+             return "LONG", 70
+        if 'divergence' in at or at.startswith('dp_'):
+             return "LONG", 80
+             
+        # 4. INTEL (Informational only)
+        if 'overnight' in at:
+             return "WATCH", 50
+        if 'level_watcher' in at or 'LEVEL_WATCHER' in alert_type:
+             return "WATCH", 65 
+             
+        return "WATCH", 55
+    except Exception as e:
+        # Ultimate fallback so endpoint never 500s
+        logging.getLogger(__name__).warning(f"Classification error: {e}")
+        return "WATCH", 50
+
+_kc_cache = {"data": None, "ts": 0}
+
+def _compute_kill_chain_score_sync() -> dict:
+    """Bulletproof sync kill chain calculation. Fails gracefully per layer."""
+    import time
+    now = time.time()
+    if _kc_cache["data"] and (now - _kc_cache["ts"]) < 300: # 5 min cache
+        return _kc_cache["data"]
+        
+    score = 0
+    layers = {}
+    
+    # Layer 1: Brain Manager
+    try:
+        from live_monitoring.core.brain_manager import BrainManager
+        brain = BrainManager().get_report(use_cache=True)
+        if brain:
+            boost = brain.get('divergence_boost', 0)
+            score += boost
+            layers['brain'] = boost
+    except Exception as e:
+        layers['brain_error'] = str(e)
+        
+    # Layer 2: COT Divergence
+    try:
+        from live_monitoring.enrichment.apis.cot_client import COTClient
+        cot = COTClient(cache_ttl=3600).get_divergence_signal("ES")
+        if cot and cot.get("divergent"):
+            specs = cot.get("specs_net", 0)
+            comms = cot.get("comm_net", 0)
+            if specs < -100_000 and comms > 50_000:
+                score += 3
+            elif specs < -50_000 and comms > 25_000:
+                score += 1
+    except Exception as e:
+        layers['cot_error'] = str(e)
+        
+    # Layer 3: GEX
+    try:
+        from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
+        gex_calc = GEXCalculator(cache_ttl=300)
+        gex_result = gex_calc.compute_gex("SPX")
+        if gex_result.gamma_regime == "NEGATIVE" and abs(gex_result.total_gex) > 10e9:
+            score += 2 # Strong negative amplifies
+            layers['gex'] = 2
+    except Exception as e:
+        layers['gex_error'] = str(e)
+        
+    # Verdict Calculation
+    if score > 7: verdict = "BOOST"
+    elif score >= 5: verdict = "NEUTRAL"
+    elif score > 0: verdict = "SOFT_VETO"
+    else: verdict = "HARD_VETO"
+    
+    result = {"score": score, "verdict": verdict, "errors": "error" in str(layers)}
+    _kc_cache["data"] = result
+    _kc_cache["ts"] = now
+    return result
+
     return 666.06  # fallback to standard SPY price if offline
 
 
@@ -167,24 +283,11 @@ async def get_signals(
                     if symbol and alert_symbol != symbol:
                         continue
 
-                    # Determine direction from alert type
-                    action = "WATCH"
-                    confidence = 60
-                    if 'bullish' in alert_type.lower():
-                        action = "LONG"
-                        confidence = 70
-                    elif 'bearish' in alert_type.lower():
-                        action = "SHORT"
-                        confidence = 70
-                    elif 'selloff' in alert_type.lower():
-                        action = "SHORT"
-                        confidence = 75
-                    elif 'rally' in alert_type.lower():
-                        action = "LONG"
-                        confidence = 75
-                    elif 'divergence' in alert_type.lower() or 'dp_' in alert_type.lower():
-                        action = "LONG"  # DP bounce = long bias (89.8% WR)
-                        confidence = 80
+                    description = str(row_dict.get('description', ''))
+                    action, confidence = _classify_alert(alert_type, description)
+                    
+                    if action is None:
+                        continue  # Exclude non-trading signals
 
                     if master_only and confidence < 75:
                         continue
@@ -358,18 +461,11 @@ async def get_signals(
                         if symbol and alert_symbol != symbol:
                             continue
 
-                        action = "WATCH"
-                        confidence = 60
-                        if 'bullish' in alert_type.lower():
-                            action = "LONG"; confidence = 70
-                        elif 'bearish' in alert_type.lower():
-                            action = "SHORT"; confidence = 70
-                        elif 'selloff' in alert_type.lower():
-                            action = "SHORT"; confidence = 75
-                        elif 'rally' in alert_type.lower():
-                            action = "LONG"; confidence = 75
-                        elif 'divergence' in alert_type.lower() or 'dp_' in alert_type.lower():
-                            action = "LONG"; confidence = 80
+                        description = str(row_dict.get('description', ''))
+                        action, confidence = _classify_alert(alert_type, description)
+                        
+                        if action is None:
+                            continue  # Exclude non-trading signals
 
                         if master_only and confidence < 75:
                             continue
@@ -595,6 +691,30 @@ async def get_signals(
                     logger.info(f"📊 Morning Brief fallback generated {len(all_signals)} signals")
             except Exception as e:
                 logger.warning(f"Morning brief fallback failed: {e}")
+
+        # ── Kill Chain Confidence Injection ──
+        try:
+            kc = _compute_kill_chain_score_sync()
+            verdict = kc.get('verdict', 'NEUTRAL')
+            boost_val = kc.get('score', 0)
+            
+            for sig in all_signals:
+                sig['kill_chain_verdict'] = verdict
+                sig['kill_chain_score'] = boost_val
+                
+                if 'warnings' not in sig or not isinstance(sig['warnings'], list):
+                    sig['warnings'] = []
+                    
+                if verdict == 'BOOST':
+                    sig['confidence'] = min(int(sig['confidence'] + 15), 99)
+                    if boost_val > 0:
+                        sig['warnings'].append(f"Kill Chain BOOST (+15%): {boost_val}pts")
+                elif verdict == 'HARD_VETO':
+                    sig['confidence'] = max(int(sig['confidence'] - 30), 20)
+                    sig['warnings'].append(f"Kill Chain VETO (-30%): {boost_val}pts")
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Kill chain injection failed: {e}")
+            # Fail open - signals return unchanged
 
         # Sort by confidence (highest first)
         all_signals.sort(key=lambda x: x.get('confidence', 0), reverse=True)
