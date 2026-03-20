@@ -2,8 +2,8 @@ name: Keep Render Alive
 
 on:
   schedule:
-    # Ping every 5 minutes to prevent Render free tier spin-down
-    - cron: '*/5 * * * *'
+    # Ping every 14 minutes to prevent Render free tier spin-down (sleeps at 15min)
+    - cron: '*/14 * * * *'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
@@ -14,12 +14,17 @@ jobs:
         run: |
           echo "🏓 Pinging Render service..."
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            --max-time 30 \
-            https://lotto-machine.onrender.com/health)
+            --max-time 60 \
+            https://lotto-machine-wr6t.onrender.com/health)
           echo "Health: $HTTP_STATUS"
           
           if [ "$HTTP_STATUS" = "200" ]; then
             echo "✅ Service is healthy"
           else
-            echo "⚠️ Service returned $HTTP_STATUS — may be starting up"
+            echo "⚠️ Service returned $HTTP_STATUS — may be cold starting, retrying..."
+            sleep 30
+            RETRY=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 \
+              https://lotto-machine-wr6t.onrender.com/health)
+            echo "Retry: $RETRY"
           fi
+
