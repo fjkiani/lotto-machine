@@ -260,8 +260,8 @@ async def get_signals(
             if alerts_path.exists():
                 conn = sqlite3.connect(str(alerts_path))
                 conn.row_factory = sqlite3.Row
-                # 2-day lookback: overnight signals from yesterday carry into morning
-                cutoff = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+                # 7-day lookback: covers full earnings cycle + survives weekend Render restarts
+                cutoff = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
                 # GROUP BY dedup: collapse duplicate alerts (same type+symbol+title) into one
                 rows = conn.execute(
                     """SELECT *, MAX(timestamp) as latest_ts
