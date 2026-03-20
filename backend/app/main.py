@@ -68,6 +68,36 @@ app.include_router(gate.router, prefix="/api/v1", tags=["gate"])
 app.include_router(intraday.router, prefix="/api/v1", tags=["intraday"])
 
 
+@app.get("/debug/supabase")
+async def debug_supabase():
+    """Diagnostic endpoint: check Supabase env vars, connectivity, and alert count."""
+    import os
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_KEY")
+    result = {
+        "env_SUPABASE_URL": url[:30] + "..." if url else "MISSING",
+        "env_SUPABASE_KEY": key[:8] + "..." if key else "MISSING",
+        "is_available": False,
+        "alert_count": None,
+        "error": None,
+    }
+    try:
+        from core.utils.supabase_storage import is_supabase_available, read_alerts
+        result["is_available"] = is_supabase_available()
+        if result["is_available"]:
+            alerts = read_alerts(limit=5)
+            result["alert_count"] = len(alerts)
+            result["latest_5"] = [
+                {"type": a.get("alert_type"), "sym": a.get("symbol"), "ts": a.get("timestamp", "")[:19]}
+                for a in alerts
+            ]
+    except Exception as e:
+        result["error"] = str(e)
+    return result
+
+
+
+
 # Global thread status tracking
 _thread_status = {}
 _pipe_instances = {}
@@ -431,12 +461,8 @@ async def morning_brief_generate():
 @app.get("/kill-shots-live")
 async def kill_shots_live():
     """
-    LIVE Kill Shots Divergence Score — Modular, Traceable, LLM-Explained.
-    
-    Every signal layer includes:
-      - source_date: when the underlying data was generated
-      - timestamp: when this computation ran
-      - slug: traceable identifier (e.g. "cot-extreme-2026-03-19")
+    LIVE Kill Shots Divergence Score — Modular
+    Orchestrates the 5 core scorers (Brain, COT, GEX, Fed/DP, Combined).
     """
     try:
         score = 0
@@ -445,180 +471,59 @@ async def kill_shots_live():
         now_iso = datetime.now().isoformat()
         today_str = datetime.now().strftime("%Y-%m-%d")
 
-        # ── BRAIN CONVICTION ─────────────────────────────────────────────
-        try:
-            from live_monitoring.core.brain_manager import BrainManager
-            bm = BrainManager()
-            brain_report = bm.get_report(use_cache=True)
-            if brain_report:
-                boost = brain_report.get('divergence_boost', 0)
-                score += boost
-                layers['brain_boost'] = boost
-                layers['brain_reasons'] = brain_report.get('reasons', [])
-                layers['brain_source_date'] = today_str
-                layers['brain_timestamp'] = now_iso
-                layers['brain_slug'] = f"brain-conviction-{today_str}"
-                for r in brain_report.get('reasons', []):
-                    reasons.append(f"Brain: {r}")
-        except Exception as e:
-            layers['brain_error'] = str(e)
+        # Import scorers
+        from backend.app.signals.brain_scorer import BrainScorer
+        from backend.app.signals.cot_scorer import CotScorer
+        from backend.app.signals.gex_scorer import GexScorer
+        from backend.app.signals.fed_dp_scorer import FedDpScorer
+        from backend.app.signals.combined_scorer import CombinedScorer
 
-        # ── COT EXTREME DIVERGENCE ───────────────────────────────────────
-        try:
-            from live_monitoring.enrichment.apis.cot_client import COTClient
-            cot_client = COTClient(cache_ttl=3600)
-            cot_div = cot_client.get_divergence_signal("ES")
-            cot_add = 0
-            if cot_div and cot_div.get("divergent"):
-                specs = cot_div.get("specs_net", 0)
-                comms = cot_div.get("comm_net", 0)
-                cot_report_date = cot_div.get('report_date', today_str)
-                if specs < -100_000 and comms > 50_000:
-                    cot_add = 3
-                    reasons.append(f"COT EXTREME: specs {specs:+,}, comms {comms:+,}")
-                elif specs < -50_000 and comms > 25_000:
-                    cot_add = 1
-                    reasons.append(f"COT mild: specs {specs:+,}, comms {comms:+,}")
-                layers['cot_specs_net'] = specs
-                layers['cot_comm_net'] = comms
-                layers['cot_source_date'] = cot_report_date
-                layers['cot_timestamp'] = now_iso
-                layers['cot_slug'] = f"cot-{'extreme' if cot_add >= 3 else 'mild' if cot_add > 0 else 'neutral'}-{cot_report_date}"
-            score += cot_add
-            layers['cot_boost'] = cot_add
-            layers['cot_divergent'] = cot_div.get('divergent', False) if cot_div else False
-        except Exception as e:
-            layers['cot_error'] = str(e)
+        # Evaluate
+        brain_res = BrainScorer().evaluate()
+        cot_res = CotScorer().evaluate(symbol="ES")
+        gex_res = GexScorer().evaluate(cot_boost=cot_res.boost)
+        fed_dp_res = FedDpScorer().evaluate(brain_reasons=brain_res.reasons)
+        combined_res = CombinedScorer().evaluate(gex_result=gex_res, cot_result=cot_res)
 
-        # ── GEX REGIME — REAL DOLLAR GEX FROM CBOE ──────────────────────
-        # FIX: Previously used VIX/VIX3M ratio as proxy. Now uses actual
-        # gamma exposure calculated from CBOE SPX options chain.
-        # Source: CBOE free delayed API (no auth, no key, ~15min delay)
-        gex_add = 0
-        try:
-            from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
-            gex_calc = GEXCalculator(cache_ttl=300)
-            gex_result = gex_calc.compute_gex("SPX")
+        # Aggregate Results
+        for res in [brain_res, cot_res, gex_res, fed_dp_res, combined_res]:
+            score += res.boost
+            reasons.extend(res.reasons)
+            
+            # Map back to flat 'layers' dict for backward-compatibility
+            # and to feed the existing SignalExplainer
+            prefix = res.name.lower()
+            layers[f"{prefix}_boost"] = res.boost
+            layers[f"{prefix}_slug"] = res.slug
+            layers[f"{prefix}_source_date"] = res.source_date
+            layers[f"{prefix}_timestamp"] = res.timestamp
+            
+            # Merge raw data directly into layers
+            for k, v in res.raw.items():
+                layers[k] = v
 
-            total_gex = gex_result.total_gex
-            regime = gex_result.gamma_regime  # "POSITIVE" or "NEGATIVE"
-            gamma_flip = gex_result.gamma_flip
-            spot = gex_result.spot_price
+        # ── VERDICT & ACTION PLAN ──────────────────────────────────────────
+        action_plan = {
+            "position": "NEUTRAL",
+            "entry_trigger": "N/A",
+            "invalidation": "N/A",
+            "time_window": "Intraday"
+        }
 
-            # Expose real data to frontend
-            layers['total_gex_dollars'] = round(total_gex, 0)
-            layers['gex_regime'] = f"{'STRONG_' if abs(total_gex) > 10e9 else 'MILD_'}{regime}"
-            layers['gex_gamma_flip'] = round(gamma_flip, 1) if gamma_flip else None
-            layers['gex_spot_price'] = round(spot, 2)
-            layers['gex_max_pain'] = round(gex_result.max_pain, 1) if gex_result.max_pain else None
-            layers['gex_source'] = 'CBOE delayed (free, no auth)'
-            layers['gex_source_date'] = today_str
-            layers['gex_timestamp'] = now_iso
-
-            # CONTEXT-DEPENDENT SCORING (not isolation)
-            # Negative gamma = dealers amplify moves. In CONTEXT with
-            # COT extreme short, this CONFIRMS the coil — it's bullish.
-            cot_score = layers.get('cot_boost', 0)
-            is_strong_negative = regime == "NEGATIVE" and abs(total_gex) > 10e9
-
-            if is_strong_negative:
-                if cot_score >= 3:
-                    gex_add = 2  # Coil loaded: max snap-back velocity
-                    reasons.append(
-                        f"GEX STRONG_NEGATIVE (${total_gex/1e9:.1f}B) + COT EXTREME → "
-                        f"coil loaded, snap-back velocity maximum"
-                    )
-                else:
-                    gex_add = 0  # Volatile but no directional confirmation
-                    reasons.append(
-                        f"GEX NEGATIVE (${total_gex/1e9:.1f}B) — amplifying regime, "
-                        f"awaiting COT confirmation"
-                    )
-            elif regime == "POSITIVE" and total_gex > 5e9:
-                gex_add = 1  # Dampened, mean-reverting support
-                reasons.append(
-                    f"GEX STRONG_POSITIVE (${total_gex/1e9:.1f}B) — "
-                    f"dealers dampen moves, support floor active"
-                )
-
-            if gamma_flip:
-                above_below = "ABOVE" if spot > gamma_flip else "BELOW"
-                layers['gex_slug'] = f"gex-{regime.lower()}-flip-{gamma_flip:.0f}-spot-{above_below.lower()}-{today_str}"
-            else:
-                layers['gex_slug'] = f"gex-{regime.lower()}-{today_str}"
-
-            score += gex_add
-            layers['gex_boost'] = gex_add
-
-            # Also capture VIX for the dashboard (useful context, not scoring)
-            try:
-                import yfinance as yf
-                vix_data = yf.Ticker('^VIX').history(period='1d')
-                if not vix_data.empty:
-                    layers['vix'] = round(float(vix_data['Close'].iloc[-1]), 2)
-            except Exception:
-                pass  # VIX is informational only now
-
-        except Exception as e:
-            layers['gex_error'] = str(e)
-            logger.warning(f"GEX calculation failed, falling back: {e}")
-            # Fallback: if GEXCalculator fails, score 0 and flag it
-            layers['gex_regime'] = 'UNAVAILABLE'
-            layers['gex_slug'] = f"gex-unavailable-{today_str}"
-
-        # ── COMBINED: GEX + COT CONVERGENCE ──────────────────────────────
-        # FIX: Previously required GEX POSITIVE + COT extreme.
-        # Now: GEX NEGATIVE + COT extreme = confirmed coil (already scored above).
-        # This section now handles the dampening scenario.
-        cot_extreme = layers.get('cot_boost', 0) >= 3
-        gex_regime_str = layers.get('gex_regime', '')
-        gex_strong_neg = 'STRONG_NEGATIVE' in gex_regime_str
-
-        # If GEX strong negative + COT extreme, the +2 was already given in GEX section.
-        # Combined boost here is for OTHER convergences.
-        combined_add = 0
-        if cot_extreme and not gex_strong_neg and 'POSITIVE' in gex_regime_str:
-            combined_add = 2
-            reasons.append(f"COMBINED: GEX dampening ({gex_regime_str}) + COT Extreme → +2 (support floor + reversal setup)")
-
-        score += combined_add
-        layers['combined_boost'] = combined_add
-        layers['combined_slug'] = f"combined-{'convergence' if combined_add > 0 or gex_strong_neg else 'neutral'}-{today_str}"
-        layers['combined_timestamp'] = now_iso
-
-        # ── FED vs DARK POOL ─────────────────────────────────────────────
-        try:
-            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
-            sc = StockgridClient(cache_ttl=300)
-            spy_detail = sc.get_ticker_detail('SPY')
-            if spy_detail:
-                sv_pct = spy_detail.short_volume_pct or 0
-                layers['spy_short_vol_pct'] = round(sv_pct, 2)
-                layers['fed_dp_source_date'] = spy_detail.date if hasattr(spy_detail, 'date') and spy_detail.date else today_str
-                layers['fed_dp_timestamp'] = now_iso
-                brain_tones = layers.get('brain_reasons', [])
-                fed_hawkish = any('HAWKISH' in str(r).upper() for r in brain_tones)
-                if fed_hawkish and sv_pct > 55:
-                    score += 3
-                    layers['fed_dp_divergence'] = True
-                    layers['fed_dp_slug'] = f"fed-hawkish-dp-loading-sv{sv_pct:.0f}-{today_str}"
-                    reasons.append(f"Fed HAWKISH + SPY dark pool loading ({sv_pct:.1f}% SV)")
-                else:
-                    layers['fed_dp_divergence'] = False
-                    layers['fed_dp_slug'] = f"fed-dp-neutral-{today_str}"
-        except Exception as e:
-            layers['dp_error'] = str(e)
-
-        # ── VERDICT ──────────────────────────────────────────────────────
         if score > 7:
             verdict = "BOOST"
             action = "+15% confidence on all signals"
+            action_plan["position"] = "1/3 LONG"
+            action_plan["entry_trigger"] = "SPX clears +0.5% early AM"
+            action_plan["invalidation"] = "SPY loses VWAP for >15min"
+            action_plan["time_window"] = "1-3 Days"
         elif score >= 5:
             verdict = "NEUTRAL"
             action = "Signals pass through unchanged"
         elif score > 0:
             verdict = "SOFT_VETO"
             action = "Signals pass ONLY if no narrative divergence"
+            action_plan["invalidation"] = "SPX pushes > +1.0%"
         else:
             verdict = "HARD_VETO"
             action = "All signals killed"
@@ -631,24 +536,23 @@ async def kill_shots_live():
             explanations = explainer.explain_all(layers)
         except Exception as e:
             logger.warning(f"LLM explanations skipped: {e}")
-            # Try relative import fallback
-            try:
-                from .signals.signal_explainer import SignalExplainer
-                explainer = SignalExplainer()
-                explanations = explainer.explain_all(layers)
-            except Exception:
-                pass
+
+        # Map explanations directly into layers for Phase 3 Pillar UI mapping
+        for key, text in explanations.items():
+            layers[f"explanation_{key}"] = text
 
         return {
             'divergence_score': score,
             'verdict': verdict,
             'action': action,
+            'action_plan': action_plan,
             'layers': layers,
             'reasons': reasons,
-            'explanations': explanations,
+            'explanations': explanations, # Kept for backward compatibility
             'timestamp': now_iso,
         }
     except Exception as e:
+        logger.error(f"Kill Shots Live Error: {e}")
         return {"error": str(e)}
 
 
