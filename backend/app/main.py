@@ -101,6 +101,7 @@ async def debug_supabase():
 # Global thread status tracking
 _thread_status = {}
 _pipe_instances = {}
+_startup_errors = {}  # Captures init failures at startup for /startup-errors
 
 def _run_pipe(name, instance, method_name, interval, first_capture_method=None):
     """Wrapper that tracks thread status and does immediate first capture."""
@@ -138,9 +139,20 @@ async def startup():
             set_monitor_bridge(monitor)
             logger.info("✅ Monitor bridge initialized")
 
-            # 🔥 FIX #1: Start the monitor's main run loop as a daemon thread.
-            # Without this, the 17-checker scheduler + momentum detection never ticks.
-            threading.Thread(target=monitor.run, daemon=True, name="monitor-run-loop").start()
+            # Start the monitor's main run loop as a daemon thread.
+            _thread_status['monitor_run_loop'] = {'status': 'starting', 'started': datetime.now().isoformat()}
+            def _monitor_run_wrapper():
+                import traceback as _tb
+                try:
+                    _thread_status['monitor_run_loop']['status'] = 'running'
+                    monitor.run()
+                    _thread_status['monitor_run_loop']['status'] = 'exited'
+                except Exception as _e:
+                    _thread_status['monitor_run_loop']['status'] = f'crashed: {_e}'
+                    _thread_status['monitor_run_loop']['traceback'] = _tb.format_exc()
+                    _startup_errors['monitor_run_loop'] = str(_e)
+                    logger.error(f"💀 monitor-run-loop crashed: {_e}")
+            threading.Thread(target=_monitor_run_wrapper, daemon=True, name="monitor-run-loop").start()
             logger.info("✅ Monitor run loop thread launched")
 
             # 🔥 FIX #2: Start the Kill Chain triple-confluence logger.
@@ -200,6 +212,13 @@ async def startup():
                 _thread_status['econ_release_capture'] = {'status': f'init_failed: {econ_e}'}
 
         except Exception as e:
+            import traceback as _tb
+            _startup_errors['monitor_init'] = str(e)
+            _startup_errors['monitor_init_traceback'] = _tb.format_exc()
+            _thread_status['monitor_run_loop'] = {'status': f'init_failed: {e}'}
+            _thread_status['kill_chain_logger'] = {'status': 'skipped (monitor init failed)'}
+            _thread_status['paper_trade_scheduler'] = {'status': 'skipped (monitor init failed)'}
+            _thread_status['econ_release_capture'] = {'status': 'skipped (monitor init failed)'}
             logger.error(f"Error initializing monitor: {e}", exc_info=True)
     else:
         logger.warning("⚠️ Running without monitor - agent endpoints will have limited functionality")
@@ -413,12 +432,23 @@ async def option_walls():
         return {"error": str(e)}
 
 
+@app.get("/startup-errors")
+async def startup_errors():
+    """Expose startup init errors — use this when thread-status shows missing/failed threads."""
+    return {
+        "errors": _startup_errors,
+        "has_errors": len(_startup_errors) > 0,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
 @app.get("/thread-status")
 async def thread_status():
     """Diagnostic: status of all background data capture threads."""
     return {
         "threads": _thread_status,
         "instances": {k: type(v).__name__ for k, v in _pipe_instances.items()},
+
         "timestamp": datetime.now().isoformat(),
     }
 

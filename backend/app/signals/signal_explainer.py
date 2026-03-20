@@ -47,7 +47,7 @@ Be direct. No jargon. Assume the trader is smart but not a quant.""",
 
     "GEX": """You are a trading intelligence system. Given this GEX data:
 - Total gamma exposure: ${total_gex_display}
-- Gamma regime: {gamma_regime} (dealers {'AMPLIFY' if regime_neg else 'DAMPEN'} moves)
+- Gamma regime: {gamma_regime} (dealers {dealer_behavior} moves)
 - Gamma flip level: {gamma_flip}
 - Spot price: ${spot_price}
 
@@ -216,12 +216,11 @@ class SignalExplainer:
         """
         explanations = {}
 
-        # Brain
-        if layers.get("brain_boost", 0) > 0:
-            explanations["BRAIN"] = self.explain("BRAIN", {
-                "boost": layers.get("brain_boost", 0),
-                "reasons": "; ".join(layers.get("brain_reasons", [])),
-            })
+        # Brain — always explain (boost=0 is still a valid null signal to explain)
+        explanations["BRAIN"] = self.explain("BRAIN", {
+            "boost": layers.get("brain_boost", 0),
+            "reasons": "; ".join(layers.get("brain_reasons", [])) or "No active conviction signals from this scan.",
+        })
 
         # COT
         if layers.get("cot_divergent"):
@@ -232,14 +231,15 @@ class SignalExplainer:
                 "divergent": layers.get("cot_divergent", False),
             })
 
-        # GEX
+        # GEX — always explain when we have GEX data
         total_gex = layers.get("total_gex_dollars", 0)
         if total_gex != 0:
             regime = layers.get("gex_regime", "UNKNOWN")
+            is_neg = "NEGATIVE" in regime
             explanations["GEX"] = self.explain("GEX", {
                 "total_gex_display": f"{total_gex/1e9:.1f}B",
                 "gamma_regime": regime,
-                "regime_neg": "NEGATIVE" in regime,
+                "dealer_behavior": "AMPLIFY" if is_neg else "DAMPEN",
                 "gamma_flip": layers.get("gex_gamma_flip", "N/A"),
                 "spot_price": f"{layers.get('gex_spot_price', 0):,.2f}",
             })
