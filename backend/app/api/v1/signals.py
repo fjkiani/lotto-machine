@@ -328,6 +328,82 @@ async def get_signals(
         except Exception as e:
             logger.warning(f"Could not read alerts DB for signals: {e}")
 
+        # ── SOURCE 2B: Supabase fallback (when local SQLite is absent — e.g. Render free tier) ──
+        if not all_signals:
+            try:
+                from core.utils.supabase_storage import is_supabase_available, read_alerts
+                if is_supabase_available():
+                    cutoff_dt = datetime.utcnow() - timedelta(days=2)
+                    sb_alerts = read_alerts(limit=30)
+                    if sb_alerts:
+                        logger.info(f"📡 Supabase: fetched {len(sb_alerts)} alerts as fallback")
+                        for row_dict in sb_alerts:
+                            alert_type = row_dict.get('alert_type', '')
+                            alert_symbol = row_dict.get('symbol') or 'SPY'
+
+                            if symbol and alert_symbol != symbol:
+                                continue
+
+                            action = "WATCH"
+                            confidence = 60
+                            if 'bullish' in alert_type.lower():
+                                action = "LONG"; confidence = 70
+                            elif 'bearish' in alert_type.lower():
+                                action = "SHORT"; confidence = 70
+                            elif 'selloff' in alert_type.lower():
+                                action = "SHORT"; confidence = 75
+                            elif 'rally' in alert_type.lower():
+                                action = "LONG"; confidence = 75
+                            elif 'divergence' in alert_type.lower() or 'dp_' in alert_type.lower():
+                                action = "LONG"; confidence = 80
+
+                            if master_only and confidence < 75:
+                                continue
+
+                            current_price = get_live_price(alert_symbol or "SPY")
+                            entry_price = round(current_price, 2)
+
+                            if action == "LONG":
+                                target_price = round(entry_price * 1.015, 2)
+                                stop_price = round(entry_price * 0.995, 2)
+                            elif action == "SHORT":
+                                target_price = round(entry_price * 0.985, 2)
+                                stop_price = round(entry_price * 1.005, 2)
+                            else:
+                                target_price = round(entry_price * 1.01, 2)
+                                stop_price = round(entry_price * 0.99, 2)
+
+                            risk = abs(entry_price - stop_price)
+                            reward = abs(target_price - entry_price)
+                            rr = round(reward / risk, 1) if risk > 0 else 0
+
+                            title = row_dict.get('title', alert_type)
+                            description = row_dict.get('description', '')
+                            reasoning_lines = []
+                            if title:
+                                reasoning_lines.append(title)
+                            if description and description != title:
+                                reasoning_lines.append(description)
+
+                            all_signals.append({
+                                "id": f"sb_alert_{row_dict.get('id', 0)}",
+                                "symbol": alert_symbol,
+                                "type": alert_type,
+                                "action": action,
+                                "confidence": confidence,
+                                "entry_price": entry_price,
+                                "stop_price": stop_price,
+                                "target_price": target_price,
+                                "risk_reward": rr,
+                                "reasoning": reasoning_lines[:10],
+                                "warnings": [],
+                                "timestamp": row_dict.get('timestamp', datetime.now().isoformat()),
+                                "source": f"Supabase:{row_dict.get('source', 'alert')}",
+                                "is_master": confidence >= 75,
+                            })
+            except Exception as e:
+                logger.warning(f"Supabase alerts fallback failed: {e}")
+
         # ── SOURCE 3: Kill chain triple confluence (from running instance or disk) ──
         try:
             kc_state = None
@@ -385,6 +461,126 @@ async def get_signals(
                     })
         except Exception as e:
             logger.warning(f"Could not read kill chain for signals: {e}")
+
+        # ── SOURCE 4: Morning Brief fallback (live AXLFI data when other sources empty) ──
+        if not all_signals:
+            try:
+                from live_monitoring.core.morning_brief import generate_morning_brief
+                brief = generate_morning_brief()
+                if brief:
+                    verdict = brief.get("verdict", "HOLD")
+                    spy_data = brief.get("spy", {})
+                    spy_price = spy_data.get("price", 0)
+                    call_wall = spy_data.get("call_wall", 0)
+                    put_wall = spy_data.get("put_wall", 0)
+
+                    # Global verdict signal
+                    verdict_action = "LONG" if "BUY" in verdict else "SHORT" if "SELL" in verdict else "WATCH"
+                    verdict_conf = 85 if "STRONG" in verdict else 65
+                    summary = brief.get("summary", "")
+
+                    reasons = [f"🧠 Verdict: {verdict}", summary]
+                    for sig in brief.get("signals", []):
+                        reasons.append(f"{sig.get('bias', '')}: {sig.get('reason', '')}")
+
+                    if spy_price:
+                        target_mult = 1.015 if verdict_action == "LONG" else 0.985
+                        stop_mult = 0.995 if verdict_action == "LONG" else 1.005
+                        all_signals.append({
+                            "id": f"brief_verdict_{datetime.now().strftime('%Y%m%d')}",
+                            "symbol": "SPY",
+                            "type": "morning_brief_verdict",
+                            "action": verdict_action,
+                            "confidence": verdict_conf,
+                            "entry_price": round(spy_price, 2),
+                            "stop_price": round(spy_price * stop_mult, 2),
+                            "target_price": round(spy_price * target_mult, 2),
+                            "risk_reward": 3.0,
+                            "reasoning": reasons[:8],
+                            "warnings": [],
+                            "timestamp": datetime.now().isoformat(),
+                            "source": "MorningBrief",
+                            "is_master": verdict_conf >= 75,
+                            "technical_context": {
+                                "trigger_source": "morning_brief",
+                                "time_horizon": "intraday",
+                                "levels": {
+                                    "entry": round(spy_price, 2),
+                                    "call_wall": call_wall,
+                                    "put_wall": put_wall,
+                                    "target": round(spy_price * target_mult, 2),
+                                    "stop": round(spy_price * stop_mult, 2),
+                                },
+                            },
+                        })
+
+                    # Approved tickers → individual signals
+                    for ticker_info in brief.get("approved_tickers", []):
+                        ticker = ticker_info.get("ticker", "")
+                        sv_pct = ticker_info.get("sv_pct", 50)
+                        flag = ticker_info.get("flag", "NEUTRAL")
+                        reason = ticker_info.get("reason", "")
+                        bias = ticker_info.get("bias", "")
+
+                        action = "LONG" if "BULLISH" in bias.upper() else "WATCH"
+                        conf = 72 if flag == "CLEAN" else 60
+
+                        t_price = get_live_price(ticker) if ticker else 0
+                        if t_price > 0:
+                            all_signals.append({
+                                "id": f"brief_{ticker}_{datetime.now().strftime('%Y%m%d')}",
+                                "symbol": ticker,
+                                "type": "morning_brief_approved",
+                                "action": action,
+                                "confidence": conf,
+                                "entry_price": round(t_price, 2),
+                                "stop_price": round(t_price * 0.98, 2),
+                                "target_price": round(t_price * 1.03, 2),
+                                "risk_reward": 1.5,
+                                "reasoning": [
+                                    f"✅ Morning Brief APPROVED",
+                                    f"SV: {sv_pct}% | Bias: {bias}",
+                                    reason,
+                                    f"Flag: {flag}",
+                                ],
+                                "warnings": [] if flag == "CLEAN" else [f"Flag: {flag}"],
+                                "timestamp": datetime.now().isoformat(),
+                                "source": "MorningBrief",
+                                "is_master": flag == "CLEAN",
+                            })
+
+                    # Blocked tickers → warning signals
+                    for ticker_info in brief.get("blocked_tickers", []):
+                        ticker = ticker_info.get("ticker", "")
+                        reason = ticker_info.get("reason", "")
+                        flag = ticker_info.get("flag", "BLOCKED")
+
+                        t_price = get_live_price(ticker) if ticker else 0
+                        if t_price > 0:
+                            all_signals.append({
+                                "id": f"brief_blocked_{ticker}_{datetime.now().strftime('%Y%m%d')}",
+                                "symbol": ticker,
+                                "type": "morning_brief_blocked",
+                                "action": "AVOID",
+                                "confidence": 70,
+                                "entry_price": round(t_price, 2),
+                                "stop_price": 0,
+                                "target_price": 0,
+                                "risk_reward": 0,
+                                "reasoning": [
+                                    f"🚫 Morning Brief BLOCKED",
+                                    reason,
+                                    f"Flag: {flag}",
+                                ],
+                                "warnings": [f"BLOCKED: {reason}"],
+                                "timestamp": datetime.now().isoformat(),
+                                "source": "MorningBrief",
+                                "is_master": False,
+                            })
+
+                    logger.info(f"📊 Morning Brief fallback generated {len(all_signals)} signals")
+            except Exception as e:
+                logger.warning(f"Morning brief fallback failed: {e}")
 
         # Sort by confidence (highest first)
         all_signals.sort(key=lambda x: x.get('confidence', 0), reverse=True)
