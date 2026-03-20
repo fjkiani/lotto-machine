@@ -64,48 +64,57 @@ class AlertManager:
             logger.warning(f"   ⚠️ Failed to initialize alert database: {e}")
     
     def _log_alert_to_database(self, alert_type: str, embed: dict, content: str = None, source: str = "monitor", symbol: str = None):
-        """Log alert to database for historical tracking."""
+        """Log alert to database for historical tracking — writes to BOTH SQLite and Supabase."""
+        timestamp = datetime.utcnow().isoformat()
+        title = embed.get('title', '')
+        description = embed.get('description', '')
+        embed_json = json.dumps(embed)
+
+        # ── Write to local SQLite (fast, ephemeral on Render) ──
         try:
             conn = sqlite3.connect(self.alert_db_path)
             cursor = conn.cursor()
-            
-            timestamp = datetime.utcnow().isoformat()
-            title = embed.get('title', '')
-            description = embed.get('description', '')
-            embed_json = json.dumps(embed)
-            
             cursor.execute("""
                 INSERT INTO alerts (timestamp, alert_type, title, description, content, embed_json, source, symbol)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (timestamp, alert_type, title, description, content, embed_json, source, symbol))
-            
             conn.commit()
             conn.close()
-            logger.debug(f"   📝 Alert logged to database: {alert_type}")
+            logger.debug(f"   📝 Alert logged to SQLite: {alert_type}")
         except Exception as e:
-            logger.debug(f"   ⚠️ Failed to log alert to database: {e}")
+            logger.debug(f"   ⚠️ Failed to log alert to SQLite: {e}")
+
+        # ── Write to Supabase (persistent, survives Render restarts) ──
+        try:
+            from core.utils.supabase_storage import is_supabase_available, write_alert
+            if is_supabase_available():
+                write_alert({
+                    "timestamp": timestamp,
+                    "alert_type": alert_type,
+                    "title": title,
+                    "description": description,
+                    "content": content,
+                    "embed_json": embed_json,
+                    "source": source,
+                    "symbol": symbol,
+                })
+                logger.debug(f"   ☁️ Alert logged to Supabase: {alert_type}")
+        except Exception as e:
+            logger.debug(f"   ⚠️ Supabase alert write failed (non-blocking): {e}")
     
     def _generate_alert_hash(self, embed: dict, content: str, alert_type: str, source: str, symbol: str) -> str:
-        """Generate unique hash for alert deduplication."""
+        """Generate unique hash for alert deduplication.
+        
+        Uses STRUCTURAL identity only: alert_type + symbol + source + title.
+        Deliberately excludes volatile numeric fields (prices, scores, percentages)
+        that change every tick — including them caused every health ping and price
+        update to bypass dedup and spam Discord.
+        """
         title = embed.get('title', '')
-        description = embed.get('description', '')
+        # Strip numbers from title so "$571.23" vs "$571.45" dedup correctly
+        title_stripped = re.sub(r'[\d$.,%]+', '', title).strip()
         
-        key_data = f"{alert_type}:{symbol or ''}:{source}:{title}"
-        
-        text = f"{title} {description} {content or ''}"
-        numbers = re.findall(r'\d+\.?\d*', text)
-        if numbers:
-            key_data += f":{':'.join(numbers[:3])}"
-        
-        if 'fields' in embed:
-            for field in embed.get('fields', [])[:4]:
-                field_name = field.get('name', '')
-                field_value = str(field.get('value', ''))
-                numbers = re.findall(r'\d+\.?\d*', field_value)
-                if numbers:
-                    key_data += f":{field_name}:{':'.join(numbers[:2])}"
-                else:
-                    key_data += f":{field_name}:{field_value[:30]}"
+        key_data = f"{alert_type}:{symbol or ''}:{source}:{title_stripped}"
         
         return hashlib.md5(key_data.encode()).hexdigest()[:16]
     
