@@ -59,12 +59,22 @@ class DPBearishDivergenceChecker:
                 with open(self.data_path, "r") as f:
                     data = json.load(f)
                     
-                    # Ensure latest data is for today
-                    tz = self.eastern
-                    today_str = datetime.now(tz).strftime("%Y-%m-%d")
-                    if data.get("date") == today_str:
-                        # Extract the data points (assume it's sorted or we just take the list)
-                        # data points usually a list of dicts with 'net_premium'
+                    # ── Parse real production format ──
+                    # Real file: URL-keyed dict → individual_short_volume.net_volume (list)
+                    # Legacy format: {epochs: [{net_premium: ...}]}
+                    
+                    # Try real format first: find SPY symbol data
+                    for key, val in data.items():
+                        if isinstance(val, dict) and 'symbol=SPY' in str(key) and 'window' in str(key):
+                            isv = val.get("individual_short_volume", {})
+                            if isinstance(isv, dict):
+                                nv = isv.get("net_volume", [])
+                                if isinstance(nv, list) and len(nv) >= 3:
+                                    dp_history = [float(v) for v in nv[-10:]]  # last 10 data points
+                            break
+                    
+                    # Fallback: legacy epoch format
+                    if not dp_history:
                         epochs = data.get("epochs", [])
                         if epochs:
                             dp_history = [e.get("net_premium", 0.0) for e in epochs]
@@ -117,7 +127,7 @@ class DPBearishDivergenceChecker:
         
         # Determine breakdown vol ratio from snapshot for Tier 4
         # Fallback to 1.6 to pass the mock if volume_ratio is missing, but typically volume_ratio is in snapshot
-        vol_ratio = current_snapshot.get("volume_ratio", 1.6)
+        vol_ratio = current_snapshot.get("volume_ratio", 0.0)
 
         gate_res = self.confluence_gate.should_fire(
             signal_direction="SHORT",

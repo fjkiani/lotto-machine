@@ -1,0 +1,198 @@
+---
+description: "Agent 4 — Gate Enforcement. Wire ConfluenceGate into every signal emission path. Fix Discord bypass holes. Add circuit breaker to gate."
+globs:
+  - "live_monitoring/orchestrator/confluence_gate.py"
+  - "discord_bot/commands/alpha.py"
+  - "discord_bot/commands/market.py"
+alwaysApply: false
+---
+
+# Agent 4 — Gate Enforcement (Backend + Discord)
+
+You wire the ConfluenceGate into every path that emits a signal. Fix the bypass holes.
+**BLOCKED until Agent 2 delivers `intraday_snapshot.json`.** Start only when `/tmp/intraday_snapshot.json` exists.
+
+---
+
+## Task 1: Add Intraday Snapshot Check to ConfluenceGate
+
+**File:** `live_monitoring/orchestrator/confluence_gate.py`
+
+Add a new Gate 0 (before Gate 1 REGIME) in `_evaluate()`:
+
+```python
+# ═══ GATE 0: INTRADAY THESIS (hard block) ═══
+import json, os
+SNAPSHOT_PATH = "/tmp/intraday_snapshot.json"
+if os.path.exists(SNAPSHOT_PATH):
+    try:
+        with open(SNAPSHOT_PATH) as f:
+            snap = json.load(f)
+        if snap.get("market_open") and not snap.get("thesis_valid", True):
+            reason = snap.get("thesis_invalidation_reason", "Thesis invalidated")
+            gates_failed.append(f"THESIS: {reason}")
+            return GateResult(
+                blocked=True,
+                reason=f"⛔ THESIS BLOCK: {reason}",
+                adjusted_confidence=0,
+                gates_passed=gates_passed,
+                gates_failed=gates_failed,
+                regime="THESIS_INVALID",
+                bias=synthesis_bias or "UNKNOWN",
+            )
+        if snap.get("circuit_breaker_active"):
+            reason = snap.get("circuit_breaker_reason", "Circuit breaker active")
+            gates_failed.append(f"CIRCUIT BREAKER: {reason}")
+            return GateResult(
+                blocked=True,
+                reason=f"🚨 CIRCUIT BREAKER: {reason}",
+                adjusted_confidence=0,
+                gates_passed=gates_passed,
+                gates_failed=gates_failed,
+                regime="CIRCUIT_BREAKER",
+                bias=synthesis_bias or "UNKNOWN",
+            )
+        gates_passed.append("THESIS: Valid")
+    except Exception as e:
+        logger.debug(f"⚠️ Gate: snapshot read failed: {e}")
+        gates_passed.append("THESIS: Snapshot unavailable (no penalty)")
+```
+
+This goes BEFORE the existing Gate 1 (REGIME) at line 146. If thesis is invalid or circuit breaker is active, the signal is hard-blocked regardless of everything else.
+
+---
+
+## Task 2: Wire Discord `/setup` Through Gate
+
+**File:** `discord_bot/commands/alpha.py`
+
+The `/setup` command (line ~109) currently generates a trade setup directly without checking the gate.
+
+**Modify:** After generating the setup, before returning to user:
+
+```python
+# Check gate before showing setup
+from live_monitoring.orchestrator.confluence_gate import ConfluenceGate
+gate = ConfluenceGate()
+result = gate.should_fire(
+    signal_direction=direction.upper(),
+    symbol=symbol.upper(),
+    raw_confidence=75,  # default for manual request
+)
+if result.blocked:
+    # Return BLOCKED message instead of setup
+    await interaction.followup.send(f"⛔ **BLOCKED**: {result.reason}")
+    return
+```
+
+---
+
+## Task 3: Wire Discord `/alpha` Agent Through Gate
+
+**File:** `discord_bot/commands/alpha.py`
+
+The `/alpha` command (line ~28) runs an LLM agent that can recommend trades. The agent's response goes directly to the user with no gate check.
+
+**Modify:** After getting the agent response, scan for directional language:
+
+```python
+# Post-agent gate check
+response_lower = response.lower()
+if any(word in response_lower for word in ["buy", "long", "calls", "bullish entry"]):
+    gate = ConfluenceGate()
+    result = gate.should_fire(signal_direction="LONG", symbol="SPY", raw_confidence=50)
+    if result.blocked:
+        response += f"\n\n⚠️ **Gate Warning**: {result.reason}"
+```
+
+This doesn't block the response (it's informational from an LLM) but appends a gate warning if the thesis is invalid. The user sees: "I think AMAT looks good → ⚠️ Gate Warning: THESIS BLOCK: SPY broke $660 at 11:34 AM"
+
+---
+
+## Task 4: Add Thesis Status to Discord Webhook Alerts
+
+When signals fire from unified_monitor/signal_brain, they send Discord webhooks. These currently don't check thesis.
+
+**Find:** Where alerts are sent in the orchestrator. Look for Discord webhook calls in:
+- `live_monitoring/orchestrator/unified_monitor.py`
+- `live_monitoring/agents/signal_brain/`
+
+**Add:** Before any alert send, read `/tmp/intraday_snapshot.json`. If `thesis_valid=false`, either:
+- Block the alert entirely, OR
+- Prepend with "⚠️ THESIS INVALID — " so the trader sees the warning
+
+---
+
+## Verification
+
+```bash
+# 1. Gate blocks when thesis invalid
+python -c "
+import json
+# Write a fake invalid snapshot
+with open('/tmp/intraday_snapshot.json', 'w') as f:
+    json.dump({'market_open': True, 'thesis_valid': False, 'thesis_invalidation_reason': 'TEST: SPY broke wall'}, f)
+
+from live_monitoring.orchestrator.confluence_gate import ConfluenceGate
+gate = ConfluenceGate()
+result = gate.should_fire(signal_direction='LONG', symbol='SPY', raw_confidence=95)
+assert result.blocked, 'Gate should block when thesis is invalid'
+print(f'PASS: Gate blocked with reason: {result.reason}')
+"
+
+# 2. Gate passes when thesis valid
+python -c "
+import json
+with open('/tmp/intraday_snapshot.json', 'w') as f:
+    json.dump({'market_open': True, 'thesis_valid': True}, f)
+
+from live_monitoring.orchestrator.confluence_gate import ConfluenceGate
+gate = ConfluenceGate()
+result = gate.should_fire(signal_direction='LONG', symbol='SPY', raw_confidence=95)
+print(f'blocked={result.blocked} | reason={result.reason}')
+# Should NOT be blocked by thesis (may still be blocked by regime/bias)
+"
+
+# 3. Circuit breaker blocks
+python -c "
+import json
+with open('/tmp/intraday_snapshot.json', 'w') as f:
+    json.dump({'market_open': True, 'thesis_valid': True, 'circuit_breaker_active': True, 'circuit_breaker_reason': '2 consecutive losses'}, f)
+
+from live_monitoring.orchestrator.confluence_gate import ConfluenceGate
+gate = ConfluenceGate()
+result = gate.should_fire(signal_direction='LONG', symbol='SPY', raw_confidence=95)
+assert result.blocked, 'Gate should block on circuit breaker'
+print(f'PASS: Circuit breaker blocked: {result.reason}')
+"
+```
+
+All 3 must pass. If any fails → not done.
+
+---
+
+## Anti-Sandbag Gates
+
+- ❌ Do NOT add Gate 0 AFTER the existing gates. It must be BEFORE Gate 1 (first check).
+- ❌ Do NOT make thesis check optional or configurable. It's always on during market hours.
+- ❌ Do NOT catch and silently swallow the thesis blocking. It must return `blocked=True`.
+- ❌ Do NOT modify frontend files. Backend + Discord only.
+- ❌ Do NOT remove or weaken existing Gate 1 (REGIME) or Gate 2 (BIAS).
+- ✅ If `/tmp/intraday_snapshot.json` doesn't exist, pass (no penalty). Don't crash.
+- ✅ Gate 0 only applies when `market_open=True`. Pre/post market = pass through.
+
+---
+
+## Files You CAN Touch
+
+- `live_monitoring/orchestrator/confluence_gate.py` (ADD Gate 0)
+- `discord_bot/commands/alpha.py` (ADD gate checks)
+- `discord_bot/commands/market.py` (ADD gate warning if applicable)
+
+## Files You CANNOT Touch
+
+- Any file in `frontend/`
+- `intraday_guardian.py` (Agent 2 owns)
+- `premarket_scheduler.py` (Agent 2 owns)
+- `gate_outcome_tracker.py` (Agent 2 owns)
+- Any AXLFI route or component

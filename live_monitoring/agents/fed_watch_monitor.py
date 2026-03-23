@@ -228,7 +228,38 @@ class FedWatchFetcher:
         self.last_status = status
         self.cache_time = datetime.now()
 
+        # Persist to history DB (fire-and-forget — never blocks data path)
+        self._save_to_history(status)
+
         return status
+
+    def _save_to_history(self, status: FedWatchStatus):
+        """Save current probabilities to fed_watch_history for trend analysis."""
+        try:
+            import sqlite3
+            from pathlib import Path
+            db_path = Path(__file__).parent.parent.parent / "data" / "economic_intelligence.db"
+            if not db_path.exists():
+                return
+
+            conn = sqlite3.connect(str(db_path), timeout=3)
+            conn.execute(
+                """INSERT INTO fed_watch_history
+                   (timestamp, cut_prob, hold_prob, hike_prob, meeting_date, source)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    datetime.now().isoformat(),
+                    status.prob_cut,
+                    status.prob_hold,
+                    status.prob_hike,
+                    status.next_meeting.date.strftime('%Y-%m-%d') if status.next_meeting else None,
+                    status.source,
+                )
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.debug(f"fed_watch_history save skipped: {e}")
 
 
 # ============================================================================

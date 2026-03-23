@@ -10,6 +10,7 @@ unified market synthesis signals.
 import logging
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 from .base_checker import BaseChecker, CheckerAlert
@@ -152,6 +153,16 @@ class SynthesisChecker(BaseChecker):
             if result:
                 confluence = getattr(result, 'confluence', None)
                 logger.info(f"   📊 Synthesis result: confluence={confluence}, unified_mode={self.unified_mode}, recent_alerts={len(recent_dp_alerts)}")
+
+                # ── Wave 7: 3-factor bearish override ──
+                bearish, override_score = self._compute_bearish_override(spy_price or 0)
+                if bearish and confluence:
+                    try:
+                        confluence.bias.value = "BEARISH"
+                        confluence.score = override_score
+                        logger.info(f"🔴 Bearish override applied: {override_score:.0f}% BEARISH (3-factor score)")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Bearish override mutation failed: {e}")
             
             # Check if should send
             should_send = False
@@ -194,3 +205,80 @@ class SynthesisChecker(BaseChecker):
             logger.debug(traceback.format_exc())
             return [], None
 
+
+    def _compute_bearish_override(self, spy_price: float) -> tuple:
+        """3-factor bearish bias check: COT + DP Flow + Gamma.
+        
+        Returns (should_override: bool, override_score: float).
+        2/3 or 3/3 factors → override to BEARISH.
+        """
+        import json, os
+        score = 0
+
+        # Factor 1: COT positioning — read from cot_history.db (VX specs_net)
+        try:
+            import sqlite3
+            cot_db = Path(__file__).resolve().parent.parent.parent.parent / "data" / "external" / "cftc_cot" / "db" / "cot_history.db"
+            if cot_db.exists():
+                conn = sqlite3.connect(str(cot_db))
+                row = conn.execute(
+                    "SELECT specs_net FROM weekly_positioning WHERE contract_key='VX' ORDER BY report_date DESC LIMIT 1"
+                ).fetchone()
+                conn.close()
+                if row and row[0] < -5000:
+                    score += 1
+            else:
+                # Fallback: legacy JSON file
+                with open("data/cot_positioning.json") as f:
+                    cot = json.load(f)
+                if cot.get("net_speculator_position", 0) < -5000:
+                    score += 1
+        except Exception:
+            pass  # Missing DB or file → 0 points
+
+        # Factor 2: DP Flow — declining net volume trend (last 3 data points)
+        dp_data = None
+        try:
+            with open("data/axlfi_dark_pool_live.json") as f:
+                dp_data = json.load(f)
+            
+            # Real format: URL-keyed → individual_short_volume.net_volume
+            dp_flow_history = []
+            for key, val in dp_data.items():
+                if isinstance(val, dict) and 'symbol=SPY' in str(key) and 'window' in str(key):
+                    isv = val.get("individual_short_volume", {})
+                    if isinstance(isv, dict):
+                        nv = isv.get("net_volume", [])
+                        if isinstance(nv, list) and len(nv) >= 3:
+                            dp_flow_history = [float(v) for v in nv[-3:]]
+                    break
+            
+            # Fallback: legacy epoch format
+            if not dp_flow_history:
+                epochs = dp_data.get("epochs", dp_data.get("data", []))
+                if len(epochs) >= 3:
+                    dp_flow_history = [e.get("net_premium", 0.0) for e in epochs[-3:]]
+            
+            if len(dp_flow_history) >= 3:
+                if dp_flow_history[2] < dp_flow_history[1] < dp_flow_history[0] and dp_flow_history[2] < 0:
+                    score += 1
+        except Exception:
+            pass  # Missing file or insufficient data → 0 points
+
+        # Factor 3: Gamma — wall proximity
+        try:
+            if dp_data is None:
+                with open("data/axlfi_dark_pool_live.json") as f:
+                    dp_data = json.load(f)
+            call_wall = float(dp_data.get("call_wall", 0))
+            put_wall = float(dp_data.get("put_wall", 0))
+            if call_wall > 0 and put_wall > 0 and spy_price > 0:
+                if (spy_price - put_wall) < (call_wall - spy_price):
+                    score += 1
+        except Exception:
+            pass
+
+        if score >= 2:
+            override_score = 90.0 if score == 3 else 65.0
+            return True, override_score
+        return False, 0.0

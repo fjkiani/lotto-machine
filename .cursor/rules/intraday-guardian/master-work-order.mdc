@@ -1137,86 +1137,225 @@ Day 3:
 # ═══════════════════════════════════════════════════════════════
 
 > **After Wave 5 proves the system works live, Wave 6 measures HOW MUCH it helps.**
-> This is where we prove the edge — how many bad trades did the guardian prevent?
+> We have real data. Use it. No hypothetical backtests.
+
+## 📂 AVAILABLE DATA FOR BACKTESTING
+
+| File | What It Contains | Records | Period |
+|------|-----------------|---------|--------|
+| `data/gate_backtest_week1.json` | Gate signals with ticker, direction, entry_price, current_price, PnL | Week 1 signals | Mar 10-13, 2026 |
+| `backtesting/reports/backtest_2026-03-05_2026-03-09.json` | 48 signals, 24 trades, daily breakdowns with VIX, market direction, entry/exit/PnL per trade | 48 signals | Mar 5-9, 2026 |
+| `backtesting/reports/backtest_2026-03-03_2026-03-07.json` | Same schema, different window | ~40 signals | Mar 3-7, 2026 |
+| `backtesting/reports/backtest_2025-11-05_2025-12-04.json` | 30 days of signal data | ~100+ signals | Nov-Dec 2025 |
+| `backtesting/reports/backtest_2025-12-05_2026-01-04.json` | Monthly backtest | ~100+ signals | Dec 2025-Jan 2026 |
+| `logs/replay/lotto_signals_SPY_2025-11-20.csv` | Minute-by-minute signal replay with entry/stop/target/confidence | Hundreds | Nov 20, 2025 |
+| `logs/replay/lotto_signals_SPY_2025-11-19.csv` | Same schema, different day | Hundreds | Nov 19, 2025 |
+| `cache/alpha_vantage/SPY_1min_full_20251121.json` | SPY 1-minute intraday bars (OHLCV) | Full day | Nov 21, 2025 |
+| `historical_cache/SPY_3mo.csv` | SPY daily OHLCV | ~63 rows | 3 months |
+| `data/gate_blocked_today.json` | Blocked signals with reasons (thesis block, circuit breaker) | Live | Today |
+| `data/axlfi_dark_pool_live.json` | Full AXLFI dark pool dataset (506KB) | Live | Current |
+| `backtesting/reports/session_replay_20260309.json` | Session replay with market context | 1 session | Mar 9, 2026 |
 
 ---
 
-## Task 6.1: Historical Backtest — Would The Guardian Have Saved You? (AGENT 1)
+## Task 6.1: Guardian Replay — "Would It Have Saved You?" (AGENT 1)
 
-**What:** Download 20 days of SPY intraday data (yfinance). For each day:
+**What:** Replay the existing backtest data through the Guardian's thesis logic. For each trade in our backtest reports, determine if the Guardian would have blocked it.
 
-1. Compute the morning thesis (SPY vs call wall at 9:45 AM)
-2. Run the guardian check every 15 minutes
-3. Record when thesis would have flipped to invalid
-4. Compare to actual signal performance that day
+**Input files:**
+- `backtesting/reports/backtest_2026-03-05_2026-03-09.json` (24 trades, 25% WR — most lost money)
+- `backtesting/reports/backtest_2025-11-05_2025-12-04.json` (30 days)
+- `data/gate_backtest_week1.json` (Week 1 gate signals)
+- `historical_cache/SPY_3mo.csv` (SPY price for wall comparison)
 
-**Deliverable:** `data/guardian_backtest_20d.json` — 20 rows showing:
-- Date
-- Wall break time (or "never")
-- Signals that would have been invalidated
-- Actual PnL of those signals
-- PnL saved by guardian (invalidated signals that lost money)
+**Script:** `backtesting/guardian_replay.py`
 
-**Edge metric:** Total PnL saved = sum of avoided losses from invalidated signals.
+**Logic per trade:**
+1. Read trade's date + timestamp
+2. Look up SPY price at that time from historical cache or yfinance
+3. Look up SPY call/put walls for that day (fetch from Stockgrid or use cached `axlfi_dark_pool_live.json`)
+4. Run Guardian thesis check: `spy_price < call_wall - 0.5` → thesis_invalid
+5. If thesis was INVALID at trade time → mark as "would have been blocked"
+6. Compare PnL of blocked vs passed trades
+
+**Output:** `backtesting/reports/guardian_replay_results.json`
+```json
+{
+  "total_trades": 24,
+  "trades_guardian_would_block": 8,
+  "blocked_trade_avg_pnl": -0.35,
+  "passed_trade_avg_pnl": +0.12,
+  "pnl_saved_by_guardian": 2.80,
+  "false_blocks": 1,
+  "true_blocks": 7,
+  "precision": 87.5
+}
+```
+
+**Acceptance threshold:** 
+- `blocked_trade_avg_pnl` must be **negative** (guardian blocks losers, not winners)
+- `precision` (% of blocks that were actual losers) must be > 60%
+- If precision < 60%, the wall break threshold (currently -0.5) is too aggressive
+
+**Verification:**
+```bash
+python3 backtesting/guardian_replay.py
+cat backtesting/reports/guardian_replay_results.json | python3 -m json.tool
+# blocked_trade_avg_pnl must be negative
+# precision must be > 60%
+```
 
 ---
 
-## Task 6.2: Gate Health Analytics Dashboard (AGENT 3)
+## Task 6.2: Signal Replay — Minute-by-Minute Kill Test (AGENT 1)
 
-**What:** Build a `/gate-analytics` page that visualizes:
+**What:** Replay the Nov 20, 2025 selloff using the replay logs. This is the day SPY dropped -0.53% in 20 minutes with 2.4x volume. The Guardian SHOULD have caught this.
 
-1. **Win Rate Trend** — last 30 days of gate health, plotted as a line (inline SVG)
-2. **Block Effectiveness** — % of blocked signals that would have lost money (true positives)
-3. **Miss Rate** — signals that passed but lost money (false negatives)
-4. **Guardian Timeline** — for today, show when thesis was valid/invalid as a horizontal bar chart
+**Input files:**
+- `logs/replay/lotto_signals_SPY_2025-11-20.csv` (minute-by-minute signals)
+- `cache/alpha_vantage/SPY_1min_full_20251121.json` (1-min bars for price)
 
-**Data:** Reads from `/api/v1/gate/outcomes?n=100` and `/api/v1/intraday/snapshot`.
+**Script:** `backtesting/guardian_replay_nov20.py`
+
+**Logic:**
+1. Parse each signal row: timestamp, action (SELL), entry_price, stop_price, confidence
+2. At each timestamp, compute: SPY price vs known wall levels from that day
+3. Simulate Guardian check: when does thesis flip to INVALID?
+4. Mark all signals AFTER thesis flip as "would be blocked"
+5. For signals BEFORE thesis flip, mark as "passed" and track their PnL (entry vs exit or stop)
+
+**Output:** `backtesting/reports/guardian_replay_nov20.json`
+```json
+{
+  "date": "2025-11-20",
+  "selloff_start": "11:15:00",
+  "thesis_flip_time": "11:22:00",
+  "total_signals": 156,
+  "signals_before_flip": 12,
+  "signals_after_flip_blocked": 144,
+  "blocked_signals_avg_confidence": 0.68,
+  "pnl_saved": "14 SELL signals at avg entry $669 that hit stop at $676"
+}
+```
+
+**Acceptance:** `thesis_flip_time` must be < 30 minutes after selloff start (the guardian's 15-min loop must catch it within 2 cycles).
 
 ---
 
-## Task 6.3: Gate Threshold Tuning (AGENT 2)
+## Task 6.3: Gate Outcome Analysis — Win Rate Before vs After (AGENT 2)
 
-**What:** Using the 20-day backtest data from Task 6.1:
+**What:** Compare backtesting win rates BEFORE the gate existed vs AFTER. The gate was wired in during Wave 1. If it works, gated signals should have a higher win rate.
 
-1. Test different thesis-invalidation thresholds (wall break % from -0.5 to -2.0)
-2. Test different circuit breaker thresholds (2 vs 3 consecutive losses)
-3. Compute optimal thresholds that maximize PnL-saved while minimizing false-blocks
+**Input files:**
+- `backtesting/reports/backtest_2025-11-05_2025-12-04.json` (BEFORE gate — 30 days, no gate)
+- `backtesting/reports/backtest_2025-12-05_2026-01-04.json` (BEFORE gate — another month)
+- `backtesting/reports/backtest_2026-03-05_2026-03-09.json` (AFTER gate wired — 5 days)
+- `data/gate_backtest_week1.json` (AFTER gate — Week 1)
 
-**Deliverable:** Update `intraday_guardian.py` and `gate_outcome_tracker.py` with tuned thresholds if they outperform current defaults.
+**Script:** `backtesting/gate_before_after.py`
+
+**Metrics:**
+| Metric | Before Gate | After Gate | Delta |
+|--------|-----------|-----------|-------|
+| Win Rate | X% | Y% | +Z% |
+| Avg PnL per trade | -$X | +$Y | +$Z |
+| Losing trades / day | X | Y | -Z |
+| Max drawdown per day | -X% | -Y% | +Z% |
+
+**Acceptance:** After-gate win rate must be higher than before-gate win rate OR after-gate avg PnL must be less negative. If BOTH are worse, the gate is hurting performance and needs threshold tuning.
+
+**Verification:**
+```bash
+python3 backtesting/gate_before_after.py
+# Must print the comparison table with real numbers
+# Delta column must show improvement in at least 1 of 4 metrics
+```
 
 ---
 
-## Task 6.4: Automated Gate Health Report — Daily Discord (AGENT 2)
+## Task 6.4: Gate Threshold Optimization (AGENT 2)
 
-**What:** At 16:10 ET (after settlement), automatically post a Gate Health summary to Discord:
+**What:** Using the guardian replay data from Task 6.1, test different thresholds to find the optimal settings.
 
+**Parameters to sweep:**
+1. **Wall break threshold**: currently `-0.5` (SPY must be $0.50 below call wall to invalidate). Test: `-0.25`, `-0.50`, `-1.00`, `-1.50`, `-2.00`
+2. **Circuit breaker count**: currently `2` consecutive losses. Test: `1`, `2`, `3`, `4`
+3. **Volume ratio threshold**: currently none. Test adding volume > 1.5x as a required co-condition
+
+**Script:** `backtesting/threshold_optimizer.py`
+
+**Output:** `backtesting/reports/threshold_optimization.json` — a grid of precision/recall for each parameter combination.
+
+**Acceptance:** If any combo beats the current defaults on precision AND doesn't increase false-block rate by >10%, update the guardian defaults.
+
+---
+
+## Task 6.5: Gate Health Analytics Dashboard (AGENT 3)
+
+**What:** Build a `/gate-analytics` page that visualizes gate performance using REAL data from our backtests.
+
+**Data sources:**
+- `/api/v1/gate/health?n=100` (live gate health)
+- `/api/v1/gate/outcomes` (historical outcomes)
+- `/api/v1/gate/signals/today` (today's signals)
+- `data/gate_backtest_week1.json` (loaded client-side or via new endpoint)
+
+**Panels to build:**
+
+1. **Gate Performance Strip** — win rate, blocked/allowed ratio, avg R (from gate health endpoint)
+2. **Signal Timeline** — horizontal bar showing today's signals as dots (green=passed, red=blocked, grey=invalidated), positioned by time. Uses `gate_signals_today.json` timestamp.
+3. **Block Reason Breakdown** — pie chart (inline SVG) showing how many blocks were: THESIS, CIRCUIT_BREAKER, REGIME, BIAS, KILL_CHAIN. Data from `gate_blocked_today.json`.
+4. **Before vs After Comparison** — static card showing the results from Task 6.3 (before gate vs after gate win rate).
+
+**Acceptance:** 4 panels rendering with real data. `tsc --noEmit` → 0 errors. Route registered in App.tsx.
+
+---
+
+## Task 6.6: Automated Daily Gate Report — Discord + JSON (AGENT 2)
+
+**What:** At 16:10 ET (after settlement), automatically generate and post a Gate Health summary.
+
+**Trigger:** Add a `16:10` stage to `premarket_scheduler.py` (Agent 1 file — coordinate with Agent 1, or Agent 2 adds a Discord webhook call in `unified_monitor.py`'s existing 16:05 settlement hook).
+
+**Format:**
 ```
 📊 GATE REPORT — March 14, 2026
 ├ Signals passed: 4 | Blocked: 8
-├ Win rate: 75% (3W / 1L)
-├ Avg R: +1.2R
+├ Win rate: 75% (3/4 passed signals won)
+├ Blocked reasons: 5 THESIS, 2 REGIME, 1 CIRCUIT_BREAKER
 ├ Thesis status: VALID until 14:30, then INVALID (SPY broke $665)
 ├ Guardian saved: 3 signals ($AMAT, $MU, $LRCX) that would have lost avg -0.8R
 └ Circuit breaker: Not triggered
 ```
 
-**Acceptance:** One Discord post per day with real data.
+**Data:** Read from `gate_signals_today.json`, `gate_blocked_today.json`, `gate_outcomes.json`, and `intraday_snapshot.json`.
+
+**Acceptance:** One Discord post per day with real data. The report must include signal count, block count, win rate, and block reasons. Test by running:
+```bash
+python3 -c "
+from live_monitoring.orchestrator.gate_outcome_tracker import GateOutcomeTracker
+t = GateOutcomeTracker()
+h = t.get_health(n=20)
+print(h)
+# Must return dict with win_rate_last_n, blocked_vs_allowed, avg_r_last_n
+"
+```
 
 ---
 
 ## 📋 WAVE 6 STATUS UPDATES
 
-### Agent 1 — Task 6.1 Update
+### Agent 1 — Tasks 6.1, 6.2 Update
 ```
 Status: NOT STARTED
 ```
 
-### Agent 2 — Tasks 6.3, 6.4 Update
+### Agent 2 — Tasks 6.3, 6.4, 6.6 Update
 ```
 Status: NOT STARTED
 ```
 
-### Agent 3 — Task 6.2 Update
+### Agent 3 — Task 6.5 Update
 ```
 Status: NOT STARTED
 ```

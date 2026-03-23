@@ -1043,18 +1043,8 @@ class HealthHandler(BaseHTTPRequestHandler):
                     layers['signals_error'] = str(e)
 
                 # Final verdict
-                if score > 7:
-                    verdict = "BOOST"
-                    action = "+15% confidence on all signals"
-                elif score >= 5:
-                    verdict = "NEUTRAL"
-                    action = "Signals pass through unchanged"
-                elif score > 0:
-                    verdict = "SOFT_VETO"
-                    action = "Signals pass ONLY if no narrative divergence detected"
-                else:
-                    verdict = "HARD_VETO"
-                    action = "All signals killed (negative score)"
+                from backend.app.signals.verdict_utils import compute_verdict
+                verdict, action, _ = compute_verdict(score)
 
                 result = {
                     'divergence_score': score,

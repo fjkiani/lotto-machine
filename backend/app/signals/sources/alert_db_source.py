@@ -135,7 +135,7 @@ def fetch_alert_db_signals(
     if not raw_rows:
         return results
 
-
+    for row in raw_rows:
         try:
             r = dict(row)
             alert_type = r.get("alert_type", "")

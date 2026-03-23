@@ -40,6 +40,7 @@ from .options_flow_checker import OptionsFlowChecker
 from .news_intelligence_checker import NewsIntelligenceChecker
 from .dp_divergence_checker import DPDivergenceChecker
 from .earnings_checker import EarningsChecker
+from .dp_bearish_checker import DPBearishDivergenceChecker
 
 __all__ = [
     'BaseChecker',
@@ -62,5 +63,6 @@ __all__ = [
     'NewsIntelligenceChecker',
     'DPDivergenceChecker',
     'EarningsChecker',
+    'DPBearishDivergenceChecker',
 ]
 

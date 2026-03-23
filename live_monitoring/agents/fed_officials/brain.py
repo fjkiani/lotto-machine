@@ -187,17 +187,41 @@ class FedOfficialsBrain:
             except Exception as e:
                 logger.warning(f"DB table init failed: {e}")
 
+    # ── DRIP / Routine Trade Detection ────────────────────────────────────────
+
+    def _detect_routine_trades(self) -> set:
+        """Detect routine/DRIP trades: same (politician, ticker, direction) appearing 3+ times.
+        Returns a set of (politician_name, ticker, transaction_type) tuples that are routine."""
+        routine_keys = set()
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute("""
+                SELECT politician_name, ticker, transaction_type, COUNT(*) as cnt
+                FROM politician_trades
+                GROUP BY politician_name, ticker, transaction_type
+                HAVING cnt >= 3
+            """)
+            for row in cursor.fetchall():
+                routine_keys.add((row[0], row[1], row[2]))
+                logger.info(f"DRIP filter: {row[0]} {row[1]} {row[2]} flagged ROUTINE ({row[3]} occurrences)")
+        except sqlite3.OperationalError:
+            pass
+        return routine_keys
+
     # ── Hidden Hands (Direct SQLite — reads what scrapers wrote) ──────────────
 
     def scan_hidden_hands(self, days: int = 7) -> Dict:
         """Exploit the live pipes we already opened. Direct SQL on populated tables."""
         cursor = self._conn.cursor()
 
+        # Detect routine/DRIP trades before processing
+        routine_keys = self._detect_routine_trades()
+
         # Politician trades — table may not exist on fresh Render deploy
         pol_rows = []
         try:
             cursor.execute("""
-                SELECT politician_name, ticker, transaction_type, trade_size, trade_date
+                SELECT politician_name, ticker, transaction_type, trade_size, trade_date, owner
                 FROM politician_trades
                 WHERE created_at >= datetime('now', ? || ' days')
                 ORDER BY created_at DESC LIMIT 20
@@ -236,23 +260,43 @@ class FedOfficialsBrain:
         ins_tickers = [row[2] for row in ins_rows if row[2]]
         hot_tickers = list(set(pol_tickers + ins_tickers))
 
-        # Politician buy vs sell
-        pol_buys = sum(1 for row in pol_rows if row[2] and 'buy' in row[2].lower())
-        pol_sells = sum(1 for row in pol_rows if row[2] and 'sell' in row[2].lower())
+        # Politician buy vs sell — EXCLUDE routine/DRIP trades from signal counts
+        pol_buys_discretionary = sum(
+            1 for row in pol_rows
+            if row[2] and 'buy' in row[2].lower()
+            and (row[0], row[1], row[2]) not in routine_keys
+        )
+        pol_sells_discretionary = sum(
+            1 for row in pol_rows
+            if row[2] and 'sell' in row[2].lower()
+            and (row[0], row[1], row[2]) not in routine_keys
+        )
+        pol_buys_total = sum(1 for row in pol_rows if row[2] and 'buy' in row[2].lower())
+        pol_sells_total = sum(1 for row in pol_rows if row[2] and 'sell' in row[2].lower())
+
+        # Build politician details with is_routine + owner flags
+        politician_details = []
+        for r in pol_rows:
+            owner = r[5] if len(r) > 5 else 'Self'
+            is_routine = (r[0], r[1], r[2]) in routine_keys
+            politician_details.append({
+                "name": r[0], "ticker": r[1], "type": r[2],
+                "size": r[3], "date": r[4], "owner": owner or 'Self',
+                "is_routine": is_routine,
+            })
 
         return {
             "politician_cluster": len(pol_rows),
-            "politician_buys": pol_buys,
-            "politician_sells": pol_sells,
+            "politician_buys": pol_buys_discretionary,
+            "politician_sells": pol_sells_discretionary,
+            "politician_buys_total": pol_buys_total,
+            "politician_sells_total": pol_sells_total,
             "insider_net_usd": insider_buys - insider_sells,
             "insider_buys_usd": insider_buys,
             "insider_sells_usd": insider_sells,
             "insider_count": len(ins_rows),
             "hot_tickers": hot_tickers,
-            "politician_details": [
-                {"name": r[0], "ticker": r[1], "type": r[2], "size": r[3], "date": r[4]}
-                for r in pol_rows[:5]
-            ],
+            "politician_details": politician_details,
             "insider_details": [
                 {"name": r[0], "company": r[1], "ticker": r[2], "type": r[3], "value": r[4], "date": r[5]}
                 for r in ins_rows[:5]
@@ -284,11 +328,16 @@ class FedOfficialsBrain:
         divergence_boost = 0
         reasons = []
 
-        # Politician cluster conviction
+        # Politician cluster conviction (DRIP-filtered — only discretionary trades count)
+        routine_count = sum(1 for d in hands.get('politician_details', []) if d.get('is_routine'))
+        if routine_count > 0:
+            reasons.append(
+                f"⚠️ {routine_count} ROUTINE trade(s) detected (DRIP/quarterly) — excluded from divergence"
+            )
         if hands["politician_buys"] >= 3:
             divergence_boost += 2
             reasons.append(
-                f"Politician cluster buys detected ({hands['politician_buys']} buys in "
+                f"Politician cluster buys detected ({hands['politician_buys']} discretionary buys in "
                 f"{', '.join(hands['hot_tickers'][:3])})"
             )
 
@@ -313,9 +362,11 @@ class FedOfficialsBrain:
             )
 
         # Finnhub MSPR cross-reference — convergence/divergence with insiders
+        # SKIP routine/DRIP trades — they have zero signal value
         finnhub_signals = []
         if self.finnhub and hands["hot_tickers"]:
             for detail in hands.get("politician_details", [])[:5]:
+                is_routine = detail.get("is_routine", False)
                 try:
                     ticker = detail["ticker"]
                     xref = self.finnhub.cross_reference_politician_trade(
@@ -323,7 +374,14 @@ class FedOfficialsBrain:
                         politician_action=detail.get("type", "buy"),
                     )
                     if xref and xref.get("convergence") != "unknown":
-                        divergence_boost += xref.get("divergence_boost", 0)
+                        # Routine trades get 0 divergence boost — mechanical, no signal
+                        if not is_routine:
+                            divergence_boost += xref.get("divergence_boost", 0)
+                        else:
+                            xref["routine_flag"] = True
+                            xref["reasoning"] = xref.get("reasoning", []) + [
+                                f"⚠️ ROUTINE: {detail['name']} has traded {ticker} 3+ times — DRIP/mechanical"
+                            ]
                         for r in xref.get("reasoning", []):
                             reasons.append(f"Finnhub: {r}")
                         finnhub_signals.append(xref)

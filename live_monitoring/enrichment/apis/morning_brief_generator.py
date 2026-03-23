@@ -56,9 +56,14 @@ class MorningBriefGenerator:
             dp_dollars = info.get("dp_position_dollars", 0)
             bias = info.get("bias", "UNKNOWN")
 
-            # DP divergence gate: high SV% + negative DP = BLOCKED
-            is_dp_diverging = sv > 55
-            is_dp_negative = dp_dollars > 0  # positive DP position = net short exposure
+            # ── DP sign convention (AXLFI/Stockgrid) ──────────────────
+            # Negative dp_position_dollars = net SHORT dark pool position = DISTRIBUTION
+            # Positive dp_position_dollars = net LONG dark pool position = ACCUMULATION
+            is_dp_distributing = dp_dollars < 0  # negative DP = institutions selling
+            dp_magnitude_b = abs(dp_dollars) / 1e9  # magnitude in billions
+
+            # SV divergence gate: high SV% = heavy short volume
+            is_sv_diverging = sv > 55
 
             # Also check SV trend if available
             try:
@@ -77,28 +82,54 @@ class MorningBriefGenerator:
             except Exception:
                 sv_rising = False
 
+            # Human-readable DP label — never show raw negative numbers to traders
+            if is_dp_distributing:
+                dp_label = f"DISTRIBUTION (${dp_magnitude_b:.1f}B net short)"
+            elif dp_dollars > 0:
+                dp_label = f"ACCUMULATION (${dp_magnitude_b:.1f}B net long)"
+            else:
+                dp_label = "FLAT ($0B)"
+
             entry = {
                 "ticker": t,
                 "sv_pct": sv,
                 "bias": bias,
                 "dp_position_dollars": dp_dollars,
+                "dp_label": dp_label,
+                "dp_distributing": is_dp_distributing,
             }
 
-            if is_dp_diverging:
-                reason = f"SV {sv:.1f}% (heavy short)"
-                if sv_rising:
-                    reason += " + SV rising"
-                if is_dp_negative:
-                    reason += " + net short DP"
-                entry["reason"] = reason
+            # Gate decision logic:
+            # Block 1: SV% > 55 (heavy short volume)
+            # Block 2: Large negative DP (> $5B distribution)
+            # Either condition alone is enough to flag
+            reasons = []
+            should_block = False
+
+            if is_sv_diverging:
+                reasons.append(f"SV {sv:.1f}% (heavy short)")
+                should_block = True
+            if sv_rising:
+                reasons.append("SV rising")
+            if is_dp_distributing and dp_magnitude_b > 5:
+                reasons.append(f"DP {dp_label}")
+                should_block = True
+
+            if should_block:
+                entry["reason"] = " + ".join(reasons) if reasons else f"Flagged"
                 entry["flag"] = "DP_DIVERGING"
                 blocked.append(entry)
+            elif is_dp_distributing and dp_magnitude_b > 1:
+                # Moderate distribution — warn but don't block
+                entry["reason"] = f"SV {sv:.1f}% OK but {dp_label} — verify before entry"
+                entry["flag"] = "DP_WARNING"
+                approved.append(entry)
             elif bias in ("LOW_SHORT_VOL_BULLISH",):
-                entry["reason"] = f"SV {sv:.1f}% (bullish flow), clean DP"
+                entry["reason"] = f"SV {sv:.1f}% (bullish flow), {dp_label}"
                 entry["flag"] = "CLEAN"
                 approved.append(entry)
             else:
-                entry["reason"] = f"SV {sv:.1f}% (neutral)"
+                entry["reason"] = f"SV {sv:.1f}% (neutral), {dp_label}"
                 entry["flag"] = "NEUTRAL"
                 approved.append(entry)
 
@@ -189,9 +220,11 @@ class MorningBriefGenerator:
                 "pattern": vol_profile.get("pattern"),
                 "first_hour_pct": vol_profile.get("first_hour_pct"),
                 "front_back_ratio": vol_profile.get("front_back_ratio"),
+                "data_error": vol_profile.get("data_error", False),
             },
             "approved_tickers": approved,
             "blocked_tickers": blocked,
+            "data_warnings": intel.get("data_warnings", []),
             "summary": ". ".join(summary_parts) + ".",
         }
 

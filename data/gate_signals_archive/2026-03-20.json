@@ -1,0 +1,18 @@
+{
+  "allowed": [],
+  "blocked": [
+    {
+      "timestamp": "2026-03-20T14:40:21.852277",
+      "ticker": "SPY",
+      "direction": "SHORT",
+      "entry_price": 649.23,
+      "confidence": 0,
+      "blocked": true,
+      "status": "blocked",
+      "reason": "\u26d4 CHOPPY BLOCK: No short edge in choppy market",
+      "regime": "CHOPPY",
+      "bias": "UNKNOWN",
+      "source": ""
+    }
+  ]
+}

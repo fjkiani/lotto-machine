@@ -147,23 +147,40 @@ async def get_dp_top_positions(
 ):
     """
     Top dark pool positions by dollar value with short vol % per ticker.
+
+    Note: The AXLFI leaderboard API returns short_volume_percent=None when
+    sorted by dark_pool_position_dollars. We enrich missing values from
+    the per-ticker endpoint.
     """
     sg = _get_stockgrid()
     try:
         positions = sg.get_top_positions(limit=limit, sort_by=sort_by)
+
+        result = []
+        for p in positions:
+            svp = p.short_volume_pct
+            # Leaderboard often returns 0/None for short_volume_pct when
+            # sorted by dp_position_dollars. Enrich from per-ticker API.
+            if not svp and len(result) < 15:  # cap enrichment to avoid slow responses
+                try:
+                    detail = sg.get_ticker_detail(p.ticker)
+                    if detail and detail.short_volume_pct:
+                        svp = detail.short_volume_pct
+                except Exception:
+                    pass  # Enrichment is best-effort
+
+            result.append({
+                "ticker": p.ticker,
+                "dp_position_dollars": p.dp_position_dollars,
+                "dp_position_shares": p.dp_position_shares,
+                "short_volume_pct": svp,
+                "net_short_volume": getattr(p, "net_short_volume", None),
+                "date": p.date,
+            })
+
         return {
-            "positions": [
-                {
-                    "ticker": p.ticker,
-                    "dp_position_dollars": p.dp_position_dollars,
-                    "dp_position_shares": p.dp_position_shares,
-                    "short_volume_pct": p.short_volume_pct,
-                    "net_short_volume": getattr(p, "net_short_volume", None),
-                    "date": p.date,
-                }
-                for p in positions
-            ],
-            "count": len(positions),
+            "positions": result,
+            "count": len(result),
             "timestamp": datetime.now().isoformat(),
         }
     except Exception as e:
@@ -203,12 +220,14 @@ async def get_dp_levels(symbol: str):
 
     dp_levels = []
 
-    # If the symbol itself has detail data, add it as a primary level
-    if detail and detail.dp_position_dollars:
-        implied = abs(detail.dp_position_dollars / detail.dp_position_shares) if detail.dp_position_shares else current_price
-        short_pct = detail.short_volume_pct or 0
+    # If the symbol itself has detail data, classify current_price as S/R level
+    # NOTE: dp_position_dollars / dp_position_shares gives the dollar-weighted DP
+    # average price (~$603) which is NOT the current market price. We use current_price instead.
+    if detail:
+        short_pct = detail.short_volume_pct or 50
+        vol = abs(int(detail.dp_position_shares or 0))
         
-        # FIX: Stockgrid short volume is a percentage (e.g. 59.2), not a decimal (0.59)
+        # short_volume_pct is ALREADY a percentage (e.g. 63.3), not a decimal (0.633)
         if short_pct > 55:
             lt = "RESISTANCE"
         elif short_pct < 45:
@@ -217,8 +236,8 @@ async def get_dp_levels(symbol: str):
             lt = "BATTLEGROUND"
 
         dp_levels.append(DPLevel(
-            price=round(implied, 2),
-            volume=abs(int(detail.dp_position_shares or 0)),
+            price=round(current_price, 2),
+            volume=vol,
             level_type=lt,
             strength=100.0,
             distance_from_price=0.0,
@@ -280,44 +299,74 @@ async def get_dp_summary(symbol: str):
     # B3 FIX: Return raw Stockgrid short_volume_pct, not the derived dp_percent
     raw_short_vol_pct = round(raw_pct if raw_pct > 1 else raw_pct * 100, 1) if detail else None
 
-    # B2 FIX: Derive nearest support/resistance from same-symbol data only
-    # Cross-ticker positions have different price scales — filter to this symbol
+    # B2 FIX v2: Wire GEX call/put walls as nearest resistance/support
+    # The DP short-vol classification tells us the BIAS (selling vs buying pressure),
+    # but the actual LEVELS come from the GEX gamma walls — those are the real
+    # support/resistance strikes defined by options market makers.
     nearest_support = None
     nearest_resistance = None
     battlegrounds = []
 
-    # Use the symbol's own detail for primary S/R classification
-    if detail and detail.dp_position_dollars and detail.dp_position_shares and current_price:
-        implied = abs(detail.dp_position_dollars / detail.dp_position_shares)
-        svp = detail.short_volume_pct or 0.5
-        vol = abs(int(detail.dp_position_shares or 0))
+    # Try to get GEX levels for this symbol (same data the GEX panel uses)
+    gex_call_wall = None   # highest positive GEX above price = resistance/ceiling
+    gex_put_wall = None    # most negative GEX below price = support/floor
+    gex_max_pain = None
+    try:
+        from backend.app.api.v1.gamma import _get_gex_calculator
+        calc = _get_gex_calculator()
+        gex_result = calc.compute_gex(symbol)
+        if gex_result and gex_result.spot_price:
+            # Call wall = highest positive GEX strike >= current price
+            gamma_walls_above = [w for w in (gex_result.gamma_walls or []) if w.strike >= current_price]
+            if gamma_walls_above:
+                cw = max(gamma_walls_above, key=lambda w: w.gex)
+                gex_call_wall = cw
+                nearest_resistance = DPLevel(
+                    price=round(cw.strike, 2),
+                    volume=cw.open_interest,
+                    level_type="RESISTANCE",
+                    strength=round(abs(cw.gex / 1e6), 1),  # gamma in millions
+                    distance_from_price=round(abs(cw.strike - current_price), 2),
+                )
+            # Put wall = most negative GEX strike <= current price
+            neg_zones_below = [z for z in (gex_result.negative_zones or []) if z.strike <= current_price]
+            if neg_zones_below:
+                pw = min(neg_zones_below, key=lambda z: z.gex)
+                gex_put_wall = pw
+                nearest_support = DPLevel(
+                    price=round(pw.strike, 2),
+                    volume=pw.open_interest,
+                    level_type="SUPPORT",
+                    strength=round(abs(pw.gex / 1e6), 1),
+                    distance_from_price=round(abs(current_price - pw.strike), 2),
+                )
+            gex_max_pain = gex_result.max_pain
+    except Exception as e:
+        logger.warning(f"GEX data unavailable for {symbol} S/R levels: {e}")
 
-        # Classify and create levels at price bands around implied price
-        if svp > 0.55:
-            # Heavy shorting → these levels are resistance
-            nearest_resistance = DPLevel(
-                price=round(implied, 2),
-                volume=vol,
-                level_type="RESISTANCE",
-                strength=100.0,
-                distance_from_price=round(abs(implied - current_price), 4),
-            )
-        elif svp < 0.45:
-            nearest_support = DPLevel(
-                price=round(implied, 2),
-                volume=vol,
-                level_type="SUPPORT",
-                strength=100.0,
-                distance_from_price=round(abs(implied - current_price), 4),
-            )
-        else:
-            battlegrounds.append(DPLevel(
-                price=round(implied, 2),
-                volume=vol,
-                level_type="BATTLEGROUND",
-                strength=50.0,
-                distance_from_price=round(abs(implied - current_price), 4),
-            ))
+    # Fallback: if GEX gave nothing, use DP short-vol classification
+    if not nearest_resistance and not nearest_support:
+        if detail and current_price:
+            svp = detail.short_volume_pct or 50
+            vol = abs(int(detail.dp_position_shares or 0))
+            if svp > 55:
+                nearest_resistance = DPLevel(
+                    price=round(current_price, 2), volume=vol,
+                    level_type="RESISTANCE", strength=min(100.0, svp),
+                    distance_from_price=0.0,
+                )
+            elif svp < 45:
+                nearest_support = DPLevel(
+                    price=round(current_price, 2), volume=vol,
+                    level_type="SUPPORT", strength=min(100.0, 100 - svp),
+                    distance_from_price=0.0,
+                )
+            else:
+                battlegrounds.append(DPLevel(
+                    price=round(current_price, 2), volume=vol,
+                    level_type="BATTLEGROUND", strength=50.0,
+                    distance_from_price=0.0,
+                ))
 
     # Also check same-symbol positions in the top list for additional levels
     if top_positions and current_price:
@@ -329,11 +378,11 @@ async def get_dp_summary(symbol: str):
             implied_price = abs(pos.dp_position_dollars / pos.dp_position_shares)
             if not implied_price:
                 continue
-            svp = pos.short_volume_pct or 0.5
+            svp = pos.short_volume_pct or 50  # Already a percentage
             vol = abs(int(pos.dp_position_shares))
-            if svp > 0.55:
+            if svp > 55:
                 level_type = "RESISTANCE"
-            elif svp < 0.45:
+            elif svp < 45:
                 level_type = "SUPPORT"
             else:
                 level_type = "BATTLEGROUND"
@@ -382,14 +431,16 @@ async def get_dp_prints(
     Get recent dark pool activity for a symbol from Stockgrid.
 
     Note: Stockgrid provides daily aggregates, not individual prints.
-    We transform the top positions into a print-like format.
+    We transform the target symbol's data into a print-like format.
+    Only returns prints for the REQUESTED symbol — no cross-ticker contamination.
     """
     symbol = symbol.upper()
     sg = _get_stockgrid()
+    current_price = _get_current_price(symbol)
 
     try:
         detail = sg.get_ticker_detail(symbol)
-        top = sg.get_top_positions(limit=limit, sort_by="Net Short Volume $")
+        top = sg.get_top_positions(limit=50, sort_by="Net Short Volume $")
     except Exception as e:
         logger.error(f"Stockgrid DP prints call failed for {symbol}: {e}")
         raise HTTPException(status_code=502, detail=f"Stockgrid error: {e}")
@@ -398,23 +449,42 @@ async def get_dp_prints(
 
     # Add the target symbol's detail as a "print"
     if detail and detail.dp_position_dollars:
-        side = "SELL" if (detail.short_volume_pct or 0) > 0.5 else "BUY"
+        implied_price = round(abs(detail.dp_position_dollars / detail.dp_position_shares), 2) if detail.dp_position_shares else 0
+        # Hard floor + 8% proximity filter — eliminates Stockgrid math artifacts like $603.13
+        # Tightened from 20% to 8% for defense-in-depth against cross-ticker contamination
+        price_valid = implied_price >= 580 and (
+            not current_price or abs(implied_price - current_price) / current_price <= 0.08
+        )
+        side = "SELL" if (detail.short_volume_pct or 0) > 50 else "BUY"
         dp_prints.append(DPPrint(
-            price=round(abs(detail.dp_position_dollars / detail.dp_position_shares), 2) if detail.dp_position_shares else 0,
+            price=implied_price if price_valid else round(current_price, 2),
             volume=abs(int(detail.short_volume or detail.dp_position_shares or 0)),
             side=side,
             timestamp=datetime.now(),
         ))
 
-    # Add top net-short positions as context prints
+    # ONLY add prints from positions of THE SAME SYMBOL
+    # Previous code added other tickers ($QQQ $80, $IWM $257) which contaminated the feed
     for pos in top:
-        if pos.ticker == symbol:
-            continue  # Already added above
+        if pos.ticker != symbol:
+            continue  # Only this symbol
         if not pos.dp_position_dollars or not pos.dp_position_shares:
             continue
-        side = "SELL" if (pos.short_volume_pct or 0) > 0.5 else "BUY"
+        implied_price = round(abs(pos.dp_position_dollars / pos.dp_position_shares), 2)
+        # Filter: price must be within 8% of current price to be valid
+        # Tightened from 20% to 8% — defense-in-depth against cross-ticker contamination
+        # Hard floor: SPY doesn't trade below $580 in current range
+        if current_price and implied_price > 0:
+            if implied_price < 580:
+                continue  # Stockgrid math artifact, not a real trade
+            if abs(implied_price - current_price) / current_price > 0.08:
+                continue  # Outside ±8% of current price — not valid for this symbol
+        side = "SELL" if (pos.short_volume_pct or 0) > 50 else "BUY"
+        # Avoid duplicate if we already have the same price from detail
+        if dp_prints and abs(dp_prints[0].price - implied_price) < 0.01:
+            continue
         dp_prints.append(DPPrint(
-            price=round(abs(pos.dp_position_dollars / pos.dp_position_shares), 2),
+            price=implied_price,
             volume=abs(int(pos.short_volume or pos.dp_position_shares or 0)),
             side=side,
             timestamp=datetime.now(),

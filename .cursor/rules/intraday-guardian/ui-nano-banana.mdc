@@ -1,0 +1,71 @@
+---
+description: Kill Shots UI - Nano Banana Design System and Mockup Spec
+globs: ["frontend/src/components/widgets/KillShotsPanel.tsx", "frontend/src/components/widgets/kill-shots/*.tsx"]
+---
+
+# Nano Banana Design System: Kill Shots Phase 3 Rebuild
+
+This file contains the canonical design specifications and approved conceptual mockups for rebuilding the Kill Shots frontend components.
+
+## Core Design Principles
+1. **No Text Dumping**: Explanations must be structured, utilizing miniature data visualizations (sparklines, gauges) and distinct sections (Status, Level, Readout) rather than block paragraphs.
+2. **Focus on Validated Layers**: The UI must emphasize the distinct, validated data modules (GEX, COT, BRAIN, FED vs DP). **Exclude aggregate divergence scores or untestable noise** that hasn't been explicitly validated in the backend logic.
+3. **Traceability**: Every individual signal card MUST have a monospaced tracking footer pinned to the bottom: `src: <source> | slug: <slug-id>`.
+4. **Actionable Hierarchy**: Use deep blacks (glassmorphism) with vibrant neon borders ('nano banana' cyberpunk aesthetics) specifically to draw attention to 'ARMED' cards or critical threshold breaches.
+
+## Approved Component Mockups
+
+### 1. The GEX Signal Component
+This design sets the standard for how derived data is presented. Notice the clear separation of the raw number (`$-28.3B`), the status (`SHORT GEX FLIP`), and the visual flip distance gauge.
+
+![Detailed GEX Card Concept](file:///Users/fahadkiani/.gemini/antigravity/brain/9d4eb05f-66de-41bd-8735-fc1e1e85b1b4/gex_specific_card_mockup_1773977140875.png)
+
+### 2. The FED vs DP Component
+Demonstrates how to integrate text explanations with mini-charts (SV% > 50%) without overwhelming the user, anchoring the slug traceability at the bottom.
+
+![FED vs DP Card Concept](file:///Users/fahadkiani/.gemini/antigravity/brain/9d4eb05f-66de-41bd-8735-fc1e1e85b1b4/kill_shots_fed_dp_card_mockup_1773977360687.png)
+
+### 3. The Dashboard Layout (Data Pillars)
+The overall layout must be vertical standalone "Pillars". Completely avoid central aggregate scores (noise like 'Divergence Score') and gauge charts. 
+
+![Data Pillars Model Layout](file:///Users/fahadkiani/.gemini/antigravity/brain/9d4eb05f-66de-41bd-8735-fc1e1e85b1b4/nano_banana_layout_pillars_1773979424250.png)
+
+## Implementation Guidelines
+- When breaking down `KillShotsPanel.tsx`, create separate files for `PillarCardGex`, `PillarCardFedDp`, `PillarCardCot`, and `PillarCardBrain`.
+- **ANTI-SLOP RULE**: Do NOT hallucinate data fields in the UI. The pillars MUST strictly use ONLY the verified variables returned in `layers` from `/kill-shots-live`:
+
+#### Exact Frontend Data Map (from `layers` object):
+
+**1. BRAIN Pillar** (`PillarCardBrain.tsx`):
+- `layers.brain_boost`: (int) Added score conviction.
+- `layers.brain_reasons`: (array of strings) Extracted base rationales.
+- `layers.brain_slug`: (str) Traceability slug.
+- `layers.explanation_BRAIN`: (str) LLM plain-English context.
+
+**2. COT Pillar** (`PillarCardCot.tsx`):
+- `layers.cot_boost`: (int) Score validation (0, 1, or 3).
+- `layers.cot_specs_net`: (int) e.g. `-134505` (Non-commercial net).
+- `layers.cot_comm_net`: (int) e.g. `57122` (Commercial net).
+- `layers.cot_divergent`: (bool) True if extreming.
+- `layers.cot_slug`: (str) Traceability slug.
+- `layers.explanation_COT`: (str) LLM context.
+
+**3. SPX GEX Pillar** (`PillarCardGex.tsx`):
+- `layers.gex_boost`: (int) Score validation (0, 1, or 2).
+- `layers.total_gex_dollars`: (float) Real dollar amount (e.g. `-28450000000` for -$28.4B).
+- `layers.gex_regime`: (str) e.g. `"STRONG_NEGATIVE"`, `"MILD_POSITIVE"`.
+- `layers.gex_gamma_flip`: (float) e.g. `5900.5` level.
+- `layers.gex_spot_price`: (float) Current SPX spot.
+- `layers.gex_max_pain`: (float) Max pain strike.
+- `layers.gex_slug`: (str) Traceability slug.
+- `layers.explanation_GEX`: (str) LLM context.
+
+**4. FED vs DP Pillar** (`PillarCardFedDp.tsx`):
+- `layers.fed_dp_boost`: (int) Score validation (0 or 3).
+- `layers.spy_short_vol_pct`: (float) e.g. `55.9` (SPY off-exchange SV%).
+- `layers.fed_dp_divergence`: (bool)
+- `layers.vix`: (float, optional) e.g. `24.0`.
+- `layers.fed_dp_slug`: (str) Traceability slug.
+- `layers.explanation_FED_DP`: (str) LLM context.
+
+- **Strict Rule:** Do not add aggregate UI elements (like gauges or total divergence scores out of 10 or 100) until the backend has rigorously backtested the aggregate weighting. Only render the specific outputs of the 4 validated layers.

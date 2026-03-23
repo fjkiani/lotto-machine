@@ -75,6 +75,21 @@ class TradyticsListener:
 
                 embed.set_footer(text="Alpha Intelligence | Autonomous Tradytics Integration")
 
+                # ── Thesis warning: prepend warning if thesis invalid ──
+                try:
+                    import json as _json, os as _os
+                    _snap_path = "/tmp/intraday_snapshot.json"
+                    if _os.path.exists(_snap_path):
+                        with open(_snap_path) as _f:
+                            _snap = _json.load(_f)
+                        if _snap.get("market_open") and not _snap.get("thesis_valid", True):
+                            _reason = _snap.get("thesis_invalidation_reason", "Thesis invalidated")
+                            embed.title = f"⚠️ THESIS INVALID | {embed.title}"
+                            embed.insert_field_at(0, name="🚨 THESIS WARNING", value=_reason, inline=False)
+                            logger.warning(f"⚠️ Thesis invalid — Tradytics alert from {bot_name} gets warning")
+                except Exception:
+                    pass  # Don't block alert delivery on snapshot read failure
+
                 await message.channel.send(embed=embed)
                 logger.info(f"✅ Sent autonomous Tradytics analysis for {bot_name}")
 

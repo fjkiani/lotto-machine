@@ -1,8 +1,11 @@
 """
 Signal Explainer — LLM-Powered Plain English Explanations
 ==========================================================
-Takes raw signal data + per-signal prompt templates → Cohere inference → 
+Takes raw signal data + per-signal prompt templates → Groq inference → 
 2-3 sentence plain English explanation.
+
+Backend: Groq free tier (Llama 3.3 70B) — no monthly call limit.
+Previously: Cohere trial (1000 calls/month, hit 429 at 28 remaining).
 
 Each signal gets:
   1. What this means for a trader
@@ -12,12 +15,20 @@ Each signal gets:
 import logging
 import os
 import json
+import time
+import hashlib
 from typing import Dict, Optional
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-COHERE_API_KEY = os.getenv("COHERE_API_KEY")
-COHERE_MODEL = "command-r-plus-08-2024"
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# 4-hour disk cache — survives restarts, keeps Groq rate limit safe
+_CACHE_DIR = Path("/tmp/kill_shots_explanations")
+_CACHE_TTL_SEC = 4 * 3600  # 4 hours
 
 
 # ─── Per-Signal Prompt Templates ─────────────────────────────────────────────
@@ -87,88 +98,110 @@ class SignalExplainer:
     """
     LLM-powered explanation engine for Kill Shots signals.
     
-    Uses Cohere command-r-plus to generate plain-English explanations
-    for each signal layer. Caches results per signal to avoid redundant calls.
+    Backend: Groq free tier (Llama 3.3 70B) — no monthly call limit.
+    Disk cache: 4 hours per signal to stay under Groq's per-minute rate limits.
+    Fallback: deterministic templates if Groq is unreachable.
     """
 
-    def __init__(self, api_key: str = None):
-        self.api_key = api_key or COHERE_API_KEY
-        self._client = None
-        self._cache: Dict[str, str] = {}
-        self._init_client()
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or GROQ_API_KEY
+        self._mem_cache: Dict[str, str] = {}
+        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        if self.api_key:
+            logger.info("✅ SignalExplainer Groq client initialized (Llama 3.3 70B)")
+        else:
+            logger.warning("⚠️ GROQ_API_KEY not set — explanations will use templates")
 
-    def _init_client(self):
+    def _disk_cache_key(self, signal_name: str, raw_data: dict) -> str:
+        """Stable hash for disk cache keying."""
+        payload = json.dumps({"signal": signal_name, **raw_data}, sort_keys=True, default=str)
+        return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
+    def _read_disk_cache(self, cache_key: str) -> Optional[str]:
+        """Read from 4-hour disk cache."""
+        path = _CACHE_DIR / f"{cache_key}.json"
+        if path.exists():
+            try:
+                data = json.loads(path.read_text())
+                if time.time() - data.get("ts", 0) < _CACHE_TTL_SEC:
+                    return data["text"]
+            except Exception:
+                pass
+        return None
+
+    def _write_disk_cache(self, cache_key: str, text: str):
+        """Write to disk cache."""
+        path = _CACHE_DIR / f"{cache_key}.json"
         try:
-            import cohere
-            self._client = cohere.ClientV2(api_key=self.api_key)
-            logger.info("✅ SignalExplainer Cohere client initialized")
-        except ImportError:
-            logger.warning("⚠️ cohere not installed — explanations will use templates")
+            path.write_text(json.dumps({"ts": time.time(), "text": text}))
         except Exception as e:
-            logger.warning(f"⚠️ SignalExplainer init error: {e}")
+            logger.warning(f"Disk cache write failed: {e}")
 
     def explain(self, signal_name: str, raw_data: dict) -> str:
         """
         Generate plain-English explanation for a signal.
         
-        Args:
-            signal_name: One of BRAIN, COT, GEX, FED_DP, COMBINED
-            raw_data: Dict of raw values to inject into the prompt template
-            
-        Returns:
-            2-3 sentence plain English explanation, or template fallback
+        Checks: mem cache → disk cache (4hr) → Groq API → template fallback.
         """
-        cache_key = f"{signal_name}_{hash(json.dumps(raw_data, default=str))}"
-        if cache_key in self._cache:
-            return self._cache[cache_key]
+        dk = self._disk_cache_key(signal_name, raw_data)
 
+        # 1. Memory cache
+        if dk in self._mem_cache:
+            return self._mem_cache[dk]
+
+        # 2. Disk cache (4hr TTL)
+        cached = self._read_disk_cache(dk)
+        if cached:
+            self._mem_cache[dk] = cached
+            return cached
+
+        # 3. Build prompt
         template = SIGNAL_PROMPTS.get(signal_name)
         if not template:
             return ""
-
         try:
             prompt = template.format(**raw_data)
         except KeyError as e:
             logger.warning(f"Missing key {e} for {signal_name} prompt")
             return ""
 
-        if not self._client:
-            # Template fallback — no LLM available
+        if not self.api_key:
             return self._template_fallback(signal_name, raw_data)
 
+        # 4. Groq API call (OpenAI-compatible)
         try:
-            response = self._client.chat(
-                model=COHERE_MODEL,
-                messages=[
-                    {"role": "system", "content": (
-                        "You are a concise trading intelligence explainer. "
-                        "Answer in exactly 2-3 sentences. No bullet points. "
-                        "No disclaimers. Be direct and actionable."
-                    )},
-                    {"role": "user", "content": prompt},
-                ]
+            import httpx
+            resp = httpx.post(
+                GROQ_URL,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": GROQ_MODEL,
+                    "messages": [
+                        {"role": "system", "content": (
+                            "You are a concise trading intelligence explainer. "
+                            "Answer in exactly 2-3 sentences. No bullet points. "
+                            "No disclaimers. Be direct and actionable."
+                        )},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 200,
+                },
+                timeout=15.0,
             )
-            # Extract text from Cohere V2 response
-            msg = response.message
-            text = ""
-            if hasattr(msg, "content"):
-                content = msg.content
-                if isinstance(content, list):
-                    for block in content:
-                        if hasattr(block, "text") and block.text:
-                            text += block.text
-                elif isinstance(content, str):
-                    text = content
-            elif hasattr(msg, "text"):
-                text = msg.text
+            resp.raise_for_status()
+            explanation = resp.json()["choices"][0]["message"]["content"].strip()
 
-            explanation = text.strip()
-            self._cache[cache_key] = explanation
-            logger.info(f"✅ LLM explanation generated for {signal_name}")
+            self._mem_cache[dk] = explanation
+            self._write_disk_cache(dk, explanation)
+            logger.info(f"✅ Groq explanation generated for {signal_name}")
             return explanation
 
         except Exception as e:
-            logger.warning(f"⚠️ LLM explanation failed for {signal_name}: {e}")
+            logger.warning(f"⚠️ Groq explanation failed for {signal_name}: {e}")
             return self._template_fallback(signal_name, raw_data)
 
     def _template_fallback(self, signal_name: str, data: dict) -> str:

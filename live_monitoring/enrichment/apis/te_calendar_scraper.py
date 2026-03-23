@@ -74,6 +74,12 @@ MEDIUM_EVENTS = {
     'redbook', 'nfib business', 'jolts',
 }
 
+# ── BEA/BLS manual overrides — events TE may miss ──────────────────────
+# These are merged with scraper output so the veto system fires even when
+# TradingEconomics doesn't list a known CRITICAL release.
+# Update this list each quarter with BEA's published schedule.
+BEA_OVERRIDES: list = []  # populated below after TEEvent is defined
+
 
 @dataclass
 class TEEvent:
@@ -113,6 +119,21 @@ class TEEvent:
             'has_consensus': self.has_consensus,
             'is_upcoming': self.is_upcoming,
         }
+
+
+# ── Populate BEA_OVERRIDES now that TEEvent is defined ──────────────────
+BEA_OVERRIDES.extend([
+    TEEvent(
+        date="Thursday March 27 2026",
+        time="08:30 AM",
+        event="GDP Third Estimate Q4 2025",
+        actual="",
+        previous="2.3%",
+        consensus="2.3%",
+        forecast="2.3%",
+        importance="CRITICAL",
+    ),
+])
 
 
 def _classify_importance(event_name: str) -> str:
@@ -179,15 +200,24 @@ class TECalendarScraper:
         all_events = self.get_us_calendar()
         return [e for e in all_events if e.is_upcoming]
 
+    def _merged_events(self) -> List[TEEvent]:
+        """TE calendar + BEA manual overrides, deduplicated."""
+        te = self.get_us_calendar()
+        # Avoid duplicates: skip overrides whose event name already appears on same date
+        te_keys = {(e.date, e.event) for e in te}
+        merged = list(te)
+        for ov in BEA_OVERRIDES:
+            if (ov.date, ov.event) not in te_keys:
+                merged.append(ov)
+        return merged
+
     def get_high_impact(self) -> List[TEEvent]:
-        """Get only CRITICAL and HIGH importance events."""
-        all_events = self.get_us_calendar()
-        return [e for e in all_events if e.importance in ("CRITICAL", "HIGH")]
+        """Get only CRITICAL and HIGH importance events (includes BEA overrides)."""
+        return [e for e in self._merged_events() if e.importance in ("CRITICAL", "HIGH")]
 
     def get_upcoming_critical(self) -> List[TEEvent]:
-        """Get upcoming CRITICAL events (unreleased)."""
-        all_events = self.get_us_calendar()
-        return [e for e in all_events if e.is_upcoming and e.importance == "CRITICAL"]
+        """Get upcoming CRITICAL events — unreleased (includes BEA overrides)."""
+        return [e for e in self._merged_events() if e.is_upcoming and e.importance == "CRITICAL"]
 
     def get_released(self) -> List[TEEvent]:
         """Get events that already have actual values."""
@@ -208,6 +238,57 @@ class TECalendarScraper:
                     'importance': e.importance,
                 })
         return surprises
+
+    def get_hours_until_next_critical(self) -> Optional[tuple]:
+        """
+        Hours until the next unreleased CRITICAL event + its name.
+        Merges BEA_OVERRIDES so manually-added events (e.g. GDP Third Estimate)
+        are included even when TE misses them.
+        Returns (hours, event_name) or None if no upcoming critical events found.
+        """
+        critical = self.get_upcoming_critical()
+        if not critical:
+            return None
+
+        now = datetime.now()
+        nearest_hours = None
+        nearest_name = None
+
+        for evt in critical:
+            dt = self._parse_event_datetime(evt)
+            if dt is None:
+                continue
+            delta_h = (dt - now).total_seconds() / 3600.0
+            if delta_h < 0:
+                continue  # already passed
+            if nearest_hours is None or delta_h < nearest_hours:
+                nearest_hours = delta_h
+                nearest_name = evt.event
+
+        if nearest_hours is None:
+            return None
+        return (nearest_hours, nearest_name)
+
+    @staticmethod
+    def _parse_event_datetime(evt: 'TEEvent') -> Optional[datetime]:
+        """
+        Parse TE date+time strings into datetime.
+        Handles: "Thursday March 27 2026" + "08:30 AM" (or "08:30 AM ET").
+        Returns None on parse failure instead of crashing.
+        """
+        try:
+            date_str = evt.date or ''
+            time_str = (evt.time or '08:30 AM').replace(' ET', '').replace(' GMT', '').strip()
+            # Drop day-of-week: "Thursday March 27 2026" → "March 27 2026"
+            parts = date_str.split(' ')
+            if len(parts) >= 4:
+                month_day_year = ' '.join(parts[1:])
+            else:
+                month_day_year = date_str
+            full = f"{month_day_year} {time_str}"
+            return datetime.strptime(full, "%B %d %Y %I:%M %p")
+        except (ValueError, IndexError):
+            return None
 
     def _scrape_calendar(self, url: str) -> List[TEEvent]:
         """Scrape the calendar HTML table."""

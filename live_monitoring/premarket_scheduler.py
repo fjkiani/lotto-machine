@@ -202,6 +202,8 @@ def scheduler_loop():
             logger.error(f"Recovery BRIEF failed: {e}")
 
     # ── MAIN LOOP ────────────────────────────────────────────────────
+    _level_watcher_started = False
+    _level_watcher_instance = None
     while True:
         try:
             time.sleep(300)  # Check every 5 minutes
@@ -222,6 +224,18 @@ def scheduler_loop():
 
             # 9:30–16:00 ET → INTRADAY GUARDIAN (every 15 min)
             if (h == 9 and m >= 30) or (10 <= h <= 15) or (h == 16 and m == 0):
+
+                # ── LEVEL WATCHER DAEMON — start once at market open ──
+                if not _level_watcher_started:
+                    try:
+                        from live_monitoring.enrichment.apis.level_watcher import LevelWatcher
+                        _level_watcher_instance = LevelWatcher()
+                        _level_watcher_instance.start()
+                        _level_watcher_started = True
+                        logger.info("⚔️ Level Watcher daemon launched at market open")
+                    except Exception as e:
+                        logger.error(f"Level Watcher launch failed: {e}")
+
                 if m % 15 < 5:  # scheduler checks every 5 min, catch 15-min marks
                     try:
                         from live_monitoring.intraday_guardian import IntradayGuardian

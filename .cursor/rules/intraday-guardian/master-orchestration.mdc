@@ -1,0 +1,64 @@
+---
+description: "MASTER ORCHESTRATION — Manager oversight for agent workstreams. Updated 2026-03-13 17:25 ET after reading all agent submissions."
+globs:
+  - ".cursor/rules/agent-*.mdc"
+  - ".cursor/rules/intraday-guardian-system.mdc"
+alwaysApply: false
+---
+
+# Master Orchestration — Updated After Agent Audit
+
+**Manager: Zo | Updated: 2026-03-13 17:25 ET**
+
+---
+
+## Agent Identity Map (verified against code on disk)
+
+| Agent | Real Identity | What They Built | Code On Disk? |
+|-------|-------------|-----------------|---------------|
+| **1** | Data Pipeline Builder | SignalIntelEngine, MorningBriefGenerator, PremarketScheduler, TodaysBrief.tsx, StockgridClient cache | ✅ 5 files, 3 commits |
+| **2** | Gate Enforcer | ConfluenceGate auto-logging, GateOutcomeTracker, morning_brief.py (gate-aware), gate.py REST API, unified_monitor wiring | ✅ 5 files, dry-run verified |
+| **3** | Documenter / Agent 1 echo | Documented Agent 1's code (342 lines of MDC sections). Zero new code files. | ⚠️ Docs only |
+
+---
+
+## Status Board
+
+| Agent | Priority 1 Task | Status | Blocks Who? |
+|-------|----------------|--------|-------------|
+| **1** | `intraday_guardian.py` — the 15-min loop | 🔴 NOT STARTED | Blocks Agent 3 (UI) |
+| **1** | `/intraday/snapshot` route | 🔴 NOT STARTED | Blocks Agent 3 (UI) |
+| **2** | `status` field on `log_signal()` | 🔴 NOT STARTED — 2 lines of code | Blocks entire invalidation chain |
+| **2** | Circuit breaker in gate | 🔴 NOT STARTED | Blocks UI banner |
+| **3** | Decide: merge with Agent 1 or become UI agent | ❓ UNDECIDED | Blocks Agent 3 entirely |
+
+## Execution Order
+
+```
+NOW ──► Agent 1: intraday_guardian.py + /intraday/snapshot
+NOW ──► Agent 2: status field + circuit breaker + Gate 0
+
+AFTER Agent 1 delivers /intraday/snapshot:
+  ──► Agent 3 (or Agent 1): LiveSession.tsx + ThesisStatus + CircuitBreakerBanner
+
+AFTER Agent 2 delivers Gate 0:
+  ──► Agent 2: dp_divergence_checker + narrative_checker routing
+
+FINAL: Integration test (Scenario B — SPY breaks $660)
+```
+
+## One-Sentence Directives
+
+| Agent | Say This |
+|-------|----------|
+| **1** | "The intraday guardian loop is the single most important thing in the system and you're the only one who can build it because you built the Signal Intel Engine it depends on. Ship it." |
+| **2** | "The status field on `log_signal()` is 2 lines of code and it blocks the entire invalidation chain. Ship it now, then wire the circuit breaker." |
+| **3** | "Documentation is not a deliverable. Your next commit is code — either the guardian loop (if you're Agent 1) or the live session UI (if you're not)." |
+
+## Known Overlaps (Resolved)
+
+| Overlap | Resolution |
+|---------|-----------|
+| Two morning brief files | No conflict. Agent 1's = market intel. Agent 2's = gate accountability. Different questions, coexist. |
+| `intraday_guardian.py` ownership | Agent 1 builds the LOOP (sensor). Agent 2 builds the INVALIDATION (actuator). Contract point = `intraday_snapshot.json`. |
+| Agent 3 vs Agent 1 | Likely same agent. If separate, assign Agent 3 to UI work per `agent-3-intraday-ui.mdc`. |

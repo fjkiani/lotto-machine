@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate, intraday
+from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate, intraday, brief
 from backend.app.core.dependencies import set_monitor_bridge
 
 logging.basicConfig(level=logging.INFO)
@@ -66,6 +66,7 @@ app.include_router(ta.router, prefix="/api/v1", tags=["ta"])
 app.include_router(axlfi.router, prefix="/api/v1", tags=["axlfi"])
 app.include_router(gate.router, prefix="/api/v1", tags=["gate"])
 app.include_router(intraday.router, prefix="/api/v1", tags=["intraday"])
+app.include_router(brief.router, prefix="/api/v1", tags=["brief"])
 
 
 @app.get("/debug/supabase")
@@ -507,13 +508,38 @@ async def kill_shots_live():
         from backend.app.signals.gex_scorer import GexScorer
         from backend.app.signals.fed_dp_scorer import FedDpScorer
         from backend.app.signals.combined_scorer import CombinedScorer
+        from backend.app.signals.signal_schema import SignalResult
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
-        # Evaluate
-        brain_res = BrainScorer().evaluate()
-        cot_res = CotScorer().evaluate(symbol="ES")
-        gex_res = GexScorer().evaluate(cot_boost=cot_res.boost)
-        fed_dp_res = FedDpScorer().evaluate(brain_reasons=brain_res.reasons)
-        combined_res = CombinedScorer().evaluate(gex_result=gex_res, cot_result=cot_res)
+        SCORER_TIMEOUT = 8  # seconds — per scorer
+
+        def _safe_eval(name, fn):
+            """Run a scorer with timeout. Returns empty result if it hangs."""
+            try:
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(fn)
+                    return future.result(timeout=SCORER_TIMEOUT)
+            except FuturesTimeout:
+                logger.warning(f"⏰ {name} timed out after {SCORER_TIMEOUT}s — returning empty")
+                return SignalResult(
+                    name=name, slug=f"{name.lower()}-timeout-{today_str}",
+                    boost=0, active=False, timestamp=now_iso,
+                    source_date=today_str, raw={"error": f"Timeout after {SCORER_TIMEOUT}s"}
+                )
+            except Exception as e:
+                logger.warning(f"💥 {name} failed: {e}")
+                return SignalResult(
+                    name=name, slug=f"{name.lower()}-error-{today_str}",
+                    boost=0, active=False, timestamp=now_iso,
+                    source_date=today_str, raw={"error": str(e)}
+                )
+
+        # Evaluate — each scorer has an 8-second timeout
+        brain_res = _safe_eval("BRAIN", lambda: BrainScorer().evaluate())
+        cot_res = _safe_eval("COT", lambda: CotScorer().evaluate(symbol="ES"))
+        gex_res = _safe_eval("GEX", lambda: GexScorer().evaluate(cot_boost=cot_res.boost))
+        fed_dp_res = _safe_eval("FED_DP", lambda: FedDpScorer().evaluate(brain_reasons=brain_res.reasons))
+        combined_res = _safe_eval("COMBINED", lambda: CombinedScorer().evaluate(gex_result=gex_res, cot_result=cot_res))
 
         # Aggregate Results
         for res in [brain_res, cot_res, gex_res, fed_dp_res, combined_res]:
@@ -533,30 +559,8 @@ async def kill_shots_live():
                 layers[k] = v
 
         # ── VERDICT & ACTION PLAN ──────────────────────────────────────────
-        action_plan = {
-            "position": "NEUTRAL",
-            "entry_trigger": "N/A",
-            "invalidation": "N/A",
-            "time_window": "Intraday"
-        }
-
-        if score > 7:
-            verdict = "BOOST"
-            action = "+15% confidence on all signals"
-            action_plan["position"] = "1/3 LONG"
-            action_plan["entry_trigger"] = "SPX clears +0.5% early AM"
-            action_plan["invalidation"] = "SPY loses VWAP for >15min"
-            action_plan["time_window"] = "1-3 Days"
-        elif score >= 5:
-            verdict = "NEUTRAL"
-            action = "Signals pass through unchanged"
-        elif score > 0:
-            verdict = "SOFT_VETO"
-            action = "Signals pass ONLY if no narrative divergence"
-            action_plan["invalidation"] = "SPX pushes > +1.0%"
-        else:
-            verdict = "HARD_VETO"
-            action = "All signals killed"
+        from backend.app.signals.verdict_utils import compute_verdict
+        verdict, action, action_plan = compute_verdict(score)
 
         # ── LLM EXPLANATIONS ─────────────────────────────────────────────
         explanations = {}

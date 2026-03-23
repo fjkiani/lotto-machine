@@ -91,6 +91,14 @@ class IntradayGuardian:
             "signals_active": 0,
             "signals_invalidated": 0,
             "morning_verdict": None,
+            "bearish_breakdown_building": False,
+            "bearish_conditions_met": {
+                "wall_broken": True,
+                "sustained_break_bars": 0,
+                "volume_elevated": False,
+                "failed_retest": False
+            },
+            "bearish_conditions_count": 0,
             "last_check": et.strftime("%H:%M:%S"),
         }
         self._invalidate_signals(reason)
@@ -143,6 +151,14 @@ class IntradayGuardian:
             "signals_active": 0,
             "signals_invalidated": 0,
             "morning_verdict": None,
+            "bearish_breakdown_building": False,
+            "bearish_conditions_met": {
+                "wall_broken": False,
+                "sustained_break_bars": 0,
+                "volume_elevated": False,
+                "failed_retest": False
+            },
+            "bearish_conditions_count": 0,
             "last_check": et.strftime("%H:%M:%S"),
         }
 
@@ -163,11 +179,13 @@ class IntradayGuardian:
         snapshot["spy_poc"] = poc
 
         # ── Step 5: SPY vs Wall ──
-        if spy_price > 0 and call_wall > 0:
-            diff = spy_price - call_wall
+        # The primary support level is the Put Wall (or POC).
+        # We consider the wall "holding" if SPY is above the Put Wall.
+        if spy_price > 0 and put_wall > 0:
+            diff = spy_price - put_wall
             if diff > 0.5:
                 snapshot["spy_vs_wall"] = "above"
-                snapshot["wall_status"] = "defended"
+                snapshot["wall_status"] = "holding"
             elif diff < -0.5:
                 snapshot["spy_vs_wall"] = "below"
                 snapshot["wall_status"] = "broken"
@@ -194,15 +212,19 @@ class IntradayGuardian:
         if snapshot["wall_status"] == "broken" and spy_price > 0:
             thesis_valid = False
             thesis_reason = (
-                f"SPY broke call wall ${call_wall:.0f} at {snapshot.get('wall_break_time', 'N/A')}"
+                f"SPY \${spy_price:.2f} broke put wall \${put_wall:.0f} at {snapshot.get('wall_break_time', 'N/A')}"
             )
 
-        if thesis_valid and put_wall > 0 and spy_price > 0 and spy_price < put_wall:
-            thesis_valid = False
-            thesis_reason = f"SPY ${spy_price:.2f} below put wall ${put_wall:.0f}"
+        # If call wall exists and we somehow gap massively above it, we don't invalidate, 
+        # but if we have specific logic for call wall rejection, it could go here.
+        # For now, put wall breach is the primary invalidator.
 
         snapshot["thesis_valid"] = thesis_valid
         snapshot["thesis_invalidation_reason"] = thesis_reason
+
+        # ── Step 8.5: Bearish Breakdown Building Flag ──
+        bearish_res = self._check_bearish_conditions(put_wall, snapshot["wall_status"])
+        snapshot.update(bearish_res)
 
         # ── Step 9: Circuit Breaker ──
         cb_active, cb_reason, consec_losses = self._check_circuit_breaker()
@@ -242,6 +264,84 @@ class IntradayGuardian:
         return snapshot
 
     # ── DATA SOURCES ──────────────────────────────────────────────────
+
+    def _check_bearish_conditions(self, put_wall: float, wall_status: str) -> dict:
+        """
+        Evaluate the 4 conditions for bearish_breakdown_building.
+        Returns a dict to merge into the snapshot.
+        """
+        result = {
+            "bearish_breakdown_building": False,
+            "bearish_conditions_met": {
+                "wall_broken": (wall_status == "broken"),
+                "sustained_break_bars": 0,
+                "volume_elevated": False,
+                "failed_retest": False
+            },
+            "bearish_conditions_count": 0
+        }
+
+        if put_wall <= 0:
+            return result
+
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker("SPY")
+            hist = ticker.history(period="5d", interval="15m")
+            
+            if hist is None or hist.empty or len(hist) < 2:
+                result["bearish_conditions_count"] = sum(1 for v in result["bearish_conditions_met"].values() if v)
+                return result
+                
+            current_close = float(hist["Close"].iloc[-1])
+            if current_close > put_wall:
+                result["bearish_conditions_count"] = sum(1 for v in result["bearish_conditions_met"].values() if v)
+                return result
+            
+            sustained_bars = 0
+            for i in range(len(hist)-1, -1, -1):
+                if float(hist["Close"].iloc[i]) < put_wall:
+                    sustained_bars += 1
+                else:
+                    break
+            
+            result["bearish_conditions_met"]["sustained_break_bars"] = sustained_bars
+            
+            volume_elevated = False
+            if sustained_bars >= 2 and len(hist) >= 20:
+                hist["vol_ma20"] = hist["Volume"].rolling(20).mean()
+                recent_vol = hist["Volume"].iloc[-2:].mean()
+                recent_ma = hist["vol_ma20"].iloc[-2:].mean()
+                if recent_vol > 1.2 * recent_ma:
+                    volume_elevated = True
+                    
+            result["bearish_conditions_met"]["volume_elevated"] = volume_elevated
+
+            failed_retest = False
+            if sustained_bars > 0:
+                break_idx = len(hist) - sustained_bars
+                for i in range(break_idx, len(hist)):
+                    high = float(hist["High"].iloc[i])
+                    close = float(hist["Close"].iloc[i])
+                    if high >= put_wall and close < put_wall - 0.20:
+                        failed_retest = True
+                        break
+                        
+            result["bearish_conditions_met"]["failed_retest"] = failed_retest
+            
+            count = 0
+            if result["bearish_conditions_met"]["wall_broken"]: count += 1
+            if result["bearish_conditions_met"]["sustained_break_bars"] >= 2: count += 1
+            if result["bearish_conditions_met"]["volume_elevated"]: count += 1
+            if result["bearish_conditions_met"]["failed_retest"]: count += 1
+            
+            result["bearish_conditions_count"] = count
+            result["bearish_breakdown_building"] = (count == 4)
+            
+        except Exception as e:
+            logger.warning(f"Bearish conditions check failed: {e}")
+            
+        return result
 
     def _get_spy_price(self) -> float:
         """Fetch current SPY price from yfinance. Returns 0.0 on failure."""
@@ -489,10 +589,21 @@ class IntradayGuardian:
     # ── OUTPUT ────────────────────────────────────────────────────────
 
     def _write_snapshot(self, snapshot: dict):
-        """Write snapshot to /tmp/intraday_snapshot.json."""
+        """Write snapshot to /tmp/intraday_snapshot.json + archive to JSONL."""
         try:
             os.makedirs(os.path.dirname(SNAPSHOT_PATH) or "/tmp", exist_ok=True)
             with open(SNAPSHOT_PATH, "w") as f:
                 json.dump(snapshot, f, indent=2, default=str)
         except Exception as e:
             logger.error(f"Snapshot write failed: {e}")
+
+        # Archive: append to data/snapshot_history/{today}.jsonl
+        try:
+            archive_dir = DATA_DIR / "snapshot_history"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            today_str = date.today().isoformat()
+            archive_path = archive_dir / f"{today_str}.jsonl"
+            with open(archive_path, "a") as f:
+                f.write(json.dumps(snapshot, default=str) + "\n")
+        except Exception as e:
+            logger.debug(f"Snapshot archive failed: {e}")

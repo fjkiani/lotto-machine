@@ -1,0 +1,31 @@
+{
+  "allowed": [],
+  "blocked": [
+    {
+      "timestamp": "2026-03-21T23:18:42.021962",
+      "ticker": "SPY",
+      "direction": "SHORT",
+      "entry_price": 648.57,
+      "confidence": 0,
+      "blocked": true,
+      "status": "blocked",
+      "reason": "\u26d4 NO DATA: Cannot evaluate signal \u2014 spy_price=0 or thesis invalid",
+      "regime": "UNKNOWN",
+      "bias": "UNKNOWN",
+      "source": ""
+    },
+    {
+      "timestamp": "2026-03-21T23:19:42.151638",
+      "ticker": "SPY",
+      "direction": "SHORT",
+      "entry_price": 648.57,
+      "confidence": 0,
+      "blocked": true,
+      "status": "blocked",
+      "reason": "\u26d4 NO DATA: Cannot evaluate signal \u2014 spy_price=0 or thesis invalid",
+      "regime": "UNKNOWN",
+      "bias": "UNKNOWN",
+      "source": ""
+    }
+  ]
+}

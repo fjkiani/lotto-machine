@@ -34,6 +34,7 @@ from .checker_scheduler import CheckerScheduler
 from .overnight_manager import OvernightManager
 from .confluence_gate import ConfluenceGate
 from .gate_outcome_tracker import GateOutcomeTracker
+from .signal_outcome_tracker import SignalOutcomeTracker
 from .morning_brief import MorningBriefGenerator
 from .checkers import (
     FedChecker,
@@ -52,8 +53,10 @@ from .checkers import (
     PreMarketGapChecker,
     OptionsFlowChecker,
     NewsIntelligenceChecker,
+    NewsIntelligenceChecker,
     DPDivergenceChecker,
     EarningsChecker,
+    DPBearishDivergenceChecker,
 )
 
 logger = logging.getLogger(__name__)
@@ -284,6 +287,10 @@ class UnifiedAlphaMonitor:
         # Outcome tracker (logs signals, settles after close)
         self.outcome_tracker = GateOutcomeTracker()
 
+        # Signal outcome tracker — records every fired signal for win/loss tracking
+        self.signal_outcome_tracker = SignalOutcomeTracker()
+        self.signal_outcome_tracker.start_background_poll()
+
         # Morning brief generator
         self.morning_brief = MorningBriefGenerator(
             confluence_gate=self.confluence_gate,
@@ -366,8 +373,13 @@ class UnifiedAlphaMonitor:
         ) if (api_key and rapidapi_key) else None
 
         # Earnings Checker (Phase 8)
-        self.earnings_checker = EarningsChecker(
+        self. earnings_checker = EarningsChecker(
             alert_manager=self.alert_manager, unified_mode=self.unified_mode
+        )
+
+        # DP Bearish Divergence Checker (Wave 6)
+        self.dp_bearish_checker = DPBearishDivergenceChecker(
+            confluence_gate=self.confluence_gate
         )
 
         logger.info("   ✅ All checkers initialized (Phase 1-8)")
@@ -384,8 +396,12 @@ class UnifiedAlphaMonitor:
         self.scheduler.register('trump', self.trump_checker, self.trump_interval, requires_market_hours=False)
         self.scheduler.register('economic', self.economic_checker, self.econ_interval, requires_market_hours=False)
         self.scheduler.register('dark_pool', self.dp_checker, self.dp_interval)
-        self.scheduler.register('squeeze', self.squeeze_checker, self.squeeze_interval)
-        self.scheduler.register('gamma', self.gamma_checker, 3600)
+        # ❌ KILLED: squeeze + gamma for SPY — backtested negative P&L
+        # squeeze: 12 releases, 25-50% WR, -2.69% cumulative (BB/KC doesn't work on mega-caps)
+        # gamma: 0 signals across 1,079 daily bars (SPY too liquid for round-number pinning)
+        # See: python -m backtests.bt_squeeze / python -m backtests.bt_gamma_pin
+        # self.scheduler.register('squeeze', self.squeeze_checker, self.squeeze_interval)
+        # self.scheduler.register('gamma', self.gamma_checker, 3600)
         self.scheduler.register('scanner', self.scanner_checker, 3600)
         self.scheduler.register('ftd', self.ftd_checker, 3600)
         self.scheduler.register('reddit', self.reddit_checker, self.reddit_interval)
@@ -400,11 +416,13 @@ class UnifiedAlphaMonitor:
                                 custom_handler=self._handle_synthesis_narrative)
         self.scheduler.register('tradytics', self.tradytics_checker, self.tradytics_analysis_interval,
                                 custom_handler=self._handle_tradytics)
+        self.scheduler.register('dp_bearish', getattr(self, 'dp_bearish_checker', None), 300,
+                                custom_handler=self._handle_dp_bearish)
 
         # Set initial timers (prevent all from firing on first loop)
         now = datetime.now()
         self.scheduler.reset_timers(now, set_initial=[
-            'fed', 'trump', 'economic', 'dark_pool', 'squeeze', 'gamma', 'reddit',
+            'fed', 'trump', 'economic', 'dark_pool', 'squeeze', 'gamma', 'reddit', 'dp_bearish'
         ])
 
         logger.info(f"   ⏱️ Scheduler initialized with {self.scheduler.checker_count} checkers")
@@ -624,6 +642,87 @@ class UnifiedAlphaMonitor:
             logger.error(f"   ❌ Tradytics checker error: {e}")
             return 0
 
+    def _handle_dp_bearish(self, now: datetime, is_market_hours: bool) -> int:
+        """Custom handler for DP Bearish Divergence reading state from Intraday Guardian."""
+        if not is_market_hours or not getattr(self, 'dp_bearish_checker', None):
+            return 0
+            
+        try:
+            spy_price, _ = self._get_current_prices()
+            if not spy_price:
+                return 0
+
+            import json as _json, os as _os
+            snap = {}
+            if _os.path.exists("/tmp/intraday_snapshot.json"):
+                try:
+                    with open("/tmp/intraday_snapshot.json") as _f:
+                        snap = _json.load(_f)
+                except Exception:
+                    pass
+            
+            res = self.dp_bearish_checker.check(spy_price, snap)
+            self.health_registry.record_run('dp_bearish', success=True, alerts_generated=1 if res.get('signal_fired') else 0)
+            
+            if res.get('signal_fired'):
+                embed = {
+                    "title": "🩸 **DP BEARISH DIVERGENCE** - SPY",
+                    "description": "Dark pools are relentlessly selling into this rally. Breakdown confirmed.",
+                    "color": 0xff0000,
+                    "fields": [
+                        {"name": "🎯 Signal", "value": "SHORT setup forming", "inline": True},
+                        {"name": "🧠 Confidence", "value": f"{res.get('confidence', 0):.0f}%", "inline": True},
+                        {"name": "📉 DP Flow", "value": f"${res.get('dp_flow', 0):,.0f}", "inline": True},
+                    ],
+                    "footer": {"text": f"Gate Check: {res.get('gate_verdict', 'PASS')}"},
+                    "timestamp": datetime.now().isoformat()
+                }
+                content = f"🔴 **BEARISH DIVERGENCE SIGNAL** | SPY SHORT @ ${spy_price:.2f} | Confidence {res.get('confidence', 0):.0f}%"
+                self.send_discord(embed, content=content, alert_type="dp_bearish_divergence", source="dp_bearish_checker", symbol="SPY")
+                self.health_registry.record_alert('dp_bearish', 'dp_bearish_divergence', 'SPY', 'SHORT', spy_price)
+                # Log to gate_signals_today.json for downstream consumers
+                try:
+                    import json as _sj
+                    _signals_path = "data/gate_signals_today.json"
+                    _existing = []
+                    if _os.path.exists(_signals_path):
+                        with open(_signals_path) as _sf:
+                            _existing = _sj.load(_sf)
+                    _existing.append({
+                        "timestamp": datetime.now().isoformat(),
+                        "symbol": "SPY",
+                        "direction": "SHORT",
+                        "source": "dp_bearish_checker",
+                        "confidence": res.get("confidence", 0),
+                        "spy_price": spy_price,
+                    })
+                    os.makedirs(os.path.dirname(_signals_path), exist_ok=True)
+                    with open(_signals_path, "w") as _sf:
+                        _sj.dump(_existing, _sf, indent=2)
+                except Exception:
+                    pass  # signal logging is best-effort
+                # Wire: record in SignalOutcomeTracker for win/loss feedback loop
+                try:
+                    import hashlib
+                    sig_id = hashlib.md5(f"dp_bearish_SPY_SHORT_{spy_price}_{datetime.now().isoformat()[:16]}".encode()).hexdigest()[:12]
+                    self.signal_outcome_tracker.record_entry(
+                        signal_id=sig_id, symbol="SPY", direction="SHORT",
+                        entry_price=spy_price, stop_pct=0.25, target_pct=0.40,
+                        confidence=res.get("confidence", 0.0),
+                        source="dp_bearish_checker", regime=snap.get("wall_status", ""),
+                        bias="BEARISH", sizing=1.0,
+                    )
+                except Exception:
+                    pass
+                return 1
+            return 0
+        except Exception as e:
+            import logging
+            log = logging.getLogger(__name__)
+            log.error(f"❌ dp_bearish checker failed: {e}")
+            self.health_registry.record_run('dp_bearish', success=False, error=str(e))
+            return 0
+
     # ═══════════════════════════════════════════════════════════════
     # HELPER METHODS
     # ═══════════════════════════════════════════════════════════════
@@ -829,8 +928,8 @@ class UnifiedAlphaMonitor:
                     recap_alerts = self.daily_recap_checker.check(now)
                     for alert in recap_alerts:
                         self.send_discord(alert.embed, alert.content, alert.alert_type, alert.source, alert.symbol)
-                    # Settle gate outcomes right after recap (16:05 ET)
-                    if recap_alerts and self.outcome_tracker:
+                    # Settle gate outcomes at EOD — always, regardless of recap content
+                    if self.outcome_tracker:
                         try:
                             self.outcome_tracker.settle_day()
                             logger.info("📊 Gate outcomes settled for today")

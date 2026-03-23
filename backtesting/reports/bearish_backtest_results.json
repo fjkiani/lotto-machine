@@ -1,0 +1,10 @@
+{
+  "mode": "bearish_backtest",
+  "date_range": "2026-03-05 \u2192 2026-03-13",
+  "status": "COMPLETE",
+  "total_bars": 26,
+  "signals_fired": 0,
+  "signals_blocked": 0,
+  "avg_confidence": 0.0,
+  "signal_log": []
+}

@@ -95,6 +95,11 @@ class DPTrendAnalyzer:
             short_pct = short_pcts[i] if i < len(short_pcts) else None
             price = price_map.get(date)
 
+            # Fallback: compute dollar_dp_position from dp_position * price
+            # when Stockgrid API returns empty dollar_dp_position arrays
+            if (dollar_pos is None or dollar_pos == 0) and dp_pos and price:
+                dollar_pos = dp_pos * price
+
             try:
                 cursor.execute("""
                     INSERT OR IGNORE INTO dp_daily_snapshots

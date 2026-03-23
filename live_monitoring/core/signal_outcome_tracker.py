@@ -44,7 +44,8 @@ def _get_conn():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             signal_id TEXT UNIQUE,
             symbol TEXT NOT NULL,
-            action TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            action TEXT,
             entry_price REAL NOT NULL,
             target_price REAL NOT NULL,
             stop_price REAL NOT NULL,
@@ -60,6 +61,18 @@ def _get_conn():
         )
     """)
     conn.commit()
+    # Migration: add direction column if table was created before this schema change
+    for col_sql in [
+        "ALTER TABLE signal_outcomes ADD COLUMN direction TEXT",
+        "ALTER TABLE signal_outcomes ADD COLUMN action TEXT",
+    ]:
+        try:
+            conn.execute(col_sql)
+        except Exception:
+            pass  # Column already exists
+    # Backfill direction from action if any are null
+    conn.execute("UPDATE signal_outcomes SET direction = action WHERE direction IS NULL AND action IS NOT NULL")
+    conn.commit()
     return conn
 
 
@@ -72,13 +85,13 @@ def register_signal(signal_id: str, symbol: str, action: str,
 
     conn = _get_conn()
     try:
-        conn.execute("""
+        cur = conn.execute("""
             INSERT OR IGNORE INTO signal_outcomes
-            (signal_id, symbol, action, entry_price, target_price, stop_price, opened_at, reasoning)
+            (signal_id, symbol, direction, entry_price, target_price, stop_price, opened_at, reasoning)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (signal_id, symbol, action, entry_price, target_price, stop_price, timestamp, reasoning))
         conn.commit()
-        return conn.total_changes > 0
+        return cur.rowcount > 0  # rowcount=1 on insert, 0 on ignore
     except Exception as e:
         logger.error(f"Failed to register signal {signal_id}: {e}")
         return False
@@ -128,7 +141,7 @@ def check_outcomes() -> dict:
         entry = row['entry_price']
         target = row['target_price']
         stop = row['stop_price']
-        action = row['action']
+        action = row['direction'] or row['action'] if 'action' in row.keys() else row['direction']
         opened_at = datetime.fromisoformat(row['opened_at'])
         hours_active = (now - opened_at).total_seconds() / 3600
 
@@ -240,9 +253,9 @@ def get_scorecard() -> dict:
     avg_win = round(sum(r['pnl_pct'] for r in wins) / win_count, 2) if wins else 0
     avg_loss = round(sum(r['pnl_pct'] for r in losses) / loss_count, 2) if losses else 0
 
-    total_pnl = round(sum(r['pnl_pct'] for r in all_closed), 2)
-    gross_wins = sum(r['pnl_pct'] for r in wins) if wins else 0
-    gross_losses = abs(sum(r['pnl_pct'] for r in losses)) if losses else 0
+    total_pnl = round(sum(r['pnl_pct'] for r in all_closed if r['pnl_pct'] is not None), 2)
+    gross_wins = sum(r['pnl_pct'] for r in wins if r['pnl_pct'] is not None)
+    gross_losses = abs(sum(r['pnl_pct'] for r in losses if r['pnl_pct'] is not None))
     profit_factor = round(gross_wins / gross_losses, 2) if gross_losses > 0 else float('inf')
 
     best = max(all_closed, key=lambda r: r['pnl_pct']) if all_closed else None
@@ -275,4 +288,3 @@ def get_scorecard() -> dict:
         "worst_trade": _trade_summary(worst) if worst else None,
         "recent_trades": [_trade_summary(r) for r in recent]
     }
-""", "Complexity": 8, "Description": "Signal outcome tracker — registers directional signals, checks outcomes (target hit / stopped out / expired), tracks MFE/MAE, and generates P&L scorecards.", "EmptyFile": false, "IsArtifact": false, "Overwrite": false, "TargetFile": "/Users/fahadkiani/Desktop/development/nyu-hackathon/ai-hedge-fund-main/live_monitoring/core/signal_outcome_tracker.py"}

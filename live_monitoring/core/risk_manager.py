@@ -15,11 +15,15 @@ Date: 2025-01-XX
 from dataclasses import dataclass
 from typing import List, Dict, Set, Optional
 from datetime import datetime
+import json
 import logging
+import os
 import yfinance as yf
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+CIRCUIT_BREAKER_STATE_FILE = "/tmp/risk_manager_circuit_breaker.json"
 
 
 @dataclass
@@ -312,13 +316,36 @@ class RiskManager:
             if self.daily_pnl_pct <= self.limits.circuit_breaker_pnl_pct:
                 self.circuit_breaker_triggered = True
                 logger.error(f"🚨 CIRCUIT BREAKER TRIGGERED: Daily P&L {self.daily_pnl_pct:.2%} <= {self.limits.circuit_breaker_pnl_pct:.2%}")
+                self._persist_circuit_breaker_state()
     
     def reset_daily(self):
         """Reset daily counters (call at start of trading day)"""
         self.daily_pnl = 0.0
         self.daily_pnl_pct = 0.0
         self.circuit_breaker_triggered = False
+        # Clear persisted circuit breaker state
+        try:
+            if os.path.exists(CIRCUIT_BREAKER_STATE_FILE):
+                os.remove(CIRCUIT_BREAKER_STATE_FILE)
+        except Exception:
+            pass
         logger.info("🔄 Daily risk counters reset")
+
+    def _persist_circuit_breaker_state(self):
+        """Write circuit breaker state to disk so the gate can read it."""
+        try:
+            state = {
+                "triggered": True,
+                "daily_pnl_pct": round(self.daily_pnl_pct, 4),
+                "limit_pct": self.limits.circuit_breaker_pnl_pct,
+                "triggered_at": datetime.now().isoformat(),
+                "open_positions": len(self.open_positions),
+            }
+            with open(CIRCUIT_BREAKER_STATE_FILE, "w") as f:
+                json.dump(state, f, indent=2)
+            logger.info(f"🛡️ Circuit breaker state persisted to {CIRCUIT_BREAKER_STATE_FILE}")
+        except Exception as e:
+            logger.warning(f"Failed to persist circuit breaker state: {e}")
     
     def _count_correlated_positions(self, symbol: str) -> int:
         """Count how many correlated positions are open"""

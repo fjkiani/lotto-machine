@@ -143,14 +143,8 @@ def compute_kill_chain() -> dict:
         direction = "MIXED"
 
     # Verdict is based on total signal strength (direction-agnostic conviction level)
-    if total_score > 7:
-        verdict = "BOOST"
-    elif total_score >= 5:
-        verdict = "NEUTRAL"
-    elif total_score > 0:
-        verdict = "SOFT_VETO"
-    else:
-        verdict = "HARD_VETO"
+    from .verdict_utils import compute_verdict
+    verdict, _, _ = compute_verdict(total_score)
 
     result = {
         "score": total_score,

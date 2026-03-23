@@ -32,7 +32,8 @@ class GammaChecker(BaseChecker):
         gamma_tracker=None,
         gamma_exposure_tracker=None,
         symbols=None,
-        unified_mode=False
+        unified_mode=False,
+        confluence_gate=None,
     ):
         """
         Initialize Gamma checker.
@@ -43,11 +44,13 @@ class GammaChecker(BaseChecker):
             gamma_exposure_tracker: GammaExposureTracker instance (flip level based)
             symbols: List of symbols to check (e.g., ['SPY', 'QQQ'])
             unified_mode: If True, suppresses individual alerts
+            confluence_gate: ConfluenceGate instance (blocks blind signals)
         """
         super().__init__(alert_manager, unified_mode)
         self.gamma_tracker = gamma_tracker
         self.gamma_exposure_tracker = gamma_exposure_tracker
         self.symbols = symbols or []
+        self.confluence_gate = confluence_gate
     
     @property
     def name(self) -> str:
@@ -84,6 +87,24 @@ class GammaChecker(BaseChecker):
                                 flip_signal = self.gamma_exposure_tracker.detect_gamma_flip_signal(gamma_data)
                                 
                                 if flip_signal:
+                                    # ═══ CONFLUENCE GATE ═══
+                                    if self.confluence_gate:
+                                        gate_result = self.confluence_gate.should_fire(
+                                            signal_direction=flip_signal['action'],
+                                            symbol=symbol,
+                                            raw_confidence=flip_signal['confidence'] * 100,
+                                            current_price=current_price,
+                                        )
+                                        if gate_result.blocked:
+                                            logger.warning(
+                                                f"   ⛔ GAMMA FLIP BLOCKED: {symbol} {flip_signal['action']} — {gate_result.reason}"
+                                            )
+                                            continue
+                                        # Inject gate results into flip_signal for alert transparency
+                                        flip_signal['gate_result'] = gate_result
+                                        flip_signal['confidence'] = gate_result.adjusted_confidence / 100
+                                    # ═══ END GATE ═══
+
                                     alert = self._create_gamma_flip_alert(flip_signal)
                                     if alert:
                                         alerts.append(alert)
@@ -188,6 +209,29 @@ class GammaChecker(BaseChecker):
             embed["fields"].append({
                 "name": "📝 Reasoning",
                 "value": "\n".join([f"• {r}" for r in flip_signal['reasoning'][:5]]),
+                "inline": False
+            })
+        
+        # Add gate results if available
+        gate_result = flip_signal.get('gate_result')
+        if gate_result:
+            gate_lines = [f"✅ {g}" for g in gate_result.gates_passed[:3]]
+            gate_text = "\n".join(gate_lines) or "No gate data"
+            
+            # Format sizing multiplier string
+            multiplier = gate_result.sizing_multiplier
+            if multiplier >= 3.0:
+                sz_str = f"🔥 MAX CONVICTION ({multiplier}x)"
+            elif multiplier >= 1.0:
+                sz_str = f"🟡 STANDARD ({multiplier}x)"
+            else:
+                sz_str = f"⚪ LIGHT ({multiplier}x)"
+            
+            gate_text += f"\n\n**⚖️ Sizing:** {sz_str}"
+            
+            embed["fields"].append({
+                "name": f"⚔️ Confluence Gate ({gate_result.pass_rate})",
+                "value": gate_text[:1024],
                 "inline": False
             })
         

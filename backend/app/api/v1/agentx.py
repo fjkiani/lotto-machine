@@ -23,7 +23,8 @@ router = APIRouter()
 _brain_manager = None
 
 
-def _get_brain():
+def _get_manager():
+    """Return BrainManager singleton (NOT the raw brain — use .get_report())."""
     global _brain_manager
     if _brain_manager is None:
         try:
@@ -35,7 +36,7 @@ def _get_brain():
         except Exception as e:
             logger.error(f"Failed to initialize BrainManager: {e}", exc_info=True)
             raise HTTPException(status_code=503, detail=f"Agent X Brain unavailable: {e}")
-    return _brain_manager.get_brain()
+    return _brain_manager
 
 
 @router.get("/agentx/report")
@@ -43,17 +44,18 @@ async def agent_x_report():
     """
     Full brain report — Fed tone, hidden hands, Tavily context, divergence boost.
     This is the single endpoint the Agent X page consumes.
+    Uses BrainManager.get_report() which handles None brain gracefully.
     """
-    brain = _get_brain()
+    manager = _get_manager()
 
     try:
         import time as _time
         t0 = _time.time()
-        report = brain.get_brain_report()
+        report = manager.get_report()
         scan_time = _time.time() - t0
 
         return {
-            "status": "ok",
+            "status": report.get("error", "ok"),
             "scan_time_seconds": round(scan_time, 1),
             **report,
         }
@@ -73,7 +75,9 @@ async def agent_x_enrich(
     """
     On-demand Tavily enrichment for specific tickers.
     """
-    brain = _get_brain()
+    brain = _get_manager().get_brain()
+    if not brain:
+        raise HTTPException(status_code=503, detail="Brain unavailable — cannot enrich")
 
     ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     if not ticker_list:

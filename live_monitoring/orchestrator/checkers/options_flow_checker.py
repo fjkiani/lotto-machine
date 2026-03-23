@@ -222,7 +222,7 @@ class OptionsFlowChecker(BaseChecker):
     MIN_VOLUME_ALERT = 500000   # Minimum volume for alerts
     UNUSUAL_VOL_OI_THRESHOLD = 40  # Vol/OI above this = very unusual
     
-    def __init__(self, alert_manager, api_key: str = None, unified_mode: bool = False):
+    def __init__(self, alert_manager, api_key: str = None, unified_mode: bool = False, confluence_gate=None):
         """
         Initialize Options Flow Checker.
         
@@ -230,12 +230,14 @@ class OptionsFlowChecker(BaseChecker):
             alert_manager: AlertManager for sending Discord alerts
             api_key: RapidAPI key (defaults to env var)
             unified_mode: If True, suppresses individual alerts
+            confluence_gate: ConfluenceGate instance (blocks blind signals)
         """
         super().__init__(alert_manager, unified_mode)
         
         self.api_key = api_key or os.getenv('YAHOO_RAPIDAPI_KEY')
         self.client = RapidAPIOptionsClient(api_key=self.api_key)
         self.storage = OptionsFlowStorage()
+        self.confluence_gate = confluence_gate
         
         # State tracking
         self.last_sentiment: Optional[Dict] = None
@@ -282,7 +284,21 @@ class OptionsFlowChecker(BaseChecker):
                         if opt.symbol in self.alerted_bullish:
                             logger.debug(f"   ⏭️ Already alerted bullish for {opt.symbol} — skipping")
                             continue
-                        alert = self._create_bullish_alert(opt)
+                        # ═══ CONFLUENCE GATE ═══
+                        gate_multiplier = 1.0
+                        if self.confluence_gate:
+                            confidence = min(90, 50 + (0.7 - opt.put_call_ratio) * 100)
+                            gate_result = self.confluence_gate.should_fire(
+                                signal_direction="LONG",
+                                symbol=opt.symbol,
+                                raw_confidence=confidence,
+                            )
+                            if gate_result.blocked:
+                                logger.warning(f"   ⛔ OPTIONS FLOW BLOCKED: {opt.symbol} LONG — {gate_result.reason}")
+                                continue
+                            gate_multiplier = gate_result.sizing_multiplier
+                        # ═══ END GATE ═══
+                        alert = self._create_bullish_alert(opt, gate_multiplier)
                         if alert:
                             alerts.append(alert)
                             self.alerted_bullish.add(opt.symbol)
@@ -293,7 +309,21 @@ class OptionsFlowChecker(BaseChecker):
                         if opt.symbol in self.alerted_bearish:
                             logger.debug(f"   ⏭️ Already alerted bearish for {opt.symbol} — skipping")
                             continue
-                        alert = self._create_bearish_alert(opt)
+                        # ═══ CONFLUENCE GATE ═══
+                        gate_multiplier = 1.0
+                        if self.confluence_gate:
+                            confidence = min(90, 50 + (opt.put_call_ratio - 1.2) * 50)
+                            gate_result = self.confluence_gate.should_fire(
+                                signal_direction="SHORT",
+                                symbol=opt.symbol,
+                                raw_confidence=confidence,
+                            )
+                            if gate_result.blocked:
+                                logger.warning(f"   ⛔ OPTIONS FLOW BLOCKED: {opt.symbol} SHORT — {gate_result.reason}")
+                                continue
+                            gate_multiplier = gate_result.sizing_multiplier
+                        # ═══ END GATE ═══
+                        alert = self._create_bearish_alert(opt, gate_multiplier)
                         if alert:
                             alerts.append(alert)
                             self.alerted_bearish.add(opt.symbol)
@@ -370,12 +400,20 @@ The options market has shifted **{abs(shift['shift']):.1f}%** towards **{directi
             source=self.name
         )
     
-    def _create_bullish_alert(self, opt: MostActiveOption) -> Optional[CheckerAlert]:
+    def _create_bullish_alert(self, opt: MostActiveOption, multiplier: float = 1.0) -> Optional[CheckerAlert]:
         """Create alert for bullish call accumulation"""
         # Skip if not significant enough
         if opt.total_volume < 300000:
             return None
         
+        # Format sizing multiplier string
+        if multiplier >= 3.0:
+            sz_str = f"🔥 MAX CONVICTION ({multiplier}x)"
+        elif multiplier >= 1.0:
+            sz_str = f"🟡 STANDARD ({multiplier}x)"
+        else:
+            sz_str = f"⚪ LIGHT ({multiplier}x)"
+
         message = f"""
 **🟢 BULLISH CALL ACCUMULATION: {opt.symbol}**
 
@@ -397,6 +435,7 @@ Heavy call buying detected - institutions positioning for upside.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 **🎯 SIGNAL:**
 • Direction: **LONG**
+• Kill Chain Conviction: **{sz_str}**
 • Confidence: {min(90, 50 + (0.7 - opt.put_call_ratio) * 100):.0f}%
 • Timeframe: Days to weeks
 
@@ -410,7 +449,7 @@ Heavy call buying detected - institutions positioning for upside.
             "fields": [
                 {"name": "Symbol", "value": opt.symbol, "inline": True},
                 {"name": "P/C Ratio", "value": f"{opt.put_call_ratio:.2f}", "inline": True},
-                {"name": "Volume", "value": f"{opt.total_volume:,}", "inline": True},
+                {"name": "Sizing", "value": f"{multiplier}x", "inline": True},
                 {"name": "Price", "value": f"${opt.last_price:.2f}", "inline": True}
             ],
             "timestamp": datetime.now().isoformat()
@@ -424,11 +463,19 @@ Heavy call buying detected - institutions positioning for upside.
             symbol=opt.symbol
         )
     
-    def _create_bearish_alert(self, opt: MostActiveOption) -> Optional[CheckerAlert]:
+    def _create_bearish_alert(self, opt: MostActiveOption, multiplier: float = 1.0) -> Optional[CheckerAlert]:
         """Create alert for bearish put accumulation"""
         if opt.total_volume < 300000:
             return None
         
+        # Format sizing multiplier string
+        if multiplier >= 3.0:
+            sz_str = f"🔥 MAX CONVICTION ({multiplier}x)"
+        elif multiplier >= 1.0:
+            sz_str = f"🟡 STANDARD ({multiplier}x)"
+        else:
+            sz_str = f"⚪ LIGHT ({multiplier}x)"
+
         message = f"""
 **🔴 BEARISH PUT ACCUMULATION: {opt.symbol}**
 
@@ -450,6 +497,7 @@ Heavy put buying detected - institutions hedging or betting on downside.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 **🎯 SIGNAL:**
 • Direction: **SHORT** or **HEDGE**
+• Kill Chain Conviction: **{sz_str}**
 • Confidence: {min(90, 50 + (opt.put_call_ratio - 1.2) * 50):.0f}%
 • Timeframe: Days to weeks
 
@@ -463,7 +511,7 @@ Heavy put buying detected - institutions hedging or betting on downside.
             "fields": [
                 {"name": "Symbol", "value": opt.symbol, "inline": True},
                 {"name": "P/C Ratio", "value": f"{opt.put_call_ratio:.2f}", "inline": True},
-                {"name": "Volume", "value": f"{opt.total_volume:,}", "inline": True},
+                {"name": "Sizing", "value": f"{multiplier}x", "inline": True},
                 {"name": "Price", "value": f"${opt.last_price:.2f}", "inline": True}
             ],
             "timestamp": datetime.now().isoformat()

@@ -1,0 +1,122 @@
+---
+description: "Agent 1 — Weapons. Build 2 frontend components (Whale Tracker + OI Distribution). No backend changes. Endpoints already exist."
+globs:
+  - "frontend/src/components/axlfi/WhaleTracker.tsx"
+  - "frontend/src/components/axlfi/OIDistribution.tsx"
+  - "frontend/src/components/axlfi/index.ts"
+  - "frontend/src/pages/AXLFIIntel.tsx"
+alwaysApply: false
+---
+
+# Agent 1 — Weapons (Frontend Only)
+
+You build 2 components. Each calls an existing endpoint. Zero backend changes.
+
+---
+
+## Task 1: Whale Tracker (DP Position Line Chart)
+
+**Endpoint:** `axlfiApi.detail(symbol, 30)` → `GET /api/v1/axlfi/detail/{symbol}?window=30`
+**Already called for SPY.** Add QQQ and IWM.
+
+The response contains a `individual_short_volume_table` with daily rows. Each row has:
+- `date` — date string
+- `dark_pool_position` — cumulative DP position (THIS IS THE SIGNAL)
+- `short_volume_pct` or `short_volume%` — short volume percentage
+
+**Build `WhaleTracker.tsx`:**
+- Call `/detail/SPY`, `/detail/QQQ`, `/detail/IWM` in parallel via `Promise.allSettled`
+- Extract `dark_pool_position` from each row per symbol
+- Render a LINE CHART with 3 lines (SPY green, QQQ blue, IWM orange)
+- X-axis: dates. Y-axis: cumulative position (in millions)
+- Use inline SVG or a simple canvas. No charting library dependency.
+- Below the chart: key stat per symbol — "SPY: 57.8M shares (15 days accumulating)"
+- Determine trend: count consecutive days where position increased
+
+**Wire into `AXLFIIntel.tsx`:**
+- Add between Option Walls row and Signals row
+- Full width: `<div className="mb-6">`
+
+### Verification
+
+```bash
+cd frontend && npx tsc --noEmit
+# Must exit 0 with no errors
+
+cd frontend && npm run build
+# Must complete with no errors
+```
+
+Then open browser → `/axlfi` → Whale Tracker section must show 3 lines.
+If any line is flat at 0, you read the data wrong. Check the field name.
+
+### Anti-Sandbag Gates
+
+- ❌ Do NOT install a charting library (recharts, chart.js, etc). Use inline SVG or CSS bars.
+- ❌ Do NOT add any backend routes. The endpoints exist.
+- ❌ Do NOT modify `api.ts`. `axlfiApi.detail()` already exists.
+- ❌ Do NOT create placeholder data. Call the real API.
+- ✅ If `dark_pool_position` field doesn't exist in the response, inspect the actual JSON structure with `console.log` and find the correct field name. Document what you found.
+
+---
+
+## Task 2: OI Distribution Chart (Gamma Exposure)
+
+**Endpoint:** `axlfiApi.optionWalls(symbol)` → `GET /api/v1/axlfi/option-walls/{symbol}`
+**This method EXISTS in `api.ts` but is NEVER CALLED from any component.**
+
+The response contains:
+- `x_values` — array of strike prices (numbers)
+- `y_call_values` — array of call OI per strike (numbers, green)
+- `y_put_values` — array of put OI per strike (numbers, red)
+- `call_wall` — the call wall strike
+- `put_wall` — the put wall strike
+- `poc` — point of control strike
+
+**Build `OIDistribution.tsx`:**
+- Call `axlfiApi.optionWalls('SPY')` (default), with dropdown to select QQQ/IWM
+- Render a HORIZONTAL BAR CHART:
+  - Y-axis: strike prices (from x_values)
+  - Right side: call OI bars (green)
+  - Left side: put OI bars (red, mirrored)
+  - Highlight call_wall, put_wall, poc strikes with colored horizontal lines
+- Use inline SVG. Each bar is a `<rect>`.
+- Show current SPY price as a dashed horizontal line (from `snapshot` data)
+
+**Wire into `AXLFIIntel.tsx`:**
+- Add after Kill Chain Table row
+- Full width: `<div className="mb-6">`
+
+### Verification
+
+```bash
+cd frontend && npx tsc --noEmit
+cd frontend && npm run build
+```
+
+Then open browser → `/axlfi` → OI Distribution section must show bars.
+If `x_values` or `y_call_values` is empty/undefined, the endpoint might return a different structure. `console.log` the raw response and adapt.
+
+### Anti-Sandbag Gates
+
+- ❌ Do NOT install a charting library. Use inline SVG.
+- ❌ Do NOT call `wallsToday()` — that's the reduced 3-number version. Call `optionWalls()`.
+- ❌ Do NOT add backend routes. The endpoint exists.
+- ✅ The `optionWalls()` API call in `api.ts` might need the response shape verified. If it fails, check the actual API response structure.
+
+---
+
+## Files You CAN Touch
+
+- `frontend/src/components/axlfi/WhaleTracker.tsx` (NEW)
+- `frontend/src/components/axlfi/OIDistribution.tsx` (NEW)
+- `frontend/src/components/axlfi/index.ts` (ADD exports)
+- `frontend/src/pages/AXLFIIntel.tsx` (ADD imports + render)
+
+## Files You CANNOT Touch
+
+- Any file in `backend/`
+- Any file in `live_monitoring/`
+- Any file in `discord_bot/`
+- `frontend/src/lib/api.ts` (endpoints already exist)
+- Any other page or component outside `axlfi/`

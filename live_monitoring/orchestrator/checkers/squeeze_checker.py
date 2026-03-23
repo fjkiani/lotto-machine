@@ -33,7 +33,8 @@ class SqueezeChecker(BaseChecker):
         squeeze_detector=None,
         opportunity_scanner=None,
         squeeze_candidates=None,
-        unified_mode=False
+        unified_mode=False,
+        confluence_gate=None,
     ):
         """
         Initialize Squeeze checker.
@@ -44,11 +45,13 @@ class SqueezeChecker(BaseChecker):
             opportunity_scanner: OpportunityScanner instance for dynamic discovery
             squeeze_candidates: Seed list of squeeze candidates (fallback)
             unified_mode: If True, suppresses individual alerts
+            confluence_gate: ConfluenceGate instance (blocks blind signals)
         """
         super().__init__(alert_manager, unified_mode)
         self.squeeze_detector = squeeze_detector
         self.opportunity_scanner = opportunity_scanner
         self.squeeze_candidates = squeeze_candidates or []
+        self.confluence_gate = confluence_gate
     
     @property
     def name(self) -> str:
@@ -89,10 +92,23 @@ class SqueezeChecker(BaseChecker):
                     # Process signals directly from scan results
                     for opp in squeeze_opportunities:
                         if opp.score >= 60:  # Alert threshold
+                            # ═══ CONFLUENCE GATE ═══
+                            gate_multiplier = 1.0
+                            if self.confluence_gate:
+                                gate_result = self.confluence_gate.should_fire(
+                                    signal_direction="LONG",
+                                    symbol=opp.symbol,
+                                    raw_confidence=min(90, opp.score),
+                                )
+                                if gate_result.blocked:
+                                    logger.warning(f"   ⛔ SQUEEZE BLOCKED: {opp.symbol} LONG — {gate_result.reason}")
+                                    continue
+                                gate_multiplier = gate_result.sizing_multiplier
+                            # ═══ END GATE ═══
                             # Get full signal for detailed alert
                             signal = self.squeeze_detector.analyze(opp.symbol)
                             if signal:
-                                alert = self._create_squeeze_alert(signal)
+                                alert = self._create_squeeze_alert(signal, gate_multiplier)
                                 if alert:
                                     alerts.append(alert)
                     
@@ -110,7 +126,20 @@ class SqueezeChecker(BaseChecker):
                 signal = self.squeeze_detector.analyze(symbol)
                 
                 if signal and signal.score >= 60:
-                    alert = self._create_squeeze_alert(signal)
+                    # ═══ CONFLUENCE GATE ═══
+                    gate_multiplier = 1.0
+                    if self.confluence_gate:
+                        gate_result = self.confluence_gate.should_fire(
+                            signal_direction="LONG",
+                            symbol=symbol,
+                            raw_confidence=min(90, signal.score),
+                        )
+                        if gate_result.blocked:
+                            logger.warning(f"   ⛔ SQUEEZE BLOCKED: {symbol} LONG — {gate_result.reason}")
+                            continue
+                        gate_multiplier = gate_result.sizing_multiplier
+                    # ═══ END GATE ═══
+                    alert = self._create_squeeze_alert(signal, gate_multiplier)
                     if alert:
                         alerts.append(alert)
             
@@ -121,7 +150,7 @@ class SqueezeChecker(BaseChecker):
             logger.error(f"   ❌ Squeeze check error: {e}")
             return []
     
-    def _create_squeeze_alert(self, signal) -> Optional[CheckerAlert]:
+    def _create_squeeze_alert(self, signal, multiplier: float = 1.0) -> Optional[CheckerAlert]:
         """Create a CheckerAlert from a squeeze signal."""
         # Check for duplicate alert
         alert_key = f"squeeze_{signal.symbol}_{datetime.now().strftime('%Y-%m-%d')}"
@@ -142,6 +171,7 @@ class SqueezeChecker(BaseChecker):
                 {"name": "📈 FTD Spike", "value": f"{signal.ftd_spike_ratio:.1f}x ({signal.ftd_score:.0f} pts)", "inline": True},
                 {"name": "🔒 DP Buying", "value": f"{signal.dp_buying_pressure:.0%} ({signal.dp_support_score:.0f} pts)", "inline": True},
                 {"name": "🎯 Entry", "value": f"${signal.entry_price:.2f}", "inline": True},
+                {"name": "⚖️ Sizing", "value": f"{multiplier}x", "inline": True},
                 {"name": "🛑 Stop", "value": f"${signal.stop_price:.2f}", "inline": True},
                 {"name": "🚀 Target", "value": f"${signal.target_price:.2f}", "inline": True},
                 {"name": "📐 R/R", "value": f"{signal.risk_reward_ratio:.1f}:1", "inline": True},

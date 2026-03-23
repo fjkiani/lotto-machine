@@ -1,0 +1,335 @@
+---
+description: "WAVE 6 — BEARISH SWORD. Greenfield Bearish Signal Stack. Two separate tracks. Do NOT touch the Guardian. Do NOT merge bearish logic into the Guardian. Zo-tightened 2026-03-13."
+globs:
+  - "live_monitoring/intraday_guardian.py"
+  - "live_monitoring/orchestrator/confluence_gate.py"
+  - "live_monitoring/orchestrator/checkers/**"
+alwaysApply: false
+---
+
+# 🗡️ WAVE 6 — BEARISH SWORD: The Short Signal Stack
+
+**Manager: Alpha | Architect: Zo | Tightened: 2026-03-13 20:46 ET**
+**Status: AGENT-READY — all ambiguities resolved**
+
+---
+
+## CARDINAL RULE — READ BEFORE TOUCHING ANYTHING
+
+> The Guardian is NOT the problem. The system has a complete defensive stack with zero offensive (short) capability.  
+> A wall break ≠ a short signal. These are different statements.  
+> `BEARISH_BREAKDOWN → auto-approve shorts` wiring gets destroyed on the first whipsaw.  
+> Two tracks. Don't merge them.
+
+**You may NOT:**
+- Modify `IntradayGuardian`'s `thesis_valid` logic
+- Wire `bearish_breakdown_building` into any auto-approval path
+- Add `BEARISH_BREAKDOWN` as a Gate PASS condition
+- Touch Wave 1–5 deliverables without Alpha approval
+
+---
+
+## SYSTEM STATE ENTERING WAVE 6
+
+| Layer | Current State | What's Missing |
+|-------|--------------|----------------|
+| Guardian | SPY vs Put Wall. `thesis_valid=False` → kill switch. ✅ | `bearish_breakdown_building` flag (informational only) |
+| Confluence Gate | Evaluates LONG proposals against bullish tier stack. ✅ | No SHORT proposal path. Cannot evaluate bearish conditions. |
+| Signal Checkers | Squeeze, OptionsFlow, GammaChecker, DP Divergence — all long-tuned. ✅ | Zero short-signal generators. |
+| Morning Brief | Outputs market regime + synthesis bias. ✅ | Cannot output `BEARISH` bias driven by COT + DP + gamma. |
+| Dark Pool | DP Divergence checker: DP vs price divergences. ✅ | Not computing cumulative DP flow direction for bearish detection. |
+
+---
+
+## WAVE 6 TASK BREAKDOWN
+
+---
+
+### TASK 6.1 — Agent 1: `bearish_breakdown_building` Flag in Guardian
+
+**Owner:** Agent 1 (backend)
+**File:** `live_monitoring/intraday_guardian.py`
+**ZERO other files may be touched.**
+
+#### What to build
+
+Add `bearish_breakdown_building` to snapshot output. **Informational only** — it does NOT affect `thesis_valid`, does NOT auto-approve anything, does NOT talk to the Gate.
+
+**4-condition logic (ALL FOUR must be true simultaneously):**
+1. `wall_status == "broken"` — SPY broke below Put Wall (already computed)
+2. SPY has been below the Put Wall for **≥ 2 consecutive 15-min bars** (sustained — not a wick)
+3. Volume on those bars is **> 1.2× the 20-bar rolling average volume** (institutional selling, not noise)
+4. **Failed retest confirmed:** a bar where `high >= put_wall` AND `close < put_wall - 0.20` occurred after the break (the level became resistance)
+
+**Flag logic:**
+- 1–3 conditions true → `bearish_breakdown_building = false`, log count
+- All 4 true → `bearish_breakdown_building = true`
+- Reset sustained-break counter when SPY reclaims Put Wall (`close > put_wall`)
+
+**Snapshot schema addition:**
+```json
+{
+  "bearish_breakdown_building": true,
+  "bearish_conditions_met": {
+    "wall_broken": true,
+    "sustained_break_bars": 2,
+    "volume_elevated": true,
+    "failed_retest": true
+  },
+  "bearish_conditions_count": 4
+}
+```
+
+**Verification commands (paste full output in status update):**
+```bash
+grep -n "sustained_break" live_monitoring/intraday_guardian.py
+grep -n "failed_retest" live_monitoring/intraday_guardian.py
+grep -n "bearish_breakdown_building" live_monitoring/intraday_guardian.py
+
+python3 -c "
+import json
+d = json.load(open('/tmp/intraday_snapshot.json'))
+print('bearish_breakdown_building' in d)
+print('bearish_conditions_met' in d)
+"
+```
+
+**Acceptance Criteria:**
+- [ ] `bearish_breakdown_building` in snapshot JSON
+- [ ] All 4 conditions independently computed (grep receipts required)
+- [ ] Condition 4 uses exact definition: `high >= put_wall AND close < put_wall - 0.20`
+- [ ] Flag never auto-wires to Gate approval
+- [ ] `thesis_valid` logic UNCHANGED — grep must show same line numbers as pre-Wave 6
+
+---
+
+### TASK 6.2 — Agent 2: Direction-Aware Confluence Gate
+
+**Owner:** Agent 2 (gate)
+**File:** `live_monitoring/orchestrator/confluence_gate.py`
+**ZERO other files may be touched.**
+
+#### What to build
+
+The Gate only evaluates LONG proposals. Add a second evaluation path for SHORT proposals via a symmetric bearish tier stack.
+
+**Current Gate flow (DO NOT BREAK):**
+```
+should_fire(ticker, direction, confidence) → GateResult
+```
+
+**New Architecture: The Pluggable Regime Router**
+Instead of a hardcoded `if direction == "SHORT"` branch, build a modular regime router. The system needs to support `CHOPPY` and `TREND_EXTENDED` regimes in the future.
+
+1. Create a helper method `_get_market_regime(self, snapshot: dict) -> str`
+   - If `bearish_breakdown_building == True` → return `"BREAKDOWN"`
+   - If `thesis_valid == True` (for now) → return `"BULLISH"`
+2. Create a router dictionary mapping regimes to their evaluator methods in `__init__`:
+   `self._regime_evaluators = {"BULLISH": self._evaluate_long_proposal, "BREAKDOWN": self._evaluate_short_proposal}`
+3. Update `should_fire()` to:
+   - Determine the regime
+   - Route the proposal to the correct evaluator based on the regime
+   - Ensure the `BREAKDOWN` evaluator only passes `SHORT` directions
+
+**Short Evaluator Logic (`_evaluate_short_proposal`):**
+When the regime is `BREAKDOWN`, evaluate the bearish tier stack:
+
+| Tier | Label | Condition | Rule |
+|------|-------|-----------|------|
+| 0 | Gate Unlock | Regime == `"BREAKDOWN"` | Required |
+| 1 | Direction | `direction == "SHORT"` | Required — no longs in breakdown |
+| 2 | Synthesis | `synthesis_bias == "BEARISH"` in morning brief | Required — shorts blocked if not BEARISH |
+| 3 | Pressure | `dp_flow_direction == "NEGATIVE"` (from DP bearish checker) | Required |
+| 4 | Momentum | Volume on breakdown bar > 1.5× avg | Required |
+
+**Short Gate Rules:**
+- `direction != "SHORT"` in BREAKDOWN regime → BLOCK (no longs during breakdowns)
+- `synthesis_bias != "BEARISH"` → BLOCK all shorts
+- Tier 3 or Tier 4 fails → BLOCK
+- PASS only on full tier confirmation
+
+**Implementation:**
+- Add `_evaluate_short_proposal(ticker, direction, confidence, snapshot)` as a private method
+- Extract existing long logic securely into `_evaluate_long_proposal()`
+- `should_fire()` determines regime and invokes the correct method from the dictionary
+
+**Verification commands:**
+```bash
+grep -n "_evaluate_short" live_monitoring/orchestrator/confluence_gate.py
+grep -n "_get_market_regime" live_monitoring/orchestrator/confluence_gate.py
+grep -n "_regime_evaluators" live_monitoring/orchestrator/confluence_gate.py
+grep -n "BEARISH" live_monitoring/orchestrator/confluence_gate.py
+wc -l live_monitoring/orchestrator/confluence_gate.py
+```
+
+**Audit script — GateResult is a dataclass, access via attribute not dict key:**
+```python
+import sys; sys.path.insert(0, '.')
+from live_monitoring.orchestrator.confluence_gate import ConfluenceGate
+g = ConfluenceGate()
+r = g.should_fire('SPY', 'SHORT', 0.90)
+# r is a GateResult dataclass — use r.passed, NOT r['verdict']
+assert r.passed == False, f'FAIL: Short passed without breakdown confirmation: {r}'
+print('PASS: Short correctly blocked when breakdown not building')
+```
+
+**Acceptance Criteria:**
+- [ ] `_get_market_regime()`, `_evaluate_long_proposal()`, and `_evaluate_short_proposal()` methods exist
+- [ ] Pluggable dictionary `_regime_evaluators` routes proposals effectively inside `should_fire()`
+- [ ] `direction == "SHORT"` strictly required when regime is `BREAKDOWN`
+- [ ] `bearish_breakdown_building == False` always evaluates to `r.passed == False` for shorts
+- [ ] Existing long-gate logic seamlessly moved into `_evaluate_long_proposal()` without functional changes
+
+---
+
+### TASK 6.3 — New Agent: `DPBearishDivergenceChecker`
+
+**Owner:** New assignee (greenfield)
+**File:** `live_monitoring/orchestrator/checkers/dp_bearish_checker.py` (NEW)
+**Also modifies:** `live_monitoring/orchestrator/unified_monitor.py` (registration only)
+
+#### What to build
+
+First legitimate bearish signal generator. The only checker that can emit `direction="SHORT"` proposals to the Gate.
+
+**Signal logic (BOTH conditions must be true simultaneously):**
+1. **DP flow negative and declining:** `net_position` from `data/axlfi_dark_pool_live.json` is negative AND has declined over the last 3 data points (i.e., `dp[t] < dp[t-1] < dp[t-2]`)
+   - If fewer than 3 data points exist → return `{"signal_fired": false, "dp_direction": "INSUFFICIENT_DATA", ...}` immediately. No exception. No fallback inference.
+2. **Price also declining:** SPY close < open on the current 15-min bar AND close < prior bar's close
+
+**When BOTH true:**
+- Emit `confluence_gate.should_fire(ticker="SPY", direction="SHORT", confidence=X)`
+- Confidence formula: `min(90, 60 + 10 * abs(dp_decline_pct_as_percentage_points))`
+  - `dp_decline_pct` is expressed in **percentage points** (e.g., a 2% decline = `2.0`, producing confidence = `80`)
+- If `r.passed == True` → log to `data/gate_signals_today.json` with `"direction": "SHORT"`
+- If `r.passed == False` → log as blocked with `r.reason`
+
+**Cooldown:** `min_cooldown_minutes = 30`. If signal fired within last 30 minutes, skip — do not re-emit. Same convention as all long checkers.
+
+**SPY price source:** Do NOT call yfinance directly. Accept `current_price: float` as a parameter injected by the orchestrator. Remove the dependency on `IntradayGuardian._get_spy_price()` (private method — external coupling rejected).
+
+**Data Availability Safety:** If `axlfi_dark_pool_live.json` has fewer than 3 historical data points, the checker MUST exit gracefully and return `{"signal_fired": False, "dp_direction": "INSUFFICIENT_DATA", "gate_verdict": "CONDITIONS_NOT_MET"}`. Do not throw an IndexError.
+
+**Class structure:**
+```python
+class DPBearishDivergenceChecker:
+    def __init__(self):
+        self.last_signal_time: Optional[datetime] = None
+        self.min_cooldown_minutes: int = 30
+
+    def check(self, current_price: float) -> dict:
+        """
+        Returns: {
+            "signal_fired": bool,
+            "dp_flow": float,
+            "dp_direction": str,  # "NEGATIVE" | "NEUTRAL" | "POSITIVE"
+            "gate_verdict": str   # "PASS" | "BLOCK" | "COOLDOWN" | "CONDITIONS_NOT_MET"
+        }
+        """
+```
+
+**Verification commands:**
+```bash
+wc -l live_monitoring/orchestrator/checkers/dp_bearish_checker.py
+
+grep -n "net_position\|cumulative_flow" live_monitoring/orchestrator/checkers/dp_bearish_checker.py
+grep -n "declining\|dp\[t\]" live_monitoring/orchestrator/checkers/dp_bearish_checker.py
+grep -n '"SHORT"' live_monitoring/orchestrator/checkers/dp_bearish_checker.py
+grep -n "min_cooldown" live_monitoring/orchestrator/checkers/dp_bearish_checker.py
+grep -n "DPBearishDivergenceChecker" live_monitoring/orchestrator/unified_monitor.py
+
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from live_monitoring.orchestrator.checkers.dp_bearish_checker import DPBearishDivergenceChecker
+result = DPBearishDivergenceChecker().check(current_price=560.0)
+required = ['signal_fired', 'dp_flow', 'dp_direction', 'gate_verdict']
+for k in required:
+    assert k in result, f'Missing key: {k}'
+print('PASS:', result)
+"
+```
+
+**Acceptance Criteria:**
+- [ ] File exists, importable, zero `# TODO` / `pass` in shipped code
+- [ ] Both conditions independently verified (grep receipts)
+- [ ] `dp_decline_pct` treated as percentage points (not fraction) in confidence formula
+- [ ] Cooldown logic present (`min_cooldown_minutes = 30`)
+- [ ] `current_price` injected as parameter — no yfinance, no `_get_spy_price()` call
+- [ ] Emits `direction="SHORT"` — not hardcoded PASS
+- [ ] Registered in `unified_monitor.py`
+- [ ] Graceful handling if fewer than 3 DP data points → returns `{"dp_direction": "INSUFFICIENT_DATA", "signal_fired": false, ...}`, no exception raised
+- [ ] Dry run produces valid dict with all 4 schema keys
+
+---
+
+## MANAGER AUDIT PROTOCOL
+
+### Audit 6.1 — Guardian flag
+```bash
+# thesis_valid logic untouched
+grep -n "thesis_valid" live_monitoring/intraday_guardian.py | head -20
+git diff HEAD~1 -- live_monitoring/intraday_guardian.py | grep "thesis_valid"
+# Zero deletions to thesis_valid lines allowed
+```
+
+### Audit 6.2 — Gate direction awareness
+```python
+import sys; sys.path.insert(0, '.')
+from live_monitoring.orchestrator.confluence_gate import ConfluenceGate
+g = ConfluenceGate()
+r = g.should_fire('SPY', 'SHORT', 0.90)
+assert r.passed == False, f'FAIL: {r}'
+print('PASS')
+```
+
+### Audit 6.3 — DP Bearish Checker
+```python
+import sys; sys.path.insert(0, '.')
+from live_monitoring.orchestrator.checkers.dp_bearish_checker import DPBearishDivergenceChecker
+r = DPBearishDivergenceChecker().check(current_price=560.0)
+required = ['signal_fired', 'dp_flow', 'dp_direction', 'gate_verdict']
+for k in required:
+    assert k in r, f'Missing key: {k}'
+print('Schema PASS:', r)
+```
+
+---
+
+## REJECT CONDITIONS (AUTOMATIC)
+
+| Condition | Consequence |
+|-----------|-------------|
+| `bearish_breakdown_building` wired into Gate auto-approval | REJECTED, revert |
+| `thesis_valid` logic modified | REJECTED, revert immediately |
+| `_evaluate_short_proposal` missing — `direction == "SHORT"` handled inline only | REJECTED |
+| DP Bearish Checker calls yfinance or `_get_spy_price()` | REJECTED |
+| `dp_decline_pct` treated as fraction (not percentage points) | REJECTED |
+| No cooldown logic in DPBearishDivergenceChecker | REJECTED |
+| Audit script uses `r['verdict']` instead of `r.passed` | REJECTED |
+| Any `# TODO` or bare `pass` in shipped code | REJECTED |
+| Missing grep receipt in status update | REJECTED |
+
+---
+
+## DEFINITION OF DONE
+
+| Task | Deliverable | Verified By |
+|------|-------------|-------------|
+| 6.1 | `bearish_breakdown_building` in snapshot, 4 conditions (Condition 4: `high >= put_wall AND close < put_wall - 0.20`) | Alpha grep + snapshot JSON |
+| 6.2 | `_evaluate_short_proposal()` in Gate, SHORT routed via `r.passed` | Alpha force-test script |
+| 6.3 | `DPBearishDivergenceChecker` live, registered, cooldown, dry-run passes | Alpha import test |
+
+**Wave 6 COMPLETE when all three pass manager audit with zero rejections.**
+
+---
+
+## WAVE 7 SCOPE (DO NOT BUILD YET)
+
+### Missing Regimes to Inject into `_regime_evaluators` Router:
+- **CHOPPY:** `thesis_valid=True`, SPY between walls. Allows highly constrained scalps (90%+ confidence, sizing 0.5x).
+- **TREND-EXTENDED:** `thesis_valid=True`, SPY above call wall. Allows aggressive long-gate rules (1.5x sizing).
+
+### Other Additions:
+- Bearish Synthesis Bias in Morning Brief (COT + DP + gamma → `BEARISH` bias output)
+- Short-signal Discord alerts (symmetric to long alerts)
+- Backtest bearish stack against March 5–13 data

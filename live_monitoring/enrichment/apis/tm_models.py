@@ -82,6 +82,7 @@ class MarketState:
 
     # ── Levels ──
     dp_levels: list = field(default_factory=list)
+    dp_position_dollars: float = 0.0  # Total DP position from Stockgrid (e.g. 35_007_000_000)
     gex_walls: list = field(default_factory=list)
     gamma_flip: Optional[float] = None
     max_pain: Optional[float] = None

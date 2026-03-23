@@ -256,6 +256,8 @@ class NarrativeChecker(BaseChecker):
                 "fields": []
             }
             
+            gate_multiplier = 1.0
+            
             if ts:
                 embed["fields"].extend([{
                     "name": "🎯 Trade Setup",
@@ -295,8 +297,23 @@ class NarrativeChecker(BaseChecker):
                 if gate_result.blocked:
                     logger.info(f"   ⛔ Gate blocked narrative signal {best_alert.symbol} {direction}: {gate_result.reason}")
                     return []
+                gate_multiplier = gate_result.sizing_multiplier
             except Exception as e:
                 logger.debug(f"Gate check skipped for narrative: {e}")
+            
+            # Format sizing multiplier string
+            if gate_multiplier >= 3.0:
+                sz_str = f"🔥 MAX CONVICTION ({gate_multiplier}x)"
+            elif gate_multiplier >= 1.0:
+                sz_str = f"🟡 STANDARD ({gate_multiplier}x)"
+            else:
+                sz_str = f"⚪ LIGHT ({gate_multiplier}x)"
+                
+            embed["fields"].insert(0, {
+                "name": "⚖️ Sizing",
+                "value": sz_str,
+                "inline": True
+            })
             
             # Update state
             self.last_narrative_sent = current_time

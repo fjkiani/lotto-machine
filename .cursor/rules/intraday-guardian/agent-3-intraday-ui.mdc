@@ -1,0 +1,160 @@
+---
+description: "Agent 3 — Intraday UI. Build live session panel that replaces static brief during market hours. Reads /intraday/snapshot. Frontend only."
+globs:
+  - "frontend/src/components/intraday/ThesisStatus.tsx"
+  - "frontend/src/components/intraday/ActiveSignals.tsx"
+  - "frontend/src/components/intraday/CircuitBreakerBanner.tsx"
+  - "frontend/src/hooks/useIntradaySnapshot.ts"
+  - "frontend/src/pages/LiveSession.tsx"
+alwaysApply: false
+---
+
+# Agent 3 — Intraday UI (Frontend Only)
+
+You build the live session panel. It reads one endpoint: `GET /api/v1/intraday/snapshot`.
+**BLOCKED until Agent 2 delivers that route.** Start only when `curl localhost:8000/api/v1/intraday/snapshot` returns valid JSON.
+
+---
+
+## Task 1: `useIntradaySnapshot` Hook
+
+**File:** `frontend/src/hooks/useIntradaySnapshot.ts`
+
+```typescript
+// Poll /api/v1/intraday/snapshot every 60 seconds
+// Return: { snapshot, loading, error }
+// When market_open = false, stop polling
+```
+
+- Uses `useState` + `useEffect` with `setInterval(60_000)`
+- Cleanup on unmount
+- Type the snapshot to match Agent 2's schema exactly
+
+---
+
+## Task 2: ThesisStatus Banner
+
+**File:** `frontend/src/components/intraday/ThesisStatus.tsx`
+
+**Props:** `{ snapshot }`
+
+**When `thesis_valid = true`:**
+- Green banner: "✅ THESIS VALID"
+- Show: SPY price, distance from call wall, wall_status
+- Example: "SPY: $663.40 | +$3.40 above $660 wall | DEFENDED"
+
+**When `thesis_valid = false`:**
+- Full-width RED banner:  "⛔ THESIS INVALIDATED"
+- Show: `thesis_invalidation_reason` in large text
+- Example: "SPY broke call wall $660 at 11:34 AM on 2.1x volume"
+- This banner MUST be impossible to miss. Full width. Red background. White text. Large.
+
+**When `market_open = false`:**
+- Grey banner: "🌙 Market Closed — showing last session data"
+
+---
+
+## Task 3: CircuitBreakerBanner
+
+**File:** `frontend/src/components/intraday/CircuitBreakerBanner.tsx`
+
+**Props:** `{ active, reason }`
+
+**When `circuit_breaker_active = true`:**
+- Full-width DARK RED banner ABOVE everything else (position: sticky, top: 0, z-index: 999)
+- Text: "🚨 CIRCUIT BREAKER ACTIVE — NO NEW TRADES TODAY"
+- Show reason below
+- This CANNOT be dismissed or collapsed
+
+**When `circuit_breaker_active = false`:**
+- Render nothing
+
+---
+
+## Task 4: ActiveSignals Panel
+
+**File:** `frontend/src/components/intraday/ActiveSignals.tsx`
+
+**Props:** `{ snapshot }`
+
+Read `signals_active` and `signals_invalidated` from snapshot.
+
+**When thesis is valid:**
+- Show count of active signals: "4 Active Signals"
+- Note: Signal details come from `gate_signals_today.json` via a separate route
+  For MVP, just show the COUNT from the snapshot. Full signal cards are Phase 2.
+
+**When thesis is invalid:**
+- Show: "NO ACTIVE SIGNALS" in grey
+- Below: "6 signals invalidated — thesis broken"
+- ALL signal content must be hidden or greyed out
+- There must be ZERO way to see a green/active signal when thesis_valid = false
+
+---
+
+## Task 5: LiveSession Page
+
+**File:** `frontend/src/pages/LiveSession.tsx`
+
+Composition:
+```tsx
+<main>
+  <CircuitBreakerBanner active={snapshot.circuit_breaker_active} reason={snapshot.circuit_breaker_reason} />
+  <ThesisStatus snapshot={snapshot} />
+  <ActiveSignals snapshot={snapshot} />
+  {/* Future: signal cards, whale tracker inline, etc */}
+</main>
+```
+
+**Route:** Add to `App.tsx` as `/live`
+**Nav:** Add to `NavBar.tsx` as "Live Session" with 🛡️ icon
+
+---
+
+## Verification
+
+```bash
+cd frontend && npx tsc --noEmit
+cd frontend && npm run build
+```
+
+Then in browser:
+1. Navigate to `/live`
+2. If snapshot has `thesis_valid=true` → green banner, active signals visible
+3. If snapshot has `thesis_valid=false` → red banner, NO green signals visible
+4. If `circuit_breaker_active=true` → dark red sticky banner at top
+
+**THE KEY TEST:** When `thesis_valid=false`, there must be ZERO green signal cards or "BUY" or "BULL" text visible anywhere on the page. If any green survives → BUG.
+
+---
+
+## Anti-Sandbag Gates
+
+- ❌ Do NOT build a morning brief display. This is the LIVE panel. Static brief is separate.
+- ❌ Do NOT fetch from AXLFI endpoints. You read ONLY `/intraday/snapshot`.
+- ❌ Do NOT add any backend routes. Agent 2 owns the backend.
+- ❌ Do NOT show actionable signal content when `thesis_valid=false`. ZERO green.
+- ❌ Do NOT make the circuit breaker banner dismissable.
+- ✅ If the snapshot endpoint returns `{"error": "No snapshot yet"}`, show a "Waiting for session data..." message. Don't crash.
+
+---
+
+## Files You CAN Touch
+
+- `frontend/src/components/intraday/ThesisStatus.tsx` (NEW)
+- `frontend/src/components/intraday/ActiveSignals.tsx` (NEW)
+- `frontend/src/components/intraday/CircuitBreakerBanner.tsx` (NEW)
+- `frontend/src/components/intraday/index.ts` (NEW — barrel export)
+- `frontend/src/hooks/useIntradaySnapshot.ts` (NEW)
+- `frontend/src/pages/LiveSession.tsx` (NEW)
+- `frontend/src/App.tsx` (ADD route)
+- `frontend/src/components/NavBar.tsx` (ADD nav item)
+- `frontend/src/lib/api.ts` (ADD `intradayApi.snapshot()`)
+
+## Files You CANNOT Touch
+
+- Any file in `backend/`
+- Any file in `live_monitoring/`
+- Any file in `discord_bot/`
+- `frontend/src/components/axlfi/*` (Agent 1 owns these)
+- `frontend/src/pages/AXLFIIntel.tsx` (Agent 1 owns this)

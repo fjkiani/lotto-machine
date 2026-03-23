@@ -1,0 +1,427 @@
+---
+description: "Master Signal Intelligence System — full pipeline status map. Every endpoint, route, component, and wire labeled as LIVE / DEAD / UNWIRED / PLANNED. Nothing gets skipped."
+globs:
+  - "frontend/src/pages/AXLFIIntel.tsx"
+  - "frontend/src/components/axlfi/**"
+  - "frontend/src/lib/api.ts"
+  - "backend/app/api/v1/axlfi.py"
+  - "backend/app/api/v1/signal_briefing.py"
+  - "live_monitoring/enrichment/apis/stockgrid_client.py"
+  - "live_monitoring/agents/signal_brain/**"
+alwaysApply: false
+---
+
+# Signal Intelligence System — Master Status Map
+
+**Last audited: 2026-03-13 15:40 ET**
+**Build status: ✅ tsc clean, npm build clean (2437 modules, 3.81s)**
+
+---
+
+## HOW THIS HELPS YOU TRADE — Strategy Decision Framework
+
+Every data source maps to a specific trading question. If it doesn't answer a question, it's noise.
+
+### Question 1: "Should I enter the market right now?"
+
+| Signal | What To Check | Bullish Entry | Bearish Entry | Current (Mar 13) |
+|--------|--------------|---------------|---------------|-------------------|
+| **DP Position Trend** | Is SPY dark pool accumulating or distributing? | 5+ consecutive days accumulation | 5+ consecutive days distribution | 🟢 15 days accumulation (57.8M shares) — STRONG BUY signal |
+| **Signal Consensus** | Are AXLFI signals mostly bullish or bearish? | >70% bullish | >70% bearish | 🟢 6 bullish, 0 bearish — 100% consensus |
+| **VIX Regime** | What tier? | Tier 1-2 (low/warning) | Tier 3-4 (high/extreme) = DON'T enter long | ⚪ No active alert |
+| **Option Wall Position** | Where is price vs call_wall and put_wall? | Above POC | Below POC | ❌ NO DATA — walls not rendering properly |
+
+**Entry Decision Matrix:**
+```
+IF dp_trend > 5 days accumulating
+  AND signal_consensus > 70% bullish
+  AND vix_regime <= 2
+  AND price > poc
+THEN → ENTER LONG (conviction HIGH)
+
+IF dp_trend > 5 days accumulating
+  BUT tactical_positions include defensive (GLD, DBC)
+THEN → ENTER LONG but HEDGED (conviction MODERATE)
+  "Institutions are buying but wearing a helmet"
+
+IF dp_trend distributing
+  AND signal_consensus > 50% bearish
+  AND vix_regime >= 3
+THEN → ENTER SHORT or STAY CASH
+```
+
+**Today's answer:** 🟡 CAUTIOUS LONG — institutions heavily accumulating (strongest signal), but defensive tactical positioning (GLD + DBC) means they expect volatility. Enter long with a hedge.
+
+---
+
+### Question 2: "What direction is the market going?"
+
+| Signal | Bullish Direction | Bearish Direction | How We Use It |
+|--------|------------------|-------------------|---------------|
+| **DP Position Trend (SPY)** | Rising cumulative position | Falling cumulative position | **Primary direction signal** — institutions move first |
+| **DP Position Trend (QQQ)** | QQQ accumulating = tech bid | QQQ distributing = tech dump | **Sector direction** — is the rally broad or narrow? |
+| **DP Position Trend (IWM)** | IWM accumulating = risk-on | IWM distributing = risk-off | **Risk appetite** — small caps lead at tops and bottoms |
+| **Sector Rotation** | Cyclicals (tech, discretionary) leading | Defensives (utilities, staples) leading | **Rotation confirmation** |
+| **Forward Returns Heatmap** | Green across 5D-20D for broad market | Red across 5D-20D | **Momentum confirmation** |
+
+**Today's read:**
+- SPY DP: 🟢 UP (57.8M shares, 15 days)
+- QQQ DP: ❌ NOT FETCHED — this is a blind spot
+- IWM DP: ❌ NOT FETCHED — this is a blind spot
+- Sectors: ⚠️ Utilities +126% = DEFENSIVE rotation (bearish context)
+- Signals: 🟢 All semis (AMAT, LRCX, MU, STX, WDC) = tech specifically is getting accumulated
+
+**Direction call:** UP with caveats — institutions buying SPY + semis aggressively, but defensive sector rotation says they expect a rough patch. Translation: "buying the dip while hedging the drawdown."
+
+---
+
+### Question 3: "Will the market reverse?"
+
+Reversals are detected by **divergences** between signals:
+
+| Divergence Pattern | What It Means | Data Sources |
+|-------------------|---------------|-------------|
+| **DP accumulating BUT price dropping** | Smart money buying into weakness = bottom forming | DP trend vs SPY price |
+| **DP distributing BUT price rising** | Smart money selling into strength = top forming | DP trend vs SPY price |
+| **Signals bullish BUT VIX spiking (Tier 3+)** | Volatility crush incoming — signals may be stale | Signals vs VIX regime |
+| **Call wall moving DOWN across expirations** | Dealers unwinding upside protection = ceiling dropping | Multi-date option walls |
+| **Put wall moving UP across expirations** | Dealers building downside protection = floor rising | Multi-date option walls |
+| **Short volume % surging > 65%** | Heavy short selling — could be covering catalyst | Short volume trend |
+| **Tactical shifting from risk to defensive** | Model flipping to gold/commodities from equities | Tactical positions |
+
+**Reversal detection today:**
+- SPY price DOWN (-0.39%) but DP ACCUMULATING (+2.2M shares) → **Classic dip-buy divergence** — historically bullish
+- Tactical ALREADY defensive (GLD, DBC) → the model anticipated this pullback
+- VIX: No alert → not a panic sell, just a controlled pullback
+- **Verdict: No reversal signal. This is a buy-the-dip, not a distribution top.**
+
+---
+
+### Question 4: "When should I exit / take profit?"
+
+| Exit Signal | What To Watch | Data Source | Status |
+|-------------|--------------|-------------|--------|
+| **DP trend reverses** | SPY switches from accumulation to distribution (negative net volume for 3+ days) | DP position trend | ⚠️ NOT DISPLAYED — must be built |
+| **Call wall breach** | Price breaks above call_wall = gamma squeeze potential → trail stop | Option walls | ⚠️ Only 3 numbers shown |
+| **Put wall breach** | Price breaks below put_wall = gamma dump → EXIT | Option walls | ⚠️ Only 3 numbers shown |
+| **VIX regime escalation** | VIX jumps to Tier 3 or 4 = tighten stops or flatten | VIX regime | ✅ LIVE |
+| **Signal flip** | Bullish signals drop to 0, bearish signals appear | Signals | ✅ LIVE (but delayed — check daily) |
+| **Sector rotation flip** | Cyclicals suddenly dump, defensives spike further | Movers | ✅ LIVE |
+| **Short volume spike** | SV% jumps above 65% for 3+ days = sustained selling | Short volume | ⚠️ Only bars, no alert |
+
+**Today:** No exit signals. All systems say hold.
+
+---
+
+### Question 5: "Which sector / ticker has the best edge?"
+
+| Data Source | What It Tells You | Status |
+|-----------|------------------|--------|
+| **Signal symbols** | Which specific tickers have bullish/bearish dark pool activity | ✅ LIVE but raw |
+| **Earnings Intel** (enriched) | Per-ticker: DP trend, short vol, 52w position, sector, volatility | 🔴 EXISTS BUT NEVER CALLED |
+| **DP Leaderboard** | Top 200 tickers ranked by institutional positioning | 🔴 NO ROUTE IN BACKEND |
+| **Cluster assignments** | Which stocks move together — sector/factor groupings | ⚠️ PARTIAL — only used for returns |
+
+**Today's edge tickers:**
+- **AMAT, LRCX, MU, STX, WDC** — all semis/memory, all bullish signals
+- But we can't tell you: at what price, with what conviction, with what stop loss
+- Because we never call `earningsIntel()` to get the context
+
+---
+
+### Question 6: "What's the full picture right now?" (Signal Briefing)
+
+This is what the Signal Briefing page (Phase 4) answers. Today, manually synthesized:
+
+```
+MARKET BRIEFING — March 13, 2026
+
+CONVICTION: 72/100 — CAUTIOUS BULL
+
+PRIMARY SIGNAL: SPY dark pools show 15 consecutive days of institutional
+accumulation, from 20.4M to 57.8M shares ($39.4B). This is the strongest
+sustained buying signal in 30 days. No distribution detected.
+
+SECTOR FOCUS: All 6 AXLFI signals are semiconductor/memory (AMAT, LRCX,
+MU, STX, WDC) plus ODFL (logistics). Institutions are positioning for a
+tech/semis bid.
+
+CAUTION: Tactical allocation is defensive (LONG DBC, LONG GLD). Sector
+rotation shows extreme utilities/defensive leadership (+126%). Institutions
+are buying but hedging — they expect turbulence on the path higher.
+
+OPTION CONTEXT: [MISSING — walls data not rendered]
+
+ACTION: Buy dips in semis. Use GLD as hedge. Exit if DP trend reverses
+(3+ days distribution) or VIX hits Tier 3+.
+```
+
+**This briefing doesn't exist as a system feature. It was manually written by reading raw data. Phase 4 automates this.**
+
+---
+
+### What's Blocking Each Question
+
+| Question | Blocking Issue | Fix Phase |
+|----------|---------------|-----------|
+| Should I enter? | DP trend not displayed, QQQ/IWM missing | Phase 1 |
+| What direction? | QQQ/IWM DP missing, no cross-index comparison | Phase 1 |
+| Will it reverse? | No divergence detection, no DP trend line to compare vs price | Phase 1 + 4 |
+| When to exit? | No alert thresholds, no DP reversal detection | Phase 4 |
+| Best sector/ticker? | `earningsIntel()` never called, signals are raw | Phase 2 |
+| Full picture? | No synthesis exists — all data displayed in isolation | Phase 4 |
+
+---
+
+## Layer 1: AXLFI Upstream (axlfi.com) — 10 Endpoints
+
+All endpoints are PUBLIC. No auth needed. Require Chrome 134+ User-Agent + Referer + Origin headers.
+Data is T+1 (dark pool data appears after market close).
+
+| # | Endpoint | Status | Size | What It Returns |
+|---|----------|--------|------|-----------------|
+| 1 | `/dashboard/all` | ✅ LIVE | 365KB | Master feed: signals, movers, VIX regime, strategy, SPY history, tactical allocation |
+| 2 | `/dark_pools/leaderboard` | ✅ LIVE | 75KB | Top 200 tickers by dark pool position ($) |
+| 3 | `/dark_pools/symbol?symbol=X&window=N` | ✅ LIVE | 54KB | Per-ticker daily DP position + short volume history (up to 252 days) |
+| 4 | `/option_walls/data?symbol=X` | ✅ LIVE | 16-34KB | Full strike-level OI: call/put walls, POC, x_values, y_call_values, y_put_values, multi-date |
+| 5 | `/option_walls/market_snapshot` | ✅ LIVE | 342B | SPY/QQQ/IWM current prices + change |
+| 6 | `/option_walls/symbols` | ✅ LIVE | 32B | Available wall tickers: `["IWM","QQQ","SPY"]` |
+| 7 | `/clusters/table` | ✅ LIVE | 214KB | Full universe: SP500, NASDAQ100, all — cluster assignments + forward returns |
+| 8 | `/symbols/info?symbol=X` | ✅ LIVE | 334B | Ticker metadata: price, sector, industry, volatility, 52w range |
+| 9 | `/dark_pools/leaderboard?metric=net_short_volume_dollars` | ✅ LIVE | 75KB | Alternative sort: by net short volume |
+| 10 | `/option_walls/data?symbol=IWM` | ✅ LIVE | 16KB | IWM option walls (subset of #4) |
+
+### ⚠️ Rate Limiting
+- Burst requests (5+ in <10s) from same IP will get throttled by Cloudflare
+- StockgridClient uses 5-min cache TTL + 3 retries — handles this
+- Direct curl bursts WILL fail
+
+### Headers Required
+```python
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Referer": "https://axlfi.com/dashboard",
+    "Origin": "https://axlfi.com",
+}
+```
+
+---
+
+## Layer 2: StockgridClient (Python) — 15 Methods
+
+**File:** `live_monitoring/enrichment/apis/stockgrid_client.py` (511 lines)
+
+| Method | Calls Endpoint | Returns | Used By Backend? |
+|--------|---------------|---------|-----------------|
+| `get_dashboard()` | `/dashboard/all` | Full 365KB blob | ✅ YES — via `/axlfi/dashboard` |
+| `get_signal_symbols()` | (from dashboard) | `[{dir, symbol}]` | ✅ YES — via `/axlfi/signals` |
+| `get_volatility_regime()` | (from dashboard) | `{current_regime, tier_label}` | ✅ YES — via `/axlfi/regime` |
+| `get_movers()` | (from dashboard) | `{gainers, losers, volume, sectors}` | ✅ YES — via `/axlfi/movers` |
+| `get_top_positions(limit)` | `/dark_pools/leaderboard` | `List[DarkPoolPosition]` | ❌ NO ROUTE — **UNWIRED** |
+| `get_ticker_detail_raw(sym, window)` | `/dark_pools/symbol` | Full DP history dict | ✅ YES — via `/axlfi/detail/{sym}` |
+| `get_ticker_latest(sym)` | (from detail_raw) | `DarkPoolPosition` | ✅ (internal use) |
+| `get_option_walls(sym)` | `/option_walls/data` | Full OI + walls dict | ✅ YES — via `/axlfi/option-walls/{sym}` |
+| `get_option_walls_today(sym)` | (from option_walls) | `OptionWall` dataclass | ✅ YES — via `/axlfi/option-walls/{sym}/today` |
+| `get_market_snapshot()` | `/option_walls/market_snapshot` | `{SPY, QQQ, IWM}` prices | ✅ YES — via `/axlfi/snapshot` |
+| `get_clusters()` | `/clusters/table` | SP500/NASDAQ100 universe | ✅ YES — via `/axlfi/clusters` |
+| `get_symbol_info(sym)` | `/symbols/info` | Ticker metadata | ✅ YES — via `/axlfi/info/{sym}` |
+| `get_summary()` | (combines top + SPY + QQQ) | `DarkPoolSummary` | ❌ NO ROUTE — internal only |
+| `get_narrative()` | (from summary) | Plain text string | ❌ NO ROUTE — **UNWIRED** |
+| `get_earnings_intel(tickers)` | (DP + info + walls + signals) | Rich per-ticker intel | ✅ YES — via `/axlfi/earnings-intel` |
+
+---
+
+## Layer 3: Backend FastAPI Routes — 11 Routes
+
+**File:** `backend/app/api/v1/axlfi.py` (220 lines)
+**Prefix:** `/api/v1/axlfi`
+
+| Route | Client Method | Frontend Calls It? | UI Renders It? | Status |
+|-------|--------------|-------------------|----------------|--------|
+| `GET /dashboard` | `get_dashboard()` | ✅ `axlfiApi.dashboard()` | ✅ YES | ✅ CONNECTED |
+| `GET /signals` | `get_signal_symbols()` | ✅ `axlfiApi.signals()` | ✅ YES (but raw — no metadata) | ⚠️ PARTIAL |
+| `GET /regime` | `get_volatility_regime()` | ✅ `axlfiApi.regime()` | ✅ YES | ✅ CONNECTED |
+| `GET /movers` | `get_movers()` | ✅ `axlfiApi.movers()` | ✅ YES (field names fixed) | ✅ CONNECTED |
+| `GET /option-walls/{sym}` | `get_option_walls()` | ✅ `axlfiApi.optionWalls()` | ❌ **NEVER CALLED** from UI | 🔴 DEAD WIRE |
+| `GET /option-walls/{sym}/today` | `get_option_walls_today()` | ✅ `axlfiApi.wallsToday()` | ✅ YES (3 numbers only) | ⚠️ PARTIAL — strike-level OI discarded |
+| `GET /snapshot` | `get_market_snapshot()` | ✅ `axlfiApi.snapshot()` | ✅ YES | ✅ CONNECTED |
+| `GET /clusters` | `get_clusters()` | ✅ `axlfiApi.clusters()` | ⚠️ Only for forward returns table | ⚠️ PARTIAL — cluster assignments hidden |
+| `GET /info/{sym}` | `get_symbol_info()` | ✅ `axlfiApi.info()` | ❌ **NEVER CALLED** from UI | 🔴 DEAD WIRE |
+| `GET /detail/{sym}` | `get_ticker_detail_raw()` | ✅ `axlfiApi.detail()` | ⚠️ Only short volume bars | ⚠️ PARTIAL — DP position trend invisible |
+| `GET /earnings-intel` | `get_earnings_intel()` | ✅ `axlfiApi.earningsIntel()` | ❌ **NEVER CALLED** from UI | 🔴 DEAD WIRE |
+
+### Routes That Don't Exist (Backend Methods With No Route)
+
+| Client Method | What It Does | Status |
+|--------------|-------------|--------|
+| `get_top_positions()` | Top 200 tickers by DP position | ❌ NO ROUTE EXISTS |
+| `get_narrative()` | Plain text DP narrative | ❌ NO ROUTE EXISTS |
+| `get_summary()` | Combined SPY+QQQ DP summary | ❌ NO ROUTE EXISTS |
+
+---
+
+## Layer 4: Frontend API Calls — 12 Methods
+
+**File:** `frontend/src/lib/api.ts` (lines 243-255)
+
+| Method | Backend Route | Called From UI? | Status |
+|--------|-------------|----------------|--------|
+| `axlfiApi.dashboard()` | `/axlfi/dashboard` | ✅ AXLFIIntel.tsx | ✅ LIVE |
+| `axlfiApi.signals()` | `/axlfi/signals` | ✅ AXLFIIntel.tsx | ✅ LIVE |
+| `axlfiApi.regime()` | `/axlfi/regime` | ✅ AXLFIIntel.tsx | ✅ LIVE |
+| `axlfiApi.movers()` | `/axlfi/movers` | ✅ AXLFIIntel.tsx | ✅ LIVE |
+| `axlfiApi.optionWalls(sym)` | `/axlfi/option-walls/{sym}` | ❌ NEVER CALLED | 🔴 DEAD |
+| `axlfiApi.wallsToday(sym)` | `/axlfi/option-walls/{sym}/today` | ✅ AXLFIIntel.tsx | ✅ LIVE |
+| `axlfiApi.snapshot()` | `/axlfi/snapshot` | ✅ AXLFIIntel.tsx | ✅ LIVE |
+| `axlfiApi.clusters(u)` | `/axlfi/clusters` | ✅ AXLFIIntel.tsx | ✅ LIVE |
+| `axlfiApi.info(sym)` | `/axlfi/info/{sym}` | ❌ NEVER CALLED | 🔴 DEAD |
+| `axlfiApi.detail(sym, w)` | `/axlfi/detail/{sym}` | ✅ AXLFIIntel.tsx (SPY only) | ⚠️ SPY only, trend hidden |
+| `axlfiApi.earningsIntel(tickers)` | `/axlfi/earnings-intel` | ❌ NEVER CALLED | 🔴 DEAD |
+| (missing) | (no route) | — | ❌ No DP leaderboard API |
+| (missing) | (no route) | — | ❌ No signal briefing API |
+
+---
+
+## Layer 5: UI Components — What's Rendered
+
+**Page:** `frontend/src/pages/AXLFIIntel.tsx` (135 lines — thin shell)
+**Components:** `frontend/src/components/axlfi/` (10 files)
+
+| Component | File | Data Source | What It Shows | What It Hides |
+|-----------|------|------------|--------------|---------------|
+| `MarketRegime` | `MarketRegime.tsx` | `regime()` | VIX tier 1-4 | ✅ Complete |
+| `IndexSnapshot` | `IndexSnapshot.tsx` | `snapshot()` | SPY/QQQ/IWM prices | ✅ Complete |
+| `TacticalPositions` | `TacticalPositions.tsx` | `dashboard()` | LONG/SHORT positions | No reasoning/context |
+| `OptionWallsPanel` | `OptionWalls.tsx` | `wallsToday()` | 3 numbers per symbol | **Full OI distribution thrown away** |
+| `InstitutionalSignals` | `InstitutionalSignals.tsx` | `signals()` | `AMAT ▲ BULLISH` | **No price, sector, 52w, DP trend, nothing** |
+| `MarketMovers` | `MarketMovers.tsx` | `movers()` | Gainers/losers/volume/sectors | ✅ Complete (fields fixed) |
+| `ShortVolumeProfile` | `ShortVolumeProfile.tsx` | `detail('SPY')` | Short vol % bars | **DP position trend invisible** |
+| `ForwardReturns` | `ForwardReturns.tsx` | `clusters()` | 1D-20D return heatmap | Cluster assignments hidden |
+
+### Components That Don't Exist Yet (PLANNED)
+
+| Component | Data Source | What It Will Show | Plan Phase |
+|-----------|-----------|-------------------|------------|
+| `DarkPoolTrend` | NEW `/dp-trend` | 15-day SPY/QQQ/IWM accumulation line | Phase 1 |
+| `EnrichedSignals` | `earningsIntel()` | Full signal cards with metadata | Phase 2 |
+| `GammaProfile` | `optionWalls()` | Strike-level OI distribution chart | Phase 3 |
+| `SignalBriefing` | NEW `/signal-briefing` | Conviction score + narrative synthesis | Phase 4 |
+
+---
+
+## Layer 6: Intelligence Infrastructure (Backend Python)
+
+| Module | File | Status | Connected To |
+|--------|------|--------|-------------|
+| `signal_brain/macro.py` | `live_monitoring/agents/signal_brain/macro.py` | ✅ EXISTS | `EconomicLearningEngine` wired |
+| `signal_brain_monitor.py` | `live_monitoring/pipeline/components/signal_brain_monitor.py` | ✅ EXISTS | Pipeline orchestrator |
+| `synthesis_checker.py` | `live_monitoring/orchestrator/checkers/synthesis_checker.py` | ✅ EXISTS | Unified monitor |
+| `FedShiftPredictor` | in economic pipeline | ✅ IMPORTED at `economic.py:55` | Hardcoded coefficients, not learned |
+| `EconomicLearningEngine` | in macro pipeline | ✅ WIRED at `macro.py:94` | **No market reaction data feeds it** |
+| `EconomicExploitEngine` | in economic pipeline | 🔴 SHELL — 0 events | Yahoo 404, Perplexity expired |
+| `MacroContextProvider` | in economic pipeline | 🔴 ALL DEFAULTS | `confidence=0.0`, no real data sources |
+| `FedWatchMonitor` | in economic pipeline | ⚠️ DEGRADED | Falls back to hardcoded 87.2% |
+| `FedWatchEngine` | yfinance-based | ✅ LIVE | Not used by FedWatchMonitor (should replace it) |
+| `StockgridClient.get_narrative()` | stockgrid_client.py:355 | ✅ CODE EXISTS | ❌ No route exposes it |
+
+---
+
+## Signal Data Quality — What Each Signal Actually Contains
+
+### AXLFI Signal Object (from `/dashboard/all`)
+```json
+{"dir": 1, "symbol": "AMAT"}
+```
+**That's it.** Two fields. No confidence, no timestamp, no price target, no reasoning.
+
+### What We COULD Enrich It With (from `/earnings-intel`)
+```json
+{
+  "status": "live",
+  "close": 175.50,
+  "change_pct": -2.1,
+  "company": "Applied Materials Inc",
+  "sector": "Technology",
+  "industry": "Semiconductor Equipment",
+  "volatility": 0.35,
+  "52w_range": "$140-$220",
+  "latest_dp_shares": 12500000,
+  "short_volume_pct": 42.3,
+  "trend_5d": [
+    {"date": "2026-03-08", "shares": 11200000},
+    {"date": "2026-03-12", "shares": 12500000}
+  ]
+}
+```
+**This endpoint EXISTS and WORKS. Nobody calls it.**
+
+---
+
+## Live Data Snapshot (March 13, 2026)
+
+### Signals: 6 Bullish, 0 Bearish
+`AMAT, LRCX, MU, ODFL, STX, WDC` — all semis/memory + 1 logistics
+
+### SPY Dark Pool: 🟢 57.8M shares accumulated
+- 15 consecutive days of net accumulation
+- Position tripled from 20.4M → 57.8M in 15 days
+- $39.4B cumulative dark pool position
+- **THIS IS NOT DISPLAYED ANYWHERE IN THE UI**
+
+### Tactical: LONG DBC, LONG GLD
+- Commodities + Gold = inflation hedge / defensive positioning
+
+### Sectors: Utilities +126%, Communications -78%
+- Extreme defensive rotation
+
+### VIX Regime: No active alert (Tier null)
+
+### Index: SPY -0.39%, QQQ -0.58%, IWM -0.55%, DIA -0.06%
+
+---
+
+## Dead Wires Summary
+
+| What | Where It Breaks | Fix |
+|------|----------------|-----|
+| `axlfiApi.optionWalls()` | Frontend method exists, never called from any component | Wire into new GammaProfile component |
+| `axlfiApi.info()` | Frontend method exists, never called from any component | Wire into EnrichedSignals |
+| `axlfiApi.earningsIntel()` | Frontend method exists, never called from any component | Wire into EnrichedSignals |
+| `get_top_positions()` | Client method exists, no backend route | Create `/axlfi/leaderboard` route |
+| `get_narrative()` | Client method exists, no backend route | Create `/axlfi/narrative` route or embed in signal briefing |
+| DP position trend | Data fetched via `detail()`, only short vol bars rendered | Add position line to new DarkPoolTrend component |
+| Strike-level OI | Data returned by `optionWalls()`, reduced to 3 numbers | Render in new GammaProfile component |
+| Multi-date walls | Data returned, only nearest expiration shown | Add expiration selector to GammaProfile |
+| SPY price history | Fetched in 365KB dashboard, never rendered | Add chart or embed in DarkPoolTrend |
+| QQQ/IWM dark pool detail | Only SPY fetched | Fetch all 3 in parallel |
+| Signal metadata | Signals are `{dir, symbol}` only | Enrich via earningsIntel() |
+| Conviction scoring | No scoring exists | Build in signal_briefing.py |
+| Narrative synthesis | No synthesis exists | Build template-based narrative |
+
+---
+
+## Execution Priority
+
+| Phase | What | Backend | Frontend | Dead Wires Fixed |
+|-------|------|---------|----------|-----------------|
+| **1** | Dark Pool Position Tracker | 1 new route | 2 files | #2 (DP trend), #9 (QQQ/IWM) |
+| **2** | Enriched Signals | 0 (exists) | 2 files | #6 (Kill Chain), #7 (metadata) |
+| **3** | Gamma Exposure Chart | 0 (exists) | 1 file | #3 (OI distribution), #4 (multi-date) |
+| **4** | Signal Briefing Page | 1 new route file | 4 files | Conviction + narrative |
+| **5** | DP Leaderboard | 1 new route | 1 file | #1 (leaderboard) |
+
+---
+
+## Rules
+
+1. **NEVER re-add `fedwatchNarrative`** — it was a dead endpoint, removed on 2026-03-13
+2. **`sector_leaders_1d` is a DICT** `{best_sector, best_value, worst_sector, worst_value}` — NOT an array
+3. **Volume field is `current_volume`** not `volume` — fixed on 2026-03-13
+4. **`short_volume_percent` is already a %** (68.95 = 68.95%) — do NOT multiply by 100
+5. **DP Position line is the real signal** — short volume bars alone are noise for SPY
+6. **All AXLFI data is T+1** — dark pool positions reflect yesterday's activity
+7. **Chrome version 134+** required in User-Agent — lower versions get Cloudflare blocked
+8. **Signal objects are minimal** `{dir, symbol}` — ALWAYS enrich via earningsIntel before displaying
+9. **Option wall data includes full OI distribution** — NEVER reduce to just 3 numbers without charting
+10. **Cache TTL is 5 min** — don't hammer AXLFI with burst requests

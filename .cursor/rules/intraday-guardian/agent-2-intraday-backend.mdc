@@ -1,0 +1,198 @@
+---
+description: "Agent 2 — Intraday Backend. Build the guardian loop, snapshot file, signal invalidation, circuit breaker. Python only, no frontend."
+globs:
+  - "live_monitoring/intraday_guardian.py"
+  - "live_monitoring/premarket_scheduler.py"
+  - "live_monitoring/orchestrator/gate_outcome_tracker.py"
+  - "backend/app/api/v1/intraday.py"
+  - "backend/app/main.py"
+alwaysApply: false
+---
+
+# Agent 2 — Intraday Backend (Python Only)
+
+You build the intraday guardian loop. This is the CRITICAL PATH — Agents 3 and 4 are blocked until you deliver.
+
+---
+
+## Task 1: Create `intraday_guardian.py`
+
+**File:** `live_monitoring/intraday_guardian.py`
+
+A class `IntradayGuardian` with a `check()` method that:
+1. Gets SPY current price via yfinance (1d period, 1m interval, last close)
+2. Gets SPY call wall from StockgridClient: `get_option_walls_today('SPY').call_wall`
+3. Gets SPY put wall: `get_option_walls_today('SPY').put_wall`
+4. Gets SPY POC: `get_option_walls_today('SPY').poc`
+5. Compares price vs wall → determines `spy_vs_wall` (above/at/below) and `wall_status` (defended/testing/broken)
+   - `defended` = price > call_wall + 0.5
+   - `testing` = abs(price - call_wall) <= 0.5
+   - `broken` = price < call_wall - 0.5
+6. Determines volume character (simplified): compare current session volume vs 20-day avg
+   - Use yfinance `history(period='1d')` volume vs `history(period='21d')` avg volume
+   - > 1.3x = accumulation, < 0.7x = distribution, else neutral
+7. Reads morning brief from `/tmp/morning_briefs/{today}.json` to get the starting thesis
+8. Computes `thesis_valid`:
+   - Starts True
+   - If `wall_status == "broken"` → False, reason = "SPY broke call wall ${wall} at {time}"
+   - If morning brief verdict was LONG but price < put_wall → False, reason = "SPY below put wall"
+9. Checks circuit breaker (see Task 3)
+10. Writes `/tmp/intraday_snapshot.json`
+
+**Snapshot schema (exact — do not deviate):**
+```json
+{
+  "timestamp": "2026-03-13T11:45:00-04:00",
+  "market_open": true,
+  "spy_price": 658.40,
+  "spy_call_wall": 660.00,
+  "spy_put_wall": 640.00,
+  "spy_poc": 650.00,
+  "spy_vs_wall": "below",
+  "wall_status": "broken",
+  "wall_break_time": "11:34 AM",
+  "volume_character": "distribution",
+  "volume_ratio": 1.8,
+  "thesis_valid": false,
+  "thesis_invalidation_reason": "SPY broke call wall $660 at 11:34 AM",
+  "circuit_breaker_active": false,
+  "circuit_breaker_reason": null,
+  "consecutive_losses_today": 0,
+  "signals_active": 0,
+  "signals_invalidated": 6,
+  "morning_verdict": "LONG",
+  "last_check": "11:45:00"
+}
+```
+
+---
+
+## Task 2: Signal Invalidation
+
+When `thesis_valid` flips from True → False, call `invalidate_signals()`:
+
+1. Read `data/gate_signals_today.json` (path: `DATA_DIR / "gate_signals_today.json"` — same as `gate_outcome_tracker.py:21`)
+2. Each signal record is a dict. Add `"status": "invalidated"`, `"invalidation_reason": reason`, `"invalidated_at": now.isoformat()`
+3. Write back
+4. Track previous thesis state so you only invalidate ONCE per flip (not every 15 min)
+
+Also add `"status": "active"` to signals when they're first created in `gate_outcome_tracker.py:log_signal()` — currently no status field exists.
+
+---
+
+## Task 3: Circuit Breaker
+
+Read `data/gate_outcomes.json`. Count consecutive losses from today's entries (from the end):
+- If >= 2 consecutive losses today → `circuit_breaker_active = True`
+- Reason: "Circuit breaker active — 2 consecutive losses today"
+- When active: `invalidate_signals()` also runs with reason = circuit breaker reason
+
+---
+
+## Task 4: Wire Into Scheduler
+
+**Modify `live_monitoring/premarket_scheduler.py`:**
+
+In the `scheduler_loop()` `while True:` block (line 205), add:
+
+```python
+# 9:30-16:00 ET → INTRADAY GUARDIAN (every 15 min)
+if 9 <= h <= 15 or (h == 16 and m == 0):
+    if (h == 9 and m >= 30) or (10 <= h <= 15) or (h == 16 and m == 0):
+        # Run every 15 minutes (scheduler checks every 5 min, so run if min % 15 < 5)
+        if m % 15 < 5:
+            try:
+                from live_monitoring.intraday_guardian import IntradayGuardian
+                guardian = IntradayGuardian()
+                snapshot = guardian.check()
+                logger.info(f"🛡️ Guardian: thesis={'VALID' if snapshot['thesis_valid'] else 'INVALID'} | SPY=${snapshot['spy_price']}")
+            except Exception as e:
+                logger.error(f"Guardian check failed: {e}")
+```
+
+---
+
+## Task 5: Backend Route
+
+**Create `backend/app/api/v1/intraday.py`:**
+
+```python
+from fastapi import APIRouter
+import json, os
+
+router = APIRouter(prefix="/api/v1/intraday", tags=["intraday"])
+
+SNAPSHOT_PATH = "/tmp/intraday_snapshot.json"
+
+@router.get("/snapshot")
+async def get_snapshot():
+    if os.path.exists(SNAPSHOT_PATH):
+        with open(SNAPSHOT_PATH) as f:
+            return json.load(f)
+    return {"thesis_valid": True, "market_open": False, "error": "No snapshot yet"}
+```
+
+**Register in `backend/app/main.py`:**
+```python
+from app.api.v1.intraday import router as intraday_router
+app.include_router(intraday_router)
+```
+
+---
+
+## Verification
+
+```bash
+# 1. Module imports
+python -c "from live_monitoring.intraday_guardian import IntradayGuardian; print('OK')"
+
+# 2. Check method runs and writes snapshot
+python -c "
+from live_monitoring.intraday_guardian import IntradayGuardian
+g = IntradayGuardian()
+s = g.check()
+print(f'thesis_valid={s[\"thesis_valid\"]}')
+print(f'spy_price={s[\"spy_price\"]}')
+print(f'wall_status={s[\"wall_status\"]}')
+"
+
+# 3. Snapshot file exists
+cat /tmp/intraday_snapshot.json | python -m json.tool
+
+# 4. Backend route works
+curl http://localhost:8000/api/v1/intraday/snapshot | python -m json.tool
+```
+
+If ANY of these fail, you are not done.
+
+---
+
+## Anti-Sandbag Gates
+
+- ❌ Do NOT hardcode spy_price. Fetch it live from yfinance.
+- ❌ Do NOT hardcode call_wall. Fetch it from StockgridClient.
+- ❌ Do NOT skip the `invalidate_signals()` function. Signals MUST flip to invalidated.
+- ❌ Do NOT use `print()` for logging. Use `logger = logging.getLogger(__name__)`.
+- ❌ Do NOT create frontend files. Python only.
+- ❌ Do NOT write "TODO" or "placeholder" anywhere.
+- ✅ If yfinance fails (market closed), set `market_open: false` and skip thesis check. Don't crash.
+- ✅ If StockgridClient fails (rate limit), use cached wall from morning brief. Don't crash.
+- ✅ The snapshot file MUST contain ALL fields from the schema above. Missing fields = FAIL.
+
+---
+
+## Files You CAN Touch
+
+- `live_monitoring/intraday_guardian.py` (NEW)
+- `live_monitoring/premarket_scheduler.py` (ADD intraday loop)
+- `live_monitoring/orchestrator/gate_outcome_tracker.py` (ADD status field to log_signal)
+- `backend/app/api/v1/intraday.py` (NEW)
+- `backend/app/main.py` (ADD router registration)
+
+## Files You CANNOT Touch
+
+- Any file in `frontend/`
+- Any file in `discord_bot/`
+- `confluence_gate.py` (Agent 4 owns this)
+- `risk_manager.py` (reference only)
+- Any AXLFI component or route

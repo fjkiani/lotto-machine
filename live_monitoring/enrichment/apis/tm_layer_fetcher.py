@@ -192,6 +192,9 @@ class LayerFetcher:
             # Sort by volume descending
             levels.sort(key=lambda x: x["volume"], reverse=True)
             state.dp_levels = levels
+            # Wire the symbol-level dollar amount for trap narratives
+            if detail and detail.dp_position_dollars:
+                state.dp_position_dollars = abs(detail.dp_position_dollars)
 
             state.staleness["dp"] = StalenessInfo(
                 source="dark_pool",

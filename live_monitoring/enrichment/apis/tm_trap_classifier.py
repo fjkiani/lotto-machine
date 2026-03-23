@@ -30,6 +30,34 @@ from .tm_models import MarketState, TrapZone
 logger = logging.getLogger(__name__)
 
 
+# ─── Formatting helpers ──────────────────────────────────────────────────────
+
+def _fmt_dollars(val: float) -> str:
+    """Format a dollar amount to B/M/K display. E.g. 35_007_000_000 → $35.0B"""
+    abs_val = abs(val)
+    if abs_val >= 1e9:
+        return f"${abs_val / 1e9:.1f}B"
+    elif abs_val >= 1e6:
+        return f"${abs_val / 1e6:.0f}M"
+    elif abs_val >= 1e3:
+        return f"${abs_val / 1e3:.0f}K"
+    else:
+        return f"${abs_val:.0f}"
+
+
+def _fmt_volume(shares: float) -> str:
+    """Format share volume to readable display. E.g. 14_260_564 → 14.3M shares"""
+    abs_val = abs(shares)
+    if abs_val >= 1e9:
+        return f"{abs_val / 1e9:.1f}B shares"
+    elif abs_val >= 1e6:
+        return f"{abs_val / 1e6:.1f}M shares"
+    elif abs_val >= 1e3:
+        return f"{abs_val / 1e3:.0f}K shares"
+    else:
+        return f"{abs_val:.0f} shares"
+
+
 # ─── Individual Classifiers ───────────────────────────────────────────────────
 
 def _classify_death_cross(state: MarketState) -> List[TrapZone]:
@@ -81,13 +109,11 @@ def _classify_bear_trap_coil(state: MarketState) -> List[TrapZone]:
     narrative = "Specs trapped short"
     data_point = f"COT: {state.cot_net_spec:,} Short"
 
-    # DP buying pressure
-    dp_support = [dp for dp in state.dp_levels if dp.get("type") == "SUPPORT" and dp.get("strength") == "STRONG"]
-    if len(dp_support) >= 2:
+    # DP buying pressure — use symbol-level dp_position_dollars from Stockgrid
+    if state.dp_position_dollars > 0 or any(dp.get("volume", 0) > 0 for dp in state.dp_levels):
         conviction += 1
         sources.append("DP")
-        total_vol = sum(dp.get("volume", 0) for dp in dp_support)
-        narrative = f"${total_vol / 1e9:.1f}B dark pool loading | Snap-back incoming"
+        narrative = f"{_fmt_dollars(state.dp_position_dollars)} dark pool loading | Snap-back incoming"
 
     # COT threshold bonus
     if state.cot_net_spec < -100_000:
@@ -139,7 +165,8 @@ def _classify_bull_trap(state: MarketState) -> List[TrapZone]:
 
         conviction = 1
         sources = ["DP"]
-        data_point = f"${dp.get('volume', 0) / 1e6:.0f}M+ dark prints"
+        # Use symbol-level dp_position_dollars directly
+        data_point = f"{_fmt_dollars(state.dp_position_dollars)} dark prints"
         narrative = "Institutions dump here"
 
         if state.cot_net_spec and state.cot_net_spec < -50_000:

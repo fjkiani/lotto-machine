@@ -123,13 +123,30 @@ class DPDivergenceChecker(BaseChecker):
                 signal = self._analyze_symbol(symbol, yesterday)
                 
                 if signal and self._passes_cooldown(signal):
+                    # ── Gate check: route through ConfluenceGate ──
+                    gate_multiplier = 1.0
+                    try:
+                        from live_monitoring.orchestrator.confluence_gate import ConfluenceGate
+                        gate = ConfluenceGate()
+                        gate_result = gate.should_fire(
+                            signal_direction=signal.direction.upper(),
+                            symbol=signal.symbol,
+                            raw_confidence=signal.confidence,
+                        )
+                        if gate_result.blocked:
+                            logger.info(f"   ⛔ Gate blocked {signal.symbol} {signal.direction}: {gate_result.reason}")
+                            continue
+                        gate_multiplier = gate_result.sizing_multiplier
+                    except Exception as e:
+                        logger.debug(f"Gate check skipped for {signal.symbol}: {e}")
+
                     # ── Phase 1: Enrich with pattern prediction ──
                     prediction = self._get_prediction(signal)
                     # ── S2.1: Enrich with multi-day trend ──
                     trend_data = self._get_trend_enrichment(symbol)
                     # ── S2.4: Enrich with price context ──
                     price_ctx = self._get_price_context(symbol)
-                    alert = self._create_alert(signal, prediction=prediction, trend_data=trend_data, price_ctx=price_ctx)
+                    alert = self._create_alert(signal, prediction=prediction, trend_data=trend_data, price_ctx=price_ctx, multiplier=gate_multiplier)
                     alerts.append(alert)
                     self._record_signal(signal)
             
@@ -262,7 +279,7 @@ class DPDivergenceChecker(BaseChecker):
     
     # ── Alert formatting ────────────────────────────────────────────────
     
-    def _create_alert(self, signal: DPDivergenceSignal, prediction: Dict = None, trend_data: Dict = None, price_ctx: Dict = None) -> CheckerAlert:
+    def _create_alert(self, signal: DPDivergenceSignal, prediction: Dict = None, trend_data: Dict = None, price_ctx: Dict = None, multiplier: float = 1.0) -> CheckerAlert:
         """Create a CheckerAlert from a signal."""
         
         # Different colors for different signal types
@@ -283,6 +300,11 @@ class DPDivergenceChecker(BaseChecker):
                 {
                     "name": "📊 Entry",
                     "value": f"${signal.entry_price:.2f}",
+                    "inline": True
+                },
+                {
+                    "name": "⚖️ Sizing",
+                    "value": f"{multiplier}x",
                     "inline": True
                 },
                 {
