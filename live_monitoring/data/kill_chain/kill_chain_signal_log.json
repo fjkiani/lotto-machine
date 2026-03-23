@@ -3443,5 +3443,39 @@
       "dvr": 0.7167
     },
     "spy_price": 648.57
+  },
+  {
+    "timestamp": "2026-03-22 23:26:24",
+    "type": "check",
+    "triple_active": true,
+    "layers": {
+      "cot_divergence": true,
+      "cot_specs_net": -113057.0,
+      "cot_comm_net": 19120.0,
+      "cot_date": "2026-03-17",
+      "gex_positive": true,
+      "vix": 26.780000686645508,
+      "vix_ratio": 0.9763,
+      "dp_selling": true,
+      "dvr": 0.7167
+    },
+    "spy_price": 648.57
+  },
+  {
+    "timestamp": "2026-03-22 23:26:30",
+    "type": "check",
+    "triple_active": true,
+    "layers": {
+      "cot_divergence": true,
+      "cot_specs_net": -113057.0,
+      "cot_comm_net": 19120.0,
+      "cot_date": "2026-03-17",
+      "gex_positive": true,
+      "vix": 26.780000686645508,
+      "vix_ratio": 0.9763,
+      "dp_selling": true,
+      "dvr": 0.7167
+    },
+    "spy_price": 648.57
   }
 ]
