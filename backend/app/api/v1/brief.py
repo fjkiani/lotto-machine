@@ -222,6 +222,22 @@ class PreSignalAlertEngine:
                 'action': f"ADP model: {adp.get('edge', '')} — position accordingly"
             })
 
+        # Alert 8: GDP pre-signal (Atlanta Fed GDPNow tracker)
+        gdp = brief.get('gdp_nowcast', {})
+        gdp_signal = gdp.get('signal', '')
+        gdp_vs = abs(gdp.get('vs_consensus', 0))
+        if gdp_signal in ('MISS', 'BEAT') and gdp_vs > 0.3:
+            alerts.append({
+                'type': 'GDP_PRESIGNAL',
+                'priority': 'HIGH' if gdp_vs > 1.0 else 'MEDIUM',
+                'event': 'GDP Q1 Estimate',
+                'signal': gdp_signal,
+                'estimate': gdp.get('gdp_estimate'),
+                'consensus': gdp.get('consensus'),
+                'edge': gdp.get('edge'),
+                'action': f"GDPNow: {gdp.get('edge', '')} — growth trajectory warning"
+            })
+
         # Sort by priority
         priority_order = {'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3}
         return sorted(alerts, key=lambda x: priority_order.get(x.get('priority', 'LOW'), 3))
@@ -477,10 +493,18 @@ async def master_brief():
             logger.warning(f"ADP Predictor failed: {e}")
             return {'error': str(e)}
 
-    # ── PARALLEL EXECUTION — all 8 layers at once ────────────────────────
+    def _fetch_gdp_nowcast():
+        try:
+            from live_monitoring.enrichment.apis.atlanta_fed_gdpnow import AtlantaFedGDPNow
+            return _lazy('gdpnow', AtlantaFedGDPNow).get_estimate()
+        except Exception as e:
+            logger.warning(f"GDPNow failed: {e}")
+            return {'error': str(e)}
+
+    # ── PARALLEL EXECUTION — all 10 layers at once ────────────────────────
 
     loop = asyncio.get_event_loop()
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=12) as executor:
         futures = {
             'macro_regime':      loop.run_in_executor(executor, _fetch_macro_regime),
             'fed_intelligence':  loop.run_in_executor(executor, _fetch_fedwatch),
@@ -491,6 +515,7 @@ async def master_brief():
             'derivatives':       loop.run_in_executor(executor, _fetch_derivatives),
             'kill_chain_state':  loop.run_in_executor(executor, _fetch_kill_chain),
             'adp_prediction':    loop.run_in_executor(executor, _fetch_adp_prediction),
+            'gdp_nowcast':       loop.run_in_executor(executor, _fetch_gdp_nowcast),
         }
 
         results = {}
