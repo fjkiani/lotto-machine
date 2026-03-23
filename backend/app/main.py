@@ -81,6 +81,87 @@ async def debug_git():
         return {"error": str(e)}
 
 
+@app.get("/kill-chain")
+async def kill_chain_monitor():
+    """Kill Chain monitor endpoint — returns live layer state for the Exploit page dashboard."""
+    from backend.app.signals.kill_chain import compute_kill_chain
+    import json
+    from pathlib import Path
+
+    try:
+        kc = compute_kill_chain()
+
+        # Load the signal log (last 20 entries)
+        state_path = Path("live_monitoring/data/kill_chain/kill_chain_signal_log.json")
+        history = []
+        if state_path.exists():
+            try:
+                with open(state_path) as f:
+                    history = json.load(f)
+                    if not isinstance(history, list):
+                        history = []
+            except Exception:
+                history = []
+
+        # Build current_state in the shape the dashboard expects
+        layer_1 = kc.get("layer_1", {})
+        layer_2 = kc.get("layer_2", {})
+        layer_3 = kc.get("layer_3", {})
+        position = kc.get("position", {})
+
+        current_state = {
+            "timestamp": kc.get("timestamp", ""),
+            "type": "CHECK",
+            "spy_price": position.get("entry_price", 0) or kc.get("layers", {}).get("gex_total", 0),
+            # Real layer values
+            "cot_specs_net": layer_1.get("value", 0),
+            "layer_1_triggered": layer_1.get("triggered", False),
+            "layer_1_signal": layer_1.get("signal", "NEUTRAL"),
+            "gex_vix_ratio": layer_2.get("value", 0),
+            "layer_2_triggered": layer_2.get("triggered", False),
+            "layer_2_signal": layer_2.get("signal", "NEUTRAL"),
+            "dvr_ratio": layer_3.get("value", 0) / 100.0,  # normalize to 0-1
+            "layer_3_triggered": layer_3.get("triggered", False),
+            "layer_3_signal": layer_3.get("signal", "WATCHING"),
+            # Confluence
+            "triple_active": kc.get("armed", False),
+            "confluence": kc.get("confluence", "WAITING"),
+            "triggered_count": kc.get("triggered_count", 0),
+            "layers_active": kc.get("triggered_count", 0),
+            "layers_total": 3,
+            # P&L
+            "entry_price": position.get("entry_price", 0),
+            "current_pnl": position.get("current_pnl", 0),
+            "pnl_percent": position.get("current_pnl", 0),
+        }
+
+        activations = sum(1 for h in history if h.get("type") == "ACTIVATION")
+
+        return {
+            "total_checks": len(history),
+            "activations": activations,
+            "current_state": current_state,
+            "history": history[-20:],
+            "kill_chain": kc,
+        }
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error(f"/kill-chain error: {exc}", exc_info=True)
+        return {
+            "total_checks": 0,
+            "activations": 0,
+            "current_state": {
+                "type": "CHECK", "triple_active": False, "confluence": "WAITING",
+                "triggered_count": 0, "layers_active": 0, "layers_total": 3,
+                "cot_specs_net": 0, "gex_vix_ratio": 0, "dvr_ratio": 0,
+                "spy_price": 0, "entry_price": 0, "pnl_percent": 0,
+            },
+            "history": [],
+            "error": str(exc),
+        }
+
+
+
 @app.get("/debug/supabase")
 async def debug_supabase():
     """Diagnostic endpoint: check Supabase env vars, connectivity, and alert count."""
