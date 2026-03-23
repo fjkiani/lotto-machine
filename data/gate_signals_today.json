@@ -1,1 +1,474 @@
-[]
+{
+  "date": "2026-03-23",
+  "signals": [
+    {
+      "timestamp": "2026-03-23T14:33:44.100560",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 660.93,
+      "level_type": "BATTLEGROUND",
+      "current_price": 660.94,
+      "distance_pct": 0.002,
+      "touch_count": 1,
+      "time_of_day": "morning",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "morning",
+          71.0
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 87.1,
+      "entry": 660.43,
+      "stop": 663.93,
+      "target": 630.0,
+      "rr": 8.7,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    },
+    {
+      "timestamp": "2026-03-23T14:37:44.622143",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 660.3,
+      "level_type": "BATTLEGROUND",
+      "current_price": 660.94,
+      "distance_pct": 0.097,
+      "touch_count": 1,
+      "time_of_day": "morning",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "morning",
+          71.0
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 87.1,
+      "entry": 659.8,
+      "stop": 663.3,
+      "target": 630.0,
+      "rr": 8.5,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    },
+    {
+      "timestamp": "2026-03-23T14:47:48.302525",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 661.68,
+      "level_type": "BATTLEGROUND",
+      "current_price": 660.94,
+      "distance_pct": 0.112,
+      "touch_count": 1,
+      "time_of_day": "morning",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "morning",
+          71.0
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 87.1,
+      "entry": 661.18,
+      "stop": 664.68,
+      "target": 630.0,
+      "rr": 8.9,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    },
+    {
+      "timestamp": "2026-03-23T15:02:55.217122",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 662.36,
+      "level_type": "BATTLEGROUND",
+      "current_price": 660.94,
+      "distance_pct": 0.214,
+      "touch_count": 1,
+      "time_of_day": "midday",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "midday",
+          94.1
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 94.8,
+      "entry": 661.86,
+      "stop": 665.36,
+      "target": 630.0,
+      "rr": 9.1,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    },
+    {
+      "timestamp": "2026-03-23T15:37:09.006484",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 659.76,
+      "level_type": "BATTLEGROUND",
+      "current_price": 660.87,
+      "distance_pct": 0.168,
+      "touch_count": 1,
+      "time_of_day": "midday",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "midday",
+          94.1
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 94.8,
+      "entry": 659.26,
+      "stop": 662.76,
+      "target": 630.0,
+      "rr": 8.4,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    },
+    {
+      "timestamp": "2026-03-23T15:41:10.792798",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 659.09,
+      "level_type": "BATTLEGROUND",
+      "current_price": 660.87,
+      "distance_pct": 0.27,
+      "touch_count": 1,
+      "time_of_day": "midday",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "midday",
+          94.1
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 94.8,
+      "entry": 658.59,
+      "stop": 662.09,
+      "target": 630.0,
+      "rr": 8.2,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    },
+    {
+      "timestamp": "2026-03-23T15:47:17.519829",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 658.25,
+      "level_type": "BATTLEGROUND",
+      "current_price": 660.87,
+      "distance_pct": 0.398,
+      "touch_count": 1,
+      "time_of_day": "midday",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "midday",
+          94.1
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 94.8,
+      "entry": 657.75,
+      "stop": 661.25,
+      "target": 630.0,
+      "rr": 7.9,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    },
+    {
+      "timestamp": "2026-03-23T16:34:37.045706",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 655.21,
+      "level_type": "BATTLEGROUND",
+      "current_price": 655.13,
+      "distance_pct": 0.012,
+      "touch_count": 1,
+      "time_of_day": "midday",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "midday",
+          94.1
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 94.8,
+      "entry": 654.71,
+      "stop": 658.21,
+      "target": 630.0,
+      "rr": 7.1,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    },
+    {
+      "timestamp": "2026-03-23T16:36:37.349874",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 655.78,
+      "level_type": "BATTLEGROUND",
+      "current_price": 655.13,
+      "distance_pct": 0.099,
+      "touch_count": 1,
+      "time_of_day": "midday",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "midday",
+          94.1
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 94.8,
+      "entry": 655.28,
+      "stop": 658.78,
+      "target": 630.0,
+      "rr": 7.2,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    },
+    {
+      "timestamp": "2026-03-23T16:46:41.493446",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 656.39,
+      "level_type": "BATTLEGROUND",
+      "current_price": 655.13,
+      "distance_pct": 0.192,
+      "touch_count": 1,
+      "time_of_day": "midday",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "midday",
+          94.1
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 94.8,
+      "entry": 655.89,
+      "stop": 659.39,
+      "target": 630.0,
+      "rr": 7.4,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    },
+    {
+      "timestamp": "2026-03-23T17:20:46.992475",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 654.55,
+      "level_type": "BATTLEGROUND",
+      "current_price": 655.66,
+      "distance_pct": 0.17,
+      "touch_count": 1,
+      "time_of_day": "midday",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "midday",
+          94.1
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 94.8,
+      "entry": 654.05,
+      "stop": 657.55,
+      "target": 630.0,
+      "rr": 6.9,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    },
+    {
+      "timestamp": "2026-03-23T17:40:19.049939",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 657.62,
+      "level_type": "BATTLEGROUND",
+      "current_price": 655.66,
+      "distance_pct": 0.298,
+      "touch_count": 1,
+      "time_of_day": "midday",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "midday",
+          94.1
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 94.8,
+      "entry": 657.12,
+      "stop": 660.62,
+      "target": 630.0,
+      "rr": 7.7,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    },
+    {
+      "timestamp": "2026-03-23T17:43:19.473042",
+      "date": "2026-03-23",
+      "symbol": "SPY",
+      "direction": "SHORT",
+      "level_price": 657.02,
+      "level_type": "BATTLEGROUND",
+      "current_price": 655.66,
+      "distance_pct": 0.207,
+      "touch_count": 1,
+      "time_of_day": "midday",
+      "patterns": [
+        [
+          "touch_1",
+          97.9
+        ],
+        [
+          "midday",
+          94.1
+        ],
+        [
+          "vol_2m_plus",
+          92.5
+        ]
+      ],
+      "compound_confidence": 94.8,
+      "entry": 656.52,
+      "stop": 660.02,
+      "target": 630.0,
+      "rr": 7.6,
+      "gate_result": "\u2705 PASS: SHORT SPY (3 gates passed | 1.0x size)",
+      "regime": "BULLISH",
+      "bias": "NEUTRAL",
+      "sizing": 1.0,
+      "status": "active"
+    }
+  ],
+  "count": 13
+}
