@@ -151,6 +151,14 @@ _brief_cache_time = None
 _BRIEF_CACHE_TTL = 120  # seconds
 _alert_engine = PreSignalAlertEngine()
 
+# ── Lazy singletons for heavy objects (init once, reuse) ─────────────────────
+_singletons = {}
+
+def _lazy(key, factory):
+    if key not in _singletons:
+        _singletons[key] = factory()
+    return _singletons[key]
+
 
 @router.get("/brief/master")
 async def master_brief():
@@ -179,7 +187,7 @@ async def master_brief():
     def _fetch_macro_regime():
         try:
             from live_monitoring.agents.economic.macro_regime_detector import MacroRegimeDetector
-            return MacroRegimeDetector().get_regime()
+            return _lazy('macro', MacroRegimeDetector).get_regime()
         except Exception as e:
             logger.warning(f"MacroRegime failed: {e}")
             return {'error': str(e)}
@@ -187,7 +195,7 @@ async def master_brief():
     def _fetch_fedwatch():
         try:
             from live_monitoring.enrichment.apis.fedwatch_diy import FedWatchEngine
-            fw = FedWatchEngine().get_probabilities()
+            fw = _lazy('fedwatch', FedWatchEngine).get_probabilities()
             if fw and not fw.get('error'):
                 next_mtg = fw.get('next_meeting', {})
                 return {
@@ -282,7 +290,7 @@ async def master_brief():
     def _fetch_thresholds():
         try:
             from live_monitoring.enrichment.apis.dynamic_threshold_engine import DynamicThresholdEngine
-            dte = DynamicThresholdEngine()
+            dte = _lazy('dte', DynamicThresholdEngine)
             thresholds = {}
             for evt_name, consensus in [('Core PCE Price Index MoM', 0.3), ('Non Farm Payrolls', 200), ('CPI MoM', 0.3)]:
                 dt = dte.get_dynamic_thresholds(evt_name, te_consensus=consensus)
@@ -327,7 +335,7 @@ async def master_brief():
         deriv = {}
         try:
             from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
-            calc = GEXCalculator(cache_ttl=300)
+            calc = _lazy('gex', lambda: GEXCalculator(cache_ttl=300))
             gex = calc.compute_gex('SPY')
             deriv = {
                 'gex_regime': gex.gamma_regime if gex else 'UNKNOWN',
@@ -365,7 +373,7 @@ async def master_brief():
     def _fetch_kill_chain():
         try:
             from live_monitoring.enrichment.apis.kill_chain_engine import KillChainEngine
-            kc = KillChainEngine()
+            kc = _lazy('kc', KillChainEngine)
             report = kc.run_full_scan()
             return {
                 'alert_level': report.alert_level,
