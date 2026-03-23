@@ -69,6 +69,18 @@ app.include_router(intraday.router, prefix="/api/v1", tags=["intraday"])
 app.include_router(brief.router, prefix="/api/v1", tags=["brief"])
 
 
+@app.get("/debug/git")
+async def debug_git():
+    """Diagnostic endpoint to see current git status/SHA."""
+    import subprocess
+    try:
+        sha = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+        last_log = subprocess.check_output(["git", "log", "-1", "--format=%cd", "--date=iso"]).decode().strip()
+        return {"sha": sha, "last_commit_date": last_log}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.get("/debug/supabase")
 async def debug_supabase():
     """Diagnostic endpoint: check Supabase env vars, connectivity, and alert count."""
