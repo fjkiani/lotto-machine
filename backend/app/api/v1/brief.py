@@ -389,8 +389,15 @@ async def master_brief():
         try:
             from dotenv import load_dotenv
             load_dotenv()
+            import os
+            fred_key = os.getenv("FRED_API_KEY", "")
+            if not fred_key:
+                logger.warning("⚠️ FRED_API_KEY not set — dynamic thresholds unavailable")
+                return {'error': 'FRED_API_KEY not configured', 'fred_key_present': False}
+
             from live_monitoring.enrichment.apis.dynamic_threshold_engine import DynamicThresholdEngine
-            dte = _lazy('dte', DynamicThresholdEngine)
+            # Pass key explicitly to avoid stale _lazy instances missing the key
+            dte = DynamicThresholdEngine(fred_api_key=fred_key)
             thresholds = {}
             for evt_name, consensus in [('Core PCE Price Index MoM', 0.3), ('Non Farm Payrolls', 200), ('CPI MoM', 0.3)]:
                 dt = dte.get_dynamic_thresholds(evt_name, te_consensus=consensus)
@@ -402,6 +409,10 @@ async def master_brief():
                         'consensus': dt.consensus,
                         'std_dev': dt.std_dev,
                     }
+                else:
+                    logger.warning(f"DynamicThresholdEngine returned None for {evt_name}")
+            if not thresholds:
+                return {'error': 'All threshold lookups returned None', 'fred_key_present': True}
             return thresholds
         except Exception as e:
             logger.warning(f"Dynamic thresholds failed: {e}")
