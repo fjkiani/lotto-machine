@@ -201,14 +201,14 @@ class MorningBriefGenerator:
                         "spy_price": spy_price,
                         "call_wall": call_wall,
                         "delta": round(float(spy_price) - float(call_wall), 2),
-                        "breach_time": datetime.now().strftime("%I:%M %p ET"),
+                        "breach_time": datetime.now().isoformat(),
                     }
             except (TypeError, ValueError):
                 pass
 
         brief = {
             "date": today,
-            "generated_at": datetime.now().strftime("%H:%M ET"),
+            "generated_at": datetime.now().isoformat(),
             "verdict": verdict_data.get("signal", "UNKNOWN"),
             "signals": verdict_data.get("signals", []),
             "wall_breached": wall_breached,
