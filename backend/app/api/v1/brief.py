@@ -205,6 +205,23 @@ class PreSignalAlertEngine:
                 'action': 'Short gamma — dealers amplify moves, expect volatility'
             })
 
+        # Alert 7: ADP pre-signal (leading indicator model)
+        adp = brief.get('adp_prediction', {})
+        adp_signal = adp.get('signal', '')
+        adp_delta = abs(adp.get('delta', 0))
+        if adp_signal in ('MISS_LIKELY', 'BEAT_LIKELY') and adp_delta > 30_000:
+            alerts.append({
+                'type': 'ADP_PRESIGNAL',
+                'priority': 'HIGH' if adp_delta > 50_000 else 'MEDIUM',
+                'event': 'ADP Mar 24 08:15AM',
+                'signal': adp_signal,
+                'prediction': adp.get('prediction'),
+                'consensus': adp.get('consensus'),
+                'delta': adp.get('delta'),
+                'edge': adp.get('edge'),
+                'action': f"ADP model: {adp.get('edge', '')} — position accordingly"
+            })
+
         # Sort by priority
         priority_order = {'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3}
         return sorted(alerts, key=lambda x: priority_order.get(x.get('priority', 'LOW'), 3))
@@ -450,10 +467,18 @@ async def master_brief():
             logger.warning(f"Kill Chain failed: {e}")
             return {'error': str(e)}
 
+    def _fetch_adp_prediction():
+        try:
+            from live_monitoring.enrichment.apis.adp_predictor import ADPPredictor
+            return _lazy('adp', ADPPredictor).predict()
+        except Exception as e:
+            logger.warning(f"ADP Predictor failed: {e}")
+            return {'error': str(e)}
+
     # ── PARALLEL EXECUTION — all 8 layers at once ────────────────────────
 
     loop = asyncio.get_event_loop()
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {
             'macro_regime':      loop.run_in_executor(executor, _fetch_macro_regime),
             'fed_intelligence':  loop.run_in_executor(executor, _fetch_fedwatch),
@@ -463,6 +488,7 @@ async def master_brief():
             'hidden_hands':      loop.run_in_executor(executor, _fetch_hidden_hands),
             'derivatives':       loop.run_in_executor(executor, _fetch_derivatives),
             'kill_chain_state':  loop.run_in_executor(executor, _fetch_kill_chain),
+            'adp_prediction':    loop.run_in_executor(executor, _fetch_adp_prediction),
         }
 
         results = {}
