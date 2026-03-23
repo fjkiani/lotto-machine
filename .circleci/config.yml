@@ -42,13 +42,7 @@ jobs:
 
 workflows:
   keep-render-alive:
-    triggers:
-      - schedule:
-          # Every 10 minutes — Render free tier sleeps at 15min inactivity
-          cron: "*/10 * * * *"
-          filters:
-            branches:
-              only:
-                - main
+    # Schedule trigger configured via CircleCI UI (every 10min)
+    # Also runs on all pushes via GitHub App trigger
     jobs:
       - keep-alive
