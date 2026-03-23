@@ -124,8 +124,8 @@ def run_brief(force: bool = False) -> dict:
     """Stage 3: Generate morning brief with DP divergence gating."""
     logger.info("📋 BRIEF: Generating morning brief...")
     try:
-        from live_monitoring.enrichment.apis.morning_brief_generator import MorningBriefGenerator
-        gen = MorningBriefGenerator()
+        from live_monitoring.enrichment.apis.morning_brief_generator import MorningBriefGeneratorAPI
+        gen = MorningBriefGeneratorAPI()
         brief = gen.generate(force=force)
 
         _mark_stage("brief")

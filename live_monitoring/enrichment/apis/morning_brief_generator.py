@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 BRIEF_DIR = "/tmp/morning_briefs"
 
 
-class MorningBriefGenerator:
+class MorningBriefGeneratorAPI:
     """Generates the trader brief from SignalIntelEngine output."""
 
     def __init__(self):
