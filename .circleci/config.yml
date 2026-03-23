@@ -1,0 +1,54 @@
+# CircleCI Keep-Alive — Prevents Render Free Tier Spin-Down
+# Replaces GitHub Actions (depleted at 400 credits/mo)
+# CircleCI: 30K credits/mo — cron every 10min = ~4,320 runs/mo = ~4,320 credits
+#
+# Pings:
+#   - https://lotto-machine-wr6t.onrender.com/health
+#   - /api/v1/brief/master (warms cache on first hit)
+
+version: 2.1
+
+jobs:
+  keep-alive:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Ping Render Health
+          command: |
+            echo "🏓 Pinging Render service..."
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              --max-time 60 \
+              https://lotto-machine-wr6t.onrender.com/health)
+            echo "Health: $HTTP_STATUS"
+
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ Service is healthy"
+            else
+              echo "⚠️ Service returned $HTTP_STATUS — may be cold starting, retrying..."
+              sleep 30
+              RETRY=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 \
+                https://lotto-machine-wr6t.onrender.com/health)
+              echo "Retry: $RETRY"
+            fi
+      - run:
+          name: Warm Cache
+          command: |
+            echo "🔥 Warming /brief/master cache..."
+            curl -s --max-time 120 \
+              https://lotto-machine-wr6t.onrender.com/api/v1/brief/master \
+              -o /dev/null -w "brief/master: %{http_code} (%{time_total}s)\n"
+
+workflows:
+  keep-render-alive:
+    triggers:
+      - schedule:
+          # Every 10 minutes — Render free tier sleeps at 15min inactivity
+          cron: "*/10 * * * *"
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      - keep-alive
