@@ -212,7 +212,7 @@ class PreSignalAlertEngine:
         if adp_signal in ('MISS_LIKELY', 'BEAT_LIKELY') and adp_delta > 30_000:
             alerts.append({
                 'type': 'ADP_PRESIGNAL',
-                'priority': 'HIGH' if adp_delta > 50_000 else 'MEDIUM',
+                'priority': 'HIGH' if adp_delta >= 50_000 else 'MEDIUM',
                 'event': 'ADP Mar 24 08:15AM',
                 'signal': adp_signal,
                 'prediction': adp.get('prediction'),
@@ -371,6 +371,8 @@ async def master_brief():
 
     def _fetch_thresholds():
         try:
+            from dotenv import load_dotenv
+            load_dotenv()
             from live_monitoring.enrichment.apis.dynamic_threshold_engine import DynamicThresholdEngine
             dte = _lazy('dte', DynamicThresholdEngine)
             thresholds = {}
