@@ -4,7 +4,7 @@ services:
     name: alpha-intelligence-monitor
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: bash -c "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT & sleep 20 && curl -s http://localhost:$PORT/api/v1/brief/master > /dev/null 2>&1 & wait"
     envVars:
       - key: DISCORD_WEBHOOK_URL
         sync: false  # Set this in Render dashboard
