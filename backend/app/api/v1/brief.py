@@ -512,10 +512,18 @@ async def master_brief():
             logger.warning(f"GDPNow failed: {e}")
             return {'error': str(e)}
 
-    # ── PARALLEL EXECUTION — all 10 layers at once ────────────────────────
+    def _fetch_jobless_claims():
+        try:
+            from live_monitoring.enrichment.apis.jobless_claims_predictor import JoblessClaimsPredictor
+            return _lazy('jobless', JoblessClaimsPredictor).predict()
+        except Exception as e:
+            logger.warning(f"Jobless Claims Predictor failed: {e}")
+            return {'error': str(e)}
+
+    # ── PARALLEL EXECUTION — all 11 layers at once ────────────────────────
 
     loop = asyncio.get_event_loop()
-    with ThreadPoolExecutor(max_workers=12) as executor:
+    with ThreadPoolExecutor(max_workers=13) as executor:
         futures = {
             'macro_regime':      loop.run_in_executor(executor, _fetch_macro_regime),
             'fed_intelligence':  loop.run_in_executor(executor, _fetch_fedwatch),

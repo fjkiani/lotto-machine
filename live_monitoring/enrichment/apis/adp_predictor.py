@@ -26,10 +26,12 @@ class ADPPredictor:
     """
     FRED-based ADP Employment Change predictor.
     Uses 5 leading indicators to generate a pre-signal before ADP prints.
+    Consensus is fetched dynamically from the economic veto calendar;
+    falls back to 150K if unavailable.
     """
 
     FRED_BASE = "https://api.stlouisfed.org/fred"
-    BASE_CONSENSUS = 150_000  # TE consensus for Mar 24 ADP
+    _FALLBACK_CONSENSUS = 150_000  # Used only when calendar lookup fails
 
     def __init__(self):
         self.api_key = os.getenv("FRED_API_KEY", "")
@@ -59,6 +61,27 @@ class ADPPredictor:
             logger.warning(f"FRED fetch failed for {series_id}: {e}")
             return []
 
+    def _get_consensus(self) -> int:
+        """
+        Dynamically pull ADP consensus from the economic veto calendar
+        (which scrapes TradingEconomics). Falls back to 150K.
+        """
+        try:
+            from backend.app.api.v1.brief import EconomicVetoEngine
+            ve = EconomicVetoEngine()
+            upcoming = ve.get_critical_events() if hasattr(ve, 'get_critical_events') else []
+            for ev in upcoming:
+                name = ev.get("event", "").lower()
+                if "adp" in name or ("employment" in name and "change" in name):
+                    cons = ev.get("consensus", "")
+                    if cons and str(cons) not in ("—", "", "N/A"):
+                        # consensus may be "150K" or "150,000" or "150000"
+                        cleaned = str(cons).upper().replace("K", "000").replace(",", "").strip()
+                        return int(float(cleaned))
+        except Exception as e:
+            logger.debug(f"Dynamic ADP consensus lookup failed: {e}")
+        return self._FALLBACK_CONSENSUS
+
     def predict(self) -> dict:
         """
         Generate ADP pre-signal prediction.
@@ -66,6 +89,7 @@ class ADPPredictor:
         Returns dict with: consensus, prediction, delta, signal, confidence,
         reasons, inputs, edge, as_of
         """
+        base_consensus = self._get_consensus()
         inputs = {}
         adjustments = []
         reasons = []
@@ -150,8 +174,8 @@ class ADPPredictor:
 
         # ── Prediction ──────────────────────────────────────────────────
         total_adj = sum(adjustments)
-        prediction = self.BASE_CONSENSUS + total_adj
-        delta = prediction - self.BASE_CONSENSUS
+        prediction = base_consensus + total_adj
+        delta = prediction - base_consensus
 
         if delta < -50_000:
             signal, confidence = "MISS_LIKELY", 0.70
@@ -166,7 +190,7 @@ class ADPPredictor:
 
         sign = "+" if delta > 0 else ""
         return {
-            "consensus": self.BASE_CONSENSUS,
+            "consensus": base_consensus,
             "prediction": prediction,
             "delta": delta,
             "signal": signal,
@@ -176,7 +200,7 @@ class ADPPredictor:
             "reasons": reasons,
             "inputs": inputs,
             "as_of": datetime.utcnow().isoformat(),
-            "edge": f"Model predicts {prediction:,} vs consensus {self.BASE_CONSENSUS:,} → {sign}{delta:,} ({signal})",
+            "edge": f"Model predicts {prediction:,} vs consensus {base_consensus:,} → {sign}{delta:,} ({signal})",
         }
 
 
