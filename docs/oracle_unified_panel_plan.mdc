@@ -1,0 +1,489 @@
+---
+title: Oracle Unified Panel — Full Architecture, Data Schema & Modularization Plan
+version: 3.0
+status: LOCKED
+last_updated: 2026-03-23
+---
+
+# Oracle Unified Panel — v3 LOCKED SPEC
+
+> **Principle:** Zero hardcoded constants in components. Every value comes from the live API.
+> The scaffolding (`docs/scaffolding/unified.tsx`) is a visual reference only — all mock data 
+> constants (`PRE_SIGNAL_INTEL`, `HIDDEN_HANDS_OVERVIEW`, etc.) must be replaced with live fields.
+
+---
+
+## The Right Architecture: One Oracle, Full Context
+
+### Why per-card LLM is wrong
+```
+Card click → LLM sees 1 data point
+Card click → LLM sees 1 data point   ← 20 clicks, 20 isolated windows
+Card click → LLM sees 1 data point
+```
+No LLM ever synthesizes: "ADP miss + GDP miss + Kill Chain RED + COT specs short = risk-off"
+
+### The correct flow
+```
+┌─────────────────────────────────────────────┐
+│  useMasterBrief()  →  MasterBrief (11 keys) │  real data, no mocks
+└────────────────────┬────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────┐
+│  useOracleBrief(masterData)                 │  ONE Groq call
+│  → POST /api/v1/oracle/brief                │  full payload, no vibe-coding
+│  → OracleBrief (verdict + sections + impl) │
+└────────────────────┬────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────┐
+│  OracleContext.Provider                     │  distributes to all panels
+│  → OracleBriefStrip (always visible)       │  no clicks
+│  → TacticalSection  (HH + Deriv + KC)      │  reads oracle slice
+│  → PreSignalSection (ADP + GDP + Jobless)  │  reads oracle slice
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## The 4-Layer Plan
+
+### Layer 1 — Backend: `/api/v1/oracle/brief`
+
+**File:** `backend/app/api/v1/oracle.py`
+**Router:** already imported in `backend/app/main.py`
+**Model:** `llama-3.3-70b-versatile` via `GROQ_API_KEY` (backend only, never client)
+**Caching:** `MD5(json.dumps(brief_payload, sort_keys=True))` — cache busts on ANY field change
+
+#### Oracle Input Payload (assembled from live `/brief/master`)
+
+```python
+def build_oracle_payload(brief: dict) -> dict:
+    """Extract explicit fields from /brief/master for Oracle context."""
+    return {
+        "timestamp": brief.get("as_of"),
+        "scan_time": brief.get("scan_time"),
+        "macro_regime": {
+            "regime":           brief["macro_regime"].get("regime"),
+            "inflation_score":  brief["macro_regime"].get("inflation_score"),
+            "growth_score":     brief["macro_regime"].get("growth_score"),
+            "long_penalty":     brief["macro_regime"].get("modifier", {}).get("long_penalty", 0),
+            "short_penalty":    brief["macro_regime"].get("modifier", {}).get("short_penalty", 0),
+        },
+        "fed": {
+            "current_range":  brief["fed_intelligence"]["rate_path"].get("current_range"),
+            "next_meeting":   brief["fed_intelligence"]["rate_path"].get("next_meeting"),
+            "days_away":      brief["fed_intelligence"]["rate_path"].get("days_away"),
+            "terminal_bps":   brief["fed_intelligence"]["rate_path"].get("terminal_bps"),
+        },
+        "economic_veto": {
+            "next_event":  brief["economic_veto"].get("next_event"),
+            "hours_away":  brief["economic_veto"].get("hours_away"),
+            "tier":        brief["economic_veto"].get("tier"),
+        },
+        "nowcast": {
+            "cpi_mom":      brief["nowcast"].get("cpi_mom"),
+            "core_cpi_mom": brief["nowcast"].get("core_cpi_mom"),
+            "pce_mom":      brief["nowcast"].get("pce_mom"),
+            "core_pce_mom": brief["nowcast"].get("core_pce_mom"),
+            "cpi_yoy":      brief["nowcast"].get("cpi_yoy"),
+        },
+        "pre_signals": {
+            "adp": {
+                "prediction": brief["adp_prediction"].get("prediction"),
+                "consensus":  brief["adp_prediction"].get("consensus"),
+                "delta":      brief["adp_prediction"].get("delta"),
+                "signal":     brief["adp_prediction"].get("signal"),
+                "confidence": brief["adp_prediction"].get("confidence"),
+            },
+            "gdpnow": {
+                "gdp_estimate": brief["gdp_nowcast"].get("gdp_estimate"),
+                "consensus":    brief["gdp_nowcast"].get("consensus"),
+                "vs_consensus": brief["gdp_nowcast"].get("vs_consensus"),
+                "signal":       brief["gdp_nowcast"].get("signal"),
+            },
+            "jobless_claims": brief.get("jobless_claims", {}),
+        },
+        "kill_chain": {
+            "alert_level":   brief["kill_chain_state"].get("alert_level"),
+            "layers_active": brief["kill_chain_state"].get("layers_active"),
+            "confidence_cap": brief["kill_chain_state"].get("confidence_cap"),
+            "mismatches":    brief["kill_chain_state"].get("mismatches_count"),
+            "narrative":     brief["kill_chain_state"].get("narrative"),
+        },
+        "derivatives": {
+            "gex_regime":   brief["derivatives"].get("gex_regime"),
+            "total_gex":    brief["derivatives"].get("total_gex"),
+            "put_wall":     brief["derivatives"].get("put_wall"),
+            "call_wall":    brief["derivatives"].get("call_wall"),
+            "spot":         brief["derivatives"].get("spot"),
+            "cot_spec_net": brief["derivatives"].get("cot_spec_net"),
+            "cot_spec_side": brief["derivatives"].get("cot_spec_side"),
+            "cot_divergent": brief["derivatives"].get("cot_divergent"),
+        },
+        "hidden_hands": {
+            "politician_cluster": brief["hidden_hands"].get("politician_cluster"),
+            "hot_tickers":        brief["hidden_hands"].get("hot_tickers"),
+            "insider_net_usd":    brief["hidden_hands"].get("insider_net_usd"),
+            "fed_tone":           brief["hidden_hands"].get("fed_tone"),
+            "hawk_count":         brief["hidden_hands"].get("hawk_count"),
+            "dove_count":         brief["hidden_hands"].get("dove_count"),
+            "divergence_boost":   brief["hidden_hands"].get("divergence_boost"),
+        },
+    }
+```
+
+#### Oracle Response Shape
+
+```json
+{
+  "verdict": "one sentence — cross-signal synthesis",
+  "risk_level": "HIGH | MEDIUM | LOW | UNKNOWN",
+  "sections": {
+    "pre_signal":   { "summary": "1-2 sentences", "confidence": 0.76 },
+    "hidden_hands": { "summary": "1-2 sentences", "confidence": 0.64 },
+    "derivatives":  { "summary": "1-2 sentences", "confidence": 0.81 },
+    "kill_chain":   { "summary": "1-2 sentences", "confidence": 0.72 },
+    "regime":       { "summary": "1-2 sentences", "confidence": 0.69 }
+  },
+  "trade_implication": "one sentence action",
+  "generated_at": "ISO_TIMESTAMP",
+  "cached_until": "ISO_TIMESTAMP"
+}
+```
+
+#### Fallback (Groq down or timeout)
+
+```json
+{ "verdict": "UNAVAILABLE", "risk_level": "UNKNOWN", "sections": {}, "trade_implication": null }
+```
+> Frontend hides OracleBriefStrip when `risk_level === "UNKNOWN"`. Never show stale guidance.
+
+#### Guardrails in System Prompt
+
+```
+Rules Oracle must follow:
+1. Do NOT override discrete signals. If kill_chain layer_3 triggered=false, do not say all 3 firing.
+2. You may only: summarize confluence, highlight contradictions, map to trade implications.
+3. Each section summary: 2 sentences max. No filler words.
+4. confidence = 0.0-1.0 signal agreement strength (not LLM certainty).
+5. Output strict JSON only.
+```
+
+---
+
+### Layer 2 — Hook: `useOracleBrief`
+
+**File:** `frontend/src/hooks/useOracleBrief.ts`
+
+```ts
+export interface OracleSection { summary: string; confidence: number; }
+export interface OracleBrief {
+  verdict: string;
+  risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
+  sections: {
+    pre_signal?:   OracleSection;
+    hidden_hands?: OracleSection;
+    derivatives?:  OracleSection;
+    kill_chain?:   OracleSection;
+    regime?:       OracleSection;
+  };
+  trade_implication: string | null;
+  generated_at: string;
+}
+
+export function useOracleBrief(masterData: MasterBrief | null) {
+  // Fires once when masterData resolves (scan_time changes = new oracle call)
+  // POSTs masterData to /api/v1/oracle/brief
+  // Client cache keyed on masterData.scan_time (10 min max)
+  // Returns { oracle, oracleLoading, oracleError }
+}
+```
+
+---
+
+### Layer 3 — Context: `OracleContext`
+
+**File:** `frontend/src/components/brief/OracleContext.ts`
+
+```ts
+export const OracleContext = createContext<OracleBrief | null>(null);
+export const useOracle = () => useContext(OracleContext);
+```
+
+Provider lives in `MasterBriefPanels.tsx` (the orchestrator).
+
+---
+
+### Layer 4 — Component Structure
+
+```
+frontend/src/components/brief/
+├── MasterBriefPanels.tsx               ← orchestrator ONLY (no panel logic)
+├── OracleContext.ts                    ← context + useOracle() hook
+├── MasterBriefPanels.css               ← ONE shared CSS file
+│
+└── panels/
+    ├── OracleBriefStrip.tsx            ← MVP FIRST: verdict + trade_implication
+    ├── MacroCommandBar.tsx             ← regime / next event / cap / scan
+    ├── StrategyCardRow.tsx             ← 3-col: Regime + FedPath + EconomicEdge
+    ├── TacticalSection/
+    │   ├── index.tsx                   ← layout: HH + [Deriv + KC]
+    │   ├── HiddenHandsPanel.tsx
+    │   ├── DerivativesPanel.tsx
+    │   └── KillChainPanel.tsx
+    ├── PreSignalSection/
+    │   ├── index.tsx                   ← layout: ADP + GDP + Jobless
+    │   ├── ADPCard.tsx
+    │   ├── GDPCard.tsx
+    │   └── JoblessCard.tsx
+    └── ForecastGrid.tsx                ← 4-col cards built from live data
+```
+
+**Orchestrator after refactor (40 lines max):**
+
+```tsx
+export function MasterBriefPanels() {
+  const { data, loading, error } = useMasterBrief(120000);
+  const { oracle } = useOracleBrief(data);
+
+  if (loading) return <MBSpinner />;
+  if (error || !data) return <MBError error={error} />;
+
+  return (
+    <OracleContext.Provider value={oracle}>
+      <div className="mb-container">
+        <OracleBriefStrip />
+        <MacroCommandBar data={data} />
+        <StrategyCardRow data={data} />
+        <TacticalSection data={data} />
+        <PreSignalSection data={data} />
+        <ForecastGrid data={data} />
+      </div>
+    </OracleContext.Provider>
+  );
+}
+```
+
+---
+
+## Component-by-Component Modularization
+
+### Component 1: `OracleBriefStrip` (MVP — build first)
+
+**Source in scaffolding:** Top-level breach alert + MacroCommandBar verdict text
+**Data source:** `useOracle()` — no props needed
+
+| Field | Source | Dynamic? |
+|---|---|---|
+| `verdict` | `oracle.verdict` | ✅ |
+| `trade_implication` | `oracle.trade_implication` | ✅ |
+| `risk_level` | `oracle.risk_level` | ✅ → drives color |
+| Strip hidden when | `oracle.risk_level === 'UNKNOWN'` | ✅ |
+
+**Color logic:**
+```
+HIGH    → red bar (#ef4444), white bold text
+MEDIUM  → amber bar (#eab308)
+LOW     → subtle (#64748b), muted text
+UNKNOWN → hidden entirely
+```
+
+---
+
+### Component 2: `MacroCommandBar`
+
+**Source in scaffolding:** `MacroCommandBar` component with hardcoded strings
+**Props:** `{ data: MasterBrief }`
+
+| Scaffolding mock | Real field | Dynamic? |
+|---|---|---|
+| `"Neutral"` | `data.macro_regime.regime` | ✅ |
+| `"ADP Employment Change Weekly"` | `data.economic_veto.next_event` | ✅ |
+| `"Countdown: 14.5h"` | `data.economic_veto.hours_away` | ✅ |
+| `"55%"` confidence cap | `data.kill_chain_state.confidence_cap` | ✅ |
+| `"23.8s"` scan | `data.scan_time` | ✅ |
+
+**No hardcoding.** All 5 fields are live.
+
+---
+
+### Component 3: `StrategyCardRow` (3 sub-panels)
+
+**Source in scaffolding:** `StrategyCard` × 3 (Regime, Fed Path, Economic Edge)
+**Props:** `{ data: MasterBrief }`; oracle slice read internally via `useOracle()`
+
+#### 3a — RegimeCard
+
+| Scaffolding mock | Real field |
+|---|---|
+| `inflation_score: 0.519` | `data.macro_regime.inflation_score` |
+| `growth_score: 0.017` | `data.macro_regime.growth_score` |
+| Penalties | `data.macro_regime.modifier.long_penalty/short_penalty` |
+| Oracle summary | `oracle.sections.regime.summary` |
+
+#### 3b — FedPathCard
+
+| Scaffolding mock | Real field |
+|---|---|
+| `"3.5–3.75%"` | `data.fed_intelligence.rate_path.current_range.join('–')` |
+| `"May 6-7 (45d)"` | `rate_path.next_meeting` + `rate_path.days_away` |
+| 4-meeting probs grid | `data.fed_intelligence.full_path.slice(0,4)` |
+| `"Terminal: +2bps"` | `rate_path.terminal_bps` |
+
+#### 3c — EconomicEdgeCard
+
+| Scaffolding mock | Real field |
+|---|---|
+| `CPI MoM 0.62%` | `data.nowcast.cpi_mom` |
+| `PCE MoM 0.47%` | `data.nowcast.pce_mom` |
+| `CPI YoY 3.02%` | `data.nowcast.cpi_yoy` |
+| Dynamic thresholds | `data.dynamic_thresholds` (Record<string, {HOT, COLD, consensus}>) |
+| Upcoming events | `data.economic_veto.upcoming_critical` |
+
+---
+
+### Component 4: `TacticalSection` + 3 sub-panels
+
+**Source in scaffolding:** `TacticalBriefingSection`
+**Props:** `{ data: MasterBrief }`; oracle slice via `useOracle()`
+
+#### 4a — `HiddenHandsPanel`
+
+| Scaffolding mock | Real field |
+|---|---|
+| `count: 9` | `data.hidden_hands.politician_cluster` |
+| `tickers: ['IBP', 'CVX'...]` | `data.hidden_hands.hot_tickers` (string[]) |
+| `insiderNet: '$0'` | `data.hidden_hands.insider_net_usd / 1e6` |
+| `spouseAlerts: 0` | `data.hidden_hands.spouse_alerts` |
+| `fedTone: 'DOVISH'` | `data.hidden_hands.fed_tone` |
+| hawk/dove counts | `data.hidden_hands.hawk_count/dove_count` |
+| `boost: '+2 BOOST'` | `data.hidden_hands.divergence_boost` |
+| Oracle NYX read | `oracle.sections.hidden_hands.summary` |
+
+#### 4b — `DerivativesPanel`
+
+| Scaffolding mock | Real field |
+|---|---|
+| `gexRegime: 'NEGATIVE'` | `data.derivatives.gex_regime` |
+| `totalGex: '-9.8M'` | `(data.derivatives.total_gex / 1e6).toFixed(1) + 'M'` |
+| `putWall / callWall / spot` | `data.derivatives.put_wall/call_wall/spot` |
+| COT spec net | `data.derivatives.cot_spec_net.toLocaleString()` |
+| COT side + divergent | `data.derivatives.cot_spec_side + cot_divergent` |
+| `cotSummary` narrative | **Generate client-side:** `buildCOTSummary(derivatives)` helper |
+| Oracle NYX read | `oracle.sections.derivatives.summary` |
+
+> `buildCOTSummary(d)` example:
+> ```ts
+> `Specs NET ${d.cot_spec_side} (${d.cot_spec_net?.toLocaleString()}), ${d.cot_divergent ? '⚠️ DIVERGENT' : 'aligned'}`
+> ```
+
+#### 4c — `KillChainPanel`
+
+| Scaffolding mock | Real field |
+|---|---|
+| `alertLevel: 'RED'` | `data.kill_chain_state.alert_level` |
+| `layersActive: '5/5'` | `data.kill_chain_state.layers_active + '/5'` |
+| `confidenceCap: '55%'` | `data.kill_chain_state.confidence_cap + '%'` |
+| `capReason` | `data.kill_chain_state.cap_reason` |
+| `mismatches` | `data.kill_chain_state.mismatches_count` |
+| `reportText` | `data.kill_chain_state.narrative` |
+| Oracle NYX read | `oracle.sections.kill_chain.summary` |
+
+---
+
+### Component 5: `PreSignalSection` + 3 sub-cards
+
+**Source in scaffolding:** `PreSignalSection`
+**Props:** `{ data: MasterBrief }`; oracle via `useOracle()`
+
+#### 5a — `ADPCard`
+
+| Scaffolding mock | Real field |
+|---|---|
+| `model: '100,000'` | `data.adp_prediction.prediction?.toLocaleString()` |
+| `consensus: '150,000'` | `data.adp_prediction.consensus?.toLocaleString()` |
+| `delta: '-50,000'` | `data.adp_prediction.delta?.toLocaleString()` |
+| `status: 'MISS LIKELY'` | `data.adp_prediction.signal.replace(/_/g, ' ')` |
+| `confidence: '55%'` | `Math.round((data.adp_prediction.confidence ?? 0) * 100) + '%'` |
+| bullets | `data.adp_prediction.reasons` (string[]) |
+| Oracle NYX read | `oracle.sections.pre_signal.summary` (shared with GDP) |
+
+#### 5b — `GDPCard`
+
+| Scaffolding mock | Real field |
+|---|---|
+| `model: '0.77%'` | `data.gdp_nowcast.gdp_estimate + '%'` |
+| `consensus: '2.3%'` | `data.gdp_nowcast.consensus + '%'` |
+| `delta: '-1.53pp'` | `data.gdp_nowcast.vs_consensus?.toFixed(2) + 'pp'` |
+| `status: 'MISS'` | `data.gdp_nowcast.signal` |
+| `source: 'Atlanta Fed'` | `data.gdp_nowcast.source` |
+| description | `data.gdp_nowcast.edge` |
+
+#### 5c — `JoblessCard` (new)
+
+| Field | Real source |
+|---|---|
+| `icsa_latest` | `data.jobless_claims.icsa_latest` |
+| `icsa_4wk_avg` | `data.jobless_claims.icsa_4wk_avg` |
+| `consensus` | `data.jobless_claims.consensus` |
+| `delta` | `data.jobless_claims.delta` |
+| `signal` | `data.jobless_claims.signal` |
+| `reasons` | `data.jobless_claims.reasons` (string[]) |
+
+---
+
+### Component 6: `ForecastGrid` (4-col)
+
+**Source in scaffolding:** `MACRO_PRESIGNALS` hardcoded array → `MacroSnapshotCard`
+**Replace with:** `buildForecastCards(data: MasterBrief): ForecastCard[]` helper
+
+```ts
+function buildForecastCards(data: MasterBrief): ForecastCard[] {
+  return [
+    { slug: 'cpi-now',   label: 'PRE SIGNAL', title: 'CPI Now',   actual: data.nowcast.cpi_mom + '%',           cons: '0.3%',  delta: ..., bias: ... },
+    { slug: 'pce-now',   label: 'PRE SIGNAL', title: 'Core PCE',  actual: data.nowcast.core_pce_mom + '%',      cons: '0.3%',  delta: ..., bias: ... },
+    { slug: 'adp-miss',  label: 'ADP',        title: 'ADP Emp',   actual: data.adp_prediction.prediction + '',  cons: ...,     delta: ..., bias: data.adp_prediction.signal },
+    { slug: 'gdp-miss',  label: 'GDP',        title: 'GDP Q1',    actual: data.gdp_nowcast.gdp_estimate + '%',  cons: ...,     delta: ..., bias: data.gdp_nowcast.signal },
+  ].filter(c => c.actual !== 'null%' && c.actual !== 'undefined%');
+}
+```
+
+---
+
+### Component 7: `DivergenceGrid` — needs backend (post-MVP)
+
+**Source in scaffolding:** `HIDDEN_HANDS` array of individual politician trades → `HiddenHandsCard`
+
+**Current API gap:** `data.hidden_hands` only has aggregated counts + `hot_tickers`.
+No per-politician trade data with MSPR scores.
+
+**Required:** `GET /api/v1/hidden-hands/trades` → array of individual trades
+
+---
+
+## Build Order (MVP first)
+
+| Step | File | Dependency |
+|---|---|---|
+| 1 | `oracle.py` backend | `GROQ_API_KEY` confirmed in Render |
+| 2 | `useOracleBrief.ts` hook | Step 1 |
+| 3 | `OracleContext.ts` | Step 2 |
+| 4 | `OracleBriefStrip.tsx` | Step 3 — **SHIP TO RENDER** |
+| 5 | `MacroCommandBar.tsx` | `data.macro_regime` + `economic_veto` |
+| 6 | `StrategyCardRow.tsx` (3 cards) | `data.macro_regime/fed_intelligence/nowcast` |
+| 7 | `TacticalSection/` (HH + Deriv + KC) | `data.hidden_hands/derivatives/kill_chain_state` |
+| 8 | `PreSignalSection/` (ADP + GDP + Jobless) | `data.adp_prediction/gdp_nowcast/jobless_claims` |
+| 9 | `ForecastGrid.tsx` | `buildForecastCards()` helper |
+| 10 | `DivergenceGrid.tsx` + trades endpoint | New backend work |
+
+---
+
+## Pre-Flight Checklist
+
+- [ ] `GROQ_API_KEY` confirmed in Render env vars
+- [ ] `groq` Python package in `requirements.txt`
+- [ ] `backend/app/api/v1/oracle.py` created (router already imported in `main.py`)
+- [ ] `VITE_API_URL` points to Render in `frontend/.env.production`
+- [ ] No `VITE_GROQ_API_KEY` in frontend — Groq key is backend-only
