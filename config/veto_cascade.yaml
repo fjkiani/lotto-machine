@@ -1,0 +1,35 @@
+# ── Veto Cascade Configuration ──────────────────────────────────────────────
+# Edit thresholds here — no code deploy needed.
+# Loaded by brief.py at startup via _load_veto_config().
+#
+# TIERS: evaluated top-to-bottom. First match wins.
+#   hours = max hours BEFORE event for this tier to activate
+#   cap   = confidence cap (%) applied to all signals
+#
+# EVENT_OVERRIDES: per-event tier threshold overrides.
+#   Only override the tiers you want to change — others fall through to defaults.
+# ────────────────────────────────────────────────────────────────────────────
+
+VETO_TIERS:
+  BLOCKED:    { hours: 0.5,  cap: 0   }
+  HIGH_RISK:  { hours: 2.0,  cap: 35  }
+  RISK:       { hours: 6.0,  cap: 50  }
+  AWARENESS:  { hours: 24.0, cap: 55  }
+  NORMAL:     { hours: null, cap: 65  }
+
+EVENT_OVERRIDES:
+  FOMC:
+    BLOCKED:    { hours: 2.0  }
+    HIGH_RISK:  { hours: 12.0 }
+  GDP:
+    BLOCKED:    { hours: 1.0  }
+    HIGH_RISK:  { hours: 4.0  }
+  ADP:
+    BLOCKED:    { hours: 0.5  }
+    HIGH_RISK:  { hours: 2.0  }
+  NFP:
+    BLOCKED:    { hours: 1.0  }
+    HIGH_RISK:  { hours: 4.0  }
+  CPI:
+    BLOCKED:    { hours: 1.0  }
+    HIGH_RISK:  { hours: 4.0  }

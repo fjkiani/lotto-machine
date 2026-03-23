@@ -19,10 +19,77 @@ Returns:
 import logging
 import time
 from datetime import datetime
+from pathlib import Path
 from fastapi import APIRouter
+
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# ── Veto Cascade Config Loader ───────────────────────────────────────────────
+_veto_config = None
+
+def _load_veto_config():
+    """Load veto_cascade.yaml once at startup. Falls back to hardcoded defaults."""
+    global _veto_config
+    if _veto_config is not None:
+        return _veto_config
+
+    config_path = Path(__file__).resolve().parents[3] / 'config' / 'veto_cascade.yaml'
+    if yaml and config_path.exists():
+        try:
+            with open(config_path) as f:
+                _veto_config = yaml.safe_load(f)
+            logger.info(f"📋 Veto config loaded from {config_path}")
+            return _veto_config
+        except Exception as e:
+            logger.warning(f"Failed to load veto config: {e} — using hardcoded defaults")
+
+    # Hardcoded fallback (same as before)
+    _veto_config = {
+        'VETO_TIERS': {
+            'BLOCKED':   {'hours': 0.5, 'cap': 0},
+            'HIGH_RISK': {'hours': 2.0, 'cap': 35},
+            'RISK':      {'hours': 6.0, 'cap': 50},
+            'AWARENESS': {'hours': 24.0, 'cap': 55},
+            'NORMAL':    {'hours': None, 'cap': 65},
+        },
+        'EVENT_OVERRIDES': {}
+    }
+    return _veto_config
+
+
+def _resolve_tiers(event_name: str) -> list:
+    """Build tier ladder for a specific event, merging overrides with defaults."""
+    cfg = _load_veto_config()
+    defaults = cfg.get('VETO_TIERS', {})
+    overrides = cfg.get('EVENT_OVERRIDES', {})
+
+    # Find matching override key (case-insensitive substring match)
+    event_upper = (event_name or '').upper()
+    matched_overrides = {}
+    for key, ovr in overrides.items():
+        if key.upper() in event_upper:
+            matched_overrides = ovr or {}
+            break
+
+    # Build resolved tiers: override hours if present, keep default cap
+    tiers = []
+    for tier_name, tier_def in defaults.items():
+        hours = tier_def.get('hours')
+        cap = tier_def.get('cap', 65)
+        if tier_name in matched_overrides:
+            hours = matched_overrides[tier_name].get('hours', hours)
+            cap = matched_overrides[tier_name].get('cap', cap)
+        tiers.append((tier_name, hours, cap))
+
+    # Sort by hours ascending (tightest first), None last
+    tiers.sort(key=lambda t: (t[1] is None, t[1] or 999))
+    return tiers
 
 
 # ── Pre-Signal Alert Engine ──────────────────────────────────────────────────
@@ -229,17 +296,15 @@ async def master_brief():
             else:
                 hours, event_name = None, None
 
+            # Config-driven tier resolution with per-event overrides
+            resolved = _resolve_tiers(event_name)
             tier = 'NORMAL'
             cap = 65
             if hours is not None:
-                if hours <= 0.5:
-                    tier, cap = 'BLOCKED', 0
-                elif hours <= 2:
-                    tier, cap = 'HIGH_RISK', 35
-                elif hours <= 6:
-                    tier, cap = 'RISK', 50
-                elif hours <= 24:
-                    tier, cap = 'AWARENESS', 55
+                for tier_name, tier_hours, tier_cap in resolved:
+                    if tier_hours is not None and hours <= tier_hours:
+                        tier, cap = tier_name, tier_cap
+                        break
 
             upcoming_critical = []
             try:
