@@ -181,14 +181,52 @@ def build_oracle_payload(brief: dict) -> dict:
                 "delta":      dig(brief, "adp_prediction", "delta"),
                 "signal":     dig(brief, "adp_prediction", "signal"),
                 "confidence": dig(brief, "adp_prediction", "confidence"),
+                "edge":       dig(brief, "adp_prediction", "edge"),
             },
             "gdpnow": {
                 "gdp_estimate": dig(brief, "gdp_nowcast", "gdp_estimate"),
                 "consensus":    dig(brief, "gdp_nowcast", "consensus"),
                 "vs_consensus": dig(brief, "gdp_nowcast", "vs_consensus"),
                 "signal":       dig(brief, "gdp_nowcast", "signal"),
+                "edge":         dig(brief, "gdp_nowcast", "edge"),
             },
-            "jobless_claims": brief.get("jobless_claims", {}),
+            "jobless_claims": {
+                "consensus":    dig(brief, "jobless_claims", "consensus"),
+                "icsa_4wk_avg": dig(brief, "jobless_claims", "icsa_4wk_avg"),
+                "delta":        dig(brief, "jobless_claims", "delta"),
+                "signal":       dig(brief, "jobless_claims", "signal"),
+                "confidence":   dig(brief, "jobless_claims", "confidence"),
+                "edge":         dig(brief, "jobless_claims", "edge"),
+            },
+            "pmi": {
+                "signal":     dig(brief, "pmi", "signal"),
+                "confidence": dig(brief, "pmi", "confidence"),
+                "edge":       dig(brief, "pmi", "edge"),
+                "pmi_mfg":    dig(brief, "pmi", "series", "pmi_mfg", "signal"),
+                "pmi_svcs":   dig(brief, "pmi", "series", "pmi_svcs", "signal"),
+                "pmi_comp":   dig(brief, "pmi", "series", "pmi_comp", "signal"),
+            },
+            "current_account": {
+                "consensus": dig(brief, "current_account", "consensus"),
+                "delta":     dig(brief, "current_account", "delta"),
+                "sigma":     dig(brief, "current_account", "sigma"),
+                "signal":    dig(brief, "current_account", "signal"),
+                "edge":      dig(brief, "current_account", "edge"),
+            },
+            "umich_sentiment": {
+                "consensus":  dig(brief, "umich_sentiment", "consensus"),
+                "delta":      dig(brief, "umich_sentiment", "delta"),
+                "signal":     dig(brief, "umich_sentiment", "signal"),
+                "confidence": dig(brief, "umich_sentiment", "confidence"),
+                "edge":       dig(brief, "umich_sentiment", "edge"),
+            },
+            "umich_expectations": {
+                "consensus":  dig(brief, "umich_expectations", "consensus"),
+                "delta":      dig(brief, "umich_expectations", "delta"),
+                "signal":     dig(brief, "umich_expectations", "signal"),
+                "confidence": dig(brief, "umich_expectations", "confidence"),
+                "edge":       dig(brief, "umich_expectations", "edge"),
+            },
         },
         "kill_chain": {
             "alert_level":    dig(brief, "kill_chain_state", "alert_level"),
@@ -201,14 +239,28 @@ def build_oracle_payload(brief: dict) -> dict:
             "layer_3":        dig(brief, "kill_chain_state", "layer_3"),
         },
         "derivatives": {
-            "gex_regime":    dig(brief, "derivatives", "gex_regime"),
-            "total_gex":     dig(brief, "derivatives", "total_gex"),
-            "put_wall":      dig(brief, "derivatives", "put_wall"),
-            "call_wall":     dig(brief, "derivatives", "call_wall"),
-            "spot":          dig(brief, "derivatives", "spot"),
-            "cot_spec_net":  dig(brief, "derivatives", "cot_spec_net"),
-            "cot_spec_side": dig(brief, "derivatives", "cot_spec_side"),
-            "cot_divergent": dig(brief, "derivatives", "cot_divergent"),
+            # existing
+            "gex_regime":             dig(brief, "derivatives", "gex_regime"),
+            "total_gex":              dig(brief, "derivatives", "total_gex"),
+            "put_wall":               dig(brief, "derivatives", "put_wall"),
+            "call_wall":              dig(brief, "derivatives", "call_wall"),
+            "spot":                   dig(brief, "derivatives", "spot"),
+            "cot_spec_net":           dig(brief, "derivatives", "cot_spec_net"),
+            "cot_spec_side":          dig(brief, "derivatives", "cot_spec_side"),
+            "cot_divergent":          dig(brief, "derivatives", "cot_divergent"),
+            # new gamma_context
+            "max_pain":               dig(brief, "derivatives", "max_pain"),
+            "gamma_flip":             dig(brief, "derivatives", "gamma_flip"),
+            "distance_from_max_pain": dig(brief, "derivatives", "distance_from_max_pain"),
+            "top_walls":              dig(brief, "derivatives", "top_walls"),
+            # new levels_context (from pivots block)
+            "ema_200":                dig(brief, "pivots", "ema_200"),
+            "confluence_zones":       dig(brief, "pivots", "confluence_zones"),
+            "next_above":             dig(brief, "pivots", "next_above"),
+            "next_below":             dig(brief, "pivots", "next_below"),
+        },
+        "opportunities": {
+            "squeeze_candidates": dig(brief, "squeeze_watchlist", "top3") or [],
         },
         "hidden_hands": {
             "politician_cluster": dig(brief, "hidden_hands", "politician_cluster"),
@@ -219,6 +271,14 @@ def build_oracle_payload(brief: dict) -> dict:
             "dove_count":         dig(brief, "hidden_hands", "dove_count"),
             "divergence_boost":   dig(brief, "hidden_hands", "divergence_boost"),
         },
+        "squeeze": {
+            "has_signal":         dig(brief, "squeeze_context", "has_signal"),
+            "score":              dig(brief, "squeeze_context", "score"),
+            "short_interest_pct": dig(brief, "squeeze_context", "short_interest_pct"),
+            "days_to_cover":      dig(brief, "squeeze_context", "days_to_cover"),
+            "volume_ratio":       dig(brief, "squeeze_context", "volume_ratio"),
+            "price_change_5d":    dig(brief, "squeeze_context", "price_change_5d"),
+        },
     }
 
 
@@ -228,7 +288,7 @@ def _payload_hash(payload: dict) -> str:
 
 # ── Unified /oracle/brief endpoint ────────────────────────────────────────────
 
-@router.post("/oracle/brief")
+@router.post("/brief")
 async def oracle_brief(req: BriefOracleRequest):
     """
     Unified oracle endpoint — ONE Groq call with full /brief/master context.
@@ -281,11 +341,26 @@ async def oracle_brief(req: BriefOracleRequest):
         cached_until_ts = now + CACHE_TTL_SECONDS
         cached_until  = datetime.datetime.utcfromtimestamp(cached_until_ts).isoformat()
 
+        # Deterministically echo squeeze block from brief (not LLM-generated)
+        sq_ctx = req.brief.get("squeeze_context", {}) if req.brief else {}
+        sq_watch = req.brief.get("squeeze_watchlist", {}) if req.brief else {}
+
         result = {
             "verdict":           parsed.get("verdict", "UNAVAILABLE"),
             "risk_level":        parsed.get("risk_level", "UNKNOWN"),
             "sections":          parsed.get("sections", {}),
             "trade_implication": parsed.get("trade_implication", None),
+            "squeeze": {
+                "has_signal":         sq_ctx.get("has_signal"),
+                "score":              sq_ctx.get("score"),
+                "short_interest_pct": sq_ctx.get("short_interest_pct"),
+                "days_to_cover":      sq_ctx.get("days_to_cover"),
+                "volume_ratio":       sq_ctx.get("volume_ratio"),
+                "price_change_5d":    sq_ctx.get("price_change_5d"),
+            },
+            "opportunities": {
+                "squeeze_candidates": sq_watch.get("top3", []),
+            },
             "generated_at":      generated_at,
             "cached_until":      cached_until,
         }
@@ -299,7 +374,165 @@ async def oracle_brief(req: BriefOracleRequest):
         return {**ORACLE_FALLBACK, "generated_at": datetime.datetime.utcnow().isoformat()}
 
 
-# ── Existing /oracle/analyze (KC drill-down — preserved) ──────────────────────
+# ── Event-specific oracle (slug drawer on /exploit) ──────────────────────────
+
+NYX_EVENT_SYSTEM = """You are NYX, a prop-desk macro analyst briefing a trader who just clicked on a specific economic event.
+You receive the full market intelligence state alongside the specific event data.
+
+Rules (strictly enforced):
+1. Reference the actual numbers provided — do NOT invent data.
+2. Address three things in order: (1) what this print means for Fed expectations, (2) cross-asset flow impact (SPY/TLT/DXY), (3) whether it changes or confirms the Kill Chain verdict.
+3. summary: 3 sentences max. Cold and precise. No filler.
+4. trade_implication: exactly one directive sentence (e.g. "Fade SPY rip to $651 gamma flip; stop above $655.").
+5. confidence: 0.0–1.0 reflecting signal agreement (not LLM certainty).
+6. Output STRICT JSON ONLY. No markdown fences, no prose outside the JSON object.
+
+Required output shape:
+{
+  "summary": "...",
+  "trade_implication": "...",
+  "risk_level": "HIGH | MEDIUM | LOW",
+  "confidence": 0.0
+}"""
+
+_event_oracle_cache: dict = {}
+
+class EventBriefRequest(BaseModel):
+    event_name: str
+    event_data: dict = {}   # actual/signal/surprise/slug from EconBriefItem
+    brief: Optional[dict] = None  # caller may pass full brief; if None we skip context
+
+
+@router.post("/event-brief")
+async def oracle_event_brief(req: EventBriefRequest):
+    """
+    Event-slug oracle — NYX analyzes a specific economic event in the context
+    of the full market brief (derivatives, kill chain, squeeze, COT).
+    Called by MacroBriefingPanel on every slug click.
+    """
+    import datetime
+
+    api_key = os.getenv("GROQ_API_KEY", "")
+    if not api_key:
+        return {
+            "summary": "BRIEFING_ENGINE_OFFLINE: GROQ_API_KEY not configured.",
+            "trade_implication": None,
+            "risk_level": "UNKNOWN",
+            "confidence": 0.0,
+        }
+
+    # Build context payload — only include non-None brief slices so prompt stays tight
+    brief = req.brief or {}
+    def dig(d, *keys, default=None):
+        for k in keys:
+            if not isinstance(d, dict):
+                return default
+            d = d.get(k, default)
+        return d
+
+    context = {
+        "event": {
+            "name":     req.event_name,
+            "actual":   req.event_data.get("actual"),
+            "signal":   req.event_data.get("signal"),
+            "surprise": req.event_data.get("surprise"),
+            "slug":     req.event_data.get("slug"),
+        },
+        "kill_chain": {
+            "alert_level":   dig(brief, "kill_chain_state", "alert_level"),
+            "layers_active": dig(brief, "kill_chain_state", "layers_active"),
+            "narrative":     dig(brief, "kill_chain_state", "narrative"),
+        },
+        "derivatives": {
+            "gex_regime":             dig(brief, "derivatives", "gex_regime"),
+            "spot":                   dig(brief, "derivatives", "spot"),
+            "gamma_flip":             dig(brief, "derivatives", "gamma_flip"),
+            "max_pain":               dig(brief, "derivatives", "max_pain"),
+            "distance_from_max_pain": dig(brief, "derivatives", "distance_from_max_pain"),
+            "cot_spec_net":           dig(brief, "derivatives", "cot_spec_net"),
+            "cot_spec_side":          dig(brief, "derivatives", "cot_spec_side"),
+            "cot_divergent":          dig(brief, "derivatives", "cot_divergent"),
+            "next_above":             dig(brief, "pivots", "next_above"),
+            "next_below":             dig(brief, "pivots", "next_below"),
+            "ema_200":                dig(brief, "pivots", "ema_200"),
+        },
+        "squeeze_candidates": dig(brief, "squeeze_watchlist", "top3") or [],
+        "macro_regime":       dig(brief, "macro_regime", "regime"),
+        "fed_tone":           dig(brief, "hidden_hands", "fed_tone"),
+        "adp_signal":         dig(brief, "adp_prediction", "signal"),
+        "gdp_signal":         dig(brief, "gdp_nowcast", "signal"),
+        "jobless_signal":     dig(brief, "jobless_claims", "signal"),
+    }
+
+    # Cache key = event_name + brief derivatives hash (brief changes slowly)
+    cache_key = f"{req.event_name}:{hashlib.md5(json.dumps(context, sort_keys=True, default=str).encode()).hexdigest()}"
+    now = time.time()
+    cached = _event_oracle_cache.get(cache_key)
+    if cached and cached.get("expires", 0) > now:
+        return cached["result"]
+
+    user_prompt = (
+        f"Economic event: {req.event_name}\n\n"
+        "Full context:\n"
+        + json.dumps(context, indent=2, default=str)
+    )
+
+    groq_payload = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {"role": "system", "content": NYX_EVENT_SYSTEM},
+            {"role": "user",   "content": user_prompt},
+        ],
+        "max_tokens":  400,
+        "temperature": 0.2,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=groq_payload,
+            )
+            resp.raise_for_status()
+    except Exception as exc:
+        return {
+            "summary": f"BRIEFING_ENGINE_OFFLINE: {exc}",
+            "trade_implication": None,
+            "risk_level": "UNKNOWN",
+            "confidence": 0.0,
+        }
+
+    raw = resp.json()["choices"][0]["message"]["content"].strip()
+    # Strip accidental fences
+    if raw.startswith("```"):
+        raw = "\n".join(raw.split("\n")[1:])
+    if raw.endswith("```"):
+        raw = raw[: raw.rfind("```")]
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = {
+            "summary": raw[:400],
+            "trade_implication": None,
+            "risk_level": "UNKNOWN",
+            "confidence": 0.0,
+        }
+
+    result = {
+        "summary":          parsed.get("summary", ""),
+        "trade_implication": parsed.get("trade_implication"),
+        "risk_level":       parsed.get("risk_level", "UNKNOWN"),
+        "confidence":       parsed.get("confidence", 0.0),
+        "generated_at":     datetime.datetime.utcnow().isoformat(),
+    }
+
+    # Cache for 90 seconds (events don't change that fast)
+    _event_oracle_cache[cache_key] = {"result": result, "expires": now + 90}
+    return result
+
+
 
 def _build_kc_prompt(req: OracleRequest) -> str:
     """Build a structured Kill Chain prompt from the full snapshot."""
@@ -349,7 +582,7 @@ def _build_fallback_prompt(req: OracleRequest) -> str:
     ])
 
 
-@router.post("/oracle/analyze")
+@router.post("/analyze")
 async def oracle_analyze(req: OracleRequest):
     """Per-signal KC drill-down. Preserved for KillChainDashboard dev/fallback use."""
     api_key = os.getenv("GROQ_API_KEY", "")

@@ -35,7 +35,7 @@ _alert_engine = PreSignalAlertEngine()
 # ── Tiered timeouts (seconds) ────────────────────────────────────────────────
 TIMEOUT_CORE     = 30   # regime, fed, KC, derivatives — must succeed
 TIMEOUT_SIGNAL   = 25   # ADP, GDP, jobless, hidden_hands
-TIMEOUT_ENRICHED = 18   # pivots, pmi, umich, current_account — nice-to-have
+TIMEOUT_ENRICHED = 8    # pivots, pmi, umich, current_account — nice-to-have
 
 
 @router.get("/brief/master")
