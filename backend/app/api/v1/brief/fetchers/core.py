@@ -139,11 +139,16 @@ def fetch_thresholds() -> dict:
 
 
 def fetch_hidden_hands() -> dict:
+    """Hidden hands via BrainManager singleton.
+    use_cache=True leverages BrainManager's 15-min TTL cache.
+    We do NOT call _ensure_hidden_hands_data() here — that triggers
+    a full scraper run (FedOfficialsEngine) which allocates ~50MB.
+    The scraper should run on a separate schedule, not per-brief."""
     try:
         from dotenv import load_dotenv
         load_dotenv()
         from live_monitoring.core.brain_manager import BrainManager
-        report = BrainManager().get_report()
+        report = lazy('brain', BrainManager).get_report(use_cache=True)
         hh = report.get('hidden_hands', {})
         return {
             'politician_cluster': hh.get('politician_cluster', hh.get('pol_cluster_count', 0)),
@@ -162,63 +167,112 @@ def fetch_hidden_hands() -> dict:
         return {'error': str(e)}
 
 
-def fetch_derivatives() -> dict:
-    deriv: dict = {}
+def fetch_gex_shared() -> dict:
+    """Fetch GEX data ONCE. Result is shared with fetch_derivatives and
+    fetch_kill_chain_from_shared to avoid duplicate yfinance downloads (~80MB each)."""
     try:
         from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
-        calc  = lazy('gex', lambda: GEXCalculator(cache_ttl=300))
-        gex   = calc.compute_gex('SPY')
-        spot  = gex.spot_price if gex else 0
-        max_pain = gex.max_pain if gex else None
-        deriv = {
-            'gex_regime':             gex.gamma_regime if gex else 'UNKNOWN',
-            'total_gex':              gex.total_gex if gex else 0,
-            'spot':                   spot,
-            'gamma_flip':             gex.gamma_flip if gex else None,
-            'max_pain':               max_pain,
-            'distance_from_max_pain': round(spot - max_pain, 2) if spot and max_pain else None,
-            'put_wall':               None,
-            'call_wall':              None,
-            'top_walls':              [],
+        calc = lazy('gex', lambda: GEXCalculator(cache_ttl=300))
+        gex  = calc.compute_gex('SPY')
+        if not gex:
+            return {'error': 'No GEX data'}
+        return {
+            '_raw': gex,  # pass raw object for kill chain
+            'spot_price': gex.spot_price,
+            'total_gex': gex.total_gex,
+            'gamma_regime': gex.gamma_regime,
+            'gamma_flip': gex.gamma_flip,
+            'max_pain': gex.max_pain,
+            'gamma_walls': [{'strike': w.strike, 'gex': round(w.gex, 2), 'signal': w.signal or 'SUPPORT'} for w in (gex.gamma_walls or [])[:5]],
+            'negative_zones': [{'strike': z.strike, 'gex': round(z.gex, 2)} for z in (gex.negative_zones or [])[:3]],
+            'narrative': calc.get_narrative('SPY') if hasattr(calc, 'get_narrative') else '',
         }
-        if gex and gex.negative_zones:
-            deriv['put_wall'] = gex.negative_zones[0].strike
-        if gex and gex.gamma_walls:
-            deriv['call_wall'] = gex.gamma_walls[0].strike
-            deriv['top_walls'] = [
-                {'strike': w.strike, 'gex': round(w.gex, 2), 'signal': w.signal or 'SUPPORT'}
-                for w in gex.gamma_walls[:3]
-            ]
     except Exception as e:
-        logger.warning(f"GEX failed: {e}")
-        deriv = {'error': str(e)}
+        logger.warning(f"GEX shared fetch failed: {e}")
+        return {'error': str(e)}
 
+
+def fetch_cot_shared() -> dict:
+    """Fetch COT data ONCE. Shared with fetch_derivatives and kill chain."""
     try:
         from live_monitoring.enrichment.apis.cot_client import COTClient
-        cot    = COTClient(cache_ttl=300)
+        cot    = lazy('cot', lambda: COTClient(cache_ttl=300))
         es_pos = cot.get_position('ES')
-        if es_pos:
-            es_div = cot.get_divergence_signal('ES')
-            deriv['cot_spec_net']  = es_pos.specs_net
-            deriv['cot_spec_side'] = 'SHORT' if es_pos.specs_net < 0 else 'LONG'
-            deriv['cot_divergent'] = es_div.get('divergent', False)
-            deriv['cot_trap']      = es_div.get('description', '')
+        if not es_pos:
+            return {'error': 'No COT data'}
+        es_div = cot.get_divergence_signal('ES')
+        return {
+            'specs_net':    es_pos.specs_net,
+            'comm_net':     es_pos.comm_net,
+            'open_interest': es_pos.open_interest,
+            'report_date':  es_pos.report_date,
+            'divergent':    es_div.get('divergent', False),
+            'description':  es_div.get('description', ''),
+            'divergence':   es_div,
+            'narrative':    cot.get_narrative('ES') if hasattr(cot, 'get_narrative') else '',
+        }
     except Exception as e:
-        logger.warning(f"COT failed: {e}")
+        logger.warning(f"COT shared fetch failed: {e}")
+        return {'error': str(e)}
+
+
+def build_derivatives(gex_shared: dict, cot_shared: dict) -> dict:
+    """Build derivatives layer from pre-fetched GEX + COT data. ZERO new API calls."""
+    deriv: dict = {}
+    if not gex_shared.get('error'):
+        spot     = gex_shared.get('spot_price', 0)
+        max_pain = gex_shared.get('max_pain')
+        deriv = {
+            'gex_regime':             gex_shared.get('gamma_regime', 'UNKNOWN'),
+            'total_gex':              gex_shared.get('total_gex', 0),
+            'spot':                   spot,
+            'gamma_flip':             gex_shared.get('gamma_flip'),
+            'max_pain':               max_pain,
+            'distance_from_max_pain': round(spot - max_pain, 2) if spot and max_pain else None,
+            'put_wall':               gex_shared['negative_zones'][0]['strike'] if gex_shared.get('negative_zones') else None,
+            'call_wall':              gex_shared['gamma_walls'][0]['strike'] if gex_shared.get('gamma_walls') else None,
+            'top_walls':              gex_shared.get('gamma_walls', [])[:3],
+        }
+    else:
+        deriv = {'error': gex_shared.get('error', 'GEX unavailable')}
+
+    if not cot_shared.get('error'):
+        deriv['cot_spec_net']  = cot_shared.get('specs_net')
+        deriv['cot_spec_side'] = 'SHORT' if (cot_shared.get('specs_net', 0)) < 0 else 'LONG'
+        deriv['cot_divergent'] = cot_shared.get('divergent', False)
+        deriv['cot_trap']      = cot_shared.get('description', '')
 
     return deriv
 
 
-def fetch_kill_chain() -> dict:
+def build_kill_chain(gex_shared: dict, cot_shared: dict, fedwatch_data: dict, darkpool_data: dict = None) -> dict:
+    """Build kill chain from pre-fetched shared data.
+    NO new API calls — reuses GEX/COT/FedWatch that were already fetched.
+    This is the key deduplication that prevents OOM."""
     try:
-        from live_monitoring.enrichment.apis.kill_chain_engine import KillChainEngine
-        report = lazy('kc', KillChainEngine).run_full_scan()
+        from .kc_mismatch_lite import detect_mismatches_from_shared, compute_alert_level, generate_narrative
+        mismatches = detect_mismatches_from_shared(gex_shared, cot_shared, fedwatch_data, darkpool_data)
+        alert_level = compute_alert_level(mismatches)
+        narrative = generate_narrative(alert_level, mismatches, gex_shared, cot_shared, fedwatch_data)
+        layers_active = sum(1 for d in [gex_shared, cot_shared, fedwatch_data, darkpool_data] if d and not d.get('error'))
         return {
-            'alert_level':    report.alert_level,
-            'layers_active':  report.layers_active,
-            'narrative':      (report.narrative or '')[:200],
-            'mismatches_count': len(report.mismatches or []),
+            'alert_level':      alert_level,
+            'layers_active':    layers_active + 1,  # +1 for the mismatch detector itself
+            'narrative':        narrative[:500],
+            'mismatches_count': len(mismatches),
         }
     except Exception as e:
-        logger.warning(f"Kill Chain failed: {e}")
-        return {'error': str(e)}
+        logger.warning(f"Kill Chain (lite) failed: {e}")
+        # Fallback: run the old engine if lite fails
+        try:
+            from live_monitoring.enrichment.apis.kill_chain_engine import KillChainEngine
+            report = lazy('kc', KillChainEngine).run_full_scan()
+            return {
+                'alert_level':    report.alert_level,
+                'layers_active':  report.layers_active,
+                'narrative':      (report.narrative or '')[:200],
+                'mismatches_count': len(report.mismatches or []),
+            }
+        except Exception as e2:
+            logger.warning(f"Kill Chain fallback also failed: {e2}")
+            return {'error': str(e2)}

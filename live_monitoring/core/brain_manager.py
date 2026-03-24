@@ -69,4 +69,4 @@ class BrainManager:
                 "finnhub_news": {},
                 "timestamp": None,
             }
-        return brain.get_brain_report()
+        return brain.get_brain_report(force_refresh=not use_cache)
