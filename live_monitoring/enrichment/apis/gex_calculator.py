@@ -40,7 +40,7 @@ class GEXResult:
     spot_price: float = 0.0
     total_gex: float = 0.0
     gamma_regime: str = ""  # "POSITIVE" or "NEGATIVE"
-    gamma_flip: float = 0.0  # strike where GEX flips sign
+    gamma_flip: Optional[float] = None  # strike where GEX flips sign; None if no flip found near spot
     max_pain: float = 0.0  # max OI strike
     gamma_walls: List[GammaWall] = field(default_factory=list)
     negative_zones: List[GammaWall] = field(default_factory=list)
@@ -209,11 +209,12 @@ class GEXCalculator:
             # Max pain (strike with max total OI)
             max_pain = max(strike_oi.items(), key=lambda x: x[1])[0] if strike_oi else 0
             
-            # Gamma flip (where cumulative GEX crosses zero)
-            gamma_flip = 0.0
+            # Gamma flip: strike where cumulative GEX crosses zero, within 5% of spot.
+            # Returns None (not 0.0) when no zero-crossing is found — frontend shows N/A.
+            gamma_flip: Optional[float] = None
             sorted_by_strike = sorted(strike_gex.items(), key=lambda x: x[0])
-            cumulative = 0
-            prev_cumulative = 0
+            cumulative = 0.0
+            prev_cumulative = 0.0
             for strike, gex in sorted_by_strike:
                 prev_cumulative = cumulative
                 cumulative += gex

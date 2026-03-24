@@ -28,7 +28,7 @@ class GexScorer:
         raw_data = {}
         
         try:
-            result = self.calc.compute_gex("SPX")
+            result = self.calc.compute_gex("SPY")
             
             total_gex = result.total_gex
             regime = result.gamma_regime
@@ -57,7 +57,68 @@ class GexScorer:
                 gex_add = 1
                 reasons.append(f"GEX STRONG_POSITIVE (${total_gex/1e9:.1f}B) — dealers dampen moves, support floor active")
 
+            # ── Rule: NEGATIVE gamma + spot ABOVE max_pain → gravitational pull DOWN ──
+            max_pain = result.max_pain
+            if regime == "NEGATIVE" and max_pain and spot > max_pain:
+                gex_add += 1
+                reasons.append(
+                    f"NEGATIVE gamma, spot {spot:.2f} > max_pain {max_pain:.2f} — gravitational pull DOWN"
+                )
+
             # Context only VIX
+            try:
+                import yfinance as yf
+                vix_data = yf.Ticker('^VIX').history(period='1d')
+                if not vix_data.empty:
+                    raw_data['vix'] = round(float(vix_data['Close'].iloc[-1]), 2)
+            except Exception:
+                pass
+
+            # ── Rule: spot pinned between EMA-200 and next confluence above → no edge ──
+            ema_200 = None
+            next_above = None
+            try:
+                from live_monitoring.enrichment.apis.pivot_calculator import PivotCalculator
+                piv = PivotCalculator()
+                piv_result = piv.compute('SPY')
+                if piv_result and piv_result.ema_200:
+                    ema_200 = piv_result.ema_200
+                    raw_data['ema_200'] = round(ema_200, 2)
+                    # Quick confluence: any Classic/Fib/Cam level > spot within 5 pts
+                    lvls = sorted([l['price'] for l in piv_result.all_levels_flat() if l['price'] > spot])
+                    next_above = lvls[0] if lvls else None
+                    raw_data['next_above'] = next_above
+            except Exception:
+                pass
+
+            if ema_200 and next_above and ema_200 < spot < next_above:
+                reasons.append(
+                    f"SPY pinned between EMA-200 ({ema_200:.2f}) and confluence ({next_above:.2f}) — no directional edge"
+                )
+
+            # ── Rule: squeeze risk check ─────────────────────────────────────
+            try:
+                t_spy = yf.Ticker('SPY')
+                spy_info = t_spy.info
+                si_pct = float(spy_info.get('shortPercentOfFloat') or 0) * 100
+                short_ratio = float(spy_info.get('shortRatio') or 0)
+                si_score = min((si_pct / 30) * 40, 40)
+                borrow_score = min(short_ratio * 2, 30)
+                squeeze_score = round(si_score + borrow_score, 1)
+                raw_data['spy_si_pct'] = round(si_pct, 2)
+                raw_data['spy_days_to_cover'] = round(short_ratio, 1)
+                raw_data['spy_squeeze_score'] = squeeze_score
+                if squeeze_score >= 60:
+                    reasons.append(
+                        f"Elevated squeeze risk: score {squeeze_score:.0f}, "
+                        f"SI {si_pct:.1f}%, DTC {short_ratio:.1f}d "
+                        f"\u2014 cap short conviction."
+                    )
+                    # Penalize confidence cap for short-side signals only
+                    raw_data['squeeze_confidence_penalty'] = 10
+            except Exception as _sq_err:
+                logger.debug(f'Squeeze risk check failed: {_sq_err}')
+
             try:
                 import yfinance as yf
                 vix_data = yf.Ticker('^VIX').history(period='1d')

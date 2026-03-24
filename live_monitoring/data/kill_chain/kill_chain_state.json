@@ -1,10 +1,5 @@
 {
-  "triple_active": true,
-  "last_check": "2026-03-23T19:38:31.324161",
-  "spy_price": 6601.19,
-  "position": {
-    "entry_price": 6601.19,
-    "activated_at": "2026-03-23T19:38:31.324143",
-    "current_pnl": 0.0
-  }
+  "triple_active": false,
+  "last_check": "2026-03-23 22:00:26",
+  "spy_price": 655.3800048828125
 }

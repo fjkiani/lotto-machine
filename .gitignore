@@ -58,3 +58,4 @@ analysis_results/*.json
 # Streamlit
 .streamlit/secrets.toml
 .specstory/
+frontend/.env.local

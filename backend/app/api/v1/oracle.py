@@ -17,6 +17,9 @@ import httpx
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, List, Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -288,7 +291,7 @@ def _payload_hash(payload: dict) -> str:
 
 # ── Unified /oracle/brief endpoint ────────────────────────────────────────────
 
-@router.post("/brief")
+@router.post("/oracle/brief")
 async def oracle_brief(req: BriefOracleRequest):
     """
     Unified oracle endpoint — ONE Groq call with full /brief/master context.
@@ -384,8 +387,9 @@ Rules (strictly enforced):
 2. Address three things in order: (1) what this print means for Fed expectations, (2) cross-asset flow impact (SPY/TLT/DXY), (3) whether it changes or confirms the Kill Chain verdict.
 3. summary: 3 sentences max. Cold and precise. No filler.
 4. trade_implication: exactly one directive sentence (e.g. "Fade SPY rip to $651 gamma flip; stop above $655.").
-5. confidence: 0.0–1.0 reflecting signal agreement (not LLM certainty).
-6. Output STRICT JSON ONLY. No markdown fences, no prose outside the JSON object.
+5. confidence: 0.0–1.0 reflecting signal agreement across kill chain, derivatives, and macro layers (not LLM certainty).
+6. risk_level: Assess the MARGINAL IMPACT of THIS SPECIFIC EVENT on the tactical picture. HIGH = this print alone can shift the Kill Chain verdict or trigger a regime change. MEDIUM = meaningful but not regime-shifting. LOW = noise. Do NOT contradict the global oracle risk regime — align with the Kill Chain state.
+7. Output STRICT JSON ONLY. No markdown fences, no prose outside the JSON object.
 
 Required output shape:
 {
@@ -403,12 +407,16 @@ class EventBriefRequest(BaseModel):
     brief: Optional[dict] = None  # caller may pass full brief; if None we skip context
 
 
-@router.post("/event-brief")
+@router.post("/oracle/event-brief")
 async def oracle_event_brief(req: EventBriefRequest):
     """
     Event-slug oracle — NYX analyzes a specific economic event in the context
     of the full market brief (derivatives, kill chain, squeeze, COT).
     Called by MacroBriefingPanel on every slug click.
+
+    Brief context: caller passes full /brief/master as `brief` field.
+    If caller omits brief, this endpoint fetches /brief/master internally
+    to guarantee context is always injected — one explicit code path.
     """
     import datetime
 
@@ -421,8 +429,18 @@ async def oracle_event_brief(req: EventBriefRequest):
             "confidence": 0.0,
         }
 
-    # Build context payload — only include non-None brief slices so prompt stays tight
-    brief = req.brief or {}
+    # ── Resolve brief: use caller-supplied or fetch internally ──
+    brief = req.brief
+    if not brief:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.get("http://127.0.0.1:8000/api/v1/brief/master")
+                if r.status_code == 200:
+                    brief = r.json()
+                    logger.info("oracle/event-brief: fetched /brief/master internally")
+        except Exception as exc:
+            logger.warning(f"oracle/event-brief: internal brief fetch failed — {exc}")
+    brief = brief or {}
     def dig(d, *keys, default=None):
         for k in keys:
             if not isinstance(d, dict):
@@ -582,7 +600,7 @@ def _build_fallback_prompt(req: OracleRequest) -> str:
     ])
 
 
-@router.post("/analyze")
+@router.post("/oracle/analyze")
 async def oracle_analyze(req: OracleRequest):
     """Per-signal KC drill-down. Preserved for KillChainDashboard dev/fallback use."""
     api_key = os.getenv("GROQ_API_KEY", "")

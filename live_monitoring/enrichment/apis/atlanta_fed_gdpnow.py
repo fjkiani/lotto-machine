@@ -117,9 +117,9 @@ class AtlantaFedGDPNow:
 
             vs_consensus = round(estimate - self.GDP_CONSENSUS, 2)
             if estimate > self.GDP_CONSENSUS + 0.3:
-                signal = "BEAT"
+                signal = "BEAT_LIKELY"
             elif estimate < self.GDP_CONSENSUS - 0.3:
-                signal = "MISS"
+                signal = "MISS_LIKELY"
             else:
                 signal = "IN_LINE"
 

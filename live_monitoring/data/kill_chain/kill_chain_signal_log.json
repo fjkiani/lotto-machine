@@ -3735,5 +3735,192 @@
       "dvr": 0.7268
     },
     "spy_price": 658.68
+  },
+  {
+    "timestamp": "2026-03-23 15:34:33",
+    "type": "check",
+    "triple_active": false,
+    "layers": {
+      "cot_divergence": false,
+      "cot_specs_net": 0,
+      "cot_comm_net": 0,
+      "cot_date": null,
+      "gex_positive": true,
+      "vix": 25.65999984741211,
+      "vix_ratio": 0.9923,
+      "dp_selling": true,
+      "dvr": 0.723
+    },
+    "spy_price": 657.36
+  },
+  {
+    "timestamp": "2026-03-23 16:04:33",
+    "type": "check",
+    "triple_active": false,
+    "layers": {
+      "cot_divergence": false,
+      "cot_specs_net": 0,
+      "cot_comm_net": 0,
+      "cot_date": null,
+      "gex_positive": true,
+      "vix": 25.479999542236328,
+      "vix_ratio": 0.9926,
+      "dp_selling": true,
+      "dvr": 0.7123
+    },
+    "spy_price": 655.41
+  },
+  {
+    "timestamp": "2026-03-23 16:34:34",
+    "type": "check",
+    "triple_active": false,
+    "layers": {
+      "cot_divergence": false,
+      "cot_specs_net": 0,
+      "cot_comm_net": 0,
+      "cot_date": null,
+      "gex_positive": false,
+      "vix": 26.149999618530273,
+      "vix_ratio": 1.0019,
+      "dp_selling": true,
+      "dvr": 0.7076
+    },
+    "spy_price": 655.38
+  },
+  {
+    "timestamp": "2026-03-23 21:38:17",
+    "type": "check",
+    "triple_active": false,
+    "layers": {
+      "cot_divergence": false,
+      "cot_specs_net": 0,
+      "cot_comm_net": 0,
+      "cot_date": null,
+      "gex_positive": false,
+      "vix": 26.149999618530273,
+      "vix_ratio": 1.0019,
+      "dp_selling": true,
+      "dvr": 0.7078
+    },
+    "spy_price": 655.38
+  },
+  {
+    "timestamp": "2026-03-23 21:38:22",
+    "type": "check",
+    "triple_active": false,
+    "layers": {
+      "cot_divergence": false,
+      "cot_specs_net": 0,
+      "cot_comm_net": 0,
+      "cot_date": null,
+      "gex_positive": false,
+      "vix": 26.149999618530273,
+      "vix_ratio": 1.0019,
+      "dp_selling": true,
+      "dvr": 0.7078
+    },
+    "spy_price": 655.38
+  },
+  {
+    "timestamp": "2026-03-23 21:49:07",
+    "type": "check",
+    "triple_active": false,
+    "layers": {
+      "cot_divergence": false,
+      "cot_specs_net": 0,
+      "cot_comm_net": 0,
+      "cot_date": null,
+      "gex_positive": false,
+      "vix": 26.149999618530273,
+      "vix_ratio": 1.0019,
+      "dp_selling": true,
+      "dvr": 0.7078
+    },
+    "spy_price": 655.38
+  },
+  {
+    "timestamp": "2026-03-23 21:49:13",
+    "type": "check",
+    "triple_active": false,
+    "layers": {
+      "cot_divergence": false,
+      "cot_specs_net": 0,
+      "cot_comm_net": 0,
+      "cot_date": null,
+      "gex_positive": false,
+      "vix": 26.149999618530273,
+      "vix_ratio": 1.0019,
+      "dp_selling": true,
+      "dvr": 0.7078
+    },
+    "spy_price": 655.38
+  },
+  {
+    "timestamp": "2026-03-23 21:57:29",
+    "type": "check",
+    "triple_active": false,
+    "layers": {
+      "cot_divergence": false,
+      "cot_specs_net": 0,
+      "cot_comm_net": 0,
+      "cot_date": null,
+      "gex_positive": false,
+      "vix": 26.149999618530273,
+      "vix_ratio": 1.0019,
+      "dp_selling": true,
+      "dvr": 0.7078
+    },
+    "spy_price": 655.38
+  },
+  {
+    "timestamp": "2026-03-23 21:57:33",
+    "type": "check",
+    "triple_active": false,
+    "layers": {
+      "cot_divergence": false,
+      "cot_specs_net": 0,
+      "cot_comm_net": 0,
+      "cot_date": null,
+      "gex_positive": false,
+      "vix": 26.149999618530273,
+      "vix_ratio": 1.0019,
+      "dp_selling": true,
+      "dvr": 0.7078
+    },
+    "spy_price": 655.38
+  },
+  {
+    "timestamp": "2026-03-23 22:00:21",
+    "type": "check",
+    "triple_active": false,
+    "layers": {
+      "cot_divergence": false,
+      "cot_specs_net": 0,
+      "cot_comm_net": 0,
+      "cot_date": null,
+      "gex_positive": false,
+      "vix": 26.149999618530273,
+      "vix_ratio": 1.0019,
+      "dp_selling": true,
+      "dvr": 0.7078
+    },
+    "spy_price": 655.38
+  },
+  {
+    "timestamp": "2026-03-23 22:00:26",
+    "type": "check",
+    "triple_active": false,
+    "layers": {
+      "cot_divergence": false,
+      "cot_specs_net": 0,
+      "cot_comm_net": 0,
+      "cot_date": null,
+      "gex_positive": false,
+      "vix": 26.149999618530273,
+      "vix_ratio": 1.0019,
+      "dp_selling": true,
+      "dvr": 0.7078
+    },
+    "spy_price": 655.38
   }
 ]

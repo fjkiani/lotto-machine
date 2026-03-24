@@ -1,0 +1,111 @@
+# Zeta Kill Chain Oracle — Architecture & Wiring Doctrine (v3)
+
+> **LOCKED SPEC** — this document reflects the v3 Oracle Unified Panel architecture.
+> All future oracle work must align with this.
+
+---
+
+## Core Rules (Non-Negotiable)
+
+1. **One oracle brain, many slices.** `/api/v1/oracle/brief` is the only production LLM endpoint. No panel calls Groq directly in production.
+2. **`GROQ_API_KEY` lives on the backend only.** `VITE_GROQ_API_KEY` is allowed in `.env.local` for dev only — it must NOT be set in `.env.production` or any Render env var.
+3. **Guardrails are universal.** Do NOT override discrete signals. If `layer_3.triggered === false`, you may not say it is firing. Only summarize confluence, highlight contradictions, map to trade implications.
+4. **KC is a slice, not a separate pipeline.** `AiBriefingPanel` reads `oracle.sections.kill_chain.summary` as its primary signal, not its own Groq call.
+
+---
+
+## Priority Routing in AiBriefingPanel
+
+```
+CLICK (any KC card)
+       │
+       ▼
+PATH 1: unified oracle healthy?
+ oracle.risk_level !== 'UNKNOWN'
+ && oracle.sections.kill_chain.summary exists
+       │ YES → display KC slice  [badge: UNIFIED · NYX — cyan]
+       │
+       │ NO (oracle/brief not yet deployed or UNKNOWN)
+       ▼
+PATH 2: POST /api/v1/oracle/analyze (backend)
+ body includes kill_chain_snapshot (full KC state)
+ GROQ_API_KEY on server; no secret in browser bundle
+       │ OK  → display analysis  [badge: KC · GROQ — orange]
+       │
+       │ FAIL (backend unreachable)
+       ▼
+PATH 3: direct Groq (dev-only if VITE_GROQ_API_KEY present)
+ NEVER in production  [badge: DEV · GROQ — yellow]
+       │ FAIL → ORACLE_UPLINK_FAILURE  [badge: OFFLINE — red]
+```
+
+The badge in the panel header always shows which path fired.
+
+---
+
+## Kill Chain in the Unified Oracle
+
+When `/api/v1/oracle/brief` is live, `build_oracle_payload()` must include:
+
+```python
+"kill_chain": {
+    "alert_level":    brief["kill_chain_state"].get("alert_level"),
+    "layers_active":  brief["kill_chain_state"].get("layers_active"),
+    "confidence_cap": brief["kill_chain_state"].get("confidence_cap"),
+    "mismatches":     brief["kill_chain_state"].get("mismatches_count"),
+    "narrative":      brief["kill_chain_state"].get("narrative"),
+}
+```
+
+`oracle.sections.kill_chain.summary` then describes the same KC state the dashboard shows. No divergence.
+
+---
+
+## File Map
+
+| File | Role |
+|---|---|
+| `frontend/src/hooks/useOracle.ts` | Fetches unified oracle/brief; returns sections or UNKNOWN |
+| `frontend/src/components/killchain/AiBriefingPanel.tsx` | 3-tier routing: unified → backend KC → dev-only Groq |
+| `frontend/src/components/killchain/types.ts` | `KillChainContext` type (snapshot schema) |
+| `frontend/src/components/widgets/KillChainDashboard.tsx` | `buildContext()` — injects KC snapshot into every `setBrief` |
+| `backend/app/api/v1/oracle.py` | Backend oracle proxy (Path 2 in routing above) |
+| `frontend/.env.local` | `VITE_GROQ_API_KEY` dev-only key — never committed |
+| `frontend/.env.production` | Must NOT contain `VITE_GROQ_API_KEY` |
+
+---
+
+## Context Passed to Oracle (KC Snapshot)
+
+When Path 2 fires, the backend receives a typed `kill_chain_snapshot`:
+
+```
+score, verdict, direction, confluence, armed,
+bullish_points, bearish_points, spy_spot,
+triggered_count, total_checks, activations,
+layers[]: { name, triggered, value, unit, signal }
+```
+
+Layer count is always derived from `layers.length` — no hardcoded "3/3" or "5/5" strings.
+
+---
+
+## What Is NOT Yet Wired (Requires oracle/brief Deploy)
+
+| Gap | Status |
+|---|---|
+| `oracle.sections.kill_chain` populated by backend | ⏳ Pending `oracle/brief` endpoint deploy |
+| `MacroBriefingPanel.tsx` (Exploit page) | ❌ Still Gemini — same 3-tier swap needed |
+| Full `OracleSections` (ADP, GDPNow, regime, geopolitics) | ⏳ Schema defined in `useOracle.ts`; backend not yet wired |
+| COT Commercials net in KC snapshot | ⚠️ Only Specs Net currently — needs backend change |
+
+---
+
+## What Is Done
+
+- [x] `useOracle.ts` — fetches unified oracle/brief, returns null sections when not live
+- [x] `AiBriefingPanel.tsx` — 3-tier routing with mode badge, guardrail prompt clause
+- [x] `oracle.py` — typed `KillChainSnapshot` request, `_build_kc_prompt()` with dynamic layer count, `OracleSections` placeholder schema
+- [x] `KillChainDashboard.tsx` — `buildContext()` injects full snapshot to every `setBrief` call
+- [x] `types.ts` — `KillChainContext` and `AiBriefingItem.killChainContext` field
+- [x] MDC doc updated to v3 locked spec

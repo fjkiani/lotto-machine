@@ -1,0 +1,214 @@
+---
+description: Kill Chain Orphan Code — Verified Audit & Fix Spec
+globs: ["backend/app/signals/kill_chain.py", "live_monitoring/enrichment/apis/kill_chain_engine.py", "live_monitoring/enrichment/apis/kc_layer_registry.py", "live_monitoring/data/kill_chain/kill_chain_state.json", "frontend/src/pages/Signals.tsx"]
+alwaysApply: false
+---
+
+# Kill Chain — Orphan Code Audit
+
+**Audited:** 2026-03-23  
+**Severity:** CRITICAL — Kill Chain layers reading zero on production despite live data
+
+---
+
+## 1. Verified Architecture (Two Separate Kill Chain Systems)
+
+> [!IMPORTANT]
+> There are **two independent kill chain implementations** that do not talk to each other. This is the root cause of the confusion.
+
+| System | File | Used By |
+|--------|------|---------|
+| **Scorer (active)** | `backend/app/signals/kill_chain.py` | `/api/v1/signals` → Signals page |
+| **Full Scanner (legacy)** | `live_monitoring/enrichment/apis/kill_chain_engine.py` | Not called by any API endpoint |
+
+---
+
+## 2. What IS Wired (Scorer — `kill_chain.py`)
+
+```python
+# Layer 1: Brain Manager  ✅ WIRED
+brain = BrainManager().get_report(use_cache=True)
+boost = brain.get("divergence_boost", 0)
+
+# Layer 2: COT Divergence  ✅ WIRED (but named differently)
+cot = COTClient(cache_ttl=3600).get_divergence_signal("ES")
+specs = cot.get("specs_net", 0)
+# → bullish_pts or bearish_pts, NOT a binary "triggered" flag
+
+# Layer 3: GEX Regime  ✅ WIRED
+gex_calc = GEXCalculator(cache_ttl=300)
+gex_result = gex_calc.compute_gex("SPX")
+regime = gex_result.gamma_regime
+# → bearish_pts += 2 if NEGATIVE + SV > 55%
+```
+
+---
+
+## 3. What Is MISSING (Confirmed Gaps)
+
+### GAP 1 — Layer Display Mismatch
+The Signals page shows layer cards labeled  
+`{Layer 1: COT Divergence, Layer 2: GEX Regime, Layer 3: DVR}`  
+but the scorer returns a **flat score** (`bullish_pts`, `bearish_pts`, `verdict`).  
+**There are no `layer_1`, `layer_2`, `layer_3` keys in the API response.**  
+The UI is reading fields that don't exist → renders zero.
+
+**Fix:** The scorer must return a structured `layers` dict:
+```python
+result = {
+    "score": total_score,
+    "verdict": verdict,
+    # ADD these ↓
+    "layer_1": {
+        "name": "COT Divergence",
+        "triggered": es_specs < -50_000,
+        "value": es_specs,
+        "unit": "Specs Net",
+        "signal": "CROWDED_SHORT" if es_specs < -50_000 else "NEUTRAL"
+    },
+    "layer_2": {
+        "name": "GEX Regime",
+        "triggered": "NEGATIVE" in regime,
+        "value": round(total_gex / 1e6, 3),
+        "unit": "GEX $M",
+        "signal": regime
+    },
+    "layer_3": {
+        "name": "DVR",
+        "triggered": sv_pct > 55.0,
+        "value": sv_pct,
+        "unit": "Short Vol %",
+        "signal": "PANIC_THRESHOLD" if sv_pct > 55.0 else "WATCHING"
+    },
+}
+```
+
+### GAP 2 — DVR Layer (Down-Volume Ratio)
+Diagnosed location: dark pool `short_vol_pct` IS available via `StockgridClient`.  
+**It is already read in Layer 3 GEX eval as `sv_pct` — but not surfaced as its own layer.**  
+Fix: Expose `sv_pct` as `layer_3.value` and apply 55% threshold.
+
+```python
+# Current code reads this ↓ — just needs to be surfaced
+sv_pct = sg.get_short_volume_pct("SPY") or 50.0
+layers["sv_pct"] = sv_pct  # ← already set, not returned as layer_3
+```
+
+### GAP 3 — Position / P&L Tracking (Completely Missing)
+`kill_chain_state.json` contains only:
+```json
+{ "triple_active": false, "last_check": "...", "spy_price": 658.67 }
+```
+**`entry_price`, `current_pnl`, `activated_at` — none of these fields exist anywhere in the codebase.**  
+No `position_state` class was ever built. Verified by full codebase grep: zero matches.
+
+**Fix in `kill_chain_state.json` schema:**
+```json
+{
+  "triple_active": false,
+  "last_check": "...",
+  "spy_price": 658.67,
+  "position": {
+    "entry_price": 0.0,
+    "activated_at": null,
+    "current_pnl": 0.0
+  }
+}
+```
+
+**Fix in scorer on ACTIVATION:**
+```python
+# When layer confluence crosses threshold and triple_active flips true:
+if newly_activated and state.get("position", {}).get("entry_price", 0) == 0:
+    state["position"]["entry_price"] = current_spot
+    state["position"]["activated_at"] = datetime.utcnow().isoformat()
+    state["position"]["current_pnl"] = 0.0
+    _save_state(state)
+
+# On each CHECK when active:
+ep = state.get("position", {}).get("entry_price", 0)
+if ep > 0:
+    pnl = ((current_spot - ep) / ep) * 100
+    state["position"]["current_pnl"] = round(pnl, 2)
+    _save_state(state)
+
+# On DEACTIVATION:
+state["position"] = {"entry_price": 0.0, "activated_at": None, "current_pnl": 0.0}
+_save_state(state)
+```
+
+---
+
+## 4. Correction to the Original Diagnosis
+
+> [!NOTE]
+> The original diagnosis slightly misidentified the root cause.
+
+| Claim | Reality |
+|-------|---------|
+| "KillChainEngine never calls get_cot_signal()" | ❌ Wrong — `kill_chain.py:L65` calls `get_divergence_signal("ES")` |
+| "VIX/VIX3M ratio not being calculated" | ✅ Correct — ratio is never computed. GEX layer only checks regime string |
+| "DVR module never wired" | ✅ Mostly correct — `sv_pct` IS read in GEX eval but never surfaced as its own layer |
+| "entry_price not persisting" | ✅ Correct — field was never built |
+| "Layer cards display zero" | ✅ Correct — but cause is missing structured `layer_1/2/3` keys, not missing data fetches |
+
+---
+
+## 5. Current Real State
+
+```
+Layer 1 — COT:   Data fetched ✅ | Structured key missing ❌ | UI reads 0
+Layer 2 — GEX:   Data fetched ✅ | VIX/VIX3M ratio missing ❌ | UI reads 0
+Layer 3 — DVR:   sv_pct fetched ✅ | Layer key missing ❌ | UI reads 0
+Position/P&L:    Never built ❌ | entry_price = $0.00 always
+```
+
+---
+
+## 6. Fix Order (Prioritized)
+
+### FIX 1 — Restructure scorer output (30 min)
+**File:** `backend/app/signals/kill_chain.py`  
+Add `layer_1`, `layer_2`, `layer_3` keys to result dict (see Gap 1 above).  
+Data is already fetched. This is a **pure output restructure**.
+
+### FIX 2 — VIX/VIX3M ratio for Layer 2 (15 min)
+**File:** `backend/app/signals/kill_chain.py`, Layer 3 GEX block  
+```python
+import yfinance as yf
+vix_data = yf.download(["^VIX", "^VIX3M"], period="1d", progress=False)
+vix = float(vix_data["Close"]["^VIX"].iloc[-1])
+vix3m = float(vix_data["Close"]["^VIX3M"].iloc[-1])
+ratio = round(vix / vix3m, 3) if vix3m else 0
+# ratio > 1.0 = backwardation = dealer stress = layer_2 triggered
+```
+
+### FIX 3 — Position persistence (20 min)
+**Files:** `backend/app/signals/kill_chain.py` + state read/write logic  
+Add `position` object to `kill_chain_state.json`.  
+Implement entry/pnl/deactivation logic on state transitions.
+
+---
+
+## 7. Verification Command
+
+```bash
+PYTHONPATH=$(pwd) python3 -c "
+from backend.app.signals.kill_chain import compute_kill_chain
+import json
+result = compute_kill_chain()
+print(json.dumps(result, indent=2, default=str))
+"
+```
+
+**Expected after FIX 1:**
+```json
+{
+  "layer_1": { "triggered": true,  "value": -113057, "signal": "CROWDED_SHORT" },
+  "layer_2": { "triggered": true,  "value": 1.08,    "signal": "BACKWARDATION" },
+  "layer_3": { "triggered": false, "value": 51.6,    "signal": "WATCHING" }
+}
+```
+
+Layer 3 at 51.6% — NOT triggered. Triple Confluence is premature.  
+**Current REAL state: DOUBLE confluence. Layer 3 watching.**

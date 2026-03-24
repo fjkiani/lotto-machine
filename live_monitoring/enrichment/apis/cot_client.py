@@ -98,15 +98,22 @@ class COTClient:
         return key in self._cache and (time.time() - self._cache_ts.get(key, 0)) < self._cache_ttl
 
     def _fetch_cot_data(self):
-        """Fetch the latest COT legacy futures report."""
-        if not COT_AVAILABLE:
-            raise ImportError("cot_reports not installed")
-        
+        """Fetch the latest COT legacy futures report.
+
+        Priority:
+          1. In-memory cache hit (TTL 1h — COT is weekly, cache is always fresh enough)
+          2. cot_reports package download (downloads annual.txt to /tmp/cot_data/)
+          3. CFTC direct CSV fallback — fetches most-recent report from cftc.gov
+             using only stdlib (no cot_reports dependency).
+        """
+        if not COT_AVAILABLE and self._df_cache is None:
+            # Skip straight to CFTC CSV fallback
+            return self._fetch_cftc_direct()
+
         if self._df_cache is not None and (time.time() - self._df_cache_ts) < self._cache_ttl:
             return self._df_cache
-        
+
         try:
-            # cot_reports downloads annual.txt to CWD — use /tmp/ so it works on Render
             import os
             original_cwd = os.getcwd()
             os.makedirs("/tmp/cot_data", exist_ok=True)
@@ -118,16 +125,74 @@ class COTClient:
                     df = cot.cot_year(2025, cot_report_type="legacy_fut")
             finally:
                 os.chdir(original_cwd)
-            
+
             self._df_cache = df
             self._df_cache_ts = time.time()
             logger.info(f"✅ Fetched COT data: {len(df)} rows")
             return df
         except Exception as e:
-            logger.error(f"❌ COT fetch error: {e}")
+            logger.warning(f"⚠️ cot_reports download failed ({e}), trying CFTC direct CSV")
             if self._df_cache is not None:
                 return self._df_cache
-            raise
+            return self._fetch_cftc_direct()
+
+    def _fetch_cftc_direct(self):
+        """
+        Fallback: fetch CFTC weekly legacy futures CSV directly from cftc.gov.
+
+        URL: https://www.cftc.gov/files/dea/history/fut_fin_txt_{year}.zip
+        Parses the CSV into a pandas DataFrame with the same column schema as
+        cot_reports so the rest of get_position() works unchanged.
+
+        Only stdlib dependencies: urllib.request, zipfile, io.
+        Pandas is optional (falls back to a minimal dict-based row).
+        """
+        import urllib.request
+        import zipfile
+        import io
+        import datetime
+
+        year = datetime.date.today().year
+        urls = [
+            f"https://www.cftc.gov/files/dea/history/fut_fin_txt_{year}.zip",
+            f"https://www.cftc.gov/files/dea/history/fut_fin_txt_{year - 1}.zip",
+        ]
+
+        for url in urls:
+            try:
+                logger.info(f"📥 CFTC direct CSV: {url}")
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=20) as resp:
+                    data = resp.read()
+                zf = zipfile.ZipFile(io.BytesIO(data))
+                csv_name = next(
+                    (n for n in zf.namelist() if n.endswith('.txt') or n.endswith('.csv')),
+                    zf.namelist()[0],
+                )
+                csv_bytes = zf.read(csv_name)
+
+                if PANDAS_AVAILABLE:
+                    import pandas as pd
+                    df = pd.read_csv(io.BytesIO(csv_bytes))
+                    self._df_cache = df
+                    self._df_cache_ts = time.time()
+                    logger.info(f"✅ CFTC direct: {len(df)} rows from {csv_name}")
+                    return df
+                else:
+                    # Minimal dict-list fallback (no pandas)
+                    import csv as _csv
+                    reader = _csv.DictReader(io.StringIO(csv_bytes.decode('latin-1')))
+                    rows = list(reader)
+                    self._df_cache = rows  # type: ignore[assignment]
+                    self._df_cache_ts = time.time()
+                    logger.info(f"✅ CFTC direct (no-pandas): {len(rows)} rows")
+                    return rows
+            except Exception as ex:
+                logger.warning(f"CFTC direct fetch failed for {url}: {ex}")
+                continue
+
+        raise RuntimeError("All COT data sources exhausted (cot_reports + CFTC direct)")
+
 
     # ── Contract Positioning ─────────────────────────────────────────────
 
