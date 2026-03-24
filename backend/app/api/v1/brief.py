@@ -448,19 +448,27 @@ async def master_brief():
             from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
             calc = _lazy('gex', lambda: GEXCalculator(cache_ttl=300))
             gex = calc.compute_gex('SPY')
+            spot     = gex.spot_price if gex else 0
+            max_pain = gex.max_pain   if gex else None
             deriv = {
-                'gex_regime': gex.gamma_regime if gex else 'UNKNOWN',
-                'total_gex': gex.total_gex if gex else 0,
-                'put_wall': None,
-                'call_wall': None,
-                'spot': gex.spot_price if gex else 0,
-                'gamma_flip': gex.gamma_flip if gex else None,
-                'max_pain': gex.max_pain if gex else None,
+                'gex_regime':             gex.gamma_regime if gex else 'UNKNOWN',
+                'total_gex':              gex.total_gex if gex else 0,
+                'spot':                   spot,
+                'gamma_flip':             gex.gamma_flip if gex else None,
+                'max_pain':               max_pain,
+                'distance_from_max_pain': round(spot - max_pain, 2) if spot and max_pain else None,
+                'put_wall':               None,
+                'call_wall':              None,
+                'top_walls':              [],
             }
             if gex and gex.negative_zones:
-                deriv['put_wall'] = gex.negative_zones[0].strike if gex.negative_zones else None
+                deriv['put_wall'] = gex.negative_zones[0].strike
             if gex and gex.gamma_walls:
-                deriv['call_wall'] = gex.gamma_walls[0].strike if gex.gamma_walls else None
+                deriv['call_wall'] = gex.gamma_walls[0].strike
+                deriv['top_walls'] = [
+                    {'strike': w.strike, 'gex': round(w.gex, 2), 'signal': w.signal or 'SUPPORT'}
+                    for w in gex.gamma_walls[:3]
+                ]
         except Exception as e:
             logger.warning(f"GEX failed: {e}")
             deriv = {'error': str(e)}
@@ -520,30 +528,139 @@ async def master_brief():
             logger.warning(f"Jobless Claims Predictor failed: {e}")
             return {'error': str(e)}
 
-    # ── PARALLEL EXECUTION — all 11 layers at once ────────────────────────
+    def _fetch_pmi():
+        try:
+            from live_monitoring.enrichment.apis.pmi_predictor import PMIPredictor
+            return _lazy('pmi', PMIPredictor).predict()
+        except Exception as e:
+            logger.warning(f"PMI Predictor failed: {e}")
+            return {'error': str(e)}
+
+    def _fetch_current_account():
+        try:
+            from live_monitoring.enrichment.apis.current_account_monitor import CurrentAccountMonitor
+            return _lazy('current_account', CurrentAccountMonitor).predict()
+        except Exception as e:
+            logger.warning(f"Current Account Monitor failed: {e}")
+            return {'error': str(e)}
+
+    def _fetch_umich_sentiment():
+        try:
+            from live_monitoring.enrichment.apis.michigan_monitors import MichiganSentimentMonitor
+            return _lazy('umich_sent', MichiganSentimentMonitor).predict()
+        except Exception as e:
+            logger.warning(f"Michigan Sentiment Monitor failed: {e}")
+            return {'error': str(e)}
+
+    def _fetch_umich_expectations():
+        try:
+            from live_monitoring.enrichment.apis.michigan_monitors import MichiganExpectationsMonitor
+            return _lazy('umich_exp', MichiganExpectationsMonitor).predict()
+        except Exception as e:
+            logger.warning(f"Michigan Expectations Monitor failed: {e}")
+            return {'error': str(e)}
+
+    def _fetch_pivots():
+        """Pivot levels + EMA-200 + confluence zones for SPY.
+
+        Returns a slim dict:
+          ema_200, confluence_zones[{level, count}], next_above, next_below
+        Confluence zone threshold = $1.50 (same as pivots.py._find_confluence).
+        """
+        try:
+            from live_monitoring.enrichment.apis.pivot_calculator import PivotCalculator
+            calc  = _lazy('pivots', PivotCalculator)
+            result = calc.compute('SPY')
+            if not result:
+                return {'error': 'PivotCalculator returned None'}
+
+            spot = 0
+            # Get live spot from derivatives cache if available
+            try:
+                from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
+                _gex = _lazy('gex', lambda: GEXCalculator(cache_ttl=300))
+                _r   = _gex.compute_gex('SPY')
+                spot = _r.spot_price if _r else 0
+            except Exception:
+                pass
+
+            # Build flat list and find confluence (reuse same $1.50 threshold)
+            flat = result.all_levels_flat()
+            THRESH = 1.5
+            sorted_lvls = sorted(flat, key=lambda x: x['price'])
+            used = set()
+            zones = []
+            for i, l1 in enumerate(sorted_lvls):
+                if i in used:
+                    continue
+                cluster = [l1]
+                for j, l2 in enumerate(sorted_lvls):
+                    if j != i and j not in used:
+                        if abs(l1['price'] - l2['price']) <= THRESH and l1['set'] != l2['set']:
+                            cluster.append(l2)
+                            used.add(j)
+                if len(cluster) >= 3:
+                    used.add(i)
+                    avg = round(sum(c['price'] for c in cluster) / len(cluster), 2)
+                    zones.append({'level': avg, 'count': len(cluster)})
+
+            zones.sort(key=lambda z: z['level'])
+
+            next_above = next((z['level'] for z in zones if z['level'] > spot), None) if spot else None
+            next_below = next((z['level'] for z in reversed(zones) if z['level'] < spot), None) if spot else None
+
+            return {
+                'ema_200':          round(result.ema_200, 2) if result.ema_200 else None,
+                'confluence_zones': zones,
+                'next_above':       next_above,
+                'next_below':       next_below,
+            }
+        except Exception as e:
+            logger.warning(f"Pivots fetch failed: {e}")
+            return {'error': str(e)}
+
+    # ── PARALLEL EXECUTION — all 16 layers, per-future timeouts ─────────
+    # Timeouts prevent any single slow fetcher from hanging the entire request.
+    # Workers reduced to 10 to avoid cold-start OOM on Render's 512MB instance.
+    # Heavy-but-optional fetchers (pivots, pmi, umich, current_account) timeout
+    # fast so core data (regime, KC, derivatives) always wins.
+
+    TIMEOUT_CORE    = 30  # regime, fed, KC, derivatives — must succeed
+    TIMEOUT_SIGNAL  = 25  # ADP, GDP, jobless, hidden_hands
+    TIMEOUT_ENRICHED = 18  # pivots, pmi, umich, current_account — nice-to-have
 
     loop = asyncio.get_event_loop()
-    with ThreadPoolExecutor(max_workers=13) as executor:
-        futures = {
-            'macro_regime':      loop.run_in_executor(executor, _fetch_macro_regime),
-            'fed_intelligence':  loop.run_in_executor(executor, _fetch_fedwatch),
-            'economic_veto':     loop.run_in_executor(executor, _fetch_veto),
-            'nowcast':           loop.run_in_executor(executor, _fetch_nowcast),
-            'dynamic_thresholds': loop.run_in_executor(executor, _fetch_thresholds),
-            'hidden_hands':      loop.run_in_executor(executor, _fetch_hidden_hands),
-            'derivatives':       loop.run_in_executor(executor, _fetch_derivatives),
-            'kill_chain_state':  loop.run_in_executor(executor, _fetch_kill_chain),
-            'adp_prediction':    loop.run_in_executor(executor, _fetch_adp_prediction),
-            'gdp_nowcast':       loop.run_in_executor(executor, _fetch_gdp_nowcast),
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        raw_futures = {
+            'macro_regime':       (loop.run_in_executor(executor, _fetch_macro_regime),    TIMEOUT_CORE),
+            'fed_intelligence':   (loop.run_in_executor(executor, _fetch_fedwatch),        TIMEOUT_CORE),
+            'economic_veto':      (loop.run_in_executor(executor, _fetch_veto),            TIMEOUT_CORE),
+            'nowcast':            (loop.run_in_executor(executor, _fetch_nowcast),         TIMEOUT_SIGNAL),
+            'dynamic_thresholds': (loop.run_in_executor(executor, _fetch_thresholds),     TIMEOUT_SIGNAL),
+            'hidden_hands':       (loop.run_in_executor(executor, _fetch_hidden_hands),   TIMEOUT_SIGNAL),
+            'derivatives':        (loop.run_in_executor(executor, _fetch_derivatives),    TIMEOUT_CORE),
+            'pivots':             (loop.run_in_executor(executor, _fetch_pivots),          TIMEOUT_ENRICHED),
+            'kill_chain_state':   (loop.run_in_executor(executor, _fetch_kill_chain),     TIMEOUT_CORE),
+            'adp_prediction':     (loop.run_in_executor(executor, _fetch_adp_prediction), TIMEOUT_SIGNAL),
+            'gdp_nowcast':        (loop.run_in_executor(executor, _fetch_gdp_nowcast),    TIMEOUT_SIGNAL),
+            'jobless_claims':     (loop.run_in_executor(executor, _fetch_jobless_claims), TIMEOUT_SIGNAL),
+            'pmi':                (loop.run_in_executor(executor, _fetch_pmi),             TIMEOUT_ENRICHED),
+            'current_account':    (loop.run_in_executor(executor, _fetch_current_account), TIMEOUT_ENRICHED),
+            'umich_sentiment':    (loop.run_in_executor(executor, _fetch_umich_sentiment), TIMEOUT_ENRICHED),
+            'umich_expectations': (loop.run_in_executor(executor, _fetch_umich_expectations), TIMEOUT_ENRICHED),
         }
 
         results = {}
-        for key, future in futures.items():
+        for key, (future, timeout_s) in raw_futures.items():
             try:
-                results[key] = await future
+                results[key] = await asyncio.wait_for(future, timeout=timeout_s)
+            except asyncio.TimeoutError:
+                logger.warning(f"Layer {key} timed out after {timeout_s}s")
+                results[key] = {'error': f'timeout after {timeout_s}s'}
             except Exception as e:
                 logger.error(f"Layer {key} executor failed: {e}")
                 results[key] = {'error': str(e)}
+
 
     # ── Post-processing (depends on prior results — must be sequential) ──
 
