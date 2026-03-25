@@ -1,0 +1,396 @@
+---
+description: Full backend schema audit — every endpoint → JSON shape → Kill Chain/Oracle wiring map
+globs: ["backend/app/api/v1/**/*.py", "backend/app/signals/*.py"]
+alwaysApply: false
+---
+
+# Alpha Terminal Backend — Complete Schema Audit v2
+
+> Generated 2026-03-24 · 24 backend modules · 13 frontend pages · 60+ endpoints audited.
+
+---
+
+## 1. CORE BRIEF & ORACLE
+
+### `GET /api/v1/brief/master` · `brief/router.py → master_brief()`
+2-wave ThreadPoolExecutor (3 workers/wave). 2-min TTL cache. asyncio.Lock mutex.
+
+**Wave 1 — CORE (8 fetchers, 25s timeout):**
+| Key | Fetcher | Source | JSON Shape |
+|---|---|---|---|
+| `macro_regime` | `fetch_macro_regime` | MacroRegimeDetector | `{ regime, inflation_score, growth_score, modifier: { long_penalty, short_penalty } }` |
+| `fed_intelligence` | `fetch_fedwatch` | FedWatchEngine (yfinance ZQ futures) | `{ rate_path: { current_rate, current_range, next_meeting, days_away, terminal_bps, may_p_hike/hold/cut, regime_multiplier }, full_path: [...] }` |
+| `economic_veto` | `fetch_veto` | TECalendarScraper | `{ hours_away, next_event, tier, confidence_cap, upcoming_critical: [{event, date, time, consensus, previous}] }` |
+| `nowcast` | `fetch_nowcast` | ClevelandFedNowcast | `{ cpi_mom, core_cpi_mom, pce_mom, core_pce_mom, cpi_yoy, pce_yoy, updated }` |
+| `dynamic_thresholds` | `fetch_thresholds` | DynamicThresholdEngine (FRED) | `{ core_pce: { HOT, COLD, consensus, std_dev }, non_farm_payrolls: {...}, cpi: {...} }` |
+| `hidden_hands` | `fetch_hidden_hands` | BrainManager (politicians, insiders, Fed speakers) | `{ politician_cluster, hot_tickers, insider_net_usd, fed_tone, hawk_count, dove_count, divergence_boost, spouse_alerts, finnhub_signals, top_divergence }` |
+| `derivatives` | `fetch_derivatives` | GEXCalculator (CBOE) + COTClient (CFTC) | `{ gex_regime, total_gex, spot, gamma_flip, max_pain, distance_from_max_pain, put_wall, call_wall, top_walls: [{strike, gex, signal}], cot_spec_net, cot_spec_side, cot_divergent, cot_trap }` |
+| `kill_chain_state` | `fetch_kill_chain` | KillChainEngine (5-layer scan) | `{ alert_level, layers_active, narrative (200 chars), mismatches_count, regime_modifier, confidence_cap, cap_reason }` |
+
+**Wave 2 — SIGNAL (5 fetchers, 15s timeout):**
+| Key | Fetcher | Source | JSON Shape |
+|---|---|---|---|
+| `adp_prediction` | `fetch_adp_prediction` | ADPPredictor | `{ prediction, consensus, delta, signal, confidence, edge }` |
+| `gdp_nowcast` | `fetch_gdp_nowcast` | AtlantaFedGDPNow | `{ gdp_estimate, consensus, vs_consensus, signal, edge }` |
+| `jobless_claims` | `fetch_jobless_claims` | JoblessClaimsPredictor | `{ consensus, icsa_4wk_avg, delta, signal, confidence, edge }` |
+| `pivots` | `fetch_pivots` | PivotCalculator + GEXCalculator | `{ ema_200, confluence_zones: [{level, count}], next_above, next_below }` |
+| `squeeze_context` | `fetch_squeeze_context` | yfinance (SPY SI/short ratio) | `{ has_signal, score, short_interest_pct, days_to_cover, volume_ratio, price_change_5d, entry_price, stop_price, target_price, risk_reward_ratio }` |
+
+**DISABLED fetchers (exist in `signals.py` but REMOVED from waves for OOM safety):**
+- `fetch_pmi` (PMIPredictor), `fetch_umich_sentiment`, `fetch_umich_expectations` (MichiganMonitors), `fetch_current_account` (CurrentAccountMonitor), `fetch_squeeze_watchlist` (24 yfinance calls = OOM)
+
+**Post-processing:** `regime_modifier`, `confidence_cap`, `cap_reason` injected into `kill_chain_state`. Alert engine runs. `scan_time` + `as_of` appended.
+
+---
+
+### `POST /api/v1/oracle/brief` · `oracle.py → oracle_brief()`
+Calls `build_oracle_payload(brief)` → Groq Llama 3.3 70B.
+
+**Oracle payload (what NYX sees):**
+```
+macro_regime:   { regime, inflation_score, growth_score, long_penalty, short_penalty }
+fed:            { current_range, next_meeting, days_away, terminal_bps }
+economic_veto:  { next_event, hours_away, tier }
+nowcast:        { cpi_mom, core_cpi_mom, pce_mom, core_pce_mom, cpi_yoy }
+pre_signals:    { adp, gdpnow, jobless_claims, pmi, current_account, umich_sentiment, umich_expectations }
+kill_chain:     { alert_level, layers_active, confidence_cap, mismatches, narrative, layer_1..3 }
+derivatives:    { gex_regime, total_gex, put_wall, call_wall, spot, cot_spec_net/side/divergent, max_pain, gamma_flip, distance_from_max_pain, top_walls, ema_200, confluence_zones, next_above/below }
+opportunities:  { squeeze_candidates: [...top3] }
+hidden_hands:   { politician_cluster, hot_tickers, insider_net_usd, fed_tone, hawk/dove_count, divergence_boost }
+squeeze:        { has_signal, score, short_interest_pct, days_to_cover, volume_ratio, price_change_5d }
+```
+
+### `POST /api/v1/oracle/event-brief` · `oracle.py → oracle_event_brief()`
+Input: `{ event_name, event_data: {actual, signal, surprise, slug}, brief }`. Internal `/brief/master` fallback fetch. 90s TTL cache.
+Output: `{ summary, trade_implication, risk_level, confidence, generated_at }`
+
+### `POST /api/v1/oracle/analyze` · `oracle.py → oracle_analyze()`
+Input: `OracleRequest` with `brief` + `kill_chain_snapshot`. KC drill-down per-signal.
+
+---
+
+## 2. SIGNALS AGGREGATOR (Critical — missed in v1)
+
+### `GET /api/v1/signals` · `signals.py → get_signals()`
+**4-source pipeline with regime gate + KC injection. 5-min cache.**
+
+| Source | Fetcher | What It Produces |
+|---|---|---|
+| Layer 0 — Regime Gate | `StockgridClient.get_volatility_regime()` | `regime_tier` 1-4. Tier 4 = ALL SIGNALS SUPPRESSED. Tier 3 = no LONGs. |
+| Source 1 — LiveMonitor | `fetch_monitor_signals()` | Real-time selloff/rally detections |
+| Source 2 — AlertDB | `fetch_alert_db_signals()` | Options flow, DP divergence, earnings, fed alerts from `alerts_history.db` |
+| Source 3 — DarkPoolTrend | `fetch_darkpool_signals()` | 5d DP position + GEX Layer 2 composite signal |
+| Source 4 — MorningBrief | `fetch_morning_brief_signals()` | Pre-market verdict (fallback only when other 3 are empty) |
+
+**Kill Chain injection (`_inject_kill_chain`):**
+- Economic veto: ≤0.5h → confidence=0 BLOCKED, ≤2h → cap 35%, ≤6h → cap 50%, ≤24h → cap 55%
+- BOOST → +15 confidence (cap 99), HARD_VETO → -30 (floor 20, cap 30)
+- Macro regime: STAGFLATION/RECESSION → long_penalty applied to confidence
+
+**Other signals endpoints:**
+| Endpoint | Purpose |
+|---|---|
+| `GET /signals/master` | Only ≥75% confidence signals |
+| `GET /signals/divergence` | DP confluence / options divergence from DPDivergenceChecker |
+| `GET /signals/history` | Raw alerts from `alerts_history.db` |
+| `GET /signals/scorecard` | P&L tracker: signal_price vs current_price, win/loss/flat |
+| `GET /signals/morning-brief` | Raw morning brief data |
+| `POST /signals/outcomes/check` | Check active signals against current prices |
+| `GET /signals/outcomes/scorecard` | P&L scorecard from outcome tracker DB |
+| `POST /signals/take-trade` | Register signal for outcome tracking |
+| `GET /economic-releases` | FRED capture DB releases (last N days) |
+| `POST /economic-releases/capture` | Trigger FRED capture run |
+
+---
+
+## 3. AXLFI Intelligence (Critical — missed in v1)
+
+### `axlfi.py` · Prefix: `/api/v1/axlfi` · Source: StockgridClient
+
+| Endpoint | JSON Shape | Wired to Brief/Oracle? |
+|---|---|---|
+| `GET /axlfi/dashboard` | Master feed: `{ index_returns, movers, signal_symbols, spy_history, strategy_metrics, tactical_allocation }` (588KB) | ❌ |
+| `GET /axlfi/signals` | `{ signals: [{symbol, direction, ...}], count }` | ❌ |
+| `GET /axlfi/regime` | `{ regime: { current_regime: 1-4, vix_level, climax_tier, ... } }` | ❌ (but signals.py reads regime_tier directly from Stockgrid) |
+| `GET /axlfi/movers` | `{ gainers, losers, volume_spikes }` | ❌ |
+| `GET /axlfi/option-walls/{symbol}` | Full strike-level OI + wall evolution | ❌ |
+| `GET /axlfi/option-walls/{symbol}/today` | `{ call_wall, call_wall_2, call_wall_3, put_wall, put_wall_2, put_wall_3, poc }` | ❌ |
+| `GET /axlfi/snapshot` | Quick SPY/QQQ/IWM prices | ❌ |
+| `GET /axlfi/clusters` | `{ universe, data: [{symbol, 1d, 2d, 5d, 10d, 20d fwd returns}], count }` | ❌ |
+| `GET /axlfi/info/{symbol}` | Ticker metadata (price, 52W, sector, volatility) | ❌ |
+| `GET /axlfi/detail/{symbol}` | Full DP + short volume history | ❌ |
+| `GET /axlfi/earnings-intel` | Combined DP + option walls + signals for earnings targets | ❌ |
+
+---
+
+## 4. GAMMA / OPTIONS / VOL / TA
+
+### `GET /api/v1/gamma/{symbol}` · `gamma.py`
+`{ symbol, gamma_flip_level, current_regime, total_gex, max_pain, call_put_ratio, gamma_walls: [{strike, gex, open_interest, signal}], negative_zones: [...], current_price, distance_to_flip, total_contracts/calls/puts, source, timestamp }`
+
+**In brief.derivatives:** `gex_regime, total_gex, spot, gamma_flip, max_pain, put_wall, call_wall, top_walls, distance_from_max_pain`
+**Page-only:** `gamma_walls[]` (full), `negative_zones[]` (full), `call_put_ratio`, `distance_to_flip`, contract counts
+
+### `GET /api/v1/killchain/gex/{symbol}` · `killchain.py`
+TradingView-compatible: `{ symbol, spot_price, total_gex, gamma_regime, gamma_flip, max_pain, levels: [{price, volume, type, strength, source, gex}] }`
+
+### `GET /api/v1/options/{symbol}/flow` · `options.py`
+CBOE delayed chain: `{ symbol, most_active: [{strike, expiration, option_type, volume, open_interest, last_price, bid, ask, implied_volatility}], unusual_activity: [{...volume_oi_ratio, reason}], call_put_ratio, accumulation_zones: { calls: [...], puts: [...] }, sweeps: [], source: "cboe" }`
+**Wired:** ❌ None. Page-only.
+
+### `GET /api/v1/ta/{symbol}/consensus` · `ta.py`
+Multi-indicator: `{ symbol, indicators: [{name, value, category, signal}], oversold_count, total_indicators, consensus: "OVERSOLD|OVERBOUGHT|MIXED|NEUTRAL", bb_squeeze, above_ichimoku_cloud, narrative }`
+Indicators: RSI, MACD, Stochastic, BB %B, ADX, CCI + Keltner squeeze + Ichimoku cloud.
+**Wired:** ❌ None. Page-only.
+
+### Vol Regime
+**NO DEDICATED ENDPOINT.** VIX fetched ad-hoc in `gex_scorer.py` via `yf.Ticker('^VIX')`. `VolRegimePanel.tsx` calls client-side. AXLFI has `regime` endpoint with `vix_level` but it's not in brief.
+
+---
+
+## 5. DARK POOLS / DP EDGE
+
+### `darkpool.py` · 5 endpoints:
+| Endpoint | JSON Shape |
+|---|---|
+| `GET /darkpool/{symbol}/summary` | `{ symbol, summary: { total_volume, dp_percent, buying_pressure, dp_position_dollars, net_short_dollars, short_volume_pct, nearest_support: {price, volume, strength, distance_from_price}, nearest_resistance: {...}, battlegrounds } }` |
+| `GET /darkpool/{symbol}/levels` | `{ levels: [{price, volume, level_type, strength, distance_from_price}], current_price }` |
+| `GET /darkpool/{symbol}/prints` | `{ prints: [{price, volume, side, timestamp}], count }` |
+| `GET /darkpool/top-positions` | `{ positions: [{ticker, dp_position_dollars/shares, short_volume_pct, net_short_volume, date}] }` |
+| `GET /darkpool/narrative` | `{ narrative: string }` |
+
+### `dp.py` · 5 endpoints:
+| Endpoint | JSON Shape |
+|---|---|
+| `GET /dp/edge-stats` | `{ win_rate, total_interactions, bounces, breaks, breakeven_rr, expected_pnl_per_trade, cumulative_pnl }` |
+| `GET /dp/interactions/recent` | `{ interactions: [{timestamp, symbol, level_price, level_type, outcome, max_move_pct}] }` |
+| `GET /dp/patterns` | `{ patterns: [{pattern_name, total_samples, bounce_count, break_count, fade_count, bounce_rate, break_rate, fade_rate}], count }` |
+| `GET /dp/prediction/{symbol}` | `{ bounce_probability, confidence, action, reasoning, recent_interactions/bounces/breaks, level_type_rates }` |
+| `GET /dp/trends/{symbol}` | `{ analysis: {5d_cumulative, 20d_rolling, acceleration, divergence}, history: [...] }` |
+
+**Wired to brief/oracle:** ❌ NONE of the 10 DP endpoints feed into `/brief/master` or `build_oracle_payload`.
+
+---
+
+## 6. TRAP MATRIX / CHARTS
+
+### `GET /api/v1/charts/{symbol}/matrix` · `charts.py`
+Source: `TrapMatrixOrchestrator.get_current_state()` — cached composite state.
+```
+{ current_price, levels: [{price, source, type, strength}], traps: [{name, conviction, description}],
+  context: { cot, vix_regime, gamma_regime }, staleness: { dark_pool, gex, pivots }, timestamp }
+```
+**Wired:** ❌ Page-only.
+
+### `GET /api/v1/charts/{symbol}/ohlc` · `charts.py`
+`{ symbol, period, interval, candles: [{time, open, high, low, close, volume}], count }` — cached per (symbol, period, interval).
+
+---
+
+## 7. COT POSITIONING (Page endpoint — missed in v1)
+
+### `GET /api/v1/cot/positioning` · `cot.py`
+6 contracts: ES, NQ, TY, GC, CL, VX. Full CFTC data.
+```
+{ contracts: [{contract_key, contract_name, report_date, specs_net, comm_net, nonrep_net, open_interest,
+               specs_ratio, specs_side, comm_side, divergent, divergence_direction/magnitude/description}],
+  total_divergent, narrative }
+```
+**In brief.derivatives:** Only `cot_spec_net, cot_spec_side, cot_divergent, cot_trap` (ES only).
+**Page-only:** Full 6-contract positioning, comm_net, nonrep_net, per-contract divergence, narrative.
+
+---
+
+## 8. ECONOMIC / CALENDAR
+
+### `economic.py` · 6 endpoints:
+| Endpoint | JSON Shape |
+|---|---|
+| `GET /economic/calendar?filter=` | `{ events: [{event, date, time, actual, previous, consensus, forecast, importance, category}], count, filter }` |
+| `GET /economic/upcoming-critical` | `{ upcoming: [{event, date, time, confidence_impact}], count }` |
+| `GET /economic/releases` | `{ new_alerts: [{event, actual, consensus, surprise, signal}], all_alerts, new_count, total_count }` |
+| `GET /economic/fedwatch` | `{ data: { current_rate, current_range, next_meeting, rate_path, total_cuts_bps }, source }` |
+| `GET /economic/macro-regime` | `{ regime, inflation_score, growth_score, modifier }` |
+| `GET /economic/exploit-brief?event=CPI` | `{ event, category, calendar_matches, fedwatch, scenarios, thresholds: {HOT, WARM, IN_LINE, COOL, COLD, consensus, std_dev}, nowcast: {metric, vs_consensus, pre_signal, edge}, regime_shifts, macro_regime }` |
+
+**Brief mapping:** `economic_veto` ← calendar hours_away+tier. `nowcast` ← ClevelandFed. `fed_intelligence` ← FedWatch. `adp/gdp/jobless` ← separate fetchers. `exploit-brief` is a COMPOSITE page-only endpoint.
+
+---
+
+## 9. AGENT X / HIDDEN HANDS / FEDS (missed in v1)
+
+### `GET /api/v1/agentx/report` · `agentx.py`
+Source: `BrainManager.get_report()` (same as `fetch_hidden_hands` in brief).
+```
+{ status, scan_time_seconds, fed_overall_tone, hawk_count, dove_count,
+  hidden_hands: { pol_cluster_count, hot_tickers, insider_net_usd },
+  spouse_trade_alerts: [...], divergence_boost, finnhub_signals: [...],
+  top_divergence, tavily_context: {...} }
+```
+**Wired:** ✅ Same `BrainManager` source feeds `hidden_hands` in brief. Page gets richer format (spouse alerts, finnhub full).
+
+### `GET /api/v1/agentx/enrich?tickers=NVDA,MSFT`
+On-demand Tavily research enrichment. `{ tickers, enrichment: {...} }`
+**Wired:** ❌ On-demand only.
+
+---
+
+## 10. MARKET / ENRICHMENT / GATE / INTRADAY
+
+### `market.py` · 2 endpoints:
+| Endpoint | JSON Shape |
+|---|---|
+| `GET /market/context` | `{ spy/qqq/iwm: {price, change_pct, volume}, vix, advance_decline, timestamp }` |
+| `GET /market/{symbol}/quote` | `{ symbol, price, change, change_pct, volume, high, low, open, prev_close }` |
+
+### `enrichment.py` · 4 endpoints:
+| Endpoint | Purpose |
+|---|---|
+| `GET /enrichment/search?q=` | Tavily web search |
+| `GET /enrichment/enrich-tickers?tickers=` | Multi-ticker Tavily enrichment |
+| `GET /enrichment/macro` | FRED macro data (GDP, unemployment, CPI, etc.) |
+| `GET /enrichment/budget` | Budget tracking |
+
+### `gate.py` · Prefix: `/api/v1/gate` · 5 endpoints:
+| Endpoint | Purpose |
+|---|---|
+| `GET /gate/health` | Win rate, blocked/allowed counts, avg R |
+| `GET /gate/signals/today` | Gated signals that passed today |
+| `GET /gate/signals/blocked` | Blocked signals today |
+| `GET /gate/outcomes` | Last N gate outcomes |
+| `GET /gate/brief` | Latest morning brief JSON |
+
+### `intraday.py` · 1 endpoint:
+`GET /api/v1/intraday/snapshot` — serves `/tmp/intraday_snapshot.json`
+
+**None of these feed into brief/oracle.**
+
+---
+
+## 11. SQUEEZE
+
+### `GET /api/v1/squeeze/scan` · `squeeze.py`
+Runs `_score_squeeze_yfinance()` on 24-ticker watchlist.
+```
+{ candidates: [{symbol, score, si_score, borrow_fee_score, ftd_score, dp_support_score,
+                short_interest_pct, borrow_fee_pct, ftd_spike_ratio, dp_buying_pressure,
+                entry_price, stop_price, target_price, risk_reward_ratio,
+                reasoning, warnings, nearest_dp_support/resistance,
+                days_to_cover, volume_ratio, price_change_5d}],
+  count, timestamp }
+```
+**In brief:** `squeeze_context` has SPY-only SI/score. `squeeze_watchlist` (top 3 candidates) DISABLED for OOM.
+
+---
+
+## 12. PIVOTS
+
+### `GET /api/v1/pivots/{symbol}` · `pivots.py`
+Classic/Fibonacci/Camarilla/Woodie pivots + confluence detection.
+```
+{ symbol, current_price, classic: {p, r1-r3, s1-s3}, fibonacci: {...}, camarilla: {...}, woodie: {...},
+  ema_200, confluence_zones: [{level, count, sources}], timestamp }
+```
+**In brief.pivots:** `ema_200, confluence_zones, next_above, next_below`
+
+---
+
+## 13. KILL CHAIN INPUTS vs AVAILABLE DATA
+
+### GEX Scorer (`gex_scorer.py`) — Reads:
+| Input | Source | Rule |
+|---|---|---|
+| `total_gex` | GEXCalculator | STRONG_NEGATIVE (>10B) |
+| `gamma_regime` | GEXCalculator | POSITIVE/NEGATIVE classification |
+| `gamma_flip` | GEXCalculator | Above/below flip slug |
+| `spot_price` | GEXCalculator | Distance calcs |
+| `max_pain` | GEXCalculator | Gravity pull: NEG + spot > max_pain → +1 |
+| `ema_200` | PivotCalculator | Pinned between EMA-200 and confluence → no edge |
+| `next_above` | PivotCalculator | Confluence ceiling |
+| `VIX` | yfinance ^VIX | Context only (stored, no boost rule) |
+| `SPY SI%` | yfinance info | squeeze_score ≥ 60 → -10 confidence penalty |
+| `cot_boost` | COT scorer (passed in) | STRONG_NEG + COT EXTREME → +2 boost |
+
+### Kill Chain Engine (5 Internal Layers):
+`fedwatch, dark_pool (StockgridClient), cot (CFTC), gex (CBOE), sec_13f (EDGAR)`
+
+> ⚠️ KC runs its OWN internal Stockgrid/COT/GEX fetches — this data is NOT the same as `/brief/master` data and NOT shared with Oracle.
+
+### Signals Pipeline (`_inject_kill_chain`):
+Economic veto: ≤0.5h → BLOCKED, ≤2h → cap 35%, ≤6h → 50%, ≤24h → 55%
+BOOST: +15 conf. HARD_VETO: -30 conf (floor 20). NEUTRAL/SOFT_VETO: cap 65%.
+Macro regime: STAGFLATION → long_penalty applied.
+Direction mismatch: warning annotation.
+Regime gate: Tier 4 → ALL suppressed. Tier 3 → no LONGs unless conf≥60.
+
+---
+
+## 14. MASTER WIRING GAP MATRIX
+
+| Data Layer | Endpoints | In `/brief/master` | In Oracle Payload | In KC Scorer | In Signals Pipeline |
+|---|---|---|---|---|---|
+| Macro Regime | ✅ | ✅ | ✅ | — | ✅ (conf modifier) |
+| Fed Intelligence | ✅ | ✅ | ✅ | ✅ (L1) | — |
+| Economic Veto | ✅ | ✅ | ✅ | — | ✅ (conf cap) |
+| Nowcast | ✅ | ✅ | ✅ | — | — |
+| Dynamic Thresholds | ✅ | ✅ | — | — | — |
+| Derivatives (GEX+COT) | ✅ | ✅ | ✅ | ✅ (L3+L4) | — |
+| Pivots / EMA | ✅ | ✅ | ✅ | ✅ (pinned rule) | — |
+| Squeeze Context | ✅ | ✅ | ✅ | ✅ (≥60 penalty) | — |
+| Hidden Hands | ✅ | ✅ | ✅ | — | — |
+| ADP / GDP / Jobless | ✅ | ✅ | ✅ | — | — |
+| Kill Chain State | ✅ | ✅ | ✅ | ✅ (core) | ✅ (verdict) |
+| **PMI / UMich / CA** | ✅ fetchers | ❌ DISABLED (OOM) | ✅ (reads null) | — | — |
+| **Squeeze Watchlist** | ✅ fetcher | ❌ DISABLED (OOM) | ✅ (reads null) | — | — |
+| **Dark Pool Flow** | ✅ 5 endpoints | ❌ | ❌ | ✅ (KC internal only) | ❌ |
+| **DP Edge / Patterns** | ✅ 5 endpoints | ❌ | ❌ | ❌ | ❌ |
+| **DP Trends** | ✅ 1 endpoint | ❌ | ❌ | ❌ | ✅ (DarkPoolTrend source) |
+| **Vol Regime / VIX** | ❌ no dedicated | ❌ | ❌ | ✅ (context only) | ❌ |
+| **Trap Matrix** | ✅ 1 endpoint | ❌ | ❌ | ❌ | ❌ |
+| **AXLFI Regime** | ✅ 1 endpoint | ❌ | ❌ | ❌ | ✅ (regime gate) |
+| **AXLFI Option Walls** | ✅ 2 endpoints | ❌ | ❌ | ❌ | ❌ |
+| **AXLFI Dashboard/Movers/Clusters** | ✅ 4 endpoints | ❌ | ❌ | ❌ | ❌ |
+| **AXLFI Earnings Intel** | ✅ 1 endpoint | ❌ | ❌ | ❌ | ❌ |
+| **Options Flow (CBOE)** | ✅ 1 endpoint | ❌ | ❌ | ❌ | ❌ |
+| **TA Consensus** | ✅ 1 endpoint | ❌ | ❌ | ❌ | ❌ |
+| **COT Full 6-Contract** | ✅ 1 endpoint | ❌ (ES only) | ❌ (ES only) | ✅ (L3) | — |
+| **Gate Health/Signals** | ✅ 5 endpoints | ❌ | ❌ | ❌ | ❌ |
+| **Market Context** | ✅ 2 endpoints | ❌ | ❌ | ❌ | ❌ |
+| **Enrichment (Tavily/FRED)** | ✅ 4 endpoints | ❌ | ❌ | ❌ | ❌ |
+| **Intraday Snapshot** | ✅ 1 endpoint | ❌ | ❌ | ❌ | ❌ |
+
+---
+
+## 15. FRONTEND PAGE → BACKEND DATA MAP
+
+| Page | URL | Primary Data Sources | Has Slug Drawer? |
+|---|---|---|---|
+| Dashboard | `/` | `/brief/master`, `/signals`, `/market/context` | ✅ |
+| Signals | `/signals` | `/signals`, `/signals/scorecard`, `/signals/history` | ✅ |
+| Exploit | `/exploit` | `/economic/calendar`, `/economic/exploit-brief`, `/oracle/event-brief` | ✅ |
+| Dark Pool | `/darkpool` | `/darkpool/*`, `/dp/*`, `/gamma/*`, `/charts/*/matrix` | ❌ **MISSING** |
+| Gamma | `/gamma` | `/gamma/{symbol}`, `/killchain/gex/{symbol}` | ❓ |
+| Options | `/options` | `/options/{symbol}/flow` | ❓ |
+| Squeeze | `/squeeze` | `/squeeze/scan` | ❓ |
+| Politicians | `/politicians` | `/agentx/report` (hidden_hands subset) | ❓ |
+| Feds | `/feds` | `/economic/fedwatch`, `/agentx/report` (fed_tone) | ❓ |
+| Today's Brief | `/brief` | `/brief/master`, `/oracle/brief` | ✅ |
+| Agent X | `/agentx` | `/agentx/report`, `/agentx/enrich` | ❓ |
+| AXLFI Intel | `/axlfi` | `/axlfi/dashboard`, `/axlfi/signals`, `/axlfi/regime`, `/axlfi/option-walls/*` | ❓ |
+| Live Session | `/live` | WebSocket + `/intraday/snapshot` | ❓ |
+
+---
+
+## 16. PRIORITY WIRING ORDER
+
+| Sprint | Layer | Effort | Impact | Notes |
+|---|---|---|---|---|
+| **1** | **Dark Pool → brief → oracle** | ~2h | 🔴 HIGH | Biggest unwired signal. 5 live endpoints, no context in oracle. |
+| **2** | **Vol Regime / VIX → brief → oracle** | ~1h | 🟡 MEDIUM | Currently ad-hoc in scorer. Needs structured block. |
+| **3** | **AXLFI Option Walls → brief.derivatives** | ~1h | 🟡 MEDIUM | call_wall_2/3, put_wall_2/3, POC — richer than GEX-derived walls. |
+| **4** | **TA Consensus → brief** | ~30m | 🟢 LOW | RSI/MACD/BB consensus = useful regime signal. |
+| **5** | **Options Flow unusual activity → brief** | ~30m | 🟢 LOW | Vol/OI spikes = smart money signal. |
+| **6** | **COT full 6-contract → oracle** | ~30m | 🟢 LOW | Currently ES only. NQ, GC, CL, VX all available. |
+| **7** | **PMI/UMich/CA → re-enable** | ~30m | 🟢 LOW | Fetchers exist, need OOM-safe re-enablement. |
+| **8** | **Trap Matrix compression** | ~30m | 🟢 LOW | Derived from existing layers. |
+| **9** | **/darkpool slug drawers** | ~1h | 🟡 MEDIUM | No click interaction on /darkpool page. |

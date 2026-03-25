@@ -250,16 +250,18 @@ def build_kill_chain(gex_shared: dict, cot_shared: dict, fedwatch_data: dict, da
     NO new API calls — reuses GEX/COT/FedWatch that were already fetched.
     This is the key deduplication that prevents OOM."""
     try:
-        from .kc_mismatch_lite import detect_mismatches_from_shared, compute_alert_level, generate_narrative
+        from .kc_mismatch_lite import detect_mismatches_from_shared, compute_alert_level, generate_narrative, generate_signals_from_shared
         mismatches = detect_mismatches_from_shared(gex_shared, cot_shared, fedwatch_data, darkpool_data)
         alert_level = compute_alert_level(mismatches)
         narrative = generate_narrative(alert_level, mismatches, gex_shared, cot_shared, fedwatch_data)
+        signals = generate_signals_from_shared(gex_shared, cot_shared)
         layers_active = sum(1 for d in [gex_shared, cot_shared, fedwatch_data, darkpool_data] if d and not d.get('error'))
         return {
             'alert_level':      alert_level,
             'layers_active':    layers_active + 1,  # +1 for the mismatch detector itself
             'narrative':        narrative[:500],
             'mismatches_count': len(mismatches),
+            'signals':          signals,
         }
     except Exception as e:
         logger.warning(f"Kill Chain (lite) failed: {e}")
@@ -272,6 +274,7 @@ def build_kill_chain(gex_shared: dict, cot_shared: dict, fedwatch_data: dict, da
                 'layers_active':  report.layers_active,
                 'narrative':      (report.narrative or '')[:200],
                 'mismatches_count': len(report.mismatches or []),
+                'signals': [],
             }
         except Exception as e2:
             logger.warning(f"Kill Chain fallback also failed: {e2}")

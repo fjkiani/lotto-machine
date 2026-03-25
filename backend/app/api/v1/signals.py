@@ -604,6 +604,28 @@ async def take_trade(signal_id: str = Query(...)):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+# ── Kill Chain Specific Signal Feed ───────────────────────────────────────────
+
+@router.get("/killchain/signals")
+async def get_kill_chain_signals():
+    """Return the structured Kill Chain signal feed from all scorers."""
+    try:
+        from backend.app.signals.kill_chain import compute_kill_chain
+        kc = compute_kill_chain()
+        if not kc or "error" in kc:
+            return {"signals": [], "score": 0, "verdict": "NEUTRAL", "armed": False, "error": kc.get("error", "Unknown")}
+
+        return {
+            "signals": kc.get("signals", []),
+            "score": kc.get("score", 0),
+            "verdict": kc.get("verdict", "NEUTRAL"),
+            "armed": kc.get("armed", False)
+        }
+    except Exception as exc:
+        logger.error(f"killchain signals error: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 # ── Economic Releases (unrelated to signals — kept here for router grouping) ──
 
 @router.get("/economic-releases")

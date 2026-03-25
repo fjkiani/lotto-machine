@@ -95,6 +95,7 @@ def compute_kill_chain() -> dict:
         bullish_pts = 0
         bearish_pts = 0
         raw: Dict[str, Any] = {}
+        signals: List[Dict[str, Any]] = []
 
         # ── Variables surfaced for structured layer output ────────────────────────
         es_specs: int = 0
@@ -134,12 +135,39 @@ def compute_kill_chain() -> dict:
                 if divergent and es_specs < -100_000 and comms > 50_000:
                     bullish_pts += 3
                     raw["cot_signal"] = "EXTREME_DIVERGENCE → BULLISH"
+                    signals.append({
+                        "id": f"cot-extreme-div-{datetime.utcnow().strftime('%Y-%m-%d')}",
+                        "source": "COT",
+                        "type": "BULLISH",
+                        "strength": "HIGH",
+                        "headline": f"Specs net short {es_specs:,} contracts",
+                        "detail": "Major smart-money divergence setup. Retail is trapped short.",
+                        "data": {"spec_net": es_specs, "comm_net": comms, "side": "SHORT"}
+                    })
                 elif divergent and es_specs < -50_000 and comms > 25_000:
                     bullish_pts += 1
                     raw["cot_signal"] = "MODERATE_DIVERGENCE → BULLISH"
+                    signals.append({
+                        "id": f"cot-mod-div-{datetime.utcnow().strftime('%Y-%m-%d')}",
+                        "source": "COT",
+                        "type": "BULLISH",
+                        "strength": "MEDIUM",
+                        "headline": f"Specs net short {es_specs:,} contracts",
+                        "detail": "Mild divergence. Commercials buying into spec shorts.",
+                        "data": {"spec_net": es_specs, "comm_net": comms, "side": "SHORT"}
+                    })
                 elif es_specs < -50_000 and not divergent:
                     bearish_pts += 1
                     raw["cot_signal"] = "SPEC_SHORTS_NO_DIVERGENCE → BEARISH"
+                    signals.append({
+                        "id": f"cot-spec-short-{datetime.utcnow().strftime('%Y-%m-%d')}",
+                        "source": "COT",
+                        "type": "BEARISH",
+                        "strength": "MEDIUM",
+                        "headline": f"Specs net short {es_specs:,} contracts",
+                        "detail": "Spec trap loaded — squeeze fuel if market rallies, but currently bearish.",
+                        "data": {"spec_net": es_specs, "side": "SHORT"}
+                    })
                 else:
                     raw["cot_signal"] = "NEUTRAL"
         except Exception as exc:
@@ -170,12 +198,39 @@ def compute_kill_chain() -> dict:
                 if sv_pct > 55:
                     bearish_pts += 2
                     raw["gex_signal"] = "NEG_GEX + HIGH_SV → BEARISH AMPLIFIER"
+                    signals.append({
+                        "id": f"gex-gravity-{datetime.utcnow().strftime('%Y-%m-%d')}",
+                        "source": "GEX",
+                        "type": "BEARISH",
+                        "strength": "HIGH",
+                        "headline": f"NEGATIVE gamma · spot ${current_spot:.2f}",
+                        "detail": "Gravitational pull downwards. Dealers short options, amplifying moves.",
+                        "data": {"spot": current_spot, "total_gex": round(total_gex/1e6, 2), "sv_pct": sv_pct}
+                    })
                 else:
                     bullish_pts += 1
                     raw["gex_signal"] = "NEG_GEX + NEUTRAL_SV → SNAP_BACK_RISK"
+                    signals.append({
+                        "id": f"gex-snapback-{datetime.utcnow().strftime('%Y-%m-%d')}",
+                        "source": "GEX",
+                        "type": "BULLISH",
+                        "strength": "MEDIUM",
+                        "headline": "NEGATIVE gamma but neutral short-vol",
+                        "detail": "Snap-back risk is high. Market is compressed but not panicked.",
+                        "data": {"spot": current_spot, "total_gex": round(total_gex/1e6, 2), "sv_pct": sv_pct}
+                    })
             elif "POSITIVE" in regime:
                 bullish_pts += 1
                 raw["gex_signal"] = "POS_GEX → VOLATILITY SUPPRESSED (BULLISH BIAS)"
+                signals.append({
+                    "id": f"gex-suppression-{datetime.utcnow().strftime('%Y-%m-%d')}",
+                    "source": "GEX",
+                    "type": "BULLISH",
+                    "strength": "LOW",
+                    "headline": "POSITIVE gamma regime",
+                    "detail": "Volatility suppressed. Dealers buying dips and selling rips.",
+                    "data": {"spot": current_spot, "total_gex": round(total_gex/1e6, 2)}
+                })
             else:
                 raw["gex_signal"] = "NEUTRAL"
         except Exception as exc:
@@ -277,6 +332,7 @@ def compute_kill_chain() -> dict:
             "layer_2": layer_2,
             "layer_3": layer_3,
             "position": position,
+            "signals": signals,
             "layers": raw,
             "errors": any("error" in k for k in raw),
         }

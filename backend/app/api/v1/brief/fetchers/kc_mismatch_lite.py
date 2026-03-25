@@ -137,52 +137,42 @@ def generate_narrative(
 def generate_signals_from_shared(gex: dict, cot: dict) -> List[dict]:
     """Generate typed Kill Chain signals from pre-fetched shared dictionaries."""
     signals = []
-    now = datetime.utcnow()
-    today_str = now.strftime('%Y-%m-%d')
-    timestamp = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+    today_str = datetime.utcnow().strftime('%Y-%m-%d')
 
     if cot and not cot.get('error'):
         es_specs = cot.get('specs_net', 0)
         comms = cot.get('comm_net', 0)
         divergent = cot.get('divergent', False)
-        # Try to grab spot price from cot if it exists, otherwise 0
-        cot_spot = cot.get('spot_price', 0)
 
         if divergent and es_specs < -100_000 and comms > 50_000:
             signals.append({
-                "signal_id": f"cot-extreme-div-{today_str}",
+                "id": f"cot-extreme-div-{today_str}",
                 "source": "COT",
                 "type": "BULLISH",
                 "strength": "HIGH",
                 "headline": f"Specs net short {es_specs:,} contracts",
                 "detail": "Major smart-money divergence setup. Retail is trapped short.",
-                "action_trigger": "FADE RETAIL SHORTS | SCALE INTO LONGS ON DIPS",
-                "data": {"spot_price": cot_spot, "spec_net_position": es_specs},
-                "metadata": {"timestamp": timestamp, "conviction_score": 9, "is_live": True}
+                "data": {"spec_net": es_specs, "comm_net": comms, "side": "SHORT"}
             })
         elif divergent and es_specs < -50_000 and comms > 25_000:
             signals.append({
-                "signal_id": f"cot-mod-div-{today_str}",
+                "id": f"cot-mod-div-{today_str}",
                 "source": "COT",
                 "type": "BULLISH",
                 "strength": "MEDIUM",
                 "headline": f"Specs net short {es_specs:,} contracts",
                 "detail": "Mild divergence. Commercials buying into spec shorts.",
-                "action_trigger": "ACCUMULATE LONG EXPOSURE CAUTIOUSLY",
-                "data": {"spot_price": cot_spot, "spec_net_position": es_specs},
-                "metadata": {"timestamp": timestamp, "conviction_score": 7, "is_live": True}
+                "data": {"spec_net": es_specs, "comm_net": comms, "side": "SHORT"}
             })
         elif es_specs < -50_000 and not divergent:
             signals.append({
-                "signal_id": f"cot-spec-short-{today_str}",
+                "id": f"cot-spec-short-{today_str}",
                 "source": "COT",
                 "type": "BEARISH",
                 "strength": "MEDIUM",
                 "headline": f"Specs net short {es_specs:,} contracts",
                 "detail": "Spec trap loaded — squeeze fuel if market rallies, but currently bearish.",
-                "action_trigger": "WATCH FOR SQUEEZE TRIGGER ABOVE KEY RESISTANCE",
-                "data": {"spot_price": cot_spot, "spec_net_position": es_specs},
-                "metadata": {"timestamp": timestamp, "conviction_score": 6, "is_live": True}
+                "data": {"spec_net": es_specs, "side": "SHORT"}
             })
 
     if gex and not gex.get('error'):
@@ -192,27 +182,23 @@ def generate_signals_from_shared(gex: dict, cot: dict) -> List[dict]:
         
         if "NEGATIVE" in regime and abs(total_gex) > 1e6:
             signals.append({
-                "signal_id": f"gex-gravity-{today_str}",
-                "source": "GAMMA",
+                "id": f"gex-gravity-{today_str}",
+                "source": "GEX",
                 "type": "BEARISH",
                 "strength": "HIGH",
                 "headline": f"NEGATIVE gamma · spot ${current_spot:.2f}",
                 "detail": "Gravitational pull downwards. Dealers short options, amplifying moves.",
-                "action_trigger": "SELL THE RIPS | EXPECT ACCELERATED DOWNSIDE VOLATILITY",
-                "data": {"spot_price": current_spot, "gex_notional": total_gex},
-                "metadata": {"timestamp": timestamp, "conviction_score": 8, "is_live": True}
+                "data": {"spot": current_spot, "total_gex": round(total_gex/1e6, 2)}
             })
         elif "POSITIVE" in regime:
             signals.append({
-                "signal_id": f"gex-suppression-{today_str}",
-                "source": "GAMMA",
+                "id": f"gex-suppression-{today_str}",
+                "source": "GEX",
                 "type": "BULLISH",
                 "strength": "LOW",
                 "headline": "POSITIVE gamma regime",
                 "detail": "Volatility suppressed. Dealers buying dips and selling rips.",
-                "action_trigger": "BUY THE DIPS | RANGE-BOUND MEAN REVERSION",
-                "data": {"spot_price": current_spot, "gex_notional": total_gex},
-                "metadata": {"timestamp": timestamp, "conviction_score": 5, "is_live": True}
+                "data": {"spot": current_spot, "total_gex": round(total_gex/1e6, 2)}
             })
 
     return signals

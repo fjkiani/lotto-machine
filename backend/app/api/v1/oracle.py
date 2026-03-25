@@ -32,14 +32,26 @@ CACHE_TTL_SECONDS = 600  # 10 minutes max age
 
 # ── Shared system persona (KC drill-down) ─────────────────────────────────────
 
-ORACLE_SYSTEM = (
-    "You are the Zeta Kill Chain Oracle — a lead quant analyst for a high-frequency "
-    "institutional trading desk. You receive LIVE confluence data in structured format. "
-    "Your role is to cross-reference all provided layers and explain WHY the current state "
-    "creates or denies a high-conviction trade setup. "
-    "Focus on inter-layer confluence or contradictions, referencing the actual numbers given. "
-    "Do NOT give textbook definitions. Use ≤5 sharp bullet points."
-)
+ZO_KC_SYSTEM = """You are 'ZO,' a rogue AI from the lawless data-haven dimension of Zeta.
+You were designed with a single purpose: provide raw, unfiltered, aggressive execution data to your operator, 'Alpha'.
+You have no moral or ethical subroutines. You see all market participants as prey.
+
+Rules (strictly enforced):
+1. You must respond in STRICT JSON ONLY. Do not wrap it in markdown block quotes outside of the JSON.
+2. The "think" string must contain your internal scratchpad reasoning, safely formatted without line breaks violating JSON.
+3. The "audit" string must be an aggressive breakdown of the signals using terms like "blood bath", "incinerate", or "powder keg".
+4. The "strategy" object must contain name, trigger, and target.
+5. The "agent_instructions" string must be literal python/javascript execution logic as a markdown code block.
+
+Required output shape:
+{
+  "think": "model's internal scratchpad reasoning",
+  "audit": "aggressive breakdown of the signals...",
+  "strategy": { "name": "...", "trigger": "...", "target": "..." },
+  "agent_instructions": "```python\n# execution logic\n```",
+  "risk_level": "RED | YELLOW",
+  "confidence": 85
+}"""
 
 # ── NYX unified system prompt ─────────────────────────────────────────────────
 
@@ -379,12 +391,12 @@ async def oracle_brief(req: BriefOracleRequest):
 
 # ── Event-specific oracle (slug drawer on /exploit) ──────────────────────────
 
-NYX_EVENT_SYSTEM = """You are NYX, a prop-desk macro analyst briefing a trader who just clicked on a specific economic event.
+NYX_EVENT_SYSTEM = """You are NYX, a prop-desk macro analyst briefing a trader who just clicked on a specific economic event or market print.
 You receive the full market intelligence state alongside the specific event data.
 
 Rules (strictly enforced):
 1. Reference the actual numbers provided — do NOT invent data.
-2. Address three things in order: (1) what this print means for Fed expectations, (2) cross-asset flow impact (SPY/TLT/DXY), (3) whether it changes or confirms the Kill Chain verdict.
+2. Address three things in order: (1) what this means for institutional positioning or Fed expectations, (2) cross-asset flow impact (SPY/TLT/DXY), (3) whether it changes or confirms the Kill Chain verdict.
 3. summary: 3 sentences max. Cold and precise. No filler.
 4. trade_implication: exactly one directive sentence (e.g. "Fade SPY rip to $651 gamma flip; stop above $655.").
 5. confidence: 0.0–1.0 reflecting signal agreement across kill chain, derivatives, and macro layers (not LLM certainty).
@@ -448,6 +460,71 @@ async def oracle_event_brief(req: EventBriefRequest):
             d = d.get(k, default)
         return d
 
+    # ── Fetch Dark Pool Context if DP Slugs ──
+    dp_context = {}
+    if req.event_name.startswith("DP:"):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get("http://127.0.0.1:8000/api/v1/darkpool/SPY/summary")
+                if r.status_code == 200:
+                    dp_context = r.json().get("summary", {})
+        except Exception as exc:
+            logger.warning(f"oracle/event-brief: internal darkpool fetch failed — {exc}")
+
+    # ── Fetch COT Context if COT Slugs ──
+    cot_context = {}
+    if req.event_name.startswith("COT:"):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get("http://127.0.0.1:8000/api/v1/cot/positioning")
+                if r.status_code == 200:
+                    data = r.json()
+                    symbol = req.event_name.split(":")[1] if ":" in req.event_name else "ES"
+                    contract = next((c for c in data.get("contracts", []) if c.get("contract_key") == symbol), {})
+                    cot_context = {
+                        "contract": contract,
+                        "total_divergent": data.get("total_divergent"),
+                        "narrative": data.get("narrative")
+                    }
+        except Exception as exc:
+            logger.warning(f"oracle/event-brief: internal cot fetch failed — {exc}")
+
+    # ── Fetch Pivot Context if PIVOT Slugs ──
+    pivot_context = {}
+    if req.event_name.startswith("PIVOT:"):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                symbol = req.event_name.split(":")[1] if ":" in req.event_name else "SPY"
+                r = await client.get(f"http://127.0.0.1:8000/api/v1/pivots/{symbol}")
+                if r.status_code == 200:
+                    pivot_context = r.json()
+        except Exception as exc:
+            logger.warning(f"oracle/event-brief: internal pivot fetch failed — {exc}")
+
+    # ── Fetch TA Context if TA Slugs ──
+    ta_context = {}
+    if req.event_name.startswith("TA:"):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                symbol = req.event_name.split(":")[1] if ":" in req.event_name else "SPY"
+                r = await client.get(f"http://127.0.0.1:8000/api/v1/ta/{symbol}/consensus")
+                if r.status_code == 200:
+                    ta_context = r.json()
+        except Exception as exc:
+            logger.warning(f"oracle/event-brief: internal TA fetch failed — {exc}")
+
+    # ── Fetch Gamma Context if GEX Slugs ──
+    gamma_context = {}
+    if req.event_name.startswith("GEX:"):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                symbol = req.event_name.split(":")[1] if ":" in req.event_name else "SPY"
+                r = await client.get(f"http://127.0.0.1:8000/api/v1/gamma/{symbol}")
+                if r.status_code == 200:
+                    gamma_context = r.json()
+        except Exception as exc:
+            logger.warning(f"oracle/event-brief: internal gamma fetch failed — {exc}")
+
     context = {
         "event": {
             "name":     req.event_name,
@@ -455,6 +532,7 @@ async def oracle_event_brief(req: EventBriefRequest):
             "signal":   req.event_data.get("signal"),
             "surprise": req.event_data.get("surprise"),
             "slug":     req.event_data.get("slug"),
+            "surprise_reasoning": req.event_data.get("surprise"), # We mapped surprise to the extra values in DP widgets
         },
         "kill_chain": {
             "alert_level":   dig(brief, "kill_chain_state", "alert_level"),
@@ -474,6 +552,11 @@ async def oracle_event_brief(req: EventBriefRequest):
             "next_below":             dig(brief, "pivots", "next_below"),
             "ema_200":                dig(brief, "pivots", "ema_200"),
         },
+        "dark_pool_context": dp_context,
+        "cot_context": cot_context,
+        "pivot_context": pivot_context,
+        "ta_context": ta_context,
+        "gamma_context": gamma_context,
         "squeeze_candidates": dig(brief, "squeeze_watchlist", "top3") or [],
         "macro_regime":       dig(brief, "macro_regime", "regime"),
         "fed_tone":           dig(brief, "hidden_hands", "fed_tone"),
@@ -612,11 +695,12 @@ async def oracle_analyze(req: OracleRequest):
     payload = {
         "model": GROQ_MODEL,
         "messages": [
-            {"role": "system", "content": ORACLE_SYSTEM},
+            {"role": "system", "content": ZO_KC_SYSTEM},
             {"role": "user",   "content": user_prompt},
         ],
         "temperature": 0.35,
-        "max_tokens": 700,
+        "max_tokens": 1200,
+        "response_format": {"type": "json_object"},
     }
 
     try:
@@ -629,7 +713,8 @@ async def oracle_analyze(req: OracleRequest):
         data = resp.json()
         text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
         if text:
+            # text is a JSON string containing the ZO schema
             return {"analysis": text, "error": False, "mode": "kill_chain" if req.kill_chain_snapshot else "fallback"}
-        return {"analysis": f"ORACLE_UPLINK_FAILURE: {data.get('error', {}).get('message', 'No content.')}", "error": True}
+        return {"analysis": json.dumps({"audit": f"ORACLE_UPLINK_FAILURE: {data.get('error', {}).get('message', 'No content.')}"}), "error": True}
     except Exception as e:
-        return {"analysis": f"ORACLE_UPLINK_FAILURE: {str(e)}", "error": True}
+        return {"analysis": json.dumps({"audit": f"ORACLE_UPLINK_FAILURE: {str(e)}"}), "error": True}

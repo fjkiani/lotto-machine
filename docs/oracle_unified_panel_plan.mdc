@@ -1,11 +1,79 @@
 ---
 title: Oracle Unified Panel — Full Architecture, Data Schema & Modularization Plan
-version: 3.0
-status: LOCKED
-last_updated: 2026-03-23
+version: 3.1
+status: LOCKED — AUDIT UPDATED
+last_updated: 2026-03-24
 ---
 
 # Oracle Unified Panel — v3 LOCKED SPEC
+
+---
+
+## IMPLEMENTATION STATUS AUDIT (2026-03-24 03:00 UTC)
+
+### Backend
+
+| Item | Status | Notes |
+|---|---|---|
+| `oracle.py` — `/oracle/brief` endpoint | ✅ DONE | `build_oracle_payload()`, MD5 hash cache, NYX system prompt |
+| `oracle.py` — `/oracle/event-brief` endpoint | ✅ DONE | Event-slug oracle with internal brief fetch fallback (user just added) |
+| `oracle.py` — `risk_level` in event-brief prompt | ✅ DONE | User just added marginal-impact risk scoring rule |
+| `brief/` package — modularized from 858-line monolith | ✅ DONE | `router.py`, `cache.py`, `config.py`, `alert_engine.py`, `fetchers/core.py`, `fetchers/signals.py` |
+| `brief/router.py` — asyncio.Lock compute mutex | ✅ DONE | Only 1 ThreadPoolExecutor runs at a time → prevents OOM |
+| `brief/router.py` — 2-wave execution (3 workers) | ✅ DONE | Wave 1: 8 CORE fetchers, Wave 2: 5 SIGNAL fetchers. Peak ~250MB |
+| `groq` in `requirements.txt` | ✅ DONE | |
+| `httpx` in `requirements.txt` | ✅ DONE | |
+| `GROQ_API_KEY` in Render env | ⚠️ UNVERIFIED | Key exists in oracle.py but never confirmed set in Render dashboard |
+| `/hidden-hands/trades` endpoint | ❌ NOT BUILT | Required for DivergenceGrid (step 10). No per-politician trade data in API |
+| `pmi_predictor.py` module | ❌ MISSING | `No module named` — fetcher removed from brief to prevent 18s timeout waste |
+| `current_account_monitor.py` module | ❌ MISSING | Same — removed from brief |
+| `michigan_monitors.py` module | ❌ MISSING | Same — removed from brief |
+| `squeeze_watchlist` fetcher | ❌ REMOVED | Was spawning 24 yfinance × 8 nested threads = ~200MB OOM by itself |
+
+### Frontend
+
+| Item | Status | Lines | Notes |
+|---|---|---|---|
+| `useMasterBrief.ts` | ✅ DONE | — | Canonical hook, fetches `/brief/master` |
+| `useOracleBrief.ts` | ✅ DONE | 135 | MDC-spec: takes `masterData`, POSTs to `/oracle/brief`, caches on `scan_time` |
+| `OracleContext.ts` | ✅ DONE | 18 | Imports from `useOracleBrief`, provides to all panels |
+| `MasterBriefPanels.tsx` (orchestrator) | ✅ DONE | 54 | ~40-line target met. Orchestrator only, no panel logic |
+| `OracleBriefStrip.tsx` | ✅ DONE | 64 | Verdict + trade_implication + risk_level color bar |
+| `MacroCommandBar.tsx` | ✅ DONE | 46 | All 5 fields live from data |
+| `StrategyCardRow.tsx` (3 cards) | ✅ DONE | 164 | Regime + FedPath + EconomicEdge |
+| `TacticalSection/index.tsx` | ✅ DONE | — | Layout orchestrator |
+| `TacticalSection/HiddenHandsPanel.tsx` | ✅ DONE | — | All fields mapped per MDC |
+| `TacticalSection/DerivativesPanel.tsx` | ✅ DONE | — | GEX + COT mapped |
+| `TacticalSection/KillChainPanel.tsx` | ✅ DONE | — | Alert level + layers + cap |
+| `TacticalSection/derivativesHelpers.ts` | ✅ DONE | 18 | `buildCOTSummary()` extracted per spec |
+| `PreSignalSection/index.tsx` | ✅ DONE | — | Layout orchestrator |
+| `PreSignalSection/ADPCard.tsx` | ✅ DONE | — | prediction/consensus/delta/signal/reasons |
+| `PreSignalSection/GDPCard.tsx` | ✅ DONE | — | gdp_estimate/consensus/vs_consensus/signal |
+| `PreSignalSection/JoblessCard.tsx` | ✅ DONE | 48 | icsa_latest/4wk_avg/consensus/delta/signal/reasons |
+| `OracleRead.tsx` | ✅ DONE | 18 | Shared ambient NYX read component |
+| `ForecastGrid.tsx` | ✅ DONE | 94 | ⚠️ Needs verification that `buildForecastCards()` helper exists inline |
+| `DivergenceGrid.tsx` | ❌ NOT BUILT | — | Needs `/hidden-hands/trades` backend endpoint first |
+| `useOracle.ts` (old hook) | ⚠️ ORPHAN-ISH | 134 | Still imported by `AiBriefingPanel.tsx` + `EconomicExploit.tsx` — NOT orphan, but outside brief system |
+
+### Pre-Flight Checklist
+
+| Check | Status |
+|---|---|
+| `GROQ_API_KEY` confirmed in Render env vars | ⚠️ UNVERIFIED — oracle returns 404 on POST |
+| `groq` Python package in `requirements.txt` | ✅ |
+| `httpx` Python package in `requirements.txt` | ✅ |
+| `oracle.py` created + router in `main.py` | ✅ |
+| `VITE_API_URL` points to Render | ✅ |
+| No `VITE_GROQ_API_KEY` in frontend | ✅ |
+
+### Critical Bugs
+
+| Bug | Severity | Root Cause |
+|---|---|---|
+| Render OOM (512MB exceeded) | 🔴 HIGH | Fixed: 2-wave execution, 3 workers, squeeze_watchlist removed. Monitoring |
+| `/oracle/brief` returns 404 | 🔴 HIGH | Either GROQ_API_KEY missing or oracle router not registering. Needs investigation |
+| scan_time: 102s | 🟡 MEDIUM | Wave-1 CORE fetchers (KillChain, BrainManager) taking full 25s timeout |
+| pmi/umich/current_account errors | 🟢 LOW | Modules don't exist — removed from brief. Create if needed later |
 
 > **Principle:** Zero hardcoded constants in components. Every value comes from the live API.
 > The scaffolding (`docs/scaffolding/unified.tsx`) is a visual reference only — all mock data 
@@ -465,25 +533,40 @@ No per-politician trade data with MSPR scores.
 
 ## Build Order (MVP first)
 
-| Step | File | Dependency |
+| Step | File | Status | Notes |
+|---|---|---|---|
+| 1 | `oracle.py` backend | ✅ DONE | `build_oracle_payload()`, hash cache, NYX prompt, event-brief |
+| 2 | `useOracleBrief.ts` hook | ✅ DONE | MDC-spec: takes masterData, POSTs, caches on scan_time |
+| 3 | `OracleContext.ts` | ✅ DONE | Provider + useOracle() |
+| 4 | `OracleBriefStrip.tsx` | ✅ DONE | Verdict + trade_implication + risk color |
+| 5 | `MacroCommandBar.tsx` | ✅ DONE | All 5 live fields |
+| 6 | `StrategyCardRow.tsx` (3 cards) | ✅ DONE | Regime + FedPath + EconomicEdge |
+| 7 | `TacticalSection/` (HH + Deriv + KC) | ✅ DONE | 3 panels + derivativesHelpers |
+| 8 | `PreSignalSection/` (ADP + GDP + Jobless) | ✅ DONE | 3 cards with live data |
+| 9 | `ForecastGrid.tsx` | ✅ DONE | Verify `buildForecastCards()` helper |
+| 10 | `DivergenceGrid.tsx` + trades endpoint | ❌ NOT STARTED | Needs `/hidden-hands/trades` backend |
+
+### Backend Modularization (NEW — added 2026-03-24)
+
+| Step | File | Status |
 |---|---|---|
-| 1 | `oracle.py` backend | `GROQ_API_KEY` confirmed in Render |
-| 2 | `useOracleBrief.ts` hook | Step 1 |
-| 3 | `OracleContext.ts` | Step 2 |
-| 4 | `OracleBriefStrip.tsx` | Step 3 — **SHIP TO RENDER** |
-| 5 | `MacroCommandBar.tsx` | `data.macro_regime` + `economic_veto` |
-| 6 | `StrategyCardRow.tsx` (3 cards) | `data.macro_regime/fed_intelligence/nowcast` |
-| 7 | `TacticalSection/` (HH + Deriv + KC) | `data.hidden_hands/derivatives/kill_chain_state` |
-| 8 | `PreSignalSection/` (ADP + GDP + Jobless) | `data.adp_prediction/gdp_nowcast/jobless_claims` |
-| 9 | `ForecastGrid.tsx` | `buildForecastCards()` helper |
-| 10 | `DivergenceGrid.tsx` + trades endpoint | New backend work |
+| B1 | `brief/` package (replacing 858-line monolith) | ✅ DONE |
+| B2 | `brief/cache.py` — asyncio.Lock compute mutex | ✅ DONE |
+| B3 | `brief/config.py` — veto cascade loader | ✅ DONE |
+| B4 | `brief/alert_engine.py` — PreSignalAlertEngine | ✅ DONE |
+| B5 | `brief/fetchers/core.py` — 8 core fetchers | ✅ DONE |
+| B6 | `brief/fetchers/signals.py` — 5 signal fetchers | ✅ DONE |
+| B7 | `brief/router.py` — 2-wave execution, 3 workers | ✅ DONE |
 
 ---
 
 ## Pre-Flight Checklist
 
-- [ ] `GROQ_API_KEY` confirmed in Render env vars
-- [ ] `groq` Python package in `requirements.txt`
-- [ ] `backend/app/api/v1/oracle.py` created (router already imported in `main.py`)
-- [ ] `VITE_API_URL` points to Render in `frontend/.env.production`
-- [ ] No `VITE_GROQ_API_KEY` in frontend — Groq key is backend-only
+- [x] `groq` Python package in `requirements.txt`
+- [x] `httpx` Python package in `requirements.txt`
+- [x] `backend/app/api/v1/oracle.py` created (router imported in `main.py`)
+- [x] `VITE_API_URL` points to Render in `frontend/.env.production`
+- [x] No `VITE_GROQ_API_KEY` in frontend — Groq key is backend-only
+- [ ] `GROQ_API_KEY` confirmed in Render env vars — ⚠️ UNVERIFIED
+- [ ] `/oracle/brief` returning 200 on Render — currently 404
+- [ ] DivergenceGrid + `/hidden-hands/trades` endpoint — NOT STARTED
