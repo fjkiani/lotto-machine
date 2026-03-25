@@ -102,19 +102,39 @@ class COTClient:
 
         Priority:
           1. In-memory cache hit (TTL 1h — COT is weekly, cache is always fresh enough)
-          2. cot_reports package download (downloads annual.txt to /tmp/cot_data/)
-          3. CFTC direct CSV fallback — fetches most-recent report from cftc.gov
+          2. Disk pickle cache in /tmp/cot_data/annual_cache.pkl (7-day TTL — survives Render restarts)
+          3. cot_reports package download (downloads annual.txt to /tmp/cot_data/)
+          4. CFTC direct CSV fallback — fetches most-recent report from cftc.gov
              using only stdlib (no cot_reports dependency).
         """
-        if not COT_AVAILABLE and self._df_cache is None:
-            # Skip straight to CFTC CSV fallback
-            return self._fetch_cftc_direct()
+        import os
+        DISK_CACHE_PATH = "/tmp/cot_data/annual_cache.pkl"
+        DISK_CACHE_TTL  = 7 * 24 * 3600  # 7 days (COT is weekly)
 
+        # 1. In-memory cache
         if self._df_cache is not None and (time.time() - self._df_cache_ts) < self._cache_ttl:
             return self._df_cache
 
+        # 2. Disk pickle cache — avoid CFTC download on Render cold restarts
+        if os.path.exists(DISK_CACHE_PATH):
+            try:
+                age = time.time() - os.path.getmtime(DISK_CACHE_PATH)
+                if age < DISK_CACHE_TTL:
+                    import pickle
+                    with open(DISK_CACHE_PATH, "rb") as f:
+                        df = pickle.load(f)
+                    self._df_cache = df
+                    self._df_cache_ts = time.time()
+                    logger.info(f"📂 COT disk cache hit (age {age/3600:.1f}h): {len(df)} rows")
+                    return df
+            except Exception as e:
+                logger.warning(f"COT disk cache read failed: {e}")
+
+        if not COT_AVAILABLE:
+            return self._fetch_cftc_direct()
+
+        # 3. Download from CFTC via cot_reports
         try:
-            import os
             original_cwd = os.getcwd()
             os.makedirs("/tmp/cot_data", exist_ok=True)
             os.chdir("/tmp/cot_data")
@@ -125,6 +145,15 @@ class COTClient:
                     df = cot.cot_year(2025, cot_report_type="legacy_fut")
             finally:
                 os.chdir(original_cwd)
+
+            # Persist to disk so next restart skips the download
+            try:
+                import pickle
+                with open(DISK_CACHE_PATH, "wb") as f:
+                    pickle.dump(df, f)
+                logger.info(f"✅ COT data saved to disk cache: {len(df)} rows")
+            except Exception as e:
+                logger.warning(f"COT disk cache write failed: {e}")
 
             self._df_cache = df
             self._df_cache_ts = time.time()
