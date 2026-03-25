@@ -22,6 +22,17 @@ router = APIRouter()
 # Lazy-init engine (heavy imports, shared instance)
 _engine = None
 
+# GEX singleton — shared across all /killchain/gex requests
+_gex_calc = None
+
+
+def _get_gex_calc():
+    global _gex_calc
+    if _gex_calc is None:
+        from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
+        _gex_calc = GEXCalculator(cache_ttl=300)
+    return _gex_calc
+
 
 def _get_engine():
     global _engine
@@ -99,9 +110,7 @@ async def kill_chain_gex(
     When as_levels=true, returns gamma walls as DPLevel[] compatible with TradingViewChart.
     """
     try:
-        from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
-
-        calc = GEXCalculator()
+        calc = _get_gex_calc()
         result = calc.compute_gex(symbol.upper())
 
         if result is None:

@@ -12,10 +12,25 @@ Signal logic:
 Author: Zo (no hardcoding, no tiered confidence, no fake data)
 """
 import logging
+import threading
 from datetime import datetime
 from typing import List
 
 logger = logging.getLogger(__name__)
+
+# Module-level GEXCalculator singleton — shared across all fetch_darkpool_signals calls
+_gex_calc = None
+_gex_lock = threading.Lock()
+
+
+def _get_gex():
+    global _gex_calc
+    if _gex_calc is None:
+        with _gex_lock:
+            if _gex_calc is None:
+                from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
+                _gex_calc = GEXCalculator(cache_ttl=300)
+    return _gex_calc
 
 
 def fetch_darkpool_signals(symbol: str = "SPY", regime_tier: int = 1) -> List[dict]:
@@ -90,8 +105,7 @@ def fetch_darkpool_signals(symbol: str = "SPY", regime_tier: int = 1) -> List[di
         # ── GEX Layer 2 — gamma regime from CBOE ──────────────────────────
         gex_data = {}
         try:
-            from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
-            gex_calc = GEXCalculator(cache_ttl=300)
+            gex_calc = _get_gex()
             gex_ticker = "SPX" if symbol in ("SPY", "SPX") else symbol
             gex_result = gex_calc.compute_gex(gex_ticker)
             gex_data = {
