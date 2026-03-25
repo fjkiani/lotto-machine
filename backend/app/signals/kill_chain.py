@@ -35,6 +35,36 @@ _kc_lock = threading.Lock()
 # 15-minute TTL — COT is weekly, GEX changes hourly. Reduce cold-start stampede risk.
 _CACHE_TTL = 900
 
+# ── Module-level client singletons — shared across ALL callers ────────────────
+# (compute_kill_chain is called from /kill-chain, /signals/master, /killchain/scan)
+# Creating a new COTClient or GEXCalculator per-call means N concurrent callers
+# each trigger an independent CFTC download + yfinance options chain fetch = OOM.
+_cot_client = None
+_gex_client = None
+_client_init_lock = threading.Lock()
+
+
+def _get_cot_client():
+    """Lazy singleton COTClient — one download shared across all callers."""
+    global _cot_client
+    if _cot_client is None:
+        with _client_init_lock:
+            if _cot_client is None:
+                from live_monitoring.enrichment.apis.cot_client import COTClient
+                _cot_client = COTClient(cache_ttl=3600)
+    return _cot_client
+
+
+def _get_gex_client():
+    """Lazy singleton GEXCalculator — one options chain download shared across all callers."""
+    global _gex_client
+    if _gex_client is None:
+        with _client_init_lock:
+            if _gex_client is None:
+                from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
+                _gex_client = GEXCalculator(cache_ttl=300)
+    return _gex_client
+
 # ── State file path ───────────────────────────────────────────────────────────
 _STATE_PATH = Path(__file__).resolve().parents[3] / "live_monitoring" / "data" / "kill_chain" / "kill_chain_state.json"
 
@@ -122,8 +152,7 @@ def compute_kill_chain() -> dict:
 
         # ── Layer 1 — COT Divergence ──────────────────────────────────────────────
         try:
-            from live_monitoring.enrichment.apis.cot_client import COTClient
-            cot = COTClient(cache_ttl=3600).get_divergence_signal("ES")
+            cot = _get_cot_client().get_divergence_signal("ES")
             if cot:
                 es_specs = cot.get("specs_net", 0)
                 comms = cot.get("comm_net", 0)
@@ -175,10 +204,9 @@ def compute_kill_chain() -> dict:
 
         # ── Layer 2 — GEX Regime + Layer 3 DVR (Short-Vol) ───────────────────────
         try:
-            from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
             from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
 
-            gex_calc = GEXCalculator(cache_ttl=300)
+            gex_calc = _get_gex_client()
             gex_result = gex_calc.compute_gex("SPX")
             regime = gex_result.gamma_regime or ""
             total_gex = gex_result.total_gex
