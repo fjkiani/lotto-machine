@@ -136,6 +136,8 @@ async def master_brief():
             f"{results.get('economic_veto', {}).get('next_event', '')} "
             f"{results.get('economic_veto', {}).get('hours_away', '')}h"
         )
+        # Always ensure signals key is present (guards against fallback path)
+        kc.setdefault('signals', [])
         results['kill_chain_state'] = kc
 
         try:
