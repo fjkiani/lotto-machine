@@ -12,6 +12,19 @@ from typing import List, Optional
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# 🔥 OOM FIX: Singleton COTClient — prevents fresh 30MB CFTC download per request
+_cot_client = None
+_cot_lock = __import__('threading').Lock()
+
+def _get_cot():
+    global _cot_client
+    if _cot_client is None:
+        with _cot_lock:
+            if _cot_client is None:
+                from live_monitoring.enrichment.apis.cot_client import COTClient
+                _cot_client = COTClient(cache_ttl=300)
+    return _cot_client
+
 
 class ContractPosition(BaseModel):
     contract_key: str
@@ -40,9 +53,7 @@ class COTResponse(BaseModel):
 async def get_cot_positioning():
     """Get COT positioning for all tracked contracts."""
     try:
-        from live_monitoring.enrichment.apis.cot_client import COTClient
-
-        client = COTClient(cache_ttl=300)
+        client = _get_cot()  # 🔥 OOM FIX: Singleton instead of fresh COTClient()
         contracts = []
         keys = ["ES", "NQ", "TY", "GC", "CL", "VX"]
 

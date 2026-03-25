@@ -77,6 +77,29 @@ except ImportError:
         logger.warning("⚠️ SEC 13F client not available")
 
 
+# 🔥 OOM FIX: Module-level singletons for COT + GEX used by LayerRegistry
+import threading as _kc_threading
+_kc_cot_singleton = None
+_kc_gex_singleton = None
+_kc_singleton_lock = _kc_threading.Lock()
+
+def _get_cot_singleton():
+    global _kc_cot_singleton
+    if _kc_cot_singleton is None:
+        with _kc_singleton_lock:
+            if _kc_cot_singleton is None:
+                _kc_cot_singleton = COTClient(cache_ttl=config.CACHE_TTLS.get("COT", 3600))
+    return _kc_cot_singleton
+
+def _get_gex_singleton():
+    global _kc_gex_singleton
+    if _kc_gex_singleton is None:
+        with _kc_singleton_lock:
+            if _kc_gex_singleton is None:
+                _kc_gex_singleton = GEXCalculator(cache_ttl=config.CACHE_TTLS.get("GEX", 300))
+    return _kc_gex_singleton
+
+
 # ─── Layer Registry ────────────────────────────────────────────────────────
 
 class LayerRegistry:
@@ -97,11 +120,12 @@ class LayerRegistry:
         if STOCKGRID_AVAILABLE:
             self._clients["dark_pool"] = StockgridClient(cache_ttl=config.CACHE_TTLS["DARK_POOL"])
         
+        # 🔥 OOM FIX: Use module-level singletons for COT + GEX
         if COT_AVAILABLE:
-            self._clients["cot"] = COTClient(cache_ttl=config.CACHE_TTLS["COT"])
+            self._clients["cot"] = _get_cot_singleton()
         
         if GEX_AVAILABLE:
-            self._clients["gex"] = GEXCalculator(cache_ttl=config.CACHE_TTLS["GEX"])
+            self._clients["gex"] = _get_gex_singleton()
         
         if SEC13F_AVAILABLE:
             self._clients["sec_13f"] = SEC13FClient(cache_ttl=config.CACHE_TTLS["SEC_13F"])

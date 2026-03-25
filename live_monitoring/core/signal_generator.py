@@ -71,6 +71,30 @@ except ImportError as e:
     kc_config = None
     logger.warning(f"⚠️  Kill Chain Config not found: {e}")
 
+# 🔥 OOM FIX: Singletons for BrainManager + COTClient used in _apply_holistic_kill_shots()
+import threading as _sg_threading
+_sg_brain = None
+_sg_cot = None
+_sg_lock = _sg_threading.Lock()
+
+def _get_brain_manager_sg():
+    global _sg_brain
+    if _sg_brain is None:
+        with _sg_lock:
+            if _sg_brain is None:
+                from live_monitoring.core.brain_manager import BrainManager
+                _sg_brain = BrainManager()
+    return _sg_brain
+
+def _get_cot_client_sg():
+    global _sg_cot
+    if _sg_cot is None:
+        with _sg_lock:
+            if _sg_cot is None:
+                from live_monitoring.enrichment.apis.cot_client import COTClient
+                _sg_cot = COTClient(cache_ttl=3600)
+    return _sg_cot
+
 class SignalGenerator:
     """Generate signals from institutional intelligence"""
     
@@ -264,8 +288,7 @@ class SignalGenerator:
 
         # 2.7 Hidden Conviction Layer (Fed Officials Brain)
         try:
-            from live_monitoring.core.brain_manager import BrainManager
-            brain_manager = BrainManager()
+            brain_manager = _get_brain_manager_sg()  # 🔥 OOM FIX: singleton
             brain_report = brain_manager.get_report()
             
             if brain_report:
@@ -282,8 +305,7 @@ class SignalGenerator:
         # Backtest: specs < -100K + comms > +50K → 72.9% 1-month win rate (N=48, p=0.053)
         # This is a REGIME overlay, not a timing signal. Bias long for next 30 days.
         try:
-            from live_monitoring.enrichment.apis.cot_client import COTClient
-            cot_client = COTClient(cache_ttl=3600)  # 1hr cache — COT is weekly
+            cot_client = _get_cot_client_sg()  # 🔥 OOM FIX: singleton
             cot_div = cot_client.get_divergence_signal("ES")
             
             if cot_div and cot_div.get("divergent"):

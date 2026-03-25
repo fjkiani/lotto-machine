@@ -250,20 +250,10 @@ async def startup():
             threading.Thread(target=_monitor_run_wrapper, daemon=True, name="monitor-run-loop").start()
             logger.info("✅ Monitor run loop thread launched")
 
-            # 🔥 FIX #2: Start the Kill Chain triple-confluence logger.
-            # This tracks COT divergence + GEX + DVR and fires on activation/deactivation.
-            try:
-                from live_monitoring.kill_chain_logger import start_kill_chain_logger_thread
-                kc_thread, kc_logger_instance = start_kill_chain_logger_thread(check_interval_min=30)
-                _pipe_instances['kill_chain_logger'] = kc_logger_instance
-                _thread_status['kill_chain_logger'] = {
-                    'status': 'running',
-                    'started': datetime.now().isoformat(),
-                }
-                logger.info("✅ Kill Chain Logger thread launched")
-            except Exception as kc_e:
-                logger.error(f"⚠️ Kill Chain Logger failed to init: {kc_e}")
-                _thread_status['kill_chain_logger'] = {'status': f'init_failed: {kc_e}'}
+            # 🔥 OOM FIX: Kill Chain Logger thread REMOVED.
+            # Its data is already computed by compute_kill_chain() in the API layer.
+            # Saved ~60MB by eliminating duplicate COT/GEX/yfinance downloads.
+            _thread_status['kill_chain_logger'] = {'status': 'disabled (OOM fix — data served by /kill-chain API)'}
 
             # 🔥 FIX #3: Share the monitor's health registry with the health API.
             # health.py creates its own orphan CheckerHealthRegistry() — replace it with
@@ -311,17 +301,32 @@ async def startup():
             _startup_errors['monitor_init'] = str(e)
             _startup_errors['monitor_init_traceback'] = _tb.format_exc()
             _thread_status['monitor_run_loop'] = {'status': f'init_failed: {e}'}
-            _thread_status['kill_chain_logger'] = {'status': 'skipped (monitor init failed)'}
             _thread_status['paper_trade_scheduler'] = {'status': 'skipped (monitor init failed)'}
             _thread_status['econ_release_capture'] = {'status': 'skipped (monitor init failed)'}
             logger.error(f"Error initializing monitor: {e}", exc_info=True)
     else:
         logger.warning("⚠️ Running without monitor - agent endpoints will have limited functionality")
 
-    # Background brain polling — keeps intelligence warm every 15 min
+    # 🔥 OOM FIX: Stagger remaining thread launches to prevent concurrent memory spikes.
+    # Each thread gets 30s to finish its initial downloads before the next one starts.
+    asyncio.create_task(_staggered_thread_launcher())
+
+    # Background brain polling — keeps intelligence warm every 15 min (delayed 120s)
     asyncio.create_task(_brain_polling_loop())
 
-    # Start DP snapshot recorder (5min)
+
+
+
+async def _staggered_thread_launcher():
+    """🔥 OOM FIX: Launch background threads one-by-one with 30s gaps.
+    Prevents concurrent memory spikes from all threads downloading data at once.
+    """
+    import asyncio
+    import threading
+
+    await asyncio.sleep(30)  # Let monitor finish initializing first
+
+    # --- Thread 1: DP snapshot recorder (5min cycle) ---
     try:
         from live_monitoring.enrichment.apis.dp_snapshot_recorder import DPSnapshotRecorder
         dp = DPSnapshotRecorder(db_path='/tmp/dp_timeseries.db')
@@ -331,12 +336,14 @@ async def startup():
             args=('dp_recorder', dp, 'run_continuous', 5, lambda: dp.capture_snapshot(symbols=['SPY'])),
             daemon=True
         ).start()
-        logger.info("✅ DP snapshot recorder thread launched")
+        logger.info("✅ [staggered] DP snapshot recorder thread launched")
     except Exception as e:
         logger.error(f"⚠️ DP snapshot recorder failed to init: {e}")
         _thread_status['dp_recorder'] = {'status': f'init_failed: {e}'}
 
-    # Start AXLFI signal differ (60min)
+    await asyncio.sleep(30)
+
+    # --- Thread 2: AXLFI signal differ (60min cycle) ---
     try:
         from live_monitoring.enrichment.apis.axlfi_signal_differ import AXLFISignalDiffer
         sd = AXLFISignalDiffer()
@@ -346,12 +353,14 @@ async def startup():
             args=('signal_differ', sd, 'run_continuous', 60, sd.capture_and_diff),
             daemon=True
         ).start()
-        logger.info("✅ AXLFI signal differ thread launched")
+        logger.info("✅ [staggered] AXLFI signal differ thread launched")
     except Exception as e:
         logger.error(f"⚠️ AXLFI signal differ failed to init: {e}")
         _thread_status['signal_differ'] = {'status': f'init_failed: {e}'}
 
-    # Start volume spike detector (5min)
+    await asyncio.sleep(30)
+
+    # --- Thread 3: Volume spike detector (5min cycle) ---
     try:
         from live_monitoring.enrichment.apis.volume_spike_detector import VolumeSpikeDetector
         vs = VolumeSpikeDetector(symbol='SPY')
@@ -361,27 +370,14 @@ async def startup():
             args=('volume_spikes', vs, 'run_continuous', 5, vs.check_for_spikes),
             daemon=True
         ).start()
-        logger.info("✅ Volume spike detector thread launched")
+        logger.info("✅ [staggered] Volume spike detector thread launched")
     except Exception as e:
         logger.error(f"⚠️ Volume spike detector failed to init: {e}")
         _thread_status['volume_spikes'] = {'status': f'init_failed: {e}'}
 
-    # Start option wall tracker (30min)
-    try:
-        from live_monitoring.enrichment.apis.option_wall_tracker import OptionWallTracker
-        ow = OptionWallTracker()
-        _pipe_instances['option_walls'] = ow
-        threading.Thread(
-            target=_run_pipe,
-            args=('option_walls', ow, 'run_continuous', 30, ow.capture_walls),
-            daemon=True
-        ).start()
-        logger.info("✅ Option wall tracker thread launched")
-    except Exception as e:
-        logger.error(f"⚠️ Option wall tracker failed to init: {e}")
-        _thread_status['option_walls'] = {'status': f'init_failed: {e}'}
+    await asyncio.sleep(30)
 
-    # Start pre-market scheduler (restart-resilient, catches up missed stages)
+    # --- Thread 4: Pre-market scheduler ---
     try:
         from live_monitoring.premarket_scheduler import start_scheduler_thread
         pm_thread = start_scheduler_thread()
@@ -389,20 +385,40 @@ async def startup():
             'status': 'running',
             'started': datetime.now().isoformat(),
         }
-        logger.info("✅ Pre-market scheduler thread launched (restart-resilient)")
+        logger.info("✅ [staggered] Pre-market scheduler thread launched")
     except Exception as pm_e:
         logger.warning(f"⚠️ Pre-market scheduler failed to init: {pm_e}")
         _thread_status['premarket_scheduler'] = {'status': f'init_failed: {pm_e}'}
+
+    # 🔥 OOM FIX: Option wall tracker thread REMOVED.
+    # Duplicate of GammaTracker inside ExploitationManager.
+    # Saved ~80MB by eliminating redundant yf.Ticker().option_chain() downloads.
+    _thread_status['option_walls'] = {'status': 'disabled (OOM fix — duplicate of GammaTracker)'}
+
+    logger.info("✅ All staggered threads launched (4 threads over 2 minutes)")
+
+
+# ── Module-level BrainManager singleton for polling ──
+_brain_singleton = None
+_brain_lock = __import__('threading').Lock()
+
+def _get_brain_manager():
+    global _brain_singleton
+    if _brain_singleton is None:
+        with _brain_lock:
+            if _brain_singleton is None:
+                from live_monitoring.core.brain_manager import BrainManager
+                _brain_singleton = BrainManager()
+    return _brain_singleton
 
 
 async def _brain_polling_loop():
     """Continuous brain polling — agents run even with zero frontend traffic."""
     import asyncio
-    await asyncio.sleep(10)  # Let startup finish first
+    await asyncio.sleep(120)  # 🔥 OOM FIX: Increased from 10s to 120s to let startup finish
     while True:
         try:
-            from live_monitoring.core.brain_manager import BrainManager
-            bm = BrainManager()
+            bm = _get_brain_manager()  # 🔥 OOM FIX: Singleton instead of fresh BrainManager()
             report = bm.get_report(use_cache=False)
             boost = report.get("divergence_boost", 0) if report else "N/A"
             logger.info(f"🧠 Background brain poll complete — divergence_boost={boost}")

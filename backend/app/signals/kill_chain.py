@@ -65,6 +65,20 @@ def _get_gex_client():
                 _gex_client = GEXCalculator(cache_ttl=300)
     return _gex_client
 
+
+# 🔥 OOM FIX: BrainManager singleton — prevents fresh LLM/Tavily sessions per call
+_brain_manager = None
+
+def _get_brain_manager():
+    """Lazy singleton BrainManager — one instance shared across compute_kill_chain() calls."""
+    global _brain_manager
+    if _brain_manager is None:
+        with _client_init_lock:
+            if _brain_manager is None:
+                from live_monitoring.core.brain_manager import BrainManager
+                _brain_manager = BrainManager()
+    return _brain_manager
+
 # ── State file path ───────────────────────────────────────────────────────────
 _STATE_PATH = Path(__file__).resolve().parents[3] / "live_monitoring" / "data" / "kill_chain" / "kill_chain_state.json"
 
@@ -136,8 +150,7 @@ def compute_kill_chain() -> dict:
 
         # ── Brain Manager (insider / politician divergence — boosts score only) ───
         try:
-            from live_monitoring.core.brain_manager import BrainManager
-            brain = BrainManager().get_report(use_cache=True)
+            brain = _get_brain_manager().get_report(use_cache=True)  # 🔥 OOM FIX: singleton
             if brain:
                 boost = brain.get("divergence_boost", 0)
                 brain_direction = str(brain.get("direction", "NEUTRAL")).upper()
