@@ -222,9 +222,17 @@ def build_derivatives(gex_shared: dict, cot_shared: dict) -> dict:
     if not gex_shared.get('error'):
         spot     = gex_shared.get('spot_price', 0)
         max_pain = gex_shared.get('max_pain')
+        total_gex_raw = gex_shared.get('total_gex', 0) or 0
         deriv = {
             'gex_regime':             gex_shared.get('gamma_regime', 'UNKNOWN'),
-            'total_gex':              gex_shared.get('total_gex', 0),
+            'total_gex':              total_gex_raw,  # backward compatible
+            'total_gex_raw':          total_gex_raw,
+            'total_gex_millions':     round(total_gex_raw / 1_000_000, 3),
+            'gex_units':              {
+                'raw_notional': 'absolute_notional',
+                'millions_notional': 'USD_millions',
+            },
+            'gex_symbol':             'SPY',
             'spot':                   spot,
             'gamma_flip':             gex_shared.get('gamma_flip'),
             'max_pain':               max_pain,
@@ -234,7 +242,21 @@ def build_derivatives(gex_shared: dict, cot_shared: dict) -> dict:
             'top_walls':              gex_shared.get('gamma_walls', [])[:3],
         }
     else:
-        deriv = {'error': gex_shared.get('error', 'GEX unavailable')}
+        deriv = {
+            'error': gex_shared.get('error', 'GEX unavailable'),
+            'total_gex': 0,
+            'total_gex_raw': 0,
+            'total_gex_millions': 0.0,
+            'gex_units': {
+                'raw_notional': 'absolute_notional',
+                'millions_notional': 'USD_millions',
+            },
+            'gex_symbol': 'SPY',
+            'max_pain': None,
+            'put_wall': None,
+            'call_wall': None,
+            'top_walls': [],
+        }
 
     if not cot_shared.get('error'):
         deriv['cot_spec_net']  = cot_shared.get('specs_net')

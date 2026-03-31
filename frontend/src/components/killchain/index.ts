@@ -11,6 +11,7 @@ export type {
   KillChainData,
   RawHistoryEntry,
   MonitorResponse,
+  KillChainScanParity,
   UpcomingEvent,
   AiBriefingItem,
 } from './types';

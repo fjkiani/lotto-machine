@@ -119,6 +119,125 @@ def fetch_pivots() -> dict:
         return {'error': str(e)}
 
 
+def fetch_darkpool_context() -> dict:
+    """Fetch rich SPY dark pool context via loopback to /darkpool/SPY/summary + /darkpool/narrative.
+
+    Uses the same loopback HTTP pattern as fetch_ta_consensus to keep memory lean.
+    Returns:
+      - Core flow metrics (dp_percent, buying_pressure, dp_position_dollars, etc.)
+      - nearest_support / nearest_resistance (GEX-derived price levels with strength)
+      - battlegrounds (contested zones)
+      - narrative (multi-ticker SPY vs QQQ vs IWM prose from Stockgrid)
+    """
+    import httpx
+    import asyncio
+    import nest_asyncio
+    import os
+
+    nest_asyncio.apply()
+
+    async def _fetch():
+        port = os.environ.get("PORT", "8000")
+        base = f"http://127.0.0.1:{port}/api/v1"
+        result = {}
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # 1) Rich summary — S/R levels, battlegrounds, short vol, buying pressure
+            try:
+                r1 = await client.get(f"{base}/darkpool/SPY/summary")
+                if r1.status_code == 200:
+                    data = r1.json()
+                    summary = data.get("summary", {})
+                    result.update({
+                        "dp_percent":          summary.get("dp_percent"),
+                        "buying_pressure":     summary.get("buying_pressure"),
+                        "dp_position_dollars": summary.get("dp_position_dollars"),
+                        "net_short_dollars":   summary.get("net_short_dollars"),
+                        "short_volume_pct":    summary.get("short_volume_pct"),
+                        "nearest_support":     summary.get("nearest_support"),
+                        "nearest_resistance":  summary.get("nearest_resistance"),
+                        "battlegrounds":       summary.get("battlegrounds", []),
+                    })
+                else:
+                    logger.warning(f"DP summary returned {r1.status_code}")
+            except Exception as e:
+                logger.warning(f"DP summary loopback failed: {e}")
+
+            # 2) Multi-ticker narrative — SPY vs QQQ vs IWM prose
+            try:
+                r2 = await client.get(f"{base}/darkpool/narrative")
+                if r2.status_code == 200:
+                    result["narrative"] = r2.json().get("narrative")
+                else:
+                    logger.warning(f"DP narrative returned {r2.status_code}")
+            except Exception as e:
+                logger.warning(f"DP narrative loopback failed: {e}")
+
+        return result if result else {"error": "All DP loopback calls failed"}
+
+    try:
+        return asyncio.run(_fetch())
+    except Exception as e:
+        logger.warning(f"Darkpool context fetch failed: {e}")
+        return {"error": str(e)}
+
+
+
+def fetch_vol_regime() -> dict:
+    """Fetch current AXLFI volatility regime (VIX tier)."""
+    try:
+        from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
+        sg = lazy('darkpool', lambda: StockgridClient(cache_ttl=300))
+        regime = sg.get_volatility_regime()
+        return regime or {'error': 'No regime data'}
+    except Exception as e:
+        logger.warning(f"Vol regime fetch failed: {e}")
+        return {'error': str(e)}
+
+
+def fetch_axlfi_walls() -> dict:
+    """Fetch today's Option Walls (Call/Put Walls + POC) via AXLFI."""
+    try:
+        from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
+        sg = lazy('darkpool', lambda: StockgridClient(cache_ttl=300))
+        walls = sg.get_option_walls_today('SPY')
+        if not walls:
+            return {'error': 'No walls data'}
+        return {
+            'call_wall': walls.call_wall,
+            'put_wall': walls.put_wall,
+            'poc': walls.poc,
+            'call_wall_2': walls.call_wall_2,
+            'put_wall_2': walls.put_wall_2,
+            'date': walls.date
+        }
+    except Exception as e:
+        logger.warning(f"AXLFI walls fetch failed: {e}")
+        return {'error': str(e)}
+
+
+def fetch_ta_consensus() -> dict:
+    """Fetch TA consensus using a loopback to keep memory stable across large DataFrames."""
+    try:
+        import httpx
+        import asyncio
+        import nest_asyncio
+        import os
+        nest_asyncio.apply()
+        
+        async def _fetch():
+            port = os.environ.get("PORT", "8000")
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.get(f"http://127.0.0.1:{port}/api/v1/ta/SPY/consensus")
+                if r.status_code == 200:
+                    return r.json()
+                return {'error': f"HTTP {r.status_code}"}
+        
+        return asyncio.run(_fetch())
+    except Exception as e:
+        logger.warning(f"TA consensus fetch failed: {e}")
+        return {'error': str(e)}
+
 def fetch_squeeze_context() -> dict:
     """Short squeeze risk snapshot for SPY via yfinance."""
     try:

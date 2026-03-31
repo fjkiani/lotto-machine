@@ -5,11 +5,13 @@ Grounded in REAL data structures from the codebase.
 """
 
 import logging
+import os
 import threading
 import time as _time
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
+import httpx
 from pydantic import BaseModel
 
 from backend.app.core.dependencies import get_monitor_bridge, get_redis
@@ -23,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL_DEFAULT = "llama-3.3-70b-versatile"
+
 # Agent registry
 _agents = {}
 
@@ -32,6 +37,69 @@ class AgentAnalysisRequest(BaseModel):
     symbol: Optional[str] = "SPY"
     data: Optional[Dict] = None
     context: Optional[Dict] = None
+
+
+@router.post("/agents/signal-brief")
+async def signal_brief(payload: Optional[Dict[str, Any]] = Body(default=None)):
+    payload = payload or {}
+    """
+    Tactical signal briefing via Groq (server-side key). Replaces browser Gemini calls.
+    """
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(503, detail="GROQ_API_KEY not configured")
+
+    tickers = payload.get("tickers")
+    if isinstance(tickers, list):
+        tstr = ", ".join(str(x) for x in tickers)
+    else:
+        tstr = str(tickers or "N/A")
+
+    user_block = (
+        f"Action: {payload.get('action') or payload.get('type') or payload.get('signal') or 'N/A'}\n"
+        f"Ticker: {payload.get('ticker') or tstr}\n"
+        f"Actor: {payload.get('name') or payload.get('source') or 'Institutional'}\n"
+        f"Detail: {payload.get('detail') or payload.get('logic') or payload.get('meaning') or 'N/A'}\n"
+        f"Volume: {payload.get('size') or 'N/A'}\n"
+        f"ID: {payload.get('slug') or payload.get('id') or 'N/A'}"
+    )
+    system = (
+        "You are a macro-financial analyst for a quantitative desk. "
+        "Analyze the signal: order flow / gamma / positioning context, risks, and catalysts. "
+        "Concise bullets; no grounding URLs required."
+    )
+    model = os.getenv("GROQ_MODEL", GROQ_MODEL_DEFAULT)
+    groq_body = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_block},
+        ],
+        "temperature": 0.35,
+        "max_tokens": 900,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            resp = await client.post(
+                GROQ_CHAT_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=groq_body,
+            )
+        resp.raise_for_status()
+        raw = resp.json()
+        text = (raw.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+        if not text.strip():
+            raise ValueError("empty Groq content")
+        return {"analysis": text.strip(), "model": model, "timestamp": datetime.now().isoformat()}
+    except httpx.HTTPStatusError as e:
+        logger.error("signal-brief Groq HTTP error: %s", e)
+        raise HTTPException(502, detail=f"Groq error: {e.response.status_code}") from e
+    except Exception as e:
+        logger.error("signal-brief failed: %s", e)
+        raise HTTPException(502, detail=str(e)) from e
 
 
 def get_agent(agent_name: str, monitor_bridge: MonitorBridge, redis_client):

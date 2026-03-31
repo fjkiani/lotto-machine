@@ -43,23 +43,27 @@ SIGNALS_CACHE_TTL = 300  # 5 minutes
 
 ROOT = Path(__file__).resolve().parents[4]
 
-SOURCE_TIMEOUT = 15  # seconds per source fetch (network calls need more than main.py's 8s)
-KC_TIMEOUT = 10      # seconds for kill chain computation
+SOURCE_TIMEOUT = 3  # fail fast; keep endpoint responsive under upstream slowness
+KC_TIMEOUT = 3      # kill chain is advisory here, not a hard dependency
 
 
 def _safe_fetch(name: str, fn, timeout: int = SOURCE_TIMEOUT, default=None):
     """Run a source fetch with a timeout — never hang the pipeline."""
     if default is None:
         default = []
+    executor = ThreadPoolExecutor(max_workers=1)
     try:
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(fn)
-            return future.result(timeout=timeout)
+        future = executor.submit(fn)
+        value = future.result(timeout=timeout)
+        executor.shutdown(wait=False, cancel_futures=True)
+        return value
     except FuturesTimeout:
         logger.warning(f"⏰ {name} timed out after {timeout}s — returning empty")
+        executor.shutdown(wait=False, cancel_futures=True)
         return default
     except Exception as exc:
         logger.warning(f"❌ {name} failed: {exc} — returning empty")
+        executor.shutdown(wait=False, cancel_futures=True)
         return default
 
 
@@ -193,7 +197,7 @@ def _inject_kill_chain(signals: List[dict], kc: dict) -> List[dict]:
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/signals")
-async def get_signals(
+def get_signals(
     master_only: bool = Query(False, description="Only return master signals (75%+ confidence)"),
     symbol: Optional[str] = Query(None, description="Filter by symbol"),
     signal_type: Optional[str] = Query(None, description="Filter by signal type"),
@@ -312,12 +316,12 @@ async def get_signals(
 
 
 @router.get("/signals/master")
-async def get_master_signals(
+def get_master_signals(
     symbol: Optional[str] = Query(None),
     monitor_bridge: MonitorBridge = Depends(get_monitor_bridge),
 ):
     """Only signals with confidence >= 75%."""
-    return await get_signals(master_only=True, symbol=symbol, monitor_bridge=monitor_bridge)
+    return get_signals(master_only=True, symbol=symbol, monitor_bridge=monitor_bridge)
 
 
 @router.get("/signals/divergence", response_model=DivergenceResponse)

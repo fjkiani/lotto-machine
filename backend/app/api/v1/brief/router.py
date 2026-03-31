@@ -39,32 +39,64 @@ from .fetchers.core import (
 from .fetchers.signals import (
     fetch_adp_prediction, fetch_gdp_nowcast, fetch_jobless_claims,
     fetch_pivots, fetch_squeeze_context,
+    fetch_darkpool_context, fetch_vol_regime, fetch_axlfi_walls, fetch_ta_consensus
 )
 
 logger        = logging.getLogger(__name__)
 router        = APIRouter()
 _alert_engine = PreSignalAlertEngine()
 
+def _build_data_quality_flags(results: dict) -> dict:
+    """Summarize degraded layers so consumers can separate signal vs data-quality risk."""
+    degraded_layers = {}
+    for key, value in results.items():
+        if isinstance(value, dict) and value.get("error"):
+            degraded_layers[key] = value.get("error")
+
+    env_warnings = {}
+    adp = results.get("adp_prediction", {})
+    if isinstance(adp, dict):
+        if adp.get("consensus_source") == "ner_pulse_baseline":
+            env_warnings["adp_consensus_fallback"] = (
+                "ADP consensus from 40K baseline — calendar/FF/TE page all failed"
+            )
+        elif adp.get("consensus") == 150000:
+            env_warnings["adp_consensus_fallback"] = "legacy 150K consensus — investigate stale path"
+    jobless = results.get("jobless_claims", {})
+    if isinstance(jobless, dict) and jobless.get("error"):
+        env_warnings["jobless_claims"] = jobless.get("error")
+    hidden = results.get("hidden_hands", {})
+    if isinstance(hidden, dict) and hidden.get("finnhub_signals") == []:
+        env_warnings["finnhub_signals"] = "No Finnhub signals in payload"
+
+    return {
+        "integrity_status": "DEGRADED" if degraded_layers or env_warnings else "OK",
+        "degraded_layers": degraded_layers,
+        "warnings": env_warnings,
+    }
+
 
 async def _run_wave(wave: dict, loop, max_workers: int = 2) -> dict:
     """Run a wave of fetchers in a ThreadPoolExecutor. Executor is
     fully disposed (threads joined, memory freed) before return."""
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            key: (loop.run_in_executor(executor, fn), timeout)
-            for key, (fn, timeout) in wave.items()
-        }
-        results = {}
-        for key, (future, timeout_s) in futures.items():
-            try:
-                results[key] = await asyncio.wait_for(future, timeout=timeout_s)
-            except asyncio.TimeoutError:
-                logger.warning(f"Layer {key} timed out after {timeout_s}s")
-                results[key] = {'error': f'timeout after {timeout_s}s'}
-            except Exception as e:
-                logger.error(f"Layer {key} failed: {e}")
-                results[key] = {'error': str(e)}
-    return results
+    async def _run_one(key: str, fn, timeout_s: int):
+        try:
+            value = await asyncio.wait_for(loop.run_in_executor(executor, fn), timeout=timeout_s)
+            return key, value
+        except asyncio.TimeoutError:
+            logger.warning(f"Layer {key} timed out after {timeout_s}s")
+            return key, {'error': f'timeout after {timeout_s}s'}
+        except Exception as e:
+            logger.error(f"Layer {key} failed: {e}")
+            return key, {'error': str(e)}
+
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    try:
+        tasks = [_run_one(key, fn, timeout) for key, (fn, timeout) in wave.items()]
+        pairs = await asyncio.gather(*tasks)
+        return {k: v for k, v in pairs}
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 @router.get("/brief/master")
@@ -93,10 +125,10 @@ async def master_brief():
 
         # ── Wave 1: SHARED PRIMITIVES (heaviest: GEX downloads options chain) ─
         wave1 = {
-            '_gex':             (fetch_gex_shared,  25),
-            '_cot':             (fetch_cot_shared,  15),
-            'fed_intelligence': (fetch_fedwatch,    20),
-            'economic_veto':    (fetch_veto,        15),
+            '_gex':             (fetch_gex_shared,   6),
+            '_cot':             (fetch_cot_shared,   4),
+            'fed_intelligence': (fetch_fedwatch,     4),
+            'economic_veto':    (fetch_veto,         4),
         }
         w1 = await _run_wave(wave1, loop, max_workers=2)
         results['fed_intelligence'] = w1.get('fed_intelligence', {'error': 'timeout'})
@@ -114,15 +146,19 @@ async def master_brief():
 
         # ── Wave 3: REMAINING LAYERS (all independent, 2 workers) ─────────────
         wave3 = {
-            'hidden_hands':     (fetch_hidden_hands,      25),
-            'macro_regime':     (fetch_macro_regime,       15),
-            'dynamic_thresholds': (fetch_thresholds,       15),
-            'nowcast':          (fetch_nowcast,             10),
-            'adp_prediction':   (fetch_adp_prediction,     10),
-            'gdp_nowcast':      (fetch_gdp_nowcast,        10),
-            'jobless_claims':   (fetch_jobless_claims,     10),
-            'pivots':           (fetch_pivots,             10),
-            'squeeze_context':  (fetch_squeeze_context,    10),
+            'hidden_hands':     (fetch_hidden_hands,        8),
+            'macro_regime':     (fetch_macro_regime,        6),
+            'dynamic_thresholds': (fetch_thresholds,        6),
+            'nowcast':          (fetch_nowcast,             5),
+            'adp_prediction':   (fetch_adp_prediction,      5),
+            'gdp_nowcast':      (fetch_gdp_nowcast,         5),
+            'jobless_claims':   (fetch_jobless_claims,      5),
+            'pivots':           (fetch_pivots,              5),
+            'squeeze_context':  (fetch_squeeze_context,     5),
+            'dark_pool':        (fetch_darkpool_context,    6),
+            'vol_regime':       (fetch_vol_regime,          6),
+            'axlfi_walls':      (fetch_axlfi_walls,         6),
+            'ta_consensus':     (fetch_ta_consensus,        6),
         }
         results.update(await _run_wave(wave3, loop, max_workers=2))
 
@@ -148,6 +184,7 @@ async def master_brief():
 
         results['scan_time'] = round(time.time() - t0, 2)
         results['as_of']     = datetime.utcnow().isoformat()
+        results['data_quality_flags'] = _build_data_quality_flags(results)
 
         set_cache(results)
         return results

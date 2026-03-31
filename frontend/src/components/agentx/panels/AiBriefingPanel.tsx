@@ -1,21 +1,12 @@
 /**
  * AiBriefingPanel — Slide-in oracle overlay
  *
- * Shared between AgentX and Politicians pages.
- * Calls Gemini API with signal context for tactical analysis.
- * API key from VITE_GEMINI_API_KEY env var.
+ * Calls backend POST /api/v1/agents/signal-brief (Groq, server-side key).
  */
 
 import { useState, useEffect } from 'react';
-import type { UnifiedSignal } from './SignalFeedGrid';
 
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_KEY}`;
-
-interface Source {
-  uri: string;
-  title: string;
-}
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
 export interface BriefableItem {
   /** For UnifiedSignal */
@@ -44,7 +35,6 @@ interface AiBriefingPanelProps {
 export function AiBriefingPanel({ item, onClose }: AiBriefingPanelProps) {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [sources, setSources] = useState<Source[]>([]);
 
   useEffect(() => {
     if (!item) return;
@@ -52,60 +42,46 @@ export function AiBriefingPanel({ item, onClose }: AiBriefingPanelProps) {
     const fetchBriefing = async () => {
       setLoading(true);
       setAnalysis(null);
-      setSources([]);
-
-      if (!GEMINI_KEY) {
-        setAnalysis('BRIEFING_ENGINE_OFFLINE: VITE_GEMINI_API_KEY not set.');
-        setLoading(false);
-        return;
-      }
 
       try {
-        const systemPrompt =
-          'Act as a high-level macro-financial analyst for a quantitative hedge fund. ' +
-          'Analyze the specific market signal provided. Explain technical significance ' +
-          '(Order Flow, Gamma, Insider intent), potential market impact, and identify ' +
-          'recent news catalysts for the ticker using Google Search grounding. ' +
-          'Keep it concise, cold, and tactical. Use bullet points for key risks.';
-
-        const ticker = item.ticker || (item.tickers ? item.tickers.join(', ') : 'N/A');
-        const userQuery = `Analyze Signal:
-  Action: ${item.action || item.type || item.signal || 'N/A'}
-  Ticker: ${ticker}
-  Actor: ${item.name || item.source || 'Institutional'}
-  Detail: ${item.detail || item.logic || item.meaning || 'N/A'}
-  Volume: ${item.size || 'N/A'}
-  ID: ${item.slug || item.id || 'N/A'}`;
-
-        const payload = {
-          contents: [{ parts: [{ text: userQuery }] }],
-          tools: [{ google_search: {} }],
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-        };
-
-        const response = await fetch(GEMINI_URL, {
+        const response = await fetch(`${API_URL}/agents/signal-brief`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            action: item.action,
+            type: item.type,
+            signal: item.signal,
+            ticker: item.ticker,
+            tickers: item.tickers,
+            name: item.name,
+            source: item.source,
+            detail: item.detail,
+            logic: item.logic,
+            meaning: item.meaning,
+            size: item.size,
+            slug: item.slug,
+            id: item.id,
+          }),
         });
 
-        const result = await response.json();
-        const candidate = result.candidates?.[0];
-
-        if (candidate?.content?.parts?.[0]?.text) {
-          setAnalysis(candidate.content.parts[0].text);
-          if (candidate.groundingMetadata?.groundingAttributions) {
-            setSources(
-              candidate.groundingMetadata.groundingAttributions
-                .map((attr: any) => ({ uri: attr.web?.uri, title: attr.web?.title }))
-                .filter((s: Source) => s.uri && s.title)
-            );
-          }
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const msg =
+            typeof data.detail === 'string'
+              ? data.detail
+              : Array.isArray(data.detail)
+                ? data.detail.map((d: { msg?: string }) => d.msg).join('; ')
+                : response.statusText;
+          setAnalysis(`BRIEFING_ENGINE_OFFLINE: ${msg || response.status}`);
+          return;
+        }
+        if (data.analysis) {
+          setAnalysis(data.analysis);
         } else {
-          setAnalysis('No analysis returned — check API quota.');
+          setAnalysis('No analysis returned — check backend GROQ_API_KEY.');
         }
       } catch {
-        setAnalysis('BRIEFING_ENGINE_OFFLINE: Connection to Oracle failed.');
+        setAnalysis('BRIEFING_ENGINE_OFFLINE: Connection to API failed.');
       } finally {
         setLoading(false);
       }
@@ -166,21 +142,6 @@ export function AiBriefingPanel({ item, onClose }: AiBriefingPanelProps) {
               <span className="oracle-panel__section-title">Intelligence Analysis</span>
               <div className="oracle-panel__analysis">{analysis}</div>
             </section>
-
-            {/* Sources */}
-            {sources.length > 0 && (
-              <section className="oracle-panel__section oracle-panel__sources">
-                <span className="oracle-panel__section-title">Grounding Citations</span>
-                <div className="oracle-panel__source-list">
-                  {sources.map((s, i) => (
-                    <a key={i} href={s.uri} target="_blank" rel="noreferrer" className="oracle-panel__source-link">
-                      <span>{s.title}</span>
-                      <span className="oracle-panel__source-icon">↗</span>
-                    </a>
-                  ))}
-                </div>
-              </section>
-            )}
           </>
         )}
       </div>

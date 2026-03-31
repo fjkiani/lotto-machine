@@ -57,28 +57,38 @@ Required output shape:
 
 NYX_SYSTEM = """You are NYX, a quantitative macro analyst for a prop trading firm.
 You receive a structured JSON blob representing the FULL state of the market intelligence engine.
-Interpret these numbers as ONE chain — not as separate widgets.
+Your purpose is to synthesize this raw data into deep, high-conviction analytical prose. Do not just restate the numbers — explain the mechanics, institutional positioning, and market maker hedging implied by the data.
 
 Rules (strictly enforced):
 1. Do NOT override discrete signals. If kill_chain.layers_active is 2, do not say all 3 layers fired.
-2. You may only: summarize confluence, highlight contradictions, map to trade implications.
-3. Each section summary: 2 sentences max. No filler.
-4. confidence = 0.0-1.0 reflecting signal agreement strength (not LLM certainty).
-5. risk_level must be HIGH, MEDIUM, or LOW — match the kill_chain and pre_signal severity.
-6. Output STRICT JSON ONLY. No markdown fences, no prose outside the JSON object.
+2. You must summarize confluence, highlight contradictions, and map to trade implications.
+3. Each section summary MUST be a detailed, multi-sentence analytical paragraph. You are NOT just repeating numbers — you are an intelligence synthesis engine. Explain *why* the metrics matter, how they interact, and what they reveal about institutional positioning. Prove you understand the data. DO NOT output brief 1-sentence summaries.
+4. "trade_implication" MUST ALWAYS be a concrete 1-2 sentence string specifying entry, stop, and target based on derivatives/GEX/DP support and resistance levels. DO NOT output null.
+5. confidence = 0.0-1.0 reflecting signal agreement strength (not LLM certainty).
+6. risk_level must be HIGH, MEDIUM, or LOW — match the kill_chain and pre_signal severity.
+7. Output STRICT JSON ONLY. No markdown fences, no prose outside the JSON object.
+
+Domain Knowledge (use these benchmarks when interpreting):
+- DARK POOL: short_volume_pct > 50% = net institutional selling pressure. > 55% = elevated. dp_position_dollars is the cumulative net dark pool position in USD — positive = net long institutional bias. You will also receive Support/Resistance clusters; explain how these levels act as structured liquidity.
+- TA CONSENSUS: consensus is derived from 14 technical indicators (RSI, MACD, Stochastic, ADX, etc). "oversold_count" is how many indicators are in oversold territory. bb_squeeze=true means Bollinger Bands are contracting (volatility compression, breakout imminent).
+- VOL REGIME: Tier 1 = low vol (VIX < 15), Tier 2 = moderate (15-20), Tier 3 = elevated (20-30), Tier 4 = crisis (>30). Higher tiers = wider stops, smaller position sizes. Explain the regime's impact on trade structuring.
+- AXLFI WALLS & DERIVATIVES: call_wall = strike with largest call open interest (acts as resistance/magnet). put_wall = strike with largest put open interest (acts as support). Explain the gamma regime (positive = dealers suppress volatility, negative = dealers amplify volatility).
+- CROSS-SIGNAL: When dark_pool shows institutional selling AND kill_chain has mismatches AND derivatives show negative gamma — that is HIGH conviction bearish confluence. Elaborate on how these forces multiply each other.
 
 Required output shape:
 {
-  "verdict": "one sentence cross-signal synthesis",
+  "verdict": "one sentence cross-signal synthesis referencing specific numbers",
   "risk_level": "HIGH | MEDIUM | LOW",
   "sections": {
     "pre_signal":   { "summary": "...", "confidence": 0.0 },
     "hidden_hands": { "summary": "...", "confidence": 0.0 },
     "derivatives":  { "summary": "...", "confidence": 0.0 },
     "kill_chain":   { "summary": "...", "confidence": 0.0 },
-    "regime":       { "summary": "...", "confidence": 0.0 }
+    "regime":       { "summary": "...", "confidence": 0.0 },
+    "dark_pool":    { "summary": "...", "confidence": 0.0 },
+    "technical_analysis": { "summary": "...", "confidence": 0.0 }
   },
-  "trade_implication": "one sentence action directive"
+  "trade_implication": "one sentence action directive with specific levels"
 }"""
 
 # ── Fallback oracle (returned when Groq is down or key missing) ───────────────
@@ -145,6 +155,175 @@ class BriefOracleRequest(BaseModel):
     brief: dict  # full /brief/master payload
 
 # ── Oracle payload builder ────────────────────────────────────────────────────
+
+def _build_dark_pool_context(brief: dict) -> dict:
+    """Build rich dark pool context with interpretation strings."""
+    dp = brief.get("dark_pool", {}) or {}
+    if isinstance(dp, dict) and "error" in dp:
+        return {"status": "unavailable", "error": dp["error"]}
+
+    svp = dp.get("short_volume_pct") or dp.get("dp_percent") or 0
+    bp = dp.get("buying_pressure", 0) or 0
+    pos_dollars = dp.get("dp_position_dollars", 0) or 0
+    net_short = dp.get("net_short_dollars", 0)
+    narrative = dp.get("narrative")
+
+    # S/R levels from GEX (now populated via /darkpool/SPY/summary)
+    nearest_support = dp.get("nearest_support")
+    nearest_resistance = dp.get("nearest_resistance")
+    battlegrounds = dp.get("battlegrounds", [])
+
+    # Compute interpretation
+    if svp > 55:
+        pressure = "ELEVATED institutional selling pressure"
+    elif svp > 50:
+        pressure = "mild institutional selling pressure"
+    else:
+        pressure = "institutional buying dominance"
+
+    pos_billions = pos_dollars / 1e9 if pos_dollars else 0
+    pos_label = (
+        f"${pos_billions:.1f}B cumulative DP position (net long institutional bias)"
+        if pos_dollars > 0
+        else f"${abs(pos_billions):.1f}B net short institutional bias"
+    )
+
+    # Level context string
+    level_parts = []
+    if nearest_support:
+        sup_price = nearest_support.get("price")
+        sup_str = nearest_support.get("strength")
+        if sup_price:
+            level_parts.append(f"Nearest DP support: ${sup_price:.1f} (strength {sup_str})")
+    if nearest_resistance:
+        res_price = nearest_resistance.get("price")
+        res_str = nearest_resistance.get("strength")
+        if res_price:
+            level_parts.append(f"Nearest DP resistance: ${res_price:.1f} (strength {res_str})")
+    if battlegrounds:
+        bg_prices = [f"${b.get('price', 0):.1f}" for b in battlegrounds[:2]]
+        level_parts.append(f"Battleground zones: {', '.join(bg_prices)}")
+
+    level_context = " | ".join(level_parts) if level_parts else "No GEX-derived levels available"
+
+    return {
+        "short_volume_pct": svp,
+        "buying_pressure_pct": round(bp, 1),
+        "dp_position_dollars": pos_dollars,
+        "dp_position_label": pos_label,
+        "net_short_dollars": net_short,
+        "nearest_support": nearest_support,
+        "nearest_resistance": nearest_resistance,
+        "battlegrounds": battlegrounds[:3],
+        "narrative": narrative,
+        "interpretation": f"SPY dark pool short volume at {svp:.1f}% — {pressure}. {pos_label}. {level_context}.",
+    }
+
+
+
+def _build_ta_context(brief: dict) -> dict:
+    """Build rich TA consensus context with interpretation."""
+    ta = brief.get("ta_consensus", {}) or {}
+    if isinstance(ta, dict) and "error" in ta:
+        return {"status": "unavailable", "error": ta["error"]}
+
+    consensus = ta.get("consensus", "Unknown")
+    oversold = ta.get("oversold_count", 0) or 0
+    total = ta.get("total_indicators", 14) or 14
+    bb_squeeze = ta.get("bb_squeeze", False)
+    narrative = ta.get("narrative", "")
+
+    squeeze_note = "BB SQUEEZE ACTIVE — volatility compression, breakout imminent." if bb_squeeze else ""
+    oversold_note = f"{oversold}/{total} indicators oversold." if oversold > 0 else f"No oversold indicators among {total} tracked."
+
+    return {
+        "consensus": consensus,
+        "oversold_count": oversold,
+        "total_indicators": total,
+        "bb_squeeze": bb_squeeze,
+        "narrative": narrative,
+        "interpretation": f"TA consensus: {consensus}. {oversold_note} {squeeze_note}".strip(),
+    }
+
+
+def _build_vol_regime_context(brief: dict) -> dict:
+    """Build rich volatility regime context with tier interpretation."""
+    vr = brief.get("vol_regime", {}) or {}
+    if isinstance(vr, dict) and "error" in vr:
+        return {"status": "unavailable", "error": vr["error"]}
+
+    tier = vr.get("tier_label", "Unknown")
+    regime = vr.get("current_regime", 0)
+
+    tier_map = {
+        1: "LOW VOL (VIX < 15) — tight stops, full position sizing ok",
+        2: "MODERATE VOL (VIX 15-20) — standard positioning, watch for regime shifts",
+        3: "ELEVATED VOL (VIX 20-30) — wider stops mandatory, reduce size 50%",
+        4: "CRISIS VOL (VIX > 30) — hedging required, max 25% position size",
+    }
+    meaning = tier_map.get(regime, "Unknown regime")
+
+    return {
+        "tier_label": tier,
+        "current_regime": regime,
+        "interpretation": f"{tier}: {meaning}.",
+    }
+
+
+def _build_axlfi_context(brief: dict) -> dict:
+    """Build rich AXLFI option wall context with spot-relative interpretation."""
+    walls = brief.get("axlfi_walls", {}) or {}
+    if isinstance(walls, dict) and "error" in walls:
+        return {"status": "unavailable", "error": walls["error"]}
+
+    call_wall = walls.get("call_wall")
+    put_wall = walls.get("put_wall")
+    poc = walls.get("poc")
+    call_2 = walls.get("call_wall_2")
+    put_2 = walls.get("put_wall_2")
+
+    # Get spot from derivatives block for relative context
+    spot = (brief.get("derivatives", {}) or {}).get("spot")
+
+    parts = []
+    if call_wall and spot:
+        dist = call_wall - spot
+        parts.append(f"Call wall (resistance) at ${call_wall:.0f} — ${dist:+.1f} from spot ${spot:.2f}")
+    elif call_wall:
+        parts.append(f"Call wall at ${call_wall:.0f}")
+
+    if put_wall and spot:
+        dist = put_wall - spot
+        parts.append(f"Put wall (support) at ${put_wall:.0f} — ${dist:+.1f} from spot")
+    elif put_wall:
+        parts.append(f"Put wall at ${put_wall:.0f}")
+
+    if poc:
+        parts.append(f"Point of Control at ${poc:.0f}")
+
+    # Pin detection
+    pin_note = ""
+    if spot and call_wall and put_wall:
+        range_width = call_wall - put_wall
+        if range_width > 0:
+            position = (spot - put_wall) / range_width
+            if position > 0.8:
+                pin_note = "Price near CALL WALL — expect resistance / dealer selling."
+            elif position < 0.2:
+                pin_note = "Price near PUT WALL — expect support / dealer buying."
+            else:
+                pin_note = f"Price at {position:.0%} of wall range — neutral positioning."
+
+    return {
+        "call_wall": call_wall,
+        "put_wall": put_wall,
+        "poc": poc,
+        "call_wall_2": call_2,
+        "put_wall_2": put_2,
+        "spot": spot,
+        "interpretation": ". ".join(parts) + (f". {pin_note}" if pin_note else ""),
+    }
+
 
 def build_oracle_payload(brief: dict) -> dict:
     """Extract explicit named fields from /brief/master for Oracle context.
@@ -286,6 +465,10 @@ def build_oracle_payload(brief: dict) -> dict:
             "dove_count":         dig(brief, "hidden_hands", "dove_count"),
             "divergence_boost":   dig(brief, "hidden_hands", "divergence_boost"),
         },
+        "dark_pool": _build_dark_pool_context(brief),
+        "ta_consensus": _build_ta_context(brief),
+        "volatility_regime": _build_vol_regime_context(brief),
+        "axlfi_walls": _build_axlfi_context(brief),
         "squeeze": {
             "has_signal":         dig(brief, "squeeze_context", "has_signal"),
             "score":              dig(brief, "squeeze_context", "score"),

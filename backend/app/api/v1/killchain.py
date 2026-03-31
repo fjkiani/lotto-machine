@@ -79,6 +79,47 @@ async def kill_chain_scan():
                 "layer": m.title if hasattr(m, 'title') else str(m.get("layer", "unknown")),
             })
 
+        # Add parity view from the canonical 3-layer kill-chain scorer so
+        # downstream consumers can compare 5-layer scan vs 3-layer confluence
+        # without conflating them.
+        core_3layer = {}
+        try:
+            from backend.app.signals.kill_chain import compute_kill_chain
+            core = compute_kill_chain()
+            core_3layer = {
+                "confluence": core.get("confluence"),
+                "triggered_count": core.get("triggered_count"),
+                "layers_total": 3,
+                "layer_1": core.get("layer_1"),
+                "layer_2": core.get("layer_2"),
+                "layer_3": core.get("layer_3"),
+                "direction": core.get("direction"),
+                "verdict": core.get("verdict"),
+                "score": core.get("score"),
+            }
+        except Exception as e:
+            logger.warning(f"Could not compute core 3-layer parity: {e}")
+            core_3layer = {"error": str(e)}
+
+        # Include ADP predictor snapshot so manager/operator validation can use
+        # /killchain/scan directly for premarket labor delta checks.
+        adp_predictor = {}
+        try:
+            from backend.app.api.v1.brief.fetchers.signals import fetch_adp_prediction
+            adp_raw = fetch_adp_prediction() or {}
+            adp_predictor = {
+                "consensus": adp_raw.get("consensus"),
+                "prediction": adp_raw.get("prediction"),
+                "delta": adp_raw.get("delta"),
+                "confidence": adp_raw.get("confidence"),
+                "expected_move_pct": adp_raw.get("expected_move_pct"),
+                "bias": adp_raw.get("bias"),
+                "source": adp_raw.get("source"),
+            }
+        except Exception as e:
+            logger.warning(f"Could not fetch ADP predictor for killchain scan: {e}")
+            adp_predictor = {"error": str(e)}
+
         response = {
             "alert_level": report.alert_level,
             "timestamp": report.timestamp or datetime.utcnow().isoformat(),
@@ -89,6 +130,8 @@ async def kill_chain_scan():
             "narrative": report.narrative,
             "mismatches": mismatches,
             "layers": layers,
+            "core_3layer": core_3layer,
+            "adp_predictor": adp_predictor,
         }
 
         return response

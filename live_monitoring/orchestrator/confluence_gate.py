@@ -105,7 +105,12 @@ class ConfluenceGate:
         self._synthesis_score = score
         logger.info(f"🔄 Gate synthesis updated: {bias} ({score:.0f}%)")
 
-    def _get_market_regime(self, snapshot: dict) -> str:
+    def _get_market_regime(
+        self,
+        snapshot: dict,
+        symbol: str = "SPY",
+        alternate_price: Optional[float] = None,
+    ) -> str:
         """Determine market regime from Guardian snapshot.
 
         Priority order:
@@ -123,11 +128,26 @@ class ConfluenceGate:
             return "UNKNOWN"
 
         # Wall-relative positioning (requires spy_call_wall / spy_put_wall)
-        spy_price = snapshot.get("spy_price", 0)
+        spy_price = float(snapshot.get("spy_price") or 0)
         spy_call_wall = snapshot.get("spy_call_wall", 0)
         spy_put_wall = snapshot.get("spy_put_wall", 0)
 
-        # No price data → UNKNOWN (don't silently pass signals)
+        # Missing snapshot price (e.g. guardian yfinance fail) — try signal price, then fetch
+        if spy_price <= 0:
+            if alternate_price and alternate_price > 0:
+                spy_price = float(alternate_price)
+                snapshot["spy_price"] = spy_price
+                snapshot["spy_price_source"] = "alternate_should_fire"
+            else:
+                try:
+                    fb = self._get_price(symbol)
+                    if fb and fb > 0:
+                        spy_price = float(fb)
+                        snapshot["spy_price"] = spy_price
+                        snapshot["spy_price_source"] = "yfinance_fallback"
+                except Exception as e:
+                    logger.debug(f"⚠️ Gate: regime price fallback failed: {e}")
+
         if spy_price <= 0:
             return "UNKNOWN"
 
@@ -158,17 +178,26 @@ class ConfluenceGate:
     ) -> GateResult:
         """Wrapper: evaluates the signal and logs every decision."""
         import json as _json, os as _os
+        _SNAP = "/tmp/intraday_snapshot.json"
+        loaded_from_file = False
         snap = snapshot or {}
         if not snap:
-            _SNAP = "/tmp/intraday_snapshot.json"
             if _os.path.exists(_SNAP):
                 try:
                     with open(_SNAP) as _f:
                         snap = _json.load(_f)
+                    loaded_from_file = True
                 except Exception as e:
                     logger.debug(f"⚠️ Gate: snapshot read failed: {e}")
 
-        regime = self._get_market_regime(snap)
+        regime = self._get_market_regime(snap, symbol=symbol, alternate_price=current_price)
+
+        if loaded_from_file and snap.get("spy_price_source"):
+            try:
+                with open(_SNAP, "w") as _f:
+                    _json.dump(snap, _f)
+            except Exception as e:
+                logger.debug(f"⚠️ Gate: snapshot write-back failed: {e}")
 
         # UNKNOWN = no usable data (spy_price=0 or thesis invalid) → block everything
         if regime == "UNKNOWN":

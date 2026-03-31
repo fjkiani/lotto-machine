@@ -220,7 +220,9 @@ def compute_kill_chain() -> dict:
             from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
 
             gex_calc = _get_gex_client()
-            gex_result = gex_calc.compute_gex("SPX")
+            # Use SPY consistently across the stack so kill-chain, /gamma/SPY,
+            # and /brief/master share the same notional base and magnitude.
+            gex_result = gex_calc.compute_gex("SPY")
             regime = gex_result.gamma_regime or ""
             total_gex = gex_result.total_gex
             current_spot = gex_result.spot_price or 0.0
@@ -246,7 +248,13 @@ def compute_kill_chain() -> dict:
                         "strength": "HIGH",
                         "headline": f"NEGATIVE gamma · spot ${current_spot:.2f}",
                         "detail": "Gravitational pull downwards. Dealers short options, amplifying moves.",
-                        "data": {"spot": current_spot, "total_gex": round(total_gex/1e6, 2), "sv_pct": sv_pct}
+                        "data": {
+                            "symbol": "SPY",
+                            "spot": current_spot,
+                            "total_gex_millions": round(total_gex / 1e6, 2),
+                            "total_gex_raw": total_gex,
+                            "sv_pct": sv_pct
+                        }
                     })
                 else:
                     bullish_pts += 1
@@ -258,7 +266,13 @@ def compute_kill_chain() -> dict:
                         "strength": "MEDIUM",
                         "headline": "NEGATIVE gamma but neutral short-vol",
                         "detail": "Snap-back risk is high. Market is compressed but not panicked.",
-                        "data": {"spot": current_spot, "total_gex": round(total_gex/1e6, 2), "sv_pct": sv_pct}
+                        "data": {
+                            "symbol": "SPY",
+                            "spot": current_spot,
+                            "total_gex_millions": round(total_gex / 1e6, 2),
+                            "total_gex_raw": total_gex,
+                            "sv_pct": sv_pct
+                        }
                     })
             elif "POSITIVE" in regime:
                 bullish_pts += 1
@@ -270,7 +284,12 @@ def compute_kill_chain() -> dict:
                     "strength": "LOW",
                     "headline": "POSITIVE gamma regime",
                     "detail": "Volatility suppressed. Dealers buying dips and selling rips.",
-                    "data": {"spot": current_spot, "total_gex": round(total_gex/1e6, 2)}
+                    "data": {
+                        "symbol": "SPY",
+                        "spot": current_spot,
+                        "total_gex_millions": round(total_gex / 1e6, 2),
+                        "total_gex_raw": total_gex
+                    }
                 })
             else:
                 raw["gex_signal"] = "NEUTRAL"
@@ -294,6 +313,8 @@ def compute_kill_chain() -> dict:
             "triggered": layer_2_triggered,
             "value": round(total_gex / 1e6, 3),
             "unit": "GEX $M",
+            "raw_value": total_gex,
+            "symbol": "SPY",
             "signal": regime if regime else "NEUTRAL",
         }
         layer_3 = {

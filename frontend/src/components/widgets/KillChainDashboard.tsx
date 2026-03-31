@@ -18,7 +18,7 @@ import {
   CpiBanner,
   AiBriefingPanel,
 } from '../killchain';
-import type { MonitorResponse, KillChainData, AiBriefingItem } from '../killchain';
+import type { MonitorResponse, KillChainData, AiBriefingItem, KillChainScanParity } from '../killchain';
 
 // Fallback kill chain shape when the API hasn't responded yet
 const EMPTY_KC: KillChainData = {
@@ -78,6 +78,7 @@ function buildDevQuery(ctx: any): string {
 
 export function KillChainDashboard() {
   const [data, setData]               = useState<MonitorResponse | null>(null);
+  const [scanParity, setScanParity]   = useState<KillChainScanParity | null>(null);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
@@ -181,8 +182,17 @@ export function KillChainDashboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await (killchainApi.monitor() as Promise<MonitorResponse>);
-      setData(res);
+      const [monitorRes, scanRes] = await Promise.all([
+        killchainApi.monitor() as Promise<MonitorResponse>,
+        killchainApi.scan() as Promise<any>,
+      ]);
+      setData(monitorRes);
+      setScanParity({
+        alert_level: scanRes?.alert_level,
+        layers_active: scanRes?.layers_active,
+        layers_total: scanRes?.layers_total,
+        core_3layer: scanRes?.core_3layer,
+      });
       setError(null);
       setLastRefresh(new Date());
     } catch (err: any) {
@@ -237,6 +247,7 @@ export function KillChainDashboard() {
         activations={data.activations}
         lastRefresh={lastRefresh}
         onRefresh={fetchData}
+        parity={scanParity}
       />
 
       {/* Grid Layout for Side-by-Side Oracle */}

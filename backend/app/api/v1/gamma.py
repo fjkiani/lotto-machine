@@ -57,6 +57,9 @@ class GammaResponse(BaseModel):
     gamma_flip_level: Optional[float] = None
     current_regime: str = Field(..., description="POSITIVE or NEGATIVE")
     total_gex: float = Field(..., description="Total gamma exposure")
+    total_gex_raw: float = Field(..., description="Raw total gamma exposure notional")
+    total_gex_millions: float = Field(..., description="Total gamma exposure in USD millions")
+    gex_units: Dict[str, str] = Field(default_factory=dict, description="Unit labels for GEX fields")
     max_pain: Optional[float] = None
     call_put_ratio: float = Field(..., description="Call/Put OI ratio")
     gamma_walls: List[GammaWallResponse] = Field(default_factory=list)
@@ -134,6 +137,12 @@ async def get_gamma_data(symbol: str):
         gamma_flip_level=result.gamma_flip if result.gamma_flip else None,
         current_regime=result.gamma_regime or "POSITIVE",
         total_gex=result.total_gex,
+        total_gex_raw=result.total_gex,
+        total_gex_millions=round((result.total_gex or 0) / 1_000_000, 3),
+        gex_units={
+            "raw_notional": "absolute_notional",
+            "millions_notional": "USD_millions",
+        },
         max_pain=result.max_pain if result.max_pain else None,
         call_put_ratio=call_put_ratio,
         gamma_walls=walls,

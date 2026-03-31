@@ -85,6 +85,38 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 
 # Scratchpad
 
+## 2026-03-31: ADP bands + ES fallbacks + FRED .env load (current — done)
+
+Task: tighten MISS_LIKELY soft threshold (−30K → −15K), document level-vs-label miss; ES monitor
+CME→Barchart→MarketWatch after Yahoo; load repo `.env` in `main.py` for `FRED_API_KEY`; verify brief.
+
+- [X] `adp_predictor.py` soft MISS/BEAT bands ±15K + ops note on ~22.5K vs ~40K
+- [X] `tools/es_futures_monitor.py` multi-source `fetch_es_price`, `--once` prints numeric ES
+- [X] `main.py` `load_dotenv` repo root + `backend/.env`; `.env.example` FRED line
+- [X] Verified: `ADPPredictor` + `GET /api/v1/brief/master` → consensus 40000, 10 FRED inputs
+- [ ] User: copy real `FRED_API_KEY` into `.env` if missing; restart uvicorn after pulls; P3 alarms manual
+
+## 2026-03-31: Backend timeout hardening
+
+Task: investigate `brief/master` timeout path, reduce latency, rerun audit probes.
+
+- [X] Reviewed `backend/app/api/v1/brief/router.py` and fetcher layers
+- [X] Identified timeout inflation source: sequential await pattern in `_run_wave`
+- [X] Patched `_run_wave` to enforce per-task deadlines concurrently
+- [X] Reduced wave timeouts to fail fast on degraded upstreams
+- [X] Restart backend and verify endpoint latency improvements
+- [X] Re-run manager audit calls and report updated outputs
+
+## 2026-03-31: Manager refresh audit (oracle/signals/kill-chain/frontend)
+
+Task: refresh manager-facing truth audit and separate stale MDC claims from verified wiring.
+
+- [X] Audited `oracle.py` for exact payload consumption and per-event enrich calls
+- [X] Audited `signals.py` source chain + gating/modifier pipeline
+- [X] Audited kill-chain split (`kill_chain.py` vs `killchain.py`/engine) and frontend consumer path
+- [X] Audited frontend raw-vs-synthesized surfaces (`TodaysBrief`, `UnifiedBriefView`, `SignalsCenter`, `NarrativeBrain`)
+- [X] Updated manager debrief in `.cursor/rules/implementation-debrief.mdc` with silo map + truth/noise section
+
 ## 2025-12-25: MAJOR DISCOVERY - DP EXPLOITATION PROVEN! 🔥💰
 
 ### Task: Prove edge exists with real data, bring into production
@@ -582,6 +614,14 @@ Key Signals Generated:
 - Due to Cursor's limit, when you use `git` and `gh` and need to submit a multiline commit message, first write the message in a file, and then use `git commit -F <filename>` or similar command to commit. And then remove the file. Include "[Cursor] " in the commit message and PR title.
 
 ## Cursor learned
+
+- `tools/es_futures_monitor.py`: Yahoo chart may fail on some networks; Barchart `futures/quotes/ES*0` embeds `"lastPrice"` and works as fallback. CME GLO often returns bot-block JSON from datacenter IPs.
+- Call `load_dotenv` at FastAPI startup for repo `.env` so `FRED_API_KEY` is visible to `ADPPredictor` without ad-hoc per-route loads.
+
+2. **Timeout trap with ThreadPoolExecutor**
+- In timeout wrappers, avoid `with ThreadPoolExecutor(...)` when using `future.result(timeout=...)`.
+- Reason: context manager waits for worker completion on exit, negating timeout behavior.
+- Use explicit executor + `shutdown(wait=False, cancel_futures=True)` in `finally` for true fail-fast behavior.
 
 
 1. **Graph Database Integration**
@@ -1320,3 +1360,30 @@ python3 live_monitoring/core/reddit_sentiment.py
 3. ⏳ Test screener to discover new tickers
 4. ⏳ Test sentiment on popular meme stocks
 5. ⏳ Run live paper trading system @ next RTH!
+
+## 2026-03-31: Manager Integrity Remediation (Systematic)
+
+### Task
+Address manager-raised integrity gaps without brute-force rewrites.
+
+### Plan Progress
+- [x] Add manager-facing remediation plan to `implementation-debrief.mdc`
+- [x] Fix root kill-chain GEX symbol mismatch (SPX -> SPY)
+- [x] Add comparable 3-layer parity block into `/api/v1/killchain/scan`
+- [x] Fix `/api/v1/market/{symbol}/quote` session volume calculation
+- [x] Fix darkpool `net_short_dollars` derivation from shares × price
+- [ ] Re-run full endpoint validation and publish before/after evidence
+- [ ] Frontend presentation update to separate 3-layer vs 5-layer confluence
+
+### Completion Update
+- [x] Frontend now renders 3-layer core confluence and 5-layer scan status side-by-side
+- [x] `/brief/master` now emits data_quality_flags for manager-level integrity visibility
+
+### Additional Lesson
+- Stabilize payload contracts under degraded upstream conditions by returning schema-complete fields (with error metadata), not sparse objects that break downstream comparability.
+
+## Lessons
+
+- When two endpoint families represent different scoring systems, expose a shared parity block in both responses before attempting consolidation. This prevents confidence inflation from cross-system comparisons.
+- Do not invoke third-party APIs (e.g. Morningstar `sal-service`) using keys pasted in chat or scraped from other apps; use `MORNINGSTAR_API_KEY` (or official contract) from the user’s environment only, to avoid leaking secrets and violating vendor terms.
+- **Morningstar SAL fund holdings:** `MDC` + `version=4.71.0` returns **200** (mstarpy parity). `MDC` + `version=3.59.1` + full SO-style params can return **400**; `DOTCOM_EC` + `3.59.1` often still **200**. Defaults in repo: `clientId=MDC`, `version=4.71.0`. Implemented: `core/data/morningstar_sal_client.py`, route `GET /api/v1/morningstar/sal/holdings/{fund_id}`.

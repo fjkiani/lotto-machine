@@ -56,6 +56,17 @@ export interface MonitorResponse {
   error?: string;
 }
 
+export interface KillChainScanParity {
+  alert_level?: string;
+  layers_active?: number;
+  layers_total?: number;
+  core_3layer?: {
+    confluence?: string;
+    triggered_count?: number;
+    layers_total?: number;
+  };
+}
+
 export interface UpcomingEvent {
   event: string;
   date?: string;

@@ -9,6 +9,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Optional
+import requests
 
 from backtesting.simulation.market_context_detector import MarketContextDetector, MarketContext
 
@@ -83,29 +84,65 @@ async def get_market_quote(symbol: str):
     Get real-time market quote for a symbol.
     """
     try:
-        import yfinance as yf
-        
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period='1d', interval='1m')
-        
-        if hist.empty:
-            raise HTTPException(status_code=404, detail=f"No data available for {symbol}")
-        
-        latest = hist.iloc[-1]
-        current_price = float(latest['Close'])
-        open_price = float(hist['Open'].iloc[0])
-        change = current_price - open_price
-        change_percent = (change / open_price) * 100
-        
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period='1d', interval='1m')
+
+            if not hist.empty:
+                latest = hist.iloc[-1]
+                current_price = float(latest['Close'])
+                open_price = float(hist['Open'].iloc[0])
+                change = current_price - open_price
+                change_percent = (change / open_price) * 100
+                # Use session total volume, not last 1m bar volume.
+                session_volume = int(hist['Volume'].fillna(0).sum())
+                last_bar_volume = int(latest['Volume']) if 'Volume' in latest else 0
+
+                return {
+                    "symbol": symbol,
+                    "price": current_price,
+                    "change": change,
+                    "change_percent": change_percent,
+                    "volume": session_volume,
+                    "last_bar_volume": last_bar_volume,
+                    "high": float(hist['High'].max()),
+                    "low": float(hist['Low'].min()),
+                    "open": open_price,
+                    "source": "yfinance_1m_history",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+        except Exception as yf_error:
+            logger.warning(f"yfinance quote path failed for {symbol}, falling back to Yahoo chart API: {yf_error}")
+
+        # Fallback: direct Yahoo chart API (helps when yfinance is rate-limited)
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol.upper()}?interval=1m&range=1d"
+        resp = requests.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
+        payload = resp.json()
+        result = payload.get("chart", {}).get("result", [])
+        if not result:
+            raise HTTPException(status_code=404, detail=f"No quote data available for {symbol}")
+        meta = result[0].get("meta", {})
+        price = float(meta.get("regularMarketPrice") or 0)
+        prev_close = float(meta.get("previousClose") or 0)
+        if price <= 0 or prev_close <= 0:
+            raise HTTPException(status_code=503, detail=f"Incomplete quote metadata for {symbol}")
+        change = price - prev_close
+        change_percent = (change / prev_close) * 100
+        volume = int(meta.get("regularMarketVolume") or 0)
+
         return {
             "symbol": symbol,
-            "price": current_price,
+            "price": price,
             "change": change,
             "change_percent": change_percent,
-            "volume": int(latest['Volume']),
-            "high": float(hist['High'].max()),
-            "low": float(hist['Low'].min()),
-            "open": open_price,
+            "volume": volume,
+            "last_bar_volume": 0,
+            "high": float(meta.get("regularMarketDayHigh") or price),
+            "low": float(meta.get("regularMarketDayLow") or price),
+            "open": float(meta.get("regularMarketOpen") or prev_close),
+            "source": "yahoo_chart_v8_meta",
             "timestamp": datetime.utcnow().isoformat()
         }
     

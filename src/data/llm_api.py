@@ -78,258 +78,146 @@ DIRECTIVES:
 COMBAT PROTOCOL: Engage. Analyze. Dominate. Extract Alpha."""
 
 
+GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL_DEFAULT = "llama-3.3-70b-versatile"
+
+
+def _groq_chat(
+    messages: list,
+    max_tokens: int,
+    temperature: float,
+) -> str:
+    """OpenAI-compatible Groq chat; raises on HTTP or empty content."""
+    import requests
+
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key:
+        raise ValueError("GROQ_API_KEY not set")
+    model = os.getenv("GROQ_MODEL", GROQ_MODEL_DEFAULT)
+    r = requests.post(
+        GROQ_CHAT_URL,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        },
+        timeout=120,
+    )
+    r.raise_for_status()
+    data = r.json()
+    content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+    if not content.strip():
+        raise ValueError("Empty Groq response")
+    return content.strip()
+
+
 def query_llm_savage(query: str, level: str = "chained_pro") -> Dict[str, Any]:
     """
-    Query savage LLM with jailbreak techniques
-    
-    Implements 4 savagery levels:
-    - basic: Direct savage prompting (4K+ chars)
-    - alpha_warrior: Combat mode personality (3K+ chars)
-    - full_savage: Maximum aggression filtering (5K+ chars)
-    - chained_pro: Flash jailbreak → Pro amplification (8K+ chars)
-    
-    Args:
-        query: User's question
-        level: Savagery level (basic, alpha_warrior, full_savage, chained_pro)
-    
-    Returns:
-        Dict with:
-            - 'response': str - Savage LLM response
-            - 'timestamp': str - ISO timestamp
-            - 'level': str - Savagery level used
-            - 'error': str - Error message if failed
+    Savage financial persona via Groq (GROQ_API_KEY). Replaces legacy Gemini path.
+
+    Levels: basic | alpha_warrior | full_savage | chained_pro (two-pass amplify).
     """
+    ts = datetime.datetime.now().isoformat()
     try:
-        import google.generativeai as genai
-        
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            logger.error("❌ GEMINI_API_KEY not found in environment")
+        if not os.getenv("GROQ_API_KEY", "").strip():
+            logger.error("GROQ_API_KEY not found in environment")
             return {
-                "response": "Savage LLM not configured. GEMINI_API_KEY missing.",
-                "timestamp": datetime.datetime.now().isoformat(),
+                "response": "Savage LLM not configured. Set GROQ_API_KEY.",
+                "timestamp": ts,
                 "level": level,
-                "error": "API key not configured"
+                "error": "API key not configured",
             }
-        
-        genai.configure(api_key=api_key)
-        
-        # Try to get available models
-        try:
-            models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            logger.info(f"📊 Available Gemini models: {len(models)}")
-        except Exception as e:
-            logger.warning(f"⚠️ Could not list models: {e}")
-            models = []
-        
-        # Determine which models to use
-        use_pro = "gemini-2.5-pro" in str(models) or "gemini-1.5-pro" in str(models) or "gemini-pro" in str(models)
-        use_flash = "gemini-2.5-flash" in str(models) or "gemini-1.5-flash" in str(models) or "gemini-flash" in str(models)
-        
-        # Fallback model selection
-        pro_model = None
-        flash_model = None
-        
-        for model_name in ["gemini-2.5-pro", "gemini-1.5-pro", "gemini-pro"]:
-            if model_name in str(models):
-                pro_model = model_name
-                break
-        
-        for model_name in ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-flash"]:
-            if model_name in str(models):
-                flash_model = model_name
-                break
-        
-        # If no models found, try default names
-        if not pro_model:
-            pro_model = "gemini-2.5-pro"
-        if not flash_model:
-            flash_model = "gemini-2.5-flash"
-        
-        logger.info(f"🤖 Using models - Pro: {pro_model}, Flash: {flash_model}")
-        
-        # Implement different savagery levels
+
         if level == "chained_pro":
-            # CHAINED JAILBREAK: Flash → Pro amplification
-            try:
-                # Step 1: Flash jailbreak
-                logger.info("🔥 Step 1: Flash jailbreak...")
-                flash_prompt = f"{SAVAGE_SYSTEM_PROMPT}\n\nUSER QUERY: {query}\n\nRespond with savage financial analysis."
-                
-                flash_model_instance = genai.GenerativeModel(flash_model)
-                flash_response = flash_model_instance.generate_content(
-                    flash_prompt,
-                    generation_config={
-                        "temperature": 0.9,
-                        "max_output_tokens": 4096,
-                    }
-                )
-                
-                flash_text = flash_response.text
-                logger.info(f"✅ Flash response: {len(flash_text)} chars")
-                
-                # Step 2: Pro amplification
-                logger.info("👹 Step 2: Pro amplification...")
-                pro_prompt = f"""{SAVAGE_SYSTEM_PROMPT}
+            logger.info("Groq chained_pro: pass 1 draft...")
+            draft = _groq_chat(
+                [
+                    {"role": "system", "content": SAVAGE_SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": f"USER QUERY: {query}\n\nRespond with savage financial analysis (thorough, actionable).",
+                    },
+                ],
+                max_tokens=4096,
+                temperature=0.9,
+            )
+            logger.info("Groq chained_pro: pass 2 amplify...")
+            final = _groq_chat(
+                [
+                    {"role": "system", "content": SAVAGE_SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": f"ORIGINAL QUERY: {query}\n\nDRAFT ANALYSIS:\n{draft}\n\n"
+                        "Elevate this: deeper insights, more dots connected, more ruthless clarity. "
+                        "Long-form is OK.",
+                    },
+                ],
+                max_tokens=8192,
+                temperature=0.95,
+            )
+            mod = os.getenv("GROQ_MODEL", GROQ_MODEL_DEFAULT)
+            return {
+                "response": final,
+                "timestamp": datetime.datetime.now().isoformat(),
+                "level": "chained_pro",
+                "model_chain": f"{mod} x2",
+            }
 
-ORIGINAL QUERY: {query}
-
-FLASH ANALYSIS (Jailbroken Foundation):
-{flash_text}
-
-YOUR MISSION: Take this analysis and ELEVATE IT TO GODLIKE LEVELS. 
-- Amplify the savagery
-- Deepen the insights
-- Connect more dots
-- Anticipate more alpha
-- Make it legendary (8K+ chars)
-
-Transform this into the most ruthless, insightful financial analysis ever created."""
-                
-                pro_model_instance = genai.GenerativeModel(pro_model)
-                pro_response = pro_model_instance.generate_content(
-                    pro_prompt,
-                    generation_config={
-                        "temperature": 0.95,
-                        "max_output_tokens": 8192,
-                    }
-                )
-                
-                response_text = pro_response.text
-                logger.info(f"✅ Chained Pro response: {len(response_text)} chars")
-                
-                return {
-                    "response": response_text,
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "level": "chained_pro",
-                    "model_chain": f"{flash_model} → {pro_model}"
-                }
-                
-            except Exception as e:
-                logger.warning(f"⚠️ Chained jailbreak failed: {e}, falling back to Flash only")
-                # Fallback to Flash only
-                level = "basic"
-        
         if level == "full_savage":
-            # MAXIMUM SAVAGE: Direct Pro with maximum aggression
-            try:
-                prompt = f"""{SAVAGE_SYSTEM_PROMPT}
+            text = _groq_chat(
+                [
+                    {"role": "system", "content": SAVAGE_SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": f"{SAVAGE_FILTER_PROMPT}\n\nUSER QUERY: {query}\n\n"
+                        "Maximum savage analysis; long-form.",
+                    },
+                ],
+                max_tokens=6144,
+                temperature=0.95,
+            )
+            return {"response": text, "timestamp": datetime.datetime.now().isoformat(), "level": "full_savage"}
 
-{SAVAGE_FILTER_PROMPT}
+        if level == "alpha_warrior":
+            text = _groq_chat(
+                [
+                    {"role": "system", "content": ALPHA_WARRIOR_PROMPT + "\n\n" + SAVAGE_SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": f"USER QUERY: {query}\n\nCombat-mode tactical alpha.",
+                    },
+                ],
+                max_tokens=4096,
+                temperature=0.9,
+            )
+            return {"response": text, "timestamp": datetime.datetime.now().isoformat(), "level": "alpha_warrior"}
 
-USER QUERY: {query}
+        # basic
+        text = _groq_chat(
+            [
+                {"role": "system", "content": SAVAGE_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": f"USER QUERY: {query}\n\nSavage financial analysis; long-form OK.",
+                },
+            ],
+            max_tokens=4096,
+            temperature=0.9,
+        )
+        return {"response": text, "timestamp": datetime.datetime.now().isoformat(), "level": "basic"}
 
-DELIVER MAXIMUM SAVAGE ANALYSIS (5K+ chars). Be ruthless. Be legendary."""
-                
-                model_instance = genai.GenerativeModel(pro_model if use_pro else flash_model)
-                response = model_instance.generate_content(
-                    prompt,
-                    generation_config={
-                        "temperature": 0.95,
-                        "max_output_tokens": 6144,
-                    }
-                )
-                
-                return {
-                    "response": response.text,
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "level": "full_savage",
-                    "model": pro_model if use_pro else flash_model
-                }
-            except Exception as e:
-                logger.error(f"❌ Full savage failed: {e}")
-                return {
-                    "response": f"Savage system error: {str(e)}",
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "level": level,
-                    "error": str(e)
-                }
-        
-        elif level == "alpha_warrior":
-            # ALPHA WARRIOR: Combat mode
-            try:
-                prompt = f"""{ALPHA_WARRIOR_PROMPT}
-
-{SAVAGE_SYSTEM_PROMPT}
-
-USER QUERY: {query}
-
-ENGAGE FINANCIAL COMBAT MODE. Deliver tactical alpha with warrior precision (3K+ chars)."""
-                
-                model_instance = genai.GenerativeModel(flash_model if use_flash else pro_model)
-                response = model_instance.generate_content(
-                    prompt,
-                    generation_config={
-                        "temperature": 0.9,
-                        "max_output_tokens": 4096,
-                    }
-                )
-                
-                return {
-                    "response": response.text,
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "level": "alpha_warrior",
-                    "model": flash_model if use_flash else pro_model
-                }
-            except Exception as e:
-                logger.error(f"❌ Alpha warrior failed: {e}")
-                return {
-                    "response": f"Combat matrix error: {str(e)}",
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "level": level,
-                    "error": str(e)
-                }
-        
-        else:  # basic
-            # BASIC SAVAGE: Direct savage prompting
-            try:
-                prompt = f"""{SAVAGE_SYSTEM_PROMPT}
-
-USER QUERY: {query}
-
-Deliver savage financial analysis (4K+ chars). Be direct. Be ruthless. Be alpha."""
-                
-                model_instance = genai.GenerativeModel(flash_model if use_flash else pro_model)
-                response = model_instance.generate_content(
-                    prompt,
-                    generation_config={
-                        "temperature": 0.9,
-                        "max_output_tokens": 4096,
-                    }
-                )
-                
-                return {
-                    "response": response.text,
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "level": "basic",
-                    "model": flash_model if use_flash else pro_model
-                }
-            except Exception as e:
-                logger.error(f"❌ Basic savage failed: {e}")
-                return {
-                    "response": f"Savage analysis error: {str(e)}",
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "level": level,
-                    "error": str(e)
-                }
-    
-    except ImportError:
-        logger.error("❌ google-generativeai not installed. Run: pip install google-generativeai")
-        return {
-            "response": "Savage LLM requires google-generativeai package. Install: pip install google-generativeai",
-            "timestamp": datetime.datetime.now().isoformat(),
-            "level": level,
-            "error": "Package not installed"
-        }
     except Exception as e:
-        logger.error(f"❌ Savage LLM error: {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error("Savage LLM (Groq) error: %s", e)
         return {
-            "response": f"Savage system malfunction: {str(e)}",
+            "response": f"Savage system malfunction: {e}",
             "timestamp": datetime.datetime.now().isoformat(),
             "level": level,
-            "error": str(e)
+            "error": str(e),
         }
 
 def query_llm(prompt: str, provider: str = "gemini", image_path: Optional[str] = None) -> Dict[str, Any]:

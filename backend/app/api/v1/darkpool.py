@@ -12,6 +12,7 @@ from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -48,14 +49,27 @@ def _get_current_price(symbol: str) -> float:
         if hist.empty:
             # Fallback to daily
             hist = ticker.history(period="5d")
-        if hist.empty:
-            raise HTTPException(
-                status_code=503,
-                detail=f"No price data available for {symbol}"
-            )
-        return float(hist["Close"].iloc[-1])
+        if not hist.empty:
+            return float(hist["Close"].iloc[-1])
     except HTTPException:
         raise
+    except Exception as e:
+        logger.warning(f"yfinance price path failed for {symbol}, falling back to Yahoo chart API: {e}")
+
+    # Fallback: direct Yahoo chart API
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol.upper()}?interval=1m&range=1d"
+        resp = requests.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
+        payload = resp.json()
+        result = payload.get("chart", {}).get("result", [])
+        if not result:
+            raise ValueError("No chart result")
+        meta = result[0].get("meta", {})
+        price = meta.get("regularMarketPrice")
+        if price is None:
+            raise ValueError("No regularMarketPrice in chart meta")
+        return float(price)
     except Exception as e:
         raise HTTPException(
             status_code=503,
@@ -294,7 +308,17 @@ async def get_dp_summary(symbol: str):
 
     total_volume = abs(int((detail.short_volume if detail else 0) or (detail.dp_position_shares if detail else 0) or 0))
     dp_position_dollars = abs((detail.dp_position_dollars if detail else 0) or 0)
-    net_short_dollars = abs((detail.net_short_volume if detail else 0) or 0) if hasattr(detail, 'net_short_volume') else None
+
+    # net_short_volume is shares in Stockgrid payloads; convert to dollars using current price.
+    # Do not force abs() so direction is preserved (positive = net short pressure).
+    net_short_shares = getattr(detail, "net_short_volume", None) if detail else None
+    if (net_short_shares is None or net_short_shares == 0) and top_positions:
+        for pos in top_positions:
+            if pos.ticker == symbol and hasattr(pos, "net_short_volume"):
+                net_short_shares = getattr(pos, "net_short_volume", None)
+                if net_short_shares is not None:
+                    break
+    net_short_dollars = (float(net_short_shares) * float(current_price)) if net_short_shares is not None else None
 
     # B3 FIX: Return raw Stockgrid short_volume_pct, not the derived dp_percent
     raw_short_vol_pct = round(raw_pct if raw_pct > 1 else raw_pct * 100, 1) if detail else None

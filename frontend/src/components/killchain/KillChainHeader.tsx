@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Target, Flame, Pause, Brain, RefreshCw } from 'lucide-react';
-import type { KillChainData } from './types';
+import type { KillChainData, KillChainScanParity } from './types';
 
 interface Props {
   kc: KillChainData;
@@ -9,6 +9,7 @@ interface Props {
   activations: number;
   lastRefresh: Date | null;
   onRefresh?: () => void;
+  parity?: KillChainScanParity | null;
 }
 
 const CONFLUENCE_LABEL: Record<string, string> = {
@@ -18,7 +19,7 @@ const CONFLUENCE_LABEL: Record<string, string> = {
   WAITING: 'Watching — Waiting for Confluence',
 };
 
-export const KillChainHeader: React.FC<Props> = ({ kc, totalChecks, activations, lastRefresh, onRefresh }) => {
+export const KillChainHeader: React.FC<Props> = ({ kc, totalChecks, activations, lastRefresh, onRefresh, parity }) => {
   const [spinning, setSpinning] = useState(false);
   const label = CONFLUENCE_LABEL[kc.confluence] ?? kc.confluence;
 
@@ -64,6 +65,14 @@ export const KillChainHeader: React.FC<Props> = ({ kc, totalChecks, activations,
               {lastRefresh?.toLocaleTimeString() ?? '—'}
             </span>
           </div>
+          {parity && (
+            <div className="mt-2 text-[10px] font-mono text-zinc-400">
+              Core 3-layer: <span className="text-emerald-400">{parity.core_3layer?.confluence ?? '—'}</span>
+              {' '}({parity.core_3layer?.triggered_count ?? '—'}/{parity.core_3layer?.layers_total ?? 3})
+              {' '}· Scan 5-layer: <span className="text-amber-400">{parity.alert_level ?? '—'}</span>
+              {' '}({parity.layers_active ?? '—'}/{parity.layers_total ?? 5})
+            </div>
+          )}
         </div>
       </div>
 

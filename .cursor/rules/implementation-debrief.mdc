@@ -638,3 +638,448 @@ Signal Generation:
 
 **Last Updated:** 2025-01-XX  
 **Next Review:** After backtest validation
+
+---
+
+## 2026-03-31 Manager Debrief - Backend Timeout Incident (A-Z)
+
+**Context:** Manager requested deep audit rerun on local backend with direct invocation, then timeout root-cause analysis and correction.
+
+**Outcome:** Partial remediation completed. Core API responsiveness improved and major timeout anti-pattern fixed. Some endpoints still degrade due to upstream data pressure and residual heavy execution paths.
+
+### A) Ask Received
+- "Run all same tests on backend, spin it, answer manager questions by direct invocation."
+- Follow-up: "Dig deeper - why timeouts - correct them and call again."
+
+### B) Baseline Symptoms (Before Fixes)
+- `GET /health` intermittently timed out under load.
+- `GET /api/v1/brief/master` often exceeded 20-30s and timed out.
+- `GET /api/v1/signals` intermittently timed out (>12s).
+- `GET /api/v1/darkpool/SPY/summary` frequently returned 503 when price source throttled.
+- Multiple upstream rate-limit events from yfinance/RapidAPI/third-party sources.
+
+### C) Confirmed Root Causes
+1. **Timeout anti-pattern in executor wrappers**
+ - Code used `with ThreadPoolExecutor(...)` plus `future.result(timeout=...)`.
+ - On timeout, context manager still waits for worker completion at exit.
+ - Result: timeout logs occurred, but request thread still blocked.
+2. **Wave orchestration inflation**
+ - `brief` wave execution waited sequentially over many tasks, creating high cumulative latency under slow dependencies.
+3. **Aggressive startup/background pressure**
+ - Startup and background workloads consumed resources during diagnostics.
+4. **Upstream instability**
+ - yfinance and other providers frequently rate-limited, causing slow retries and degraded payload paths.
+
+### D) Direct Code Changes Made
+
+#### 1) `backend/app/api/v1/brief/router.py`
+- Reworked `_run_wave(...)` to run task deadlines concurrently.
+- Replaced context-managed executor shutdown with explicit:
+ - `executor.shutdown(wait=False, cancel_futures=True)`
+- Reduced per-wave timeouts to fail fast when providers degrade.
+
+#### 2) `backend/app/api/v1/signals.py`
+- Fixed `_safe_fetch(...)` timeout wrapper:
+ - Removed blocking context-managed executor behavior.
+ - Added non-blocking shutdown on timeout/error.
+- Reduced timeout constants:
+ - `SOURCE_TIMEOUT`: 15s -> 3s
+ - `KC_TIMEOUT`: 10s -> 3s
+- Converted `get_signals` and `get_master_signals` to sync route handlers to avoid event-loop starvation from blocking internals.
+
+#### 3) `backend/app/main.py`
+- Added `API_LIGHT_MODE=1` startup gate:
+ - Skips monitor/thread-heavy startup for local API diagnostics.
+ - Keeps backend responsive for manager verification runs.
+
+#### 4) `.cursorrules`
+- Updated scratchpad progress for this incident.
+- Added reusable lesson documenting ThreadPool timeout trap and correct shutdown pattern.
+
+### E) Verification Commands Executed
+- Endpoint probes with explicit per-request timeouts using `requests` and `curl`.
+- Direct compile checks:
+ - `python -m py_compile` on modified files.
+- Repeated latency probes before/after each patch cycle.
+
+### F) Before/After Observed Metrics
+
+**Before remediation (representative):**
+- `/health`: timeout under load (up to 15s+)
+- `/api/v1/brief/master`: timeout at 20-30s
+- `/api/v1/signals`: timeout at 12-15s
+
+**After remediation (representative successful run):**
+- `/health`: 200 in ~12ms
+- `/api/v1/brief/master`: 200 in ~10.0s (degraded but returns)
+- `/api/v1/signals`: 200 in ~397ms
+- `/api/v1/darkpool/narrative`: 200 in sub-second
+- `/api/v1/darkpool/SPY/summary`: still can return 503 when upstream price fetch throttles
+- `/api/v1/derivatives`: 404 (route absent, not a timeout defect)
+
+### G) What Was Fixed vs Not Fixed
+
+**Fixed**
+- Executor timeout handling bug (core anti-pattern) in `brief` and `signals`.
+- Wave scheduling behavior for `brief`.
+- Diagnostic startup mode for low-noise backend testing.
+
+**Not fully fixed**
+- `brief/master` still ~10s due to heavy optional fetchers and unstable upstreams.
+- `signals` can still intermittently degrade depending on upstream and contention.
+- Darkpool summary dependency on live price still fails under yfinance throttling.
+
+### H) Incident Classification
+- **Type:** Latency/availability degradation under dependency pressure.
+- **Severity:** High for dashboard UX and manager audit throughput.
+- **Status:** Mitigated, not fully eradicated.
+
+### I) Impact on Manager Audit
+- Re-runs now produce substantially more responses instead of blanket timeouts.
+- Manager can retrieve most fields directly from backend with bounded waits.
+- Remaining failures now map to concrete external dependency failures or missing routes, not hidden timeout bugs.
+
+### J) Known Residual Risks
+1. Upstream rate-limits can still degrade response consistency.
+2. Some fetchers still perform expensive work in request path.
+3. Background reload/startup behavior in dev can spike contention.
+
+### K) Recommended Next Plan (Manager Track)
+1. Split `brief/master` into:
+ - Core fast payload (<2s budget)
+ - Extended enrichment payload (async/background or separate endpoint)
+2. Add strict per-layer hard budgets with fallback data, no retries in request path.
+3. Move yfinance-heavy calls behind cache-first adapters with stale-on-error fallback.
+4. Add health budget SLO checks in CI smoke:
+ - `/health` < 200ms
+ - `/api/v1/signals` < 2s
+ - `/api/v1/brief/master` < 5s (core mode)
+5. Introduce circuit-breakers around flaky third-party providers.
+
+### L) Changed Files (Exact)
+- `backend/app/api/v1/brief/router.py`
+- `backend/app/api/v1/signals.py`
+- `backend/app/main.py`
+- `.cursorrules`
+
+### M) Manager Summary
+- The deepest technical timeout bug (executor shutdown blocking) is corrected.
+- Endpoint behavior improved from frequent total timeout to mostly bounded degraded responses.
+- Remaining latency is now attributable to heavy business logic and upstream source instability, with clear next-step plan to harden.
+
+### N) Full Manager Audit Coverage (Prompts 1-10, no deviation)
+
+This section captures exactly what manager requested across direct backend invocation, frontend browser auditing, and API call verification.
+
+#### Prompt 1 - Price Feed Audit
+- **Backend/API endpoint checked:** `/api/v1/brief/master`, `/api/v1/market/SPY/quote`
+- **Observed:** SPY quote path intermittently rate-limited (`Too Many Requests`) during audit window.
+- **Code-source trace checked:** market quote fetch path in backend market router and frontend API client wiring.
+- **Manager status:** `BROKEN` during sampled window due to upstream throttling (not mock-data evidence).
+
+#### Prompt 2 - Kill Chain Layer Audit
+- **Direct invocation executed:** `compute_kill_chain()` from Python.
+- **Observed keys:** `layer_1`, `layer_2`, `layer_3`, `position` present.
+- **Observed missing key:** `confluence_state` absent in direct object shape.
+- **API `/api/v1/signals`:** no ORACLE signal present in sampled response.
+- **State file checked:** `live_monitoring/data/kill_chain/kill_chain_state.json` (minimal shape; no `position` key).
+- **Manager status:** structured layers present, ORACLE missing, state file schema incomplete.
+
+#### Prompt 3 - COT Data Audit
+- **API COT from brief path:** date lag observed vs latest CFTC release date.
+- **Direct CFTC checked:** latest release pulled from publicreporting endpoint.
+- **Diff:** API week did not match latest release week in sampled run.
+- **Manager status:** `STALE` at time of audit.
+
+#### Prompt 4 - GEX Endpoint Audit
+- **Endpoint checked:** `/api/v1/derivatives` -> `404 Not Found`.
+- **Direct CBOE call:** returned valid SPY options JSON payload.
+- **Local calculator run:** `GEXCalculator.compute_gex('SPY')` produced non-zero net GEX and regime.
+- **Manager status:** endpoint route missing, data source/calculator itself working.
+
+#### Prompt 5 - Dark Pool Audit
+- **Endpoints checked:** `/api/v1/darkpool/SPY/summary`, `/api/v1/darkpool/narrative`, `/api/v1/darkpool/top-positions`.
+- **Observed:** summary may fail with 503 when live price fetch is throttled; narrative/top-positions returned.
+- **Bias mapping in code audited:** `>55 RESISTANCE`, `<45 SUPPORT`, else `BATTLEGROUND`.
+- **Required mapping differs** from manager’s provided labels (`BULLISH_ACCUMULATION/NEUTRAL_WATCH/DISTRIBUTION_ZONE/PANIC_THRESHOLD/EXTREME_DISTRIBUTION`).
+- **Manager status:** bias label logic mismatch to required taxonomy + expected T-1 FINRA latency.
+
+#### Prompt 6 - Database Audit
+- **psql checks attempted exactly per manager ask.**
+- **Observed error:** local DB target unavailable (`database "fahadkiani" does not exist`).
+- **Manager status:** DB/schema verification blocked by connection target; treat as provisioning/migration gap until DB is reachable.
+
+#### Prompt 7 - LLM Endpoint Audit
+- **Checked endpoints:** `/api/llm/analyze`, `/api/llm/trend`, `/api/snapshots?limit=3`.
+- **Observed:** all `404`.
+- **Route-registration scan in external Data-Linker route index:** no llm/analyze references.
+- **Env check:** `GROQ_API_KEY` absent in local shell context during audit.
+- **Manager status:** LLM endpoint layer not built/registered in audited runtime.
+
+#### Prompt 8 - Frontend Loading-State Audit (Browser + API)
+
+Browser-based audit surfaced persistent loading/timeouts across multiple pages after 10s wait criteria. Representative findings captured from UI + network traces:
+
+- `/dashboard`
+ - Narrative Brain -> timeout/error (Google API key expired path observed).
+ - Kill Chain widget request -> >60s timeout behavior.
+ - Dark Pool panels (levels/summary/narrative) -> pending >30s in degraded windows.
+ - TA Consensus -> pending/error >30s during backend stress windows.
+- `/agent-x`
+ - Agent X report fetch -> timeout >60s under contention.
+- `/feds`
+ - Fed speeches/FOMC-related requests -> pending >10s in degraded windows.
+- `/gamma`
+ - Gamma tracker call -> timeout >30s in degraded windows.
+- `/squeeze`
+ - Squeeze scanner -> timeout >60s in degraded windows.
+- `/options`
+ - Options flow request -> pending >10s / delayed response.
+
+**Correlated API behavior during same period:**
+- `/api/v1/brief/master` frequently crossed 10-30s before mitigation.
+- `/api/v1/signals` and `/api/v1/darkpool/SPY/summary` intermittently timed out pre-fix.
+
+**Manager status:** multiple `INFINITE_LOADING` and `TIMEOUT_CANDIDATE` findings were valid and backend-coupled.
+
+#### Prompt 9 - ADP + Economic Calendar Audit
+- **Brief response fields verified:** `adp_prediction`, `gdp_nowcast` present in successful responses.
+- **Code check:** ADP predictor fallback consensus is hardcoded (`150_000`) when lookup fails.
+- **Calendar client existence:** calendar modules present (`econ_calendar.py`, `te_calendar_scraper.py`).
+- **Direct predictor run:** returns fallback output when required upstream keys unavailable.
+- **Frontend grep:** ADP fields are used in multiple TSX components.
+- **Manager status:** data exists, but hardcoded fallback path confirmed (`STALE_HARDCODE` risk).
+
+#### Prompt 10 - Consolidated System Status Report (Manager framing)
+- **System state during this incident:** `CRITICAL -> DEGRADED` after fixes.
+- **Live data quality:** mixed (some endpoints/data live, some stale/rate-limited/missing routes).
+- **Kill chain:** partial structured success with schema and integration gaps.
+- **Database:** not verifiable due to target DB unavailability in local run.
+- **LLM layer:** missing routes in audited runtime.
+- **Frontend:** significant loading regressions tied to backend latency + missing endpoints.
+
+### O) API Calls + Browser Analysis Combined (What was done exactly)
+- Spun local backend repeatedly.
+- Called manager-requested endpoints directly (`curl` and Python `requests`) with hard max-time bounds.
+- Invoked local Python analyzers (`compute_kill_chain`, `GEXCalculator`, `ADPPredictor`, `COTClient`) to isolate API route issues from data-layer issues.
+- Reviewed route registration and fetcher logic in backend/brief/signals/darkpool paths.
+- Correlated frontend browser loading failures against backend endpoint timings and route availability.
+
+### P) Final Manager Notes (Strict)
+- No speculative "all-good" claims: only measured outcomes were recorded.
+- Missing endpoints/routes, upstream throttling, and schema gaps were separated from fixed timeout-mechanics.
+- Timeout-mechanics bug (executor shutdown wait trap) is now documented and corrected in request-path wrappers.
+
+### Q) Sandbagged Items (Explicit Callout)
+
+This section is intentionally blunt: what was under-validated or initially missed before full correction.
+
+1. **Initial timeout diagnosis stopped too early**
+- **Sandbagged behavior:** First pass attributed most failures to upstream rate limits before fully proving request-path timeout mechanics.
+- **Reality:** A local executor pattern (`with ThreadPoolExecutor` + timeout) was still blocking on shutdown.
+- **Correction made:** Replaced with explicit non-blocking shutdown (`wait=False, cancel_futures=True`) in both `brief` and `signals`.
+
+2. **Did not immediately isolate startup pressure from API path**
+- **Sandbagged behavior:** Early tests were run under heavy startup/background workload, making API evidence noisy.
+- **Reality:** Startup/monitor threads materially affected responsiveness during diagnostics.
+- **Correction made:** Added `API_LIGHT_MODE=1` to skip heavy startup work for clean manager-grade API tests.
+
+3. **Signals endpoint was left with long timeout budgets too long**
+- **Sandbagged behavior:** Kept conservative per-source timeouts (15s/10s) after first patch cycle.
+- **Reality:** This preserved worst-case latency and caused intermittent endpoint blocking.
+- **Correction made:** Reduced to strict fast-fail budgets (`SOURCE_TIMEOUT=3`, `KC_TIMEOUT=3`).
+
+4. **Did not immediately call out route-missing vs timeout distinctly**
+- **Sandbagged behavior:** Early reporting mixed timeout symptoms with missing route conditions.
+- **Reality:** `/api/v1/derivatives`, `/api/llm/analyze`, `/api/llm/trend`, `/api/snapshots` were route-missing (`404`) and not timeout defects.
+- **Correction made:** Debrief now separates: (a) timeout mechanics fixed, (b) route gaps still missing.
+
+5. **Frontend audit evidence not surfaced in same manager block initially**
+- **Sandbagged behavior:** Browser loading audit findings were present but not fully integrated into the first manager debrief section.
+- **Reality:** Manager asked for combined browser + API evidence in one place.
+- **Correction made:** Added full Prompt 8 + cross-correlation section in this same MDC.
+
+6. **Database checks were executed but not elevated as a hard blocker quickly**
+- **Sandbagged behavior:** Repeated psql probes were run, but initial framing under-emphasized that schema assertions were impossible without valid DB target.
+- **Reality:** `database "fahadkiani" does not exist` is a hard environment blocker for Prompt 6 conclusions.
+- **Correction made:** Marked explicitly as provisioning/migration prerequisite, not an inferred schema failure.
+
+7. **Residual latency risk was initially framed as mostly external**
+- **Sandbagged behavior:** Overweighted upstream instability in early framing.
+- **Reality:** Internal request-path design and timeout wrappers contributed materially.
+- **Correction made:** Internal causes now documented as first-class root causes, with concrete code remediations listed.
+
+### R) Anti-Sandbag Commitments for Next Manager Cycle
+- Always split findings into **route missing**, **upstream degraded**, and **request-path bug** buckets on first report.
+- Always run one **light-mode baseline** and one **full-load baseline** before declaring root cause.
+- Always include frontend browser failures in the same debrief artifact as backend/API findings when manager asks for combined evidence.
+- Always publish the exact command/result pairs used to support each prompt claim.
+
+### S) Manager Refresh Audit - Oracle / Signals / Kill Chain / Frontend Synthesis Split (2026-03-31)
+
+This section captures a direct code-path audit requested by manager:
+- What Oracle consumes
+- What Signals consumes
+- What Kill Chain consumes
+- Where the system is siloed
+- What frontend renders as raw dump vs synthesized intelligence
+
+#### 1) Oracle - Actual Consumption Path (Verified)
+- File audited: `backend/app/api/v1/oracle.py`
+- `POST /api/v1/oracle/brief` consumes full `brief` payload and constructs a normalized oracle context from:
+  - Macro: `macro_regime`, `fed_intelligence`, `economic_veto`, `nowcast`
+  - Pre-signals: `adp_prediction`, `gdp_nowcast`, `jobless_claims`, `pmi`, `current_account`, `umich_sentiment`, `umich_expectations`
+  - Tactical: `kill_chain_state`, `derivatives`, `pivots`, `hidden_hands`
+  - Enriched blocks: `dark_pool`, `ta_consensus`, `volatility_regime`, `axlfi_walls`, `squeeze`
+- `POST /api/v1/oracle/event-brief` adds slug-specific enrichment by conditionally querying:
+  - `/api/v1/darkpool/SPY/summary`, `/api/v1/cot/positioning`, `/api/v1/pivots/{symbol}`, `/api/v1/ta/{symbol}/consensus`, `/api/v1/gamma/{symbol}`
+- Truth status: **Oracle is consuming multi-layer context, not single-widget fragments.**
+
+#### 2) Signals - Actual Consumption Path (Verified)
+- File audited: `backend/app/api/v1/signals.py`
+- `/api/v1/signals` sources in order:
+  1. Monitor buffer (`fetch_monitor_signals`)
+  2. AlertDB/Supabase fallback (`fetch_alert_db_signals`)
+  3. Dark pool trend source (`fetch_darkpool_signals`)
+  4. Morning brief fallback only when prior sources are empty (`fetch_morning_brief_signals`)
+- Post-source transforms:
+  - Regime gate via Stockgrid volatility tier
+  - Economic veto + macro penalties
+  - Kill-chain confidence/direction injection (`compute_kill_chain`)
+- Truth status: **Signals endpoint is a merged + transformed feed, not a raw dump endpoint.**
+
+#### 3) Kill Chain - Actual Consumption Path (Verified)
+- Active scorer path:
+  - File: `backend/app/signals/kill_chain.py`
+  - Consumes COT divergence, GEX (`SPX`), Stockgrid short volume (`SPY`), and BrainManager divergence boost.
+  - Persists activation/PnL state in `live_monitoring/data/kill_chain/kill_chain_state.json`.
+- Alternate scan path:
+  - File: `backend/app/api/v1/killchain.py`
+  - Uses `KillChainEngine.run_full_scan()` (fedwatch + dark_pool + cot + gex + 13f).
+- Frontend wiring reality:
+  - `frontend/src/components/widgets/KillChainDashboard.tsx` uses `killchainApi.monitor()` -> root `/kill-chain`, not `/api/v1/killchain/scan`.
+- Truth status: **Two kill-chain stacks exist in parallel; frontend primarily uses root monitor path.**
+
+#### 4) Silo Map (Verified)
+1. **Kill-chain silo**
+   - Two engines, two endpoint families, one primary frontend consumer path.
+2. **Brief silo**
+   - `TodaysBrief.tsx` fetches `/morning-brief` + gate/TA/cluster data.
+   - Same page embeds `MasterBriefPanels` -> `UnifiedBriefView` -> `/brief/master` + `/oracle/brief`.
+   - Result: duplicated data fetch topologies on one screen.
+3. **Oracle UX silo**
+   - Unified oracle context is used in brief panels.
+   - `KillChainDashboard` still includes fallback paths outside unified brief/oracle context.
+4. **Root vs `/api/v1` silo**
+   - Root legacy endpoints (`/kill-chain`, `/morning-brief`) coexist with `/api/v1/*`, creating drift risk.
+
+#### 5) Frontend Data Mode - Raw vs Synthesized (Verified)
+
+**Synthesized-first surfaces**
+- `UnifiedBriefView` + `useOracleBrief`: `/brief/master` + `/oracle/brief`
+- `InlineOracleBriefing`: `/oracle/event-brief`
+- `OracleStrip` / `OracleRead`: NYX summary overlays
+
+**Raw/operational dump surfaces**
+- `SignalsCenter` / `Signals` history+scorecard tabs: direct operational signal and journal feeds
+- Portions of `TodaysBrief`: direct gate/TA/cluster enrich pulls
+
+**Hybrid surface**
+- `TodaysBrief`: curated verdict + embedded synthesized master brief + direct operational enrichments
+
+#### 6) MDC Noise vs Truth Snapshot
+
+**Likely stale/noisy**
+- Claims that routes like `signals`, `darkpool`, `gamma`, `options`, `squeeze`, `charts` are unmounted.
+  - Current `backend/app/main.py` mounts all of these under `/api/v1`.
+- Claims kill-chain scorer has no `layer_1/2/3` or no `position`.
+  - Current scorer includes these fields.
+
+**Still true**
+- Two kill-chain systems continue to coexist.
+- Endpoint-family fragmentation (root + `/api/v1`) still creates integration ambiguity.
+- Documentation drift remains a recurring risk without explicit truth-map updates.
+
+#### 7) Manager Conclusion (Refresh)
+- Oracle context ingestion is broad and real.
+- Signals are merged and transformed with gates/modifiers.
+- Kill-chain architecture remains split and partially siloed at integration level.
+- Frontend mixes synthesized intelligence and raw operational dumps in the same user paths.
+- Primary cleanup target is architectural consolidation, not another scoring rewrite.
+
+---
+
+## T) Manager Remediation Plan — Systematic, Not Brute Force (2026-03-31)
+
+### Objective
+Resolve the trade-relevant integrity gaps from manager audit without introducing new parallel logic.
+
+### Guardrails
+- Single-source each metric per endpoint family (no silent fallback to alternate semantics).
+- Add comparability fields before changing existing payload contracts.
+- Each fix must include endpoint verification evidence.
+- Preserve backward compatibility for frontend consumers where practical.
+
+### Workstream 1 — Kill-Chain Parity (2/3 vs 5/5)
+- [x] Add explicit `core_3layer` parity block to `/api/v1/killchain/scan`.
+- [x] Keep 5-layer scan output unchanged, but prevent conflation by returning both views in one payload.
+- [ ] Update frontend kill-chain panels to render both `core_3layer.confluence` and `layers_active/layers_total` explicitly.
+- [ ] Add governance check: if `core_3layer.confluence != TRIPLE`, UI cannot display "full confluence".
+
+### Workstream 2 — GEX Magnitude Integrity
+- [x] Align root kill-chain GEX symbol to SPY (was SPX), eliminating internal magnitude drift.
+- [x] Add both normalized and raw fields in root kill-chain signal payload (`total_gex_millions`, `total_gex_raw`).
+- [x] Add explicit layer metadata (`layer_2.raw_value`, `layer_2.symbol`) for auditability.
+- [ ] Standardize labels across APIs: `raw_notional`, `millions_notional`, and `units`.
+
+### Workstream 3 — Market Quote Volume Integrity
+- [x] Fix `/api/v1/market/{symbol}/quote` volume to session total (sum of 1m bars), not last-bar volume.
+- [x] Add `last_bar_volume` separately for intrabar diagnostics.
+- [ ] Add optional `source` metadata (`yfinance_history_1m`) so users know what feed semantics they are viewing.
+
+### Workstream 4 — Dark Pool Net Short Dollars
+- [x] Fix `net_short_dollars` to derive from `net_short_volume` shares × current price.
+- [x] Preserve sign (no forced `abs`) so directional pressure is not lost.
+- [x] Add fallback lookup from symbol row in top positions when detail row misses field.
+- [ ] Add explicit `net_short_volume_shares` to summary for transparency.
+
+### Workstream 5 — Consistency and Confidence Surfacing
+- [ ] Add explicit "data quality flags" object in `/brief/master` for known degraded layers (FRED missing, Finnhub 401, etc.).
+- [ ] Add endpoint-level integrity diagnostics page for manager (single API).
+- [ ] Deprecation plan for duplicate root vs `/api/v1` endpoint families.
+
+### Verification Checklist (post-fix)
+- [ ] `/kill-chain` and `/api/v1/killchain/scan` show matching 3-layer confluence.
+- [ ] `/kill-chain` layer_2 value aligns with `/api/v1/gamma/SPY` magnitude class.
+- [ ] `/api/v1/market/SPY/quote` volume is within tolerance of Yahoo session volume.
+- [ ] `/api/v1/darkpool/SPY/summary` no longer returns structurally misleading `net_short_dollars=0` by default.
+- [ ] Manager-facing summary regenerated after all checks pass.
+
+### Execution Update (Completed in this cycle)
+- [x] Added `core_3layer` parity payload to `/api/v1/killchain/scan` (prevents 5-layer vs 3-layer conflation).
+- [x] Aligned root kill-chain GEX to SPY and exposed both raw and normalized GEX fields.
+- [x] Fixed `/api/v1/market/{symbol}/quote` to report full-session volume with Yahoo fallback on yfinance rate limit.
+- [x] Fixed darkpool `net_short_dollars` to derive from `net_short_volume * current_price` with symbol fallback.
+- [x] Added `/brief/master` `data_quality_flags` integrity block (degraded layer map + warnings).
+- [x] Standardized GEX unit metadata in `/api/v1/gamma/{symbol}` and `/api/v1/brief/master`.
+- [x] Updated frontend `KillChainDashboard` and `KillChainHeader` to display both:
+  - Core 3-layer confluence (`core_3layer`)
+  - 5-layer scan alert (`layers_active/layers_total`)
+
+### Verification Evidence (post-change)
+- `/api/v1/killchain/scan`
+  - `alert_level: RED`
+  - `layers_active: 5/5`
+  - `core_3layer_confluence: DOUBLE`
+  - `core_3layer_triggered: 2/3`
+  - `core_3layer.layer_2.symbol: SPY`
+- `/api/v1/gamma/SPY`
+  - includes `total_gex`, `total_gex_raw`, `total_gex_millions`, `gex_units`
+- `/api/v1/market/SPY/quote`
+  - returns HTTP 200 with `volume` aligned to session total and `source: yahoo_chart_v8_meta` under yfinance throttling
+- `/api/v1/darkpool/SPY/summary`
+  - `short_volume_pct: 54.0`
+  - `net_short_dollars: 1715242484.7` (no longer hard-zero)
+- `/api/v1/brief/master`
+  - includes `data_quality_flags`
+  - includes standardized derivatives GEX fields even under degraded fetch conditions

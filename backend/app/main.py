@@ -7,12 +7,23 @@ Main entry point for the backend API with Savage LLM Agent integration.
 import os
 import logging
 from datetime import datetime
+
+try:
+    from dotenv import load_dotenv
+
+    _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+    _REPO_ROOT = os.path.abspath(os.path.join(_BACKEND_DIR, "..", ".."))
+    load_dotenv(os.path.join(_REPO_ROOT, ".env"))
+    load_dotenv(os.path.join(_BACKEND_DIR, "..", ".env"))
+except ImportError:
+    pass
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate, intraday, brief, oracle
+from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate, intraday, brief, oracle, morningstar
 from backend.app.core.dependencies import set_monitor_bridge
 
 logging.basicConfig(level=logging.INFO)
@@ -68,6 +79,7 @@ app.include_router(gate.router, prefix="/api/v1", tags=["gate"])
 app.include_router(intraday.router, prefix="/api/v1", tags=["intraday"])
 app.include_router(brief.router, prefix="/api/v1", tags=["brief"])
 app.include_router(oracle.router, prefix="/api/v1", tags=["oracle"])
+app.include_router(morningstar.router, prefix="/api/v1", tags=["morningstar"])
 
 
 @app.get("/debug/git")
@@ -227,6 +239,14 @@ async def startup():
     """Initialize monitor bridge + start background data capture threads."""
     import asyncio
     import threading
+
+    # Lightweight API mode for local diagnostics: skip background monitors/threads.
+    if os.getenv("API_LIGHT_MODE", "0") == "1":
+        _thread_status['monitor_run_loop'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
+        _thread_status['paper_trade_scheduler'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
+        _thread_status['econ_release_capture'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
+        logger.info("⚡ API_LIGHT_MODE=1 — skipping monitor/thread startup for responsive API diagnostics")
+        return
 
     if MONITOR_AVAILABLE:
         try:
