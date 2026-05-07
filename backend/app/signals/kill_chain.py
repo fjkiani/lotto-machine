@@ -26,7 +26,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger(__name__)
 
@@ -378,42 +378,103 @@ def compute_kill_chain() -> dict:
             "signal": "PANIC_THRESHOLD" if layer_3_triggered else "WATCHING",
         }
 
-        # ── Layer 4 — AXLFI Wall Proximity ──────────────────────────────────────
+        # ── Layer 4 — AXLFI Wall Position ───────────────────────────────────────
         axlfi_wall_triggered = False
         axlfi_wall_signal = "NEUTRAL"
+        _pts_above_call = None
         try:
             from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SGClient
             _sg = _SGClient(cache_ttl=300)
             _walls = _sg.get_option_walls_today("SPY")
             if _walls and current_spot > 0:
-                _call_wall = _walls.call_wall
-                _put_wall = _walls.put_wall
+                _call_wall = getattr(_walls, 'call_wall', None) or 0
+                _put_wall = getattr(_walls, 'put_wall', None) or 0
                 raw["axlfi_call_wall"] = _call_wall
                 raw["axlfi_put_wall"] = _put_wall
                 raw["axlfi_spot"] = current_spot
-                # Within 0.5% of call wall = resistance (bearish)
+                _pts_above_call = round(current_spot - _call_wall, 2) if _call_wall else None
+                raw["pts_above_call_wall"] = _pts_above_call
+
                 if _call_wall > 0 and abs(current_spot - _call_wall) / _call_wall < 0.005:
+                    # AT call wall = resistance zone (bearish)
                     bearish_pts += 2
                     axlfi_wall_triggered = True
-                    axlfi_wall_signal = f"AT_CALL_WALL_{_call_wall}"
-                    raw["axlfi_signal"] = f"PRICE_AT_CALL_WALL → BEARISH RESISTANCE"
-                # Within 0.5% of put wall = support (bullish)
+                    axlfi_wall_signal = "AT_CALL_WALL"
+                    raw["axlfi_signal"] = "AT_CALL_WALL"
+                elif _call_wall > 0 and current_spot > _call_wall:
+                    # ABOVE call wall = breakout, squeeze fuel (bullish)
+                    bullish_pts += 1
+                    axlfi_wall_triggered = True
+                    axlfi_wall_signal = "ABOVE_CALL_WALL"
+                    raw["axlfi_signal"] = "ABOVE_CALL_WALL"
                 elif _put_wall > 0 and abs(current_spot - _put_wall) / _put_wall < 0.005:
+                    # AT put wall = support zone (bullish)
                     bullish_pts += 2
                     axlfi_wall_triggered = True
-                    axlfi_wall_signal = f"AT_PUT_WALL_{_put_wall}"
-                    raw["axlfi_signal"] = f"PRICE_AT_PUT_WALL → BULLISH SUPPORT"
+                    axlfi_wall_signal = "AT_PUT_WALL"
+                    raw["axlfi_signal"] = "AT_PUT_WALL"
+                elif _put_wall > 0 and current_spot < _put_wall:
+                    # BELOW put wall = breakdown (bearish)
+                    bearish_pts += 1
+                    axlfi_wall_triggered = True
+                    axlfi_wall_signal = "BELOW_PUT_WALL"
+                    raw["axlfi_signal"] = "BELOW_PUT_WALL"
                 else:
+                    axlfi_wall_signal = "BETWEEN_WALLS"
                     raw["axlfi_signal"] = "BETWEEN_WALLS"
         except Exception as _exc:
             raw["axlfi_error"] = str(_exc)
 
         layer_4 = {
-            "name": "AXLFI Wall Proximity",
+            "name": "AXLFI Wall Position",
             "triggered": axlfi_wall_triggered,
             "value": current_spot,
             "unit": "SPY Price",
             "signal": axlfi_wall_signal,
+            "pts_above_call_wall": _pts_above_call,
+        }
+
+        # ── Layer 5 — QQQ Reshort Spike ─────────────────────────────────────────
+        qqq_reshort_triggered = False
+        qqq_sv_delta = None
+        try:
+            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SGClient5
+            from concurrent.futures import ThreadPoolExecutor as _TPE5, TimeoutError as _TE5
+            _sg5 = _SGClient5(cache_ttl=300)
+            with _TPE5(max_workers=1) as _pool5:
+                _qqq_fut5 = _pool5.submit(_sg5.get_ticker_detail_raw, "QQQ")
+                try:
+                    _qqq_raw5 = _qqq_fut5.result(timeout=6)
+                    if _qqq_raw5:
+                        _sv_table5 = _qqq_raw5.get("individual_short_volume_table", {})
+                        _sv_items5 = _sv_table5.get("data", []) if isinstance(_sv_table5, dict) else _sv_table5
+                        if _sv_items5 and len(_sv_items5) >= 2:
+                            _sv_sorted5 = sorted(_sv_items5, key=lambda x: x.get("date", "") if isinstance(x, dict) else "")
+                            def _sv_val5(row):
+                                v = float(row.get("short_volume_pct", row.get("short_volume%", row.get("short_volume_percent", 0))) or 0)
+                                return v if v > 1.0 else v * 100.0
+                            _qqq_latest5 = round(_sv_val5(_sv_sorted5[-1]), 1)
+                            _qqq_prev5 = round(_sv_val5(_sv_sorted5[-2]), 1)
+                            qqq_sv_delta = round(_qqq_latest5 - _qqq_prev5, 1)
+                            raw["qqq_sv_delta"] = qqq_sv_delta
+                            raw["qqq_sv_latest"] = _qqq_latest5
+                            # Reshort spike: QQQ SV up >10pp AND SPY above call wall
+                            if qqq_sv_delta > 10 and axlfi_wall_signal in ("ABOVE_CALL_WALL", "AT_CALL_WALL"):
+                                qqq_reshort_triggered = True
+                                bullish_pts += 2  # squeeze fuel
+                                raw["qqq_reshort_spike"] = True
+                                raw["qqq_reshort_note"] = f"QQQ SV +{qqq_sv_delta}pp in 1d while SPY above call wall = squeeze fuel"
+                except _TE5:
+                    raw["qqq_sv_error"] = "timeout"
+        except Exception as _qqq_exc5:
+            raw["qqq_sv_error"] = str(_qqq_exc5)
+
+        layer_5 = {
+            "name": "QQQ Reshort Spike",
+            "triggered": qqq_reshort_triggered,
+            "value": qqq_sv_delta,
+            "unit": "QQQ SV 1d delta (pp)",
+            "signal": f"RESHORT_SPIKE +{qqq_sv_delta}pp" if qqq_reshort_triggered else "NEUTRAL",
         }
 
         # ── Fed Event Veto ───────────────────────────────────────────────────────
@@ -437,9 +498,12 @@ def compute_kill_chain() -> dict:
 
         # ── Confluence label ─────────────────────────────────────────────────────
         layer_4_triggered = axlfi_wall_triggered
-        triggered_count = sum([layer_1_triggered, layer_2_triggered, layer_3_triggered, layer_4_triggered])
+        layer_5_triggered = qqq_reshort_triggered
+        triggered_count = sum([layer_1_triggered, layer_2_triggered, layer_3_triggered, layer_4_triggered, layer_5_triggered])
         if fed_veto_active:
             confluence = "VETO"
+        elif triggered_count >= 5:
+            confluence = "QUINT"
         elif triggered_count == 4:
             confluence = "QUAD"
         elif triggered_count == 3:
@@ -511,6 +575,7 @@ def compute_kill_chain() -> dict:
             "layer_2": layer_2,
             "layer_3": layer_3,
             "layer_4": layer_4,
+            "layer_5": layer_5,
             "position": position,
             "signals": signals,
             "layers": raw,
