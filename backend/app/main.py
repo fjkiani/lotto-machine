@@ -462,6 +462,54 @@ async def list_models():
     except Exception as e:
         return {"error": str(e), "openrouter_configured": False}
 
+
+@app.post("/alpha-graph/run")
+async def run_alpha_graph(payload: dict = None):
+    """Run the full LangGraph alpha pipeline. Returns verdict, confidence, thesis within ~30s."""
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    from backend.app.graph.pipeline import run_alpha_pipeline
+
+    payload = payload or {}
+    symbol = payload.get("symbol", "SPY")
+    thread_id = payload.get("thread_id", None)
+
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        final_state = await loop.run_in_executor(
+            pool, lambda: run_alpha_pipeline(symbol=symbol, thread_id=thread_id)
+        )
+
+    return {
+        "run_id": final_state.get("run_id"),
+        "symbol": final_state.get("symbol"),
+        "verdict": final_state.get("verdict"),
+        "confidence": final_state.get("confidence"),
+        "thesis": final_state.get("thesis"),
+        "primary_risk": final_state.get("primary_risk"),
+        "direction": final_state.get("direction"),
+        "gate_result": final_state.get("gate_result"),
+        "errors": final_state.get("errors", []),
+        "node_timings": final_state.get("node_timings", {}),
+    }
+
+
+@app.get("/alpha-graph/state/{thread_id}")
+async def get_alpha_graph_state(thread_id: str):
+    """Retrieve the last checkpointed state for a given thread_id."""
+    from backend.app.graph.pipeline import get_pipeline_state
+    state = get_pipeline_state(thread_id)
+    if not state:
+        return {"error": "No state found for thread_id", "thread_id": thread_id}
+    return {
+        "thread_id": thread_id,
+        "verdict": state.get("verdict"),
+        "confidence": state.get("confidence"),
+        "thesis": state.get("thesis"),
+        "node_timings": state.get("node_timings", {}),
+        "errors": state.get("errors", []),
+    }
+
 @app.get("/")
 async def root():
     """Root endpoint"""
