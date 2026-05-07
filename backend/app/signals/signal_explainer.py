@@ -412,6 +412,18 @@ class SignalExplainer:
         ])
         combined_str = f"{bullish_count}/5 BULLISH signals"
 
+        # ── COMBINED verdict — dynamic based on bullish count ───────────────────
+        if bullish_count >= 4:
+            combined_verdict = "STRONG_BUY"
+        elif bullish_count >= 3:
+            combined_verdict = "BUY"
+        elif bullish_count >= 2:
+            combined_verdict = "HOLD"
+        elif bullish_count == 1:
+            combined_verdict = "WATCH"
+        else:
+            combined_verdict = "NEUTRAL"
+
         # ── Walls hint — conditional on position relative to call wall ────────
         if above_call is not None and above_call > 2:
             walls_hint = f"SPY is {above_call}pts ABOVE the {call_wall} call wall — this is breakout territory, dealers must buy to hedge = self-reinforcing"
@@ -487,7 +499,7 @@ class SignalExplainer:
 
         prompt = f"""Output JSON only. Fill in each "read" field with one specific sentence using the numbers in "number". No markdown.
 
-{{"COT":{{"number":"{cot_str}","read":"FILL — {cot_specs:,} specs are net short. Explain: when a catalyst hits, these shorts MUST cover = forced buying = price goes up regardless of fundamentals. This is squeeze fuel, not a bearish signal.","verdict":"{cot_verdict}","invalidation":"specs add to shorts next report"}},"WALLS":{{"number":"SPY {spy_spot_str} / call wall {call_wall_str} / {above_str}","read":"FILL — {walls_hint}","verdict":"{walls_verdict}","invalidation":"SPY closes below {call_wall_str}"}},"GEX":{{"number":"{gex_str}","read":"FILL — {gex_hint}","verdict":"{gex_verdict}","invalidation":"GEX flips negative"}},"FLOW_DP":{{"number":"SPY SV {sv_pct:.1f}%","read":"FILL — {flow_dp_hint}","verdict":"{flow_dp_verdict}","invalidation":"SV% trend reverses"}}{flow_qqq_block}{flow_abs_block},"CATALYST":{{"number":"{catalyst_str}","read":"FILL — {catalyst_hint}","verdict":"DETONATOR","invalidation":"NFP miss triggers risk-off"}},"COMBINED":{{"number":"{combined_str} / alpha {alpha_str}","read":"FILL — {bullish_count} of 5 signals aligned: SPY {above_str} call wall {call_wall_str}, {fed_event} approaching. Explain why this combination is actionable.","verdict":"HOLD","invalidation":"SPY breaks below {call_wall_str}"}}{smart_money_block}}}"""
+{{"COT":{{"number":"{cot_str}","read":"FILL — {cot_specs:,} specs are net short. Explain: when a catalyst hits, these shorts MUST cover = forced buying = price goes up regardless of fundamentals. This is squeeze fuel, not a bearish signal.","verdict":"{cot_verdict}","invalidation":"specs add to shorts next report"}},"WALLS":{{"number":"SPY {spy_spot_str} / call wall {call_wall_str} / {above_str}","read":"FILL — {walls_hint}","verdict":"{walls_verdict}","invalidation":"SPY closes below {call_wall_str}"}},"GEX":{{"number":"{gex_str}","read":"FILL — {gex_hint}","verdict":"{gex_verdict}","invalidation":"GEX flips negative"}},"FLOW_DP":{{"number":"SPY SV {sv_pct:.1f}%","read":"FILL — {flow_dp_hint}","verdict":"{flow_dp_verdict}","invalidation":"SV% trend reverses"}}{flow_qqq_block}{flow_abs_block},"CATALYST":{{"number":"{catalyst_str}","read":"FILL — {catalyst_hint}","verdict":"DETONATOR","invalidation":"NFP miss triggers risk-off"}},"COMBINED":{{"number":"{combined_str} / alpha {alpha_str}","read":"FILL — {bullish_count} of 5 signals aligned: SPY {above_str} call wall {call_wall_str}, {fed_event} approaching. Explain why this combination is actionable.","verdict":"{combined_verdict}","invalidation":"SPY breaks below {call_wall_str}"}}{smart_money_block}}}"""
 
         try:
             from backend.app.graph.openrouter_client import call_openrouter as _call_or
