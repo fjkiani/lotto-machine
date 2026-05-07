@@ -136,12 +136,19 @@ async def kill_chain_monitor():
             "dvr_ratio": layer_3.get("value", 0) / 100.0,  # normalize to 0-1
             "layer_3_triggered": layer_3.get("triggered", False),
             "layer_3_signal": layer_3.get("signal", "WATCHING"),
-            # Confluence
+            # Confluence (5-layer system)
             "triple_active": kc.get("armed", False),
             "confluence": kc.get("confluence", "WAITING"),
             "triggered_count": kc.get("triggered_count", 0),
             "layers_active": kc.get("triggered_count", 0),
-            "layers_total": 3,
+            "layers_total": 5,
+            # Layer 4 + 5 data
+            "layer_4_signal": kc.get("layer_4", {}).get("signal", "NEUTRAL"),
+            "layer_4_triggered": kc.get("layer_4", {}).get("triggered", False),
+            "pts_above_call_wall": kc.get("layer_4", {}).get("pts_above_call_wall"),
+            "layer_5_signal": kc.get("layer_5", {}).get("signal", "NEUTRAL"),
+            "layer_5_triggered": kc.get("layer_5", {}).get("triggered", False),
+            "qqq_sv_delta": kc.get("layer_5", {}).get("value"),
             # P&L
             "entry_price": position.get("entry_price", 0),
             "current_pnl": position.get("current_pnl", 0),
@@ -652,22 +659,7 @@ async def health():
     }
 
 
-@app.get("/kill-chain")
-async def kill_chain_signals():
-    """Kill chain triple confluence signal log."""
-    try:
-        from live_monitoring.kill_chain_logger import get_kill_chain_signals
-        signals = get_kill_chain_signals()
-        latest = signals[-1] if signals else {}
-        activations = [s for s in signals if s.get('type') == 'ACTIVATION']
-        return {
-            "total_checks": len(signals),
-            "activations": len(activations),
-            "current_state": latest,
-            "history": signals[-50:],
-        }
-    except Exception as e:
-        return {"error": str(e), "signals": []}
+# Removed duplicate /kill-chain route (was dead code — FastAPI uses first match)
 
 
 @app.get("/paper-trades")
