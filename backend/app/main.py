@@ -554,10 +554,51 @@ async def run_alpha_graph(payload: dict = None):
     symbol = payload.get("symbol", "SPY")
     thread_id = payload.get("thread_id", None)
 
+    # Fetch enrichment for on-demand graph run
+    def _fetch_enrich_sync():
+        _e = {}
+        try:
+            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SG
+            _sg = _SG(cache_ttl=300)
+            _qqq_raw = _sg.get_ticker_detail_raw("QQQ")
+            if _qqq_raw:
+                _sv_table = _qqq_raw.get("individual_short_volume_table", {})
+                _sv_items = _sv_table.get("data", []) if isinstance(_sv_table, dict) else _sv_table
+                if _sv_items and len(_sv_items) >= 2:
+                    _sv_sorted = sorted(_sv_items, key=lambda x: x.get("date", "") if isinstance(x, dict) else "")
+                    def _sv_val(row):
+                        v = float(row.get("short_volume_pct", row.get("short_volume%", row.get("short_volume_percent", 0))) or 0)
+                        return v if v > 1.0 else v * 100.0
+                    _delta = round(_sv_val(_sv_sorted[-1]) - _sv_val(_sv_sorted[-2]), 1)
+                    _e["qqq_sv_delta"] = _delta
+            _walls = _sg.get_option_walls_today(symbol)
+            if _walls:
+                _call_wall = getattr(_walls, "call_wall", None) or 0
+                try:
+                    import yfinance as _yf
+                    _spot = round(float(_yf.Ticker(symbol).fast_info.get("lastPrice") or 0), 2)
+                    if _spot and _call_wall:
+                        _e["pts_above_call_wall"] = round(_spot - _call_wall, 2)
+                        if _e.get("qqq_sv_delta", 0) > 10 and _spot > _call_wall:
+                            _e["qqq_reshort_spike"] = True
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            import yfinance as _yf2
+            _vix = _yf2.Ticker("^VIX").history(period="1d")
+            if not _vix.empty:
+                _e["vix"] = round(float(_vix["Close"].iloc[-1]), 2)
+        except Exception:
+            pass
+        return _e
+
     loop = asyncio.get_event_loop()
     with ThreadPoolExecutor(max_workers=1) as pool:
+        _enrichment_data = await loop.run_in_executor(pool, _fetch_enrich_sync)
         final_state = await loop.run_in_executor(
-            pool, lambda: run_alpha_pipeline(symbol=symbol, thread_id=thread_id)
+            pool, lambda: run_alpha_pipeline(symbol=symbol, thread_id=thread_id, enrichment=_enrichment_data)
         )
 
     return {
