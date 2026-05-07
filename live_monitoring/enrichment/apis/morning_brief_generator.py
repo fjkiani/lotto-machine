@@ -206,11 +206,43 @@ class MorningBriefGeneratorAPI:
             except (TypeError, ValueError):
                 pass
 
+        # ── COT positioning snapshot ─────────────────────────────
+        cot_summary = {}
+        try:
+            from live_monitoring.enrichment.apis.cot_client import COTClient
+            _cot = COTClient(cache_ttl=3600)
+            _cot_sig = _cot.get_divergence_signal("ES")
+            if _cot_sig:
+                _specs = _cot_sig.get("specs_net", 0)
+                _comms = _cot_sig.get("comm_net", 0)
+                _divergent = _cot_sig.get("divergent", False)
+                cot_summary = {
+                    "specs_net": _specs,
+                    "comms_net": _comms,
+                    "divergent": _divergent,
+                    "signal": (
+                        "EXTREME_SQUEEZE_FUEL" if _divergent and _specs < -100_000
+                        else "SQUEEZE_FUEL" if _divergent and _specs < -50_000
+                        else "CROWDED_SHORT" if _specs < -50_000
+                        else "NEUTRAL"
+                    ),
+                    "read": (
+                        f"{_specs:,} specs net short — maximum squeeze fuel when catalyst hits"
+                        if _specs < -80_000
+                        else f"{_specs:,} specs net short — moderate squeeze setup"
+                        if _specs < -50_000
+                        else "No significant COT divergence"
+                    ),
+                }
+        except Exception:
+            pass
+
         brief = {
             "date": today,
             "generated_at": datetime.now().isoformat(),
             "verdict": verdict_data.get("signal", "UNKNOWN"),
             "signals": verdict_data.get("signals", []),
+            "cot": cot_summary,
             "wall_breached": wall_breached,
             "wall_breach_details": wall_breach_details,
             "spy": spy_summary,

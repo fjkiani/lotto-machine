@@ -126,6 +126,7 @@ def flow_node(state: AlphaState) -> Dict[str, Any]:
     axlfi_summary = "AXLFI data unavailable"
     spot_price = None
     sv_pct = None
+    qqq_sv_delta_val = state.get("qqq_sv_delta")  # Pre-seeded from enrichment
 
     _call_wall = None
     _put_wall = None
@@ -150,10 +151,18 @@ def flow_node(state: AlphaState) -> Dict[str, Any]:
     except Exception as e:
         errors.append(f"flow_node/axlfi: {e}")
 
+    qqq_delta_str = (
+        f"+{qqq_sv_delta_val}pp in 1 day — institutions RE-SHORTING into strength (squeeze fuel above call wall)"
+        if qqq_sv_delta_val and qqq_sv_delta_val > 10
+        else f"{qqq_sv_delta_val:+.1f}pp in 1 day" if qqq_sv_delta_val is not None
+        else "unavailable"
+    )
+
     prompt = f"""You are a market microstructure analyst. Given these flow signals for {symbol}:
 
 AXLFI OPTION WALLS: {axlfi_summary}
 DARK POOL FLOW: {dp_summary}
+QQQ SHORT VOL DELTA: {qqq_delta_str}
 
 Answer in JSON only, no markdown:
 {{
