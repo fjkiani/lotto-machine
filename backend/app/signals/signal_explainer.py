@@ -474,7 +474,18 @@ class SignalExplainer:
             smart_money_str = f"CLUSTER_BUY: {pol_cluster} politicians buying {', '.join((layers.get('politician_tickers') or [])[:3])}"
 
         # ── Catalyst hint ─────────────────────────────────────────────────────
-        catalyst_hint = f"NFP in {fed_hours:.1f}h with crowded shorts = DETONATOR" if fed_hours and fed_hours < 36 and cot_specs < -80000 else f"{fed_event} in {fed_hours:.1f}h" if fed_hours else "no catalyst"
+        if fed_hours and fed_event and fed_hours < 36 and cot_specs < -80000:
+            catalyst_hint = f"{fed_event} in {fed_hours:.1f}h with {abs(cot_specs):,} specs net short = DETONATOR — forced covering when data drops"
+            catalyst_verdict = "DETONATOR"
+        elif fed_hours and fed_event and fed_hours <= 4:
+            catalyst_hint = f"{fed_event} in {fed_hours:.1f}h — VETO ZONE, stay flat until event passes"
+            catalyst_verdict = "VETO"
+        elif fed_hours and fed_event:
+            catalyst_hint = f"{fed_event} in {fed_hours:.1f}h — approaching catalyst, size accordingly"
+            catalyst_verdict = "WATCH"
+        else:
+            catalyst_hint = "no major catalyst in next 36h — clean tape"
+            catalyst_verdict = "CLEAR"
 
         # ── COT verdict ───────────────────────────────────────────────────────
         cot_verdict = "SQUEEZE_FUEL" if cot_specs < -80000 else "NEUTRAL"
@@ -499,7 +510,7 @@ class SignalExplainer:
 
         prompt = f"""Output JSON only. Fill in each "read" field with one specific sentence using the numbers in "number". No markdown.
 
-{{"COT":{{"number":"{cot_str}","read":"FILL — {cot_specs:,} specs are net short. Explain: when a catalyst hits, these shorts MUST cover = forced buying = price goes up regardless of fundamentals. This is squeeze fuel, not a bearish signal.","verdict":"{cot_verdict}","invalidation":"specs add to shorts next report"}},"WALLS":{{"number":"SPY {spy_spot_str} / call wall {call_wall_str} / {above_str}","read":"FILL — {walls_hint}","verdict":"{walls_verdict}","invalidation":"SPY closes below {call_wall_str}"}},"GEX":{{"number":"{gex_str}","read":"FILL — {gex_hint}","verdict":"{gex_verdict}","invalidation":"GEX flips negative"}},"FLOW_DP":{{"number":"SPY SV {sv_pct:.1f}%","read":"FILL — {flow_dp_hint}","verdict":"{flow_dp_verdict}","invalidation":"SV% trend reverses"}}{flow_qqq_block}{flow_abs_block},"CATALYST":{{"number":"{catalyst_str}","read":"FILL — {catalyst_hint}","verdict":"DETONATOR","invalidation":"NFP miss triggers risk-off"}},"COMBINED":{{"number":"{combined_str} / alpha {alpha_str}","read":"FILL — {bullish_count} of 5 signals aligned: SPY {above_str} call wall {call_wall_str}, {fed_event} approaching. Explain why this combination is actionable.","verdict":"{combined_verdict}","invalidation":"SPY breaks below {call_wall_str}"}}{smart_money_block}}}"""
+{{"COT":{{"number":"{cot_str}","read":"FILL — {cot_specs:,} specs are net short. Explain: when a catalyst hits, these shorts MUST cover = forced buying = price goes up regardless of fundamentals. This is squeeze fuel, not a bearish signal.","verdict":"{cot_verdict}","invalidation":"specs add to shorts next report"}},"WALLS":{{"number":"SPY {spy_spot_str} / call wall {call_wall_str} / {above_str}","read":"FILL — {walls_hint}","verdict":"{walls_verdict}","invalidation":"SPY closes below {call_wall_str}"}},"GEX":{{"number":"{gex_str}","read":"FILL — {gex_hint}","verdict":"{gex_verdict}","invalidation":"GEX flips negative"}},"FLOW_DP":{{"number":"SPY SV {sv_pct:.1f}%","read":"FILL — {flow_dp_hint}","verdict":"{flow_dp_verdict}","invalidation":"SV% trend reverses"}}{flow_qqq_block}{flow_abs_block},"CATALYST":{{"number":"{catalyst_str}","read":"FILL — {catalyst_hint}","verdict":"{catalyst_verdict}","invalidation":"{fed_event} miss triggers risk-off"}},"COMBINED":{{"number":"{combined_str} / alpha {alpha_str}","read":"FILL — {bullish_count} of 5 signals aligned: SPY {above_str} call wall {call_wall_str}, {fed_event} approaching. Explain why this combination is actionable.","verdict":"{combined_verdict}","invalidation":"SPY breaks below {call_wall_str}"}}{smart_money_block}}}"""
 
         try:
             from backend.app.graph.openrouter_client import call_openrouter as _call_or
