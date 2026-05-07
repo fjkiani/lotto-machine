@@ -964,6 +964,23 @@ async def kill_shots_live():
         except Exception as _vs_exc:
             logger.warning(f"Volume spike enrichment failed: {_vs_exc}")
 
+        # ── KILL CHAIN (uses enriched layers — pts_above_call_wall, qqq_reshort_spike) ──
+        kill_chain_result = {}
+        try:
+            from backend.app.signals.kill_chain import compute_kill_chain
+            kill_chain_result = compute_kill_chain()
+            # Merge kill chain outputs back into layers for downstream use
+            layers["kill_chain_confluence"] = kill_chain_result.get("confluence")
+            layers["kill_chain_bullish_pts"] = kill_chain_result.get("bullish_pts")
+            layers["kill_chain_bearish_pts"] = kill_chain_result.get("bearish_pts")
+            layers["pts_above_call_wall"] = (
+                kill_chain_result.get("layer_4", {}).get("pts_above_call_wall")
+                or kill_chain_result.get("raw", {}).get("pts_above_call_wall")
+                or layers.get("pts_above_call_wall")
+            )
+        except Exception as _kc_exc:
+            logger.warning(f"Kill chain failed: {_kc_exc}")
+
         # ── LLM EXPLANATIONS (last — sees full enriched layers) ───────────────
         explanations = {}
         try:
@@ -985,6 +1002,7 @@ async def kill_shots_live():
             'layers': layers,
             'reasons': reasons,
             'explanations': explanations,
+            'kill_chain': kill_chain_result,
             'timestamp': now_iso,
         }
     except Exception as e:
