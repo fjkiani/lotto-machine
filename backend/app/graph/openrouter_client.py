@@ -35,7 +35,7 @@ MODEL_REGISTRY = {
     "regime":    "openai/gpt-oss-20b:free",                  # fast classification
     "synthesis": "openai/gpt-oss-120b:free",                 # MoE synthesis
     "quick":     "openai/gpt-oss-20b:free",                  # fast, free
-    "explain":   "openai/gpt-oss-120b:free",                 # best available for narrative
+    "explain":   "openai/gpt-oss-20b:free",                  # fast — structured JSON reads, not prose
 }
 
 # In-memory response cache (prompt_hash → {content, expires})

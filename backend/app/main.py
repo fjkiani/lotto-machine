@@ -851,9 +851,11 @@ async def kill_shots_live():
             from live_monitoring.enrichment.apis.volume_spike_detector import VolumeSpikeDetector
             _vs_inst = _pipe_instances.get('volume_spikes')
             _vs_data = _vs_inst.get_latest() if _vs_inst else VolumeSpikeDetector().get_latest()
+            layers["_debug_vs_data"] = bool(_vs_data)
             if _vs_data:
                 _spikes = _vs_data.get("spikes", [])
-                # Absorption = high volume (ratio > 2.5x) with near-zero price move (< 0.15%)
+                layers["_debug_spike_count"] = len(_spikes)
+                # Absorption = high volume (ratio > 2.5x) with near-zero price move (< 0.15 dollars)
                 _absorption = [
                     s for s in _spikes
                     if s.get("ratio", 0) > 2.5 and abs(s.get("move", 99)) < 0.15
@@ -867,8 +869,10 @@ async def kill_shots_live():
                 else:
                     layers["absorption_detected"] = False
                 layers["volume_spikes_today"] = len(_spikes)
+                layers["volume_spikes_raw"] = _spikes  # expose for debugging
         except Exception as _vs_exc:
             logger.warning(f"Volume spike enrichment failed: {_vs_exc}")
+            layers["_debug_vs_error"] = str(_vs_exc)
 
         try:
             from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SG2
@@ -900,6 +904,7 @@ async def kill_shots_live():
                         )
         except Exception as _qqq_exc:
             logger.warning(f"QQQ short vol delta enrichment failed: {_qqq_exc}")
+            layers["_debug_qqq_error"] = str(_qqq_exc)
 
         try:
             # SPY session trend from signal-intel data (already computed by the wall tracker)

@@ -379,59 +379,46 @@ class SignalExplainer:
             },
         }
 
-        prompt = f"""You are a trading signal interpreter. You receive live market data and output structured signal reads — one per signal block. Each read must cite the exact number from the data and give a one-line verdict.
+        # Build pre-filled JSON template — LLM only fills in the "read" fields
+        # This is faster and more reliable than asking the LLM to construct the whole structure
+        spy_spot_str = str(spy_spot) if spy_spot else "N/A"
+        call_wall_str = str(call_wall) if call_wall else "N/A"
+        above_str = f"+{above_call}pts above" if above_call and above_call > 0 else (f"{above_call}pts below" if above_call else "N/A")
+        gex_str = f"{gex_regime} ${gex_total_m}M flip {gamma_flip} VIX {vix}"
+        cot_str = f"{cot_specs:,} specs / {cot_comms:+,} comms" if cot_specs else "N/A"
+        flow_parts = [f"SPY SV {sv_pct:.1f}%"]
+        if qqq_sv_delta is not None:
+            flow_parts.append(f"QQQ {qqq_sv_delta:+.1f}pp 1d")
+        if absorption:
+            flow_parts.append(f"ABSORPTION {absorption_price} at {absorption_ratio}x vol")
+        flow_str = " / ".join(flow_parts)
+        catalyst_str = f"{fed_event} in {fed_hours:.1f}h" if fed_hours and fed_event else "none"
+        alpha_str = f"{alpha_verdict} {alpha_conf:.0%}" if alpha_verdict and alpha_conf else "N/A"
 
-DATA:
-{_json.dumps(context, indent=2)}
+        # Count bullish signals for COMBINED
+        bullish_count = sum([
+            cot_specs < -80000,                          # crowded short = squeeze fuel
+            above_call is not None and above_call > 0,  # above call wall
+            absorption is True,                          # absorption at close
+            qqq_sv_delta is not None and qqq_sv_delta > 10,  # QQQ reshort spike
+        ])
+        combined_str = f"{bullish_count}/4 BULLISH signals"
 
-Output JSON with this exact structure — no markdown, no extra keys:
-{{
-  "COT": {{
-    "number": "specs_net value as string e.g. -101,440",
-    "read": "one sentence: what this number means RIGHT NOW, not historically",
-    "verdict": "BULLISH | BEARISH | NEUTRAL",
-    "invalidation": "what would flip this read"
-  }},
-  "WALLS": {{
-    "number": "e.g. SPY 733.83 / call wall 720 / +13.83pts above",
-    "read": "one sentence: is SPY pinned, breaking out, or at support — use the actual pts_above_call_wall number",
-    "verdict": "BULLISH | BEARISH | NEUTRAL",
-    "invalidation": "specific price level that flips this"
-  }},
-  "GEX": {{
-    "number": "regime + total_millions + gamma_flip",
-    "read": "one sentence: what dealers are forced to do right now",
-    "verdict": "BULLISH | BEARISH | NEUTRAL",
-    "invalidation": "what changes the dealer behavior"
-  }},
-  "FLOW": {{
-    "number": "spy sv_pct + qqq delta if available + absorption if detected",
-    "read": "one sentence: what dark pool and volume data says about institutional intent",
-    "verdict": "BULLISH | BEARISH | NEUTRAL",
-    "invalidation": "what would flip this"
-  }},
-  "CATALYST": {{
-    "number": "hours until event + event name",
-    "read": "one sentence: is this a detonator (squeeze trigger) or a veto (stay flat)",
-    "verdict": "DETONATOR | VETO | NEUTRAL",
-    "invalidation": "what outcome would flip the setup"
-  }},
-  "COMBINED": {{
-    "number": "count of aligned signals e.g. 4/5 BULLISH",
-    "read": "one sentence: the single most important thing a trader needs to know right now — name the specific price level and the specific event",
-    "verdict": "ARMED | HOLD | VETO",
-    "invalidation": "the one thing that kills the whole setup"
-  }}
-}}
+        # Walls read hint
+        walls_hint = f"SPY is {above_call}pts above the {call_wall} call wall" if above_call and above_call > 0 else f"SPY is {abs(above_call) if above_call else '?'}pts below the {call_wall} call wall"
+        # Catalyst hint
+        catalyst_hint = f"NFP in {fed_hours:.1f}h with crowded shorts = DETONATOR" if fed_hours and fed_hours < 36 and cot_specs < -80000 else f"{fed_event} in {fed_hours:.1f}h" if fed_hours else "no catalyst"
+        # Flow hint
+        flow_hint_parts = []
+        if absorption:
+            flow_hint_parts.append(f"absorption at {absorption_price} at {absorption_ratio}x vol")
+        if qqq_sv_delta and qqq_sv_delta > 10:
+            flow_hint_parts.append(f"QQQ reshorted +{qqq_sv_delta}pp = squeeze fuel")
+        flow_hint = " + ".join(flow_hint_parts) if flow_hint_parts else f"SPY SV {sv_pct:.1f}%"
 
-Rules — violations will break the system:
-- WALLS.read MUST use the pts_above_call_wall number if it is not null — do not say "pinned between walls" if pts_above_call_wall > 0
-- FLOW.read MUST mention absorption_detected if true, and qqq_short_vol_1day_delta if not null
-- CATALYST.read: if fed_veto_hours < 24, call it a DETONATOR for a crowded-short setup, not a veto — the crowd is already wrong
-- COMBINED.read: name the exact price level (call wall number) and exact event (fed_veto_event) — no generic phrases
-- Every "number" field must contain actual numbers from the data, not descriptions
-- No hedging phrases: "may", "could", "suggests", "might", "appears to"
-- If a data field is null, skip it — do not invent numbers"""
+        prompt = f"""Output JSON only. Fill in each "read" field with one specific sentence using the numbers in "number". No markdown.
+
+{{"COT":{{"number":"{cot_str}","read":"FILL — what does {cot_specs:,} specs net mean right now","verdict":"BULLISH","invalidation":"specs add to shorts next report"}},"WALLS":{{"number":"SPY {spy_spot_str} / call wall {call_wall_str} / {above_str}","read":"FILL — {walls_hint}","verdict":"BULLISH","invalidation":"SPY closes below {call_wall_str}"}},"GEX":{{"number":"{gex_str}","read":"FILL — what dealers are forced to do","verdict":"NEUTRAL","invalidation":"GEX flips negative"}},"FLOW":{{"number":"{flow_str}","read":"FILL — {flow_hint}","verdict":"BULLISH","invalidation":"absorption fails on open"}},"CATALYST":{{"number":"{catalyst_str}","read":"FILL — {catalyst_hint}","verdict":"DETONATOR","invalidation":"NFP miss triggers risk-off"}},"COMBINED":{{"number":"{combined_str} / alpha {alpha_str}","read":"FILL — name {call_wall_str} and {fed_event}","verdict":"HOLD","invalidation":"SPY breaks below {call_wall_str}"}}}}"""
 
         try:
             from backend.app.graph.openrouter_client import call_openrouter as _call_or
@@ -439,8 +426,8 @@ Rules — violations will break the system:
             response = _call_or(
                 prompt=prompt,
                 role="explain",
-                max_tokens=800,
-                timeout=15,
+                max_tokens=700,
+                timeout=20,
                 use_cache=False,  # always fresh — data changes every call
             )
             raw_content = response.get("content", "")
