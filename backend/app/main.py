@@ -756,11 +756,28 @@ async def kill_shots_live():
                     source_date=today_str, raw={"error": str(e)}
                 )
 
-        # Evaluate — each scorer has an 8-second timeout
-        brain_res = _safe_eval("BRAIN", lambda: BrainScorer().evaluate())
-        cot_res = _safe_eval("COT", lambda: CotScorer().evaluate(symbol="ES"))
-        gex_res = _safe_eval("GEX", lambda: GexScorer().evaluate(cot_boost=cot_res.boost))
-        fed_dp_res = _safe_eval("FED_DP", lambda: FedDpScorer().evaluate(brain_reasons=brain_res.reasons))
+        # Evaluate — parallel fan-out for independent scorers, then dependent ones
+        # BRAIN, COT, GEX are independent — run simultaneously
+        # FED_DP needs brain_res.reasons; COMBINED needs gex_res + cot_res
+        with ThreadPoolExecutor(max_workers=3) as _par_pool:
+            _brain_fut = _par_pool.submit(lambda: _safe_eval("BRAIN", lambda: BrainScorer().evaluate()))
+            _cot_fut   = _par_pool.submit(lambda: _safe_eval("COT", lambda: CotScorer().evaluate(symbol="ES")))
+            _gex_fut   = _par_pool.submit(lambda: _safe_eval("GEX", lambda: GexScorer().evaluate(cot_boost=0)))
+            brain_res = _brain_fut.result()
+            cot_res   = _cot_fut.result()
+            gex_res   = _gex_fut.result()
+
+        # GEX scorer ideally uses cot_boost — re-apply if COT fired
+        if cot_res.boost > 0 and gex_res.boost == 0:
+            # Re-run GEX with actual cot_boost only if it changes the result
+            try:
+                _gex_retry = _safe_eval("GEX", lambda: GexScorer().evaluate(cot_boost=cot_res.boost))
+                if _gex_retry.boost != gex_res.boost:
+                    gex_res = _gex_retry
+            except Exception:
+                pass
+
+        fed_dp_res  = _safe_eval("FED_DP", lambda: FedDpScorer().evaluate(brain_reasons=brain_res.reasons))
         combined_res = _safe_eval("COMBINED", lambda: CombinedScorer().evaluate(gex_result=gex_res, cot_result=cot_res))
 
         # Aggregate Results
