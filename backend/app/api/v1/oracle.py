@@ -901,3 +901,34 @@ async def oracle_analyze(req: OracleRequest):
         return {"analysis": json.dumps({"audit": f"ORACLE_UPLINK_FAILURE: {data.get('error', {}).get('message', 'No content.')}"}), "error": True}
     except Exception as e:
         return {"analysis": json.dumps({"audit": f"ORACLE_UPLINK_FAILURE: {str(e)}"}), "error": True}
+
+
+@router.post("/oracle/or-brief")
+async def oracle_openrouter_brief(payload: dict = None):
+    """Oracle brief via OpenRouter — uses gpt-oss-120b:free for synthesis.
+    Accepts any context dict and returns a unified trading verdict."""
+    import json as _json
+    from backend.app.graph.openrouter_client import call_openrouter, extract_json as _extract_json
+
+    payload = payload or {}
+    context = payload.get("context", payload)  # accept context key or raw dict
+
+    prompt = f"""Given this market intelligence context:
+{_json.dumps(context, indent=2)}
+
+Provide a unified trading verdict. Answer in JSON only, no markdown:
+{{
+  "verdict": "ARMED or HOLD or VETO",
+  "confidence": 0.75,
+  "thesis": "2-sentence plain English trade thesis",
+  "primary_risk": "single biggest risk to this thesis",
+  "direction": "BULLISH or BEARISH or MIXED"
+}}"""
+
+    result = call_openrouter(prompt=prompt, role="synthesis", max_tokens=500, timeout=20)
+    parsed = _extract_json(result.get("content", ""))
+    return {
+        "oracle": parsed or {"error": "parse_failed", "raw": result.get("content", "")[:500]},
+        "model": result.get("model"),
+        "source": result.get("source"),
+    }

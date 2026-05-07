@@ -447,6 +447,21 @@ async def _brain_polling_loop():
         await asyncio.sleep(900)  # 15 minutes
 
 
+
+@app.get("/alpha-graph/models")
+async def list_models():
+    """Diagnostic: show which OpenRouter models are assigned to which roles."""
+    try:
+        from backend.app.graph.openrouter_client import MODEL_REGISTRY, OPENROUTER_API_KEY as _OR_KEY
+        return {
+            "openrouter_configured": bool(_OR_KEY),
+            "model_registry": MODEL_REGISTRY,
+            "groq_fallback": bool(os.getenv("GROQ_API_KEY")),
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        return {"error": str(e), "openrouter_configured": False}
+
 @app.get("/")
 async def root():
     """Root endpoint"""
