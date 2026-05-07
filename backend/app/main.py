@@ -756,29 +756,28 @@ async def kill_shots_live():
                     source_date=today_str, raw={"error": str(e)}
                 )
 
-        # Evaluate — parallel fan-out for independent scorers, then dependent ones
-        # BRAIN, COT, GEX are independent — run simultaneously
-        # FED_DP needs brain_res.reasons; COMBINED needs gex_res + cot_res
-        with ThreadPoolExecutor(max_workers=3) as _par_pool:
-            _brain_fut = _par_pool.submit(lambda: _safe_eval("BRAIN", lambda: BrainScorer().evaluate()))
-            _cot_fut   = _par_pool.submit(lambda: _safe_eval("COT", lambda: CotScorer().evaluate(symbol="ES")))
-            _gex_fut   = _par_pool.submit(lambda: _safe_eval("GEX", lambda: GexScorer().evaluate(cot_boost=0)))
-            brain_res = _brain_fut.result()
-            cot_res   = _cot_fut.result()
-            gex_res   = _gex_fut.result()
+        # Evaluate — all 5 scorers in parallel (max 8s each)
+        # FED_DP and COMBINED have soft dependencies but can run with defaults
+        # and be re-evaluated if needed — the data they need is in layers after aggregation
+        with ThreadPoolExecutor(max_workers=5) as _par_pool:
+            _brain_fut   = _par_pool.submit(lambda: _safe_eval("BRAIN", lambda: BrainScorer().evaluate()))
+            _cot_fut     = _par_pool.submit(lambda: _safe_eval("COT", lambda: CotScorer().evaluate(symbol="ES")))
+            _gex_fut     = _par_pool.submit(lambda: _safe_eval("GEX", lambda: GexScorer().evaluate(cot_boost=0)))
+            _fed_dp_fut  = _par_pool.submit(lambda: _safe_eval("FED_DP", lambda: FedDpScorer().evaluate(brain_reasons=[])))
+            # COMBINED needs gex+cot — run with empty defaults, re-run after if needed
+            _empty_sr = lambda name: SignalResult(name=name, slug=f"{name.lower()}-empty", boost=0, active=False, timestamp=now_iso, source_date=today_str, raw={})
+            _combined_fut = _par_pool.submit(lambda: _safe_eval("COMBINED", lambda: CombinedScorer().evaluate(gex_result=_empty_sr("GEX"), cot_result=_empty_sr("COT"))))
+            brain_res    = _brain_fut.result()
+            cot_res      = _cot_fut.result()
+            gex_res      = _gex_fut.result()
+            fed_dp_res   = _fed_dp_fut.result()
+            combined_res = _combined_fut.result()
 
-        # GEX scorer ideally uses cot_boost — re-apply if COT fired
-        if cot_res.boost > 0 and gex_res.boost == 0:
-            # Re-run GEX with actual cot_boost only if it changes the result
-            try:
-                _gex_retry = _safe_eval("GEX", lambda: GexScorer().evaluate(cot_boost=cot_res.boost))
-                if _gex_retry.boost != gex_res.boost:
-                    gex_res = _gex_retry
-            except Exception:
-                pass
-
-        fed_dp_res  = _safe_eval("FED_DP", lambda: FedDpScorer().evaluate(brain_reasons=brain_res.reasons))
-        combined_res = _safe_eval("COMBINED", lambda: CombinedScorer().evaluate(gex_result=gex_res, cot_result=cot_res))
+        # Re-run COMBINED with actual gex+cot results (pure Python, instant)
+        try:
+            combined_res = CombinedScorer().evaluate(gex_result=gex_res, cot_result=cot_res)
+        except Exception:
+            pass  # keep the parallel result if re-run fails
 
         # Aggregate Results
         for res in [brain_res, cot_res, gex_res, fed_dp_res, combined_res]:

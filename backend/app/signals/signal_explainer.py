@@ -303,13 +303,14 @@ class SignalExplainer:
         import json as _json
 
         # ── Build context with every number the LLM needs ────────────────────
-        spy_spot = layers.get("gex_spot_price") or layers.get("axlfi_spot") or 0
+        spy_spot = (layers.get("gex_spot_price") or layers.get("axlfi_spot") or
+                    layers.get("spy_spot") or 0)
         call_wall = layers.get("axlfi_call_wall") or 0
         put_wall = layers.get("axlfi_put_wall") or 0
-        above_call = round(spy_spot - call_wall, 2) if spy_spot and call_wall else None
+        above_call = round(float(spy_spot) - float(call_wall), 2) if spy_spot and call_wall else None
         gamma_flip = layers.get("gex_gamma_flip")
-        cot_specs = layers.get("cot_specs_net", 0)
-        cot_comms = layers.get("cot_comm_net", 0)
+        cot_specs = layers.get("cot_specs_net", 0) or 0
+        cot_comms = layers.get("cot_comm_net", 0) or 0
         sv_pct = layers.get("sv_pct") or layers.get("spy_short_vol_pct") or 0
         vix = layers.get("vix")
         fed_hours = layers.get("fed_veto_hours")
@@ -324,7 +325,8 @@ class SignalExplainer:
         qqq_sv_delta = layers.get("qqq_sv_delta")
         qqq_sv_latest = layers.get("qqq_sv_latest")
         gex_regime = layers.get("gex_regime", "UNKNOWN")
-        gex_total_m = round((layers.get("gex_total") or layers.get("total_gex_dollars") or 0) / 1e6, 1)
+        # total_gex_dollars is the key set by GexScorer — also check gex_total fallback
+        gex_total_m = round(float(layers.get("total_gex_dollars") or layers.get("gex_total") or 0) / 1e6, 1)
         session_trend = layers.get("spy_session_trend")
 
         context = {
