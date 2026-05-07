@@ -397,30 +397,97 @@ class SignalExplainer:
         catalyst_str = f"{fed_event} in {fed_hours:.1f}h" if fed_hours and fed_event else "none"
         alpha_str = f"{alpha_verdict} {alpha_conf:.0%}" if alpha_verdict and alpha_conf else "N/A"
 
-        # Count bullish signals for COMBINED
-        bullish_count = sum([
-            cot_specs < -80000,                          # crowded short = squeeze fuel
-            above_call is not None and above_call > 0,  # above call wall
-            absorption is True,                          # absorption at close
-            qqq_sv_delta is not None and qqq_sv_delta > 10,  # QQQ reshort spike
-        ])
-        combined_str = f"{bullish_count}/4 BULLISH signals"
+        # ── Politician cluster signal ─────────────────────────────────────────
+        pol_cluster = layers.get("politician_cluster", 0) or 0
+        pol_signal_val = layers.get("politician_signal", "NONE") or "NONE"
+        has_pol_buy = pol_cluster >= 2 and "BUY" in str(pol_signal_val).upper()
 
-        # Walls read hint
-        walls_hint = f"SPY is {above_call}pts above the {call_wall} call wall" if above_call and above_call > 0 else f"SPY is {abs(above_call) if above_call else '?'}pts below the {call_wall} call wall"
-        # Catalyst hint
-        catalyst_hint = f"NFP in {fed_hours:.1f}h with crowded shorts = DETONATOR" if fed_hours and fed_hours < 36 and cot_specs < -80000 else f"{fed_event} in {fed_hours:.1f}h" if fed_hours else "no catalyst"
-        # Flow hint
-        flow_hint_parts = []
+        # Count bullish signals for COMBINED (now 5 signals)
+        bullish_count = sum([
+            cot_specs < -80000,                               # crowded short = squeeze fuel
+            above_call is not None and above_call > 0,       # above call wall
+            absorption is True,                               # absorption at close
+            qqq_sv_delta is not None and qqq_sv_delta > 10,  # QQQ reshort spike
+            has_pol_buy,                                      # politician cluster buy
+        ])
+        combined_str = f"{bullish_count}/5 BULLISH signals"
+
+        # ── Walls hint — conditional on position relative to call wall ────────
+        if above_call is not None and above_call > 2:
+            walls_hint = f"SPY is {above_call}pts ABOVE the {call_wall} call wall — this is breakout territory, dealers must buy to hedge = self-reinforcing"
+            walls_verdict = "BREAKOUT"
+        elif above_call is not None and above_call > 0:
+            walls_hint = f"SPY is {above_call}pts above the {call_wall} call wall — just cleared resistance, watching for retest"
+            walls_verdict = "BULLISH"
+        elif above_call is not None and above_call > -5:
+            walls_hint = f"SPY is {abs(above_call)}pts BELOW the {call_wall} call wall — resistance overhead, needs to reclaim"
+            walls_verdict = "RESISTANCE"
+        else:
+            walls_hint = f"SPY is {abs(above_call) if above_call else '?'}pts below the {call_wall} call wall"
+            walls_verdict = "BEARISH"
+
+        # ── GEX hint — correct dealer mechanics ───────────────────────────────
+        if "POSITIVE" in gex_regime:
+            gex_hint = f"POSITIVE GEX ${gex_total_m}M: dealers are LONG gamma — they buy dips and sell rips, suppressing volatility. Moves are dampened. Good for slow grind up."
+            gex_verdict = "VOL_SUPPRESSED"
+        elif "NEGATIVE" in gex_regime:
+            gex_hint = f"NEGATIVE GEX ${gex_total_m}M: dealers are SHORT gamma — they sell into drops and buy into rips, AMPLIFYING moves. Snap-back velocity is high."
+            gex_verdict = "VOL_AMPLIFIED"
+        else:
+            gex_hint = f"GEX ${gex_total_m}M regime {gex_regime}: transitional — watch for flip at {gamma_flip}"
+            gex_verdict = "NEUTRAL"
+
+        # ── Flow hints — split into DP, QQQ delta, absorption ────────────────
+        flow_dp_hint = (
+            f"SPY dark pool short vol {sv_pct:.1f}% — "
+            f"{'above 55% = institutions distributing' if sv_pct > 55 else 'below 45% = institutions accumulating' if sv_pct < 45 else 'neutral 45-55% range'}"
+        )
+
+        flow_qqq_hint = ""
+        if qqq_sv_delta is not None and abs(qqq_sv_delta) > 5:
+            if qqq_sv_delta > 10:
+                flow_qqq_hint = f"QQQ short vol spiked +{qqq_sv_delta}pp in 1 day — institutions RE-SHORTING into strength. When SPY is above call wall, this is squeeze fuel (shorts will be forced to cover)."
+            elif qqq_sv_delta > 5:
+                flow_qqq_hint = f"QQQ short vol up +{qqq_sv_delta}pp — mild re-shorting, watch for acceleration."
+            else:
+                flow_qqq_hint = f"QQQ short vol down {qqq_sv_delta}pp — short covering in progress."
+
+        flow_absorption_hint = ""
         if absorption:
-            flow_hint_parts.append(f"absorption at {absorption_price} at {absorption_ratio}x vol")
-        if qqq_sv_delta and qqq_sv_delta > 10:
-            flow_hint_parts.append(f"QQQ reshorted +{qqq_sv_delta}pp = squeeze fuel")
-        flow_hint = " + ".join(flow_hint_parts) if flow_hint_parts else f"SPY SV {sv_pct:.1f}%"
+            flow_absorption_hint = f"ABSORPTION DETECTED at ${absorption_price} ({absorption_ratio}x avg vol, near-zero price move) — large buyer absorbing supply. This is a pre-move signal: price held despite heavy volume = sellers exhausted."
+
+        # ── Smart money string ────────────────────────────────────────────────
+        smart_money_str = ""
+        if has_pol_buy:
+            smart_money_str = f"CLUSTER_BUY: {pol_cluster} politicians buying {', '.join((layers.get('politician_tickers') or [])[:3])}"
+
+        # ── Catalyst hint ─────────────────────────────────────────────────────
+        catalyst_hint = f"NFP in {fed_hours:.1f}h with crowded shorts = DETONATOR" if fed_hours and fed_hours < 36 and cot_specs < -80000 else f"{fed_event} in {fed_hours:.1f}h" if fed_hours else "no catalyst"
+
+        # ── COT verdict ───────────────────────────────────────────────────────
+        cot_verdict = "SQUEEZE_FUEL" if cot_specs < -80000 else "NEUTRAL"
+
+        # ── FLOW_DP verdict ───────────────────────────────────────────────────
+        flow_dp_verdict = "DISTRIBUTING" if sv_pct > 55 else "ACCUMULATING" if sv_pct < 45 else "NEUTRAL"
+
+        # ── Build FLOW_QQQ and FLOW_ABS blocks conditionally ─────────────────
+        flow_qqq_block = ""
+        if qqq_sv_delta is not None:
+            qqq_verdict = "SQUEEZE_FUEL" if qqq_sv_delta > 10 else "NEUTRAL"
+            flow_qqq_block = f',"FLOW_QQQ":{{"number":"QQQ delta {qqq_sv_delta}pp","read":"FILL — {flow_qqq_hint}","verdict":"{qqq_verdict}","invalidation":"QQQ SV reverts next session"}}'
+
+        flow_abs_block = ""
+        if absorption:
+            flow_abs_block = f',"FLOW_ABS":{{"number":"absorption at {absorption_price}","read":"FILL — {flow_absorption_hint}","verdict":"ACCUMULATION","invalidation":"price breaks below absorption level"}}'
+
+        # ── SMART_MONEY block (only if politician cluster buy) ────────────────
+        smart_money_block = ""
+        if has_pol_buy:
+            smart_money_block = f',"SMART_MONEY":{{"number":"{smart_money_str}","read":"FILL — politicians buying non-routine positions. They win 3-6 weeks out. This is a directional signal not a timing signal.","verdict":"BULLISH","invalidation":"routine 10b5-1 plan filing"}}'
 
         prompt = f"""Output JSON only. Fill in each "read" field with one specific sentence using the numbers in "number". No markdown.
 
-{{"COT":{{"number":"{cot_str}","read":"FILL — what does {cot_specs:,} specs net mean right now","verdict":"BULLISH","invalidation":"specs add to shorts next report"}},"WALLS":{{"number":"SPY {spy_spot_str} / call wall {call_wall_str} / {above_str}","read":"FILL — {walls_hint}","verdict":"BULLISH","invalidation":"SPY closes below {call_wall_str}"}},"GEX":{{"number":"{gex_str}","read":"FILL — what dealers are forced to do","verdict":"NEUTRAL","invalidation":"GEX flips negative"}},"FLOW":{{"number":"{flow_str}","read":"FILL — {flow_hint}","verdict":"BULLISH","invalidation":"absorption fails on open"}},"CATALYST":{{"number":"{catalyst_str}","read":"FILL — {catalyst_hint}","verdict":"DETONATOR","invalidation":"NFP miss triggers risk-off"}},"COMBINED":{{"number":"{combined_str} / alpha {alpha_str}","read":"FILL — name {call_wall_str} and {fed_event}","verdict":"HOLD","invalidation":"SPY breaks below {call_wall_str}"}}}}"""
+{{"COT":{{"number":"{cot_str}","read":"FILL — {cot_specs:,} specs are net short. Explain: when a catalyst hits, these shorts MUST cover = forced buying = price goes up regardless of fundamentals. This is squeeze fuel, not a bearish signal.","verdict":"{cot_verdict}","invalidation":"specs add to shorts next report"}},"WALLS":{{"number":"SPY {spy_spot_str} / call wall {call_wall_str} / {above_str}","read":"FILL — {walls_hint}","verdict":"{walls_verdict}","invalidation":"SPY closes below {call_wall_str}"}},"GEX":{{"number":"{gex_str}","read":"FILL — {gex_hint}","verdict":"{gex_verdict}","invalidation":"GEX flips negative"}},"FLOW_DP":{{"number":"SPY SV {sv_pct:.1f}%","read":"FILL — {flow_dp_hint}","verdict":"{flow_dp_verdict}","invalidation":"SV% trend reverses"}}{flow_qqq_block}{flow_abs_block},"CATALYST":{{"number":"{catalyst_str}","read":"FILL — {catalyst_hint}","verdict":"DETONATOR","invalidation":"NFP miss triggers risk-off"}},"COMBINED":{{"number":"{combined_str} / alpha {alpha_str}","read":"FILL — name {call_wall_str} and {fed_event}","verdict":"HOLD","invalidation":"SPY breaks below {call_wall_str}"}}{smart_money_block}}}"""
 
         try:
             from backend.app.graph.openrouter_client import call_openrouter as _call_or
@@ -462,19 +529,28 @@ class SignalExplainer:
             cot_text = _fmt(parsed.get("COT", {}), "COT")
             walls_text = _fmt(parsed.get("WALLS", {}), "WALLS")
             gex_text = _fmt(parsed.get("GEX", {}), "GEX")
-            flow_text = _fmt(parsed.get("FLOW", {}), "FLOW")
+            flow_dp_text = _fmt(parsed.get("FLOW_DP", {}), "FLOW_DP")
+            flow_qqq_text = _fmt(parsed.get("FLOW_QQQ", {}), "FLOW_QQQ")
+            flow_abs_text = _fmt(parsed.get("FLOW_ABS", {}), "FLOW_ABS")
             catalyst_text = _fmt(parsed.get("CATALYST", {}), "CATALYST")
             combined_text = _fmt(parsed.get("COMBINED", {}), "COMBINED")
+            smart_money_text = _fmt(parsed.get("SMART_MONEY", {}), "SMART_MONEY")
 
             return {
                 "COT": cot_text,
                 "GEX": gex_text,
-                "FED_DP": flow_text,
+                # Backward compat: FED_DP still set to the DP read so existing consumers don't break
+                "FED_DP": flow_dp_text,
+                # New split FLOW keys
+                "FLOW_DP": flow_dp_text,
+                "FLOW_QQQ": flow_qqq_text,
+                "FLOW_ABS": flow_abs_text,
                 "BRAIN": catalyst_text,
                 "COMBINED": combined_text,
                 # Extra structured fields for frontend
                 "WALLS": walls_text,
                 "CATALYST": catalyst_text,
+                "SMART_MONEY": smart_money_text,
                 "signal_reads": parsed,  # raw JSON for any consumer that wants it
                 "_unified": True,
                 "_model": response.get("model", "unknown"),
