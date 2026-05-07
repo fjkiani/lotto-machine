@@ -325,6 +325,38 @@ class SignalIntelEngine:
             signals = []
             data_warnings = []
 
+            # COT divergence signal (crowded shorts = squeeze fuel)
+            try:
+                from live_monitoring.enrichment.apis.cot_client import COTClient
+                _cot = COTClient(cache_ttl=3600)
+                _cot_sig = _cot.get_divergence_signal("ES")
+                if _cot_sig:
+                    _specs = _cot_sig.get("specs_net", 0)
+                    _divergent = _cot_sig.get("divergent", False)
+                    if _divergent and _specs < -100_000:
+                        signals.append(("BULLISH", f"COT EXTREME: {_specs:,} specs net short = maximum squeeze fuel"))
+                    elif _divergent and _specs < -50_000:
+                        signals.append(("BULLISH", f"COT mild divergence: {_specs:,} specs net short"))
+                    elif _specs < -50_000 and not _divergent:
+                        signals.append(("CAUTION", f"Specs net short {_specs:,} but no commercial divergence"))
+            except Exception:
+                pass
+
+            # Kill chain confluence
+            try:
+                from backend.app.signals.kill_chain import compute_kill_chain
+                _kc = compute_kill_chain()
+                _confluence = _kc.get("confluence", "WAITING")
+                _armed = _kc.get("armed", False)
+                if _armed and _confluence in ("TRIPLE", "QUAD", "QUINT"):
+                    signals.append(("BULLISH", f"Kill chain {_confluence} confluence — {_kc.get('triggered_count', 0)}/5 layers active"))
+                elif _armed:
+                    signals.append(("BULLISH", f"Kill chain DOUBLE confluence — 2 layers active"))
+                elif _confluence == "SINGLE":
+                    signals.append(("CAUTION", "Kill chain SINGLE layer — waiting for confirmation"))
+            except Exception:
+                pass
+
             # Wall defense
             cd = report.get("close_defense", {})
             if cd.get("defense") == "DEFENDED":

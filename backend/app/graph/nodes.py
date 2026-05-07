@@ -408,7 +408,7 @@ def gate_node(state: AlphaState) -> Dict[str, Any]:
             gate_result["gate_narrative"] = (
                 f"Alpha graph says {state.get('verdict', 'HOLD')} at {state.get('confidence', 0):.0%} confidence, "
                 f"but kill chain confluence is {kc.get('confluence', 'WAITING')} — "
-                f"waiting for {4 - kc.get('triggered_count', 0)} more layer(s) to confirm before arming."
+                f"waiting for {max(2 - kc.get('triggered_count', 0), 1)} more layer(s) to confirm before arming (need DOUBLE confluence)."
             )
 
     except Exception as e:
