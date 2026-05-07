@@ -800,49 +800,116 @@ async def kill_shots_live():
         from backend.app.signals.verdict_utils import compute_verdict
         verdict, action, action_plan = compute_verdict(score)
 
-        # ── ENRICH LAYERS: AXLFI walls + Fed calendar (before explainer) ──────
-        try:
+        # ── ENRICH LAYERS: all API calls in parallel (AXLFI + Fed + QQQ + spot) ──
+        # Hard 7s timeout per call — never block the endpoint
+        from concurrent.futures import ThreadPoolExecutor as _EnrichPool, TimeoutError as _EnrichTimeout
+
+        def _fetch_axlfi_walls():
             from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SG
             _sg = _SG(cache_ttl=300)
-            _walls = _sg.get_option_walls_today("SPY")
-            if _walls:
-                layers["axlfi_call_wall"] = getattr(_walls, "call_wall", None)
-                layers["axlfi_put_wall"] = getattr(_walls, "put_wall", None)
+            return _sg.get_option_walls_today("SPY")
 
-            # Spot price: prefer GEX scorer result, fall back to yfinance
-            _spot = layers.get("gex_spot_price") or 0
-            if not _spot or _spot == 0.0:
-                try:
-                    import yfinance as _yf
-                    _spy_info = _yf.Ticker("SPY").fast_info
-                    _spot = round(float(_spy_info.get("lastPrice") or _spy_info.get("regularMarketPrice") or 0), 2)
-                    if _spot:
-                        layers["gex_spot_price"] = _spot  # backfill for explainer
-                except Exception:
-                    pass
-            layers["axlfi_spot"] = _spot or None
-
-            _call_wall = layers.get("axlfi_call_wall")
-            if _spot and _call_wall:
-                layers["axlfi_signal"] = (
-                    "ABOVE_CALL_WALL" if _spot > _call_wall
-                    else "BETWEEN_WALLS"
-                )
-        except Exception as _axlfi_exc:
-            logger.warning(f"AXLFI enrichment failed: {_axlfi_exc}")
-
-        try:
+        def _fetch_fed_calendar():
             from live_monitoring.enrichment.apis.te_calendar_scraper import TECalendarScraper as _TEC
             _te = _TEC(cache_ttl=300)
-            _veto = _te.get_hours_until_next_critical()
-            if _veto:
-                _hours, _event = _veto
-                layers["fed_veto_hours"] = round(_hours, 1) if _hours else None
-                layers["fed_veto_next"] = _event
-                if _hours and _hours <= 4:
-                    layers["fed_veto"] = f"CRITICAL EVENT IN {_hours:.1f}h: {_event}"
-        except Exception as _fed_exc:
-            logger.warning(f"Fed calendar enrichment failed: {_fed_exc}")
+            return _te.get_hours_until_next_critical()
+
+        def _fetch_spy_spot():
+            import yfinance as _yf
+            info = _yf.Ticker("SPY").fast_info
+            return round(float(info.get("lastPrice") or info.get("regularMarketPrice") or 0), 2)
+
+        def _fetch_qqq_sv_raw():
+            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SG
+            _sg = _SG(cache_ttl=300)
+            return _sg.get_ticker_detail_raw("QQQ")
+
+        def _fetch_spy_walls_raw():
+            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SG
+            _sg = _SG(cache_ttl=300)
+            return _sg.get_option_walls("SPY")
+
+        with _EnrichPool(max_workers=5) as _ep:
+            _axlfi_f  = _ep.submit(_fetch_axlfi_walls)
+            _fed_f    = _ep.submit(_fetch_fed_calendar)
+            _spot_f   = _ep.submit(_fetch_spy_spot)
+            _qqq_f    = _ep.submit(_fetch_qqq_sv_raw)
+            _swalls_f = _ep.submit(_fetch_spy_walls_raw)
+
+            # AXLFI walls
+            try:
+                _walls = _axlfi_f.result(timeout=7)
+                if _walls:
+                    layers["axlfi_call_wall"] = getattr(_walls, "call_wall", None)
+                    layers["axlfi_put_wall"] = getattr(_walls, "put_wall", None)
+            except (_EnrichTimeout, Exception) as _e:
+                logger.warning(f"AXLFI walls fetch failed: {_e}")
+
+            # Spot price — prefer GEX scorer, fall back to yfinance
+            _spot = layers.get("gex_spot_price") or 0
+            if not _spot or float(_spot) == 0.0:
+                try:
+                    _spot = _spot_f.result(timeout=7) or 0
+                    if _spot:
+                        layers["gex_spot_price"] = _spot
+                except (_EnrichTimeout, Exception):
+                    pass
+            layers["axlfi_spot"] = _spot or None
+            _call_wall = layers.get("axlfi_call_wall")
+            if _spot and _call_wall:
+                layers["axlfi_signal"] = "ABOVE_CALL_WALL" if float(_spot) > float(_call_wall) else "BETWEEN_WALLS"
+
+            # Fed calendar
+            try:
+                _veto = _fed_f.result(timeout=7)
+                if _veto:
+                    _hours, _event = _veto
+                    layers["fed_veto_hours"] = round(_hours, 1) if _hours else None
+                    layers["fed_veto_next"] = _event
+                    if _hours and _hours <= 4:
+                        layers["fed_veto"] = f"CRITICAL EVENT IN {_hours:.1f}h: {_event}"
+            except (_EnrichTimeout, Exception) as _e:
+                logger.warning(f"Fed calendar fetch failed: {_e}")
+
+            # QQQ short vol delta
+            try:
+                _qqq_raw = _qqq_f.result(timeout=7)
+                if _qqq_raw:
+                    _sv_table = _qqq_raw.get("individual_short_volume_table", {})
+                    _sv_items = _sv_table.get("data", []) if isinstance(_sv_table, dict) else _sv_table
+                    if _sv_items and len(_sv_items) >= 2:
+                        _sv_sorted = sorted(_sv_items, key=lambda x: x.get("date", "") if isinstance(x, dict) else "")
+                        _latest_sv = _sv_sorted[-1]
+                        _prev_sv = _sv_sorted[-2]
+                        def _sv_val(row):
+                            v = float(row.get("short_volume_pct", row.get("short_volume%", row.get("short_volume_percent", 0))) or 0)
+                            return v if v > 1.0 else v * 100.0
+                        _qqq_latest_sv = round(_sv_val(_latest_sv), 1)
+                        _qqq_prev_sv = round(_sv_val(_prev_sv), 1)
+                        _qqq_delta = round(_qqq_latest_sv - _qqq_prev_sv, 1)
+                        layers["qqq_sv_latest"] = _qqq_latest_sv
+                        layers["qqq_sv_prev"] = _qqq_prev_sv
+                        layers["qqq_sv_delta"] = _qqq_delta
+                        if _qqq_delta > 10 and layers.get("axlfi_signal") == "ABOVE_CALL_WALL":
+                            layers["qqq_reshort_spike"] = True
+                            layers["qqq_reshort_note"] = (
+                                f"QQQ short vol +{_qqq_delta}pp in 1 day while SPY above call wall "
+                                f"= institutions re-shorting into strength = squeeze fuel"
+                            )
+            except (_EnrichTimeout, Exception) as _e:
+                logger.warning(f"QQQ SV delta fetch failed: {_e}")
+                layers["_debug_qqq_error"] = str(_e)
+
+            # SPY session trend
+            try:
+                _walls_raw = _swalls_f.result(timeout=7)
+                if _walls_raw:
+                    _today_walls = list((_walls_raw.get("option_walls") or {}).values())
+                    if _today_walls:
+                        _tw = _today_walls[-1] if isinstance(_today_walls[-1], dict) else {}
+                        layers["spy_session_trend"] = _tw.get("trend") or _tw.get("read")
+            except (_EnrichTimeout, Exception) as _e:
+                logger.warning(f"SPY session trend fetch failed: {_e}")
 
         # ── ENRICH LAYERS: politician_tickers (from brain_scorer raw data) ────
         try:
@@ -874,23 +941,19 @@ async def kill_shots_live():
             logger.warning(f"Alpha graph cache read failed: {_ag_exc}")
             layers["alpha_graph_verdict"] = None
 
-        # ── ENRICH LAYERS: absorption + QQQ short vol delta + session trend ───
-        # These are the pre-move signals the explainer needs to surface edge.
+        # ── ENRICH LAYERS: absorption (file read — fast, no API call) ───────────
         try:
             from live_monitoring.enrichment.apis.volume_spike_detector import VolumeSpikeDetector
             _vs_inst = _pipe_instances.get('volume_spikes')
             _vs_data = _vs_inst.get_latest() if _vs_inst else VolumeSpikeDetector().get_latest()
-            layers["_debug_vs_data"] = bool(_vs_data)
             if _vs_data:
                 _spikes = _vs_data.get("spikes", [])
-                layers["_debug_spike_count"] = len(_spikes)
-                # Absorption = high volume (ratio > 2.5x) with near-zero price move (< 0.15 dollars)
                 _absorption = [
                     s for s in _spikes
                     if s.get("ratio", 0) > 2.5 and abs(s.get("move", 99)) < 0.15
                 ]
                 if _absorption:
-                    _abs = _absorption[-1]  # most recent absorption candle
+                    _abs = _absorption[-1]
                     layers["absorption_detected"] = True
                     layers["absorption_price"] = _abs.get("close")
                     layers["absorption_vol_ratio"] = _abs.get("ratio")
@@ -898,68 +961,8 @@ async def kill_shots_live():
                 else:
                     layers["absorption_detected"] = False
                 layers["volume_spikes_today"] = len(_spikes)
-                layers["volume_spikes_raw"] = _spikes  # expose for debugging
         except Exception as _vs_exc:
             logger.warning(f"Volume spike enrichment failed: {_vs_exc}")
-            layers["_debug_vs_error"] = str(_vs_exc)
-
-        try:
-            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SG2
-            from concurrent.futures import ThreadPoolExecutor as _TPE, TimeoutError as _TE
-            _sg2 = _SG2(cache_ttl=300)
-
-            def _fetch_qqq_sv():
-                return _sg2.get_ticker_detail_raw("QQQ")
-
-            def _fetch_spy_walls():
-                return _sg2.get_option_walls("SPY")
-
-            # Run both with 6s timeout — don't block the endpoint
-            with _TPE(max_workers=2) as _pool:
-                _qqq_fut = _pool.submit(_fetch_qqq_sv)
-                _walls_fut = _pool.submit(_fetch_spy_walls)
-
-                try:
-                    _qqq_raw = _qqq_fut.result(timeout=6)
-                    if _qqq_raw:
-                        _sv_table = _qqq_raw.get("individual_short_volume_table", {})
-                        _sv_items = _sv_table.get("data", []) if isinstance(_sv_table, dict) else _sv_table
-                        if _sv_items and len(_sv_items) >= 2:
-                            _sv_sorted = sorted(_sv_items, key=lambda x: x.get("date", "") if isinstance(x, dict) else "")
-                            _latest = _sv_sorted[-1]
-                            _prev = _sv_sorted[-2]
-                            def _sv_val(row):
-                                v = float(row.get("short_volume_pct", row.get("short_volume%", row.get("short_volume_percent", 0))) or 0)
-                                return v if v > 1.0 else v * 100.0
-                            _qqq_latest_sv = round(_sv_val(_latest), 1)
-                            _qqq_prev_sv = round(_sv_val(_prev), 1)
-                            _qqq_delta = round(_qqq_latest_sv - _qqq_prev_sv, 1)
-                            layers["qqq_sv_latest"] = _qqq_latest_sv
-                            layers["qqq_sv_prev"] = _qqq_prev_sv
-                            layers["qqq_sv_delta"] = _qqq_delta
-                            if _qqq_delta > 10 and layers.get("axlfi_signal") == "ABOVE_CALL_WALL":
-                                layers["qqq_reshort_spike"] = True
-                                layers["qqq_reshort_note"] = (
-                                    f"QQQ short vol +{_qqq_delta}pp in 1 day while SPY above call wall "
-                                    f"= institutions re-shorting into strength = squeeze fuel"
-                                )
-                except (_TE, Exception) as _qqq_exc:
-                    logger.warning(f"QQQ short vol delta enrichment failed: {_qqq_exc}")
-                    layers["_debug_qqq_error"] = str(_qqq_exc)
-
-                try:
-                    _walls_raw = _walls_fut.result(timeout=6)
-                    if _walls_raw:
-                        _today_walls = list((_walls_raw.get("option_walls") or {}).values())
-                        if _today_walls:
-                            _tw = _today_walls[-1] if isinstance(_today_walls[-1], dict) else {}
-                            layers["spy_session_trend"] = _tw.get("trend") or _tw.get("read")
-                except (_TE, Exception) as _trend_exc:
-                    logger.warning(f"SPY session trend enrichment failed: {_trend_exc}")
-
-        except Exception as _enrich_exc:
-            logger.warning(f"QQQ/walls enrichment block failed: {_enrich_exc}")
-            layers["_debug_qqq_error"] = str(_enrich_exc)
 
         # ── LLM EXPLANATIONS (last — sees full enriched layers) ───────────────
         explanations = {}
