@@ -568,7 +568,8 @@ class SignalExplainer:
                 "FLOW_DP": flow_dp_text,
                 "FLOW_QQQ": flow_qqq_text,
                 "FLOW_ABS": flow_abs_text,
-                "BRAIN": catalyst_text,
+                # BRAIN = smart money / politician signal (not catalyst)
+                "BRAIN": smart_money_text or combined_text,
                 "COMBINED": combined_text,
                 # Extra structured fields for frontend
                 "WALLS": walls_text,
