@@ -712,7 +712,7 @@ async def kill_shots_live():
         try:
             from backend.app.signals.signal_explainer import SignalExplainer
             explainer = SignalExplainer()
-            explanations = explainer.explain_all(layers)
+            explanations = explainer.explain_unified(layers)
         except Exception as e:
             logger.warning(f"LLM explanations skipped: {e}")
 

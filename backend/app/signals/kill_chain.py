@@ -84,7 +84,7 @@ _STATE_PATH = Path(__file__).resolve().parents[3] / "live_monitoring" / "data" /
 
 
 def _load_state() -> dict:
-    """Load kill chain state from disk. Returns defaults if missing."""
+    """Load kill chain state from Supabase (primary) or disk (fallback)."""
     default = {
         "triple_active": False,
         "last_check": None,
@@ -95,11 +95,27 @@ def _load_state() -> dict:
             "current_pnl": 0.0,
         },
     }
+    # Try Supabase first
+    try:
+        import os as _os
+        _url = _os.getenv("SUPABASE_URL")
+        _key = _os.getenv("SUPABASE_KEY") or _os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        if _url and _key:
+            from supabase import create_client as _create_client
+            _sb = _create_client(_url, _key)
+            _res = _sb.table("kill_chain_state").select("state").eq("id", 1).execute()
+            if _res.data:
+                _state = _res.data[0].get("state", default)
+                if "position" not in _state:
+                    _state["position"] = default["position"]
+                return _state
+    except Exception as e:
+        logger.warning(f"Supabase state load failed, using disk: {e}")
+    # Disk fallback
     try:
         if _STATE_PATH.exists():
             with open(_STATE_PATH) as f:
                 data = json.load(f)
-            # Back-fill position block if state pre-dates this schema
             if "position" not in data:
                 data["position"] = default["position"]
             return data
@@ -109,13 +125,27 @@ def _load_state() -> dict:
 
 
 def _save_state(state: dict) -> None:
-    """Persist kill chain state to disk."""
+    """Persist kill chain state to disk + Supabase."""
+    # Disk (always attempt — fast, local)
     try:
         _STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(_STATE_PATH, "w") as f:
             json.dump(state, f, indent=2, default=str)
     except Exception as e:
-        logger.warning(f"Could not save kill chain state: {e}")
+        logger.warning(f"Disk state save failed: {e}")
+    # Supabase upsert (best-effort — don't crash if unavailable)
+    try:
+        import os as _os
+        _url = _os.getenv("SUPABASE_URL")
+        _key = _os.getenv("SUPABASE_KEY") or _os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        if _url and _key:
+            from supabase import create_client as _create_client
+            _sb = _create_client(_url, _key)
+            _sb.table("kill_chain_state").upsert(
+                {"id": 1, "state": state, "updated_at": datetime.utcnow().isoformat()}
+            ).execute()
+    except Exception as e:
+        logger.warning(f"Supabase state save failed: {e}")
 
 
 def compute_kill_chain() -> dict:
@@ -162,6 +192,29 @@ def compute_kill_chain() -> dict:
                     bullish_pts += boost
         except Exception as exc:
             raw["brain_error"] = str(exc)
+
+        # ── Politician Cluster Boost ─────────────────────────────────────────────
+        try:
+            if brain:
+                _pol_cluster = brain.get("politician_cluster", 0)
+                _pol_buys = brain.get("politician_buys", 0)
+                _pol_details = brain.get("politician_details", [])
+                _pol_tickers = [
+                    d.get("ticker") for d in _pol_details
+                    if d.get("direction") == "buy" and not d.get("is_routine")
+                ]
+                raw["politician_cluster"] = _pol_cluster
+                raw["politician_tickers"] = _pol_tickers
+                if _pol_cluster >= 3 and _pol_buys > 0:
+                    bullish_pts += 2
+                    raw["politician_signal"] = f"CLUSTER_BUY: {_pol_cluster} politicians buying"
+                elif _pol_cluster >= 2 and _pol_buys > 0:
+                    bullish_pts += 1
+                    raw["politician_signal"] = f"DUAL_BUY: {_pol_cluster} politicians buying"
+                else:
+                    raw["politician_signal"] = "NONE"
+        except Exception as _exc:
+            raw["politician_error"] = str(_exc)
 
         # ── Layer 1 — COT Divergence ──────────────────────────────────────────────
         try:
@@ -325,9 +378,71 @@ def compute_kill_chain() -> dict:
             "signal": "PANIC_THRESHOLD" if layer_3_triggered else "WATCHING",
         }
 
+        # ── Layer 4 — AXLFI Wall Proximity ──────────────────────────────────────
+        axlfi_wall_triggered = False
+        axlfi_wall_signal = "NEUTRAL"
+        try:
+            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SGClient
+            _sg = _SGClient(cache_ttl=300)
+            _walls = _sg.get_option_walls_today("SPY")
+            if _walls and current_spot > 0:
+                _call_wall = _walls.call_wall
+                _put_wall = _walls.put_wall
+                raw["axlfi_call_wall"] = _call_wall
+                raw["axlfi_put_wall"] = _put_wall
+                raw["axlfi_spot"] = current_spot
+                # Within 0.5% of call wall = resistance (bearish)
+                if _call_wall > 0 and abs(current_spot - _call_wall) / _call_wall < 0.005:
+                    bearish_pts += 2
+                    axlfi_wall_triggered = True
+                    axlfi_wall_signal = f"AT_CALL_WALL_{_call_wall}"
+                    raw["axlfi_signal"] = f"PRICE_AT_CALL_WALL → BEARISH RESISTANCE"
+                # Within 0.5% of put wall = support (bullish)
+                elif _put_wall > 0 and abs(current_spot - _put_wall) / _put_wall < 0.005:
+                    bullish_pts += 2
+                    axlfi_wall_triggered = True
+                    axlfi_wall_signal = f"AT_PUT_WALL_{_put_wall}"
+                    raw["axlfi_signal"] = f"PRICE_AT_PUT_WALL → BULLISH SUPPORT"
+                else:
+                    raw["axlfi_signal"] = "BETWEEN_WALLS"
+        except Exception as _exc:
+            raw["axlfi_error"] = str(_exc)
+
+        layer_4 = {
+            "name": "AXLFI Wall Proximity",
+            "triggered": axlfi_wall_triggered,
+            "value": current_spot,
+            "unit": "SPY Price",
+            "signal": axlfi_wall_signal,
+        }
+
+        # ── Fed Event Veto ───────────────────────────────────────────────────────
+        fed_veto_active = False
+        fed_veto_event = None
+        try:
+            from live_monitoring.enrichment.apis.te_calendar_scraper import TECalendarScraper as _TECal
+            _te = _TECal(cache_ttl=300)
+            _veto_result = _te.get_hours_until_next_critical()
+            if _veto_result is not None:
+                _hours_away, _event_name = _veto_result
+                if _hours_away is not None and _hours_away <= 4:
+                    fed_veto_active = True
+                    fed_veto_event = _event_name
+                    raw["fed_veto"] = f"CRITICAL EVENT IN {_hours_away:.1f}h: {_event_name}"
+                else:
+                    raw["fed_veto_hours"] = round(_hours_away, 1) if _hours_away else None
+                    raw["fed_veto_next"] = _event_name
+        except Exception as _exc:
+            raw["fed_veto_error"] = str(_exc)
+
         # ── Confluence label ─────────────────────────────────────────────────────
-        triggered_count = sum([layer_1_triggered, layer_2_triggered, layer_3_triggered])
-        if triggered_count == 3:
+        layer_4_triggered = axlfi_wall_triggered
+        triggered_count = sum([layer_1_triggered, layer_2_triggered, layer_3_triggered, layer_4_triggered])
+        if fed_veto_active:
+            confluence = "VETO"
+        elif triggered_count == 4:
+            confluence = "QUAD"
+        elif triggered_count == 3:
             confluence = "TRIPLE"
         elif triggered_count == 2:
             confluence = "DOUBLE"
@@ -388,11 +503,14 @@ def compute_kill_chain() -> dict:
             "confluence": confluence,
             "triggered_count": triggered_count,
             "armed": is_now_active,
+            "fed_veto_active": fed_veto_active,
+            "fed_veto_event": fed_veto_event,
             "bullish_points": bullish_pts,
             "bearish_points": bearish_pts,
             "layer_1": layer_1,
             "layer_2": layer_2,
             "layer_3": layer_3,
+            "layer_4": layer_4,
             "position": position,
             "signals": signals,
             "layers": raw,

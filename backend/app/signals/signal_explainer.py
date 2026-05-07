@@ -294,3 +294,61 @@ class SignalExplainer:
             })
 
         return explanations
+
+    def explain_unified(self, layers: dict) -> dict:
+        """Single LLM call reasoning across ALL scorers simultaneously.
+        Replaces 5 serial explain() calls. Returns same key structure as explain_all().
+        Uses OpenRouter (free) with Groq fallback.
+        """
+        import json as _json
+
+        context = {
+            "brain_boost": layers.get("brain_boost", 0),
+            "brain_direction": layers.get("brain_direction", "NEUTRAL"),
+            "cot_specs_net": layers.get("cot_specs_net", 0),
+            "cot_divergent": layers.get("cot_divergent", False),
+            "gex_regime": layers.get("gex_regime", "UNKNOWN"),
+            "gex_total_millions": round(layers.get("gex_total", 0) / 1e6, 2),
+            "sv_pct": layers.get("sv_pct", 50),
+            "axlfi_call_wall": layers.get("axlfi_call_wall"),
+            "axlfi_put_wall": layers.get("axlfi_put_wall"),
+            "axlfi_signal": layers.get("axlfi_signal", "NONE"),
+            "politician_cluster": layers.get("politician_cluster", 0),
+            "politician_signal": layers.get("politician_signal", "NONE"),
+            "fed_veto": layers.get("fed_veto"),
+        }
+
+        prompt = f"""You are a trading intelligence system. Given these simultaneous market signals:
+{_json.dumps(context, indent=2)}
+
+In 3-4 sentences total, explain:
+1. What the COMBINATION of these signals means (not each individually)
+2. The single most important signal and why it dominates
+3. What would INVALIDATE the current setup
+
+Be direct. No jargon. Assume a smart trader who wants the truth."""
+
+        try:
+            from backend.app.graph.openrouter_client import call_openrouter as _call_or
+            response = _call_or(
+                prompt=prompt,
+                role="explain",
+                max_tokens=400,
+                timeout=12,
+            )
+            unified_text = response.get("content", "")
+            if not unified_text:
+                raise ValueError("Empty response from OpenRouter")
+            return {
+                "BRAIN": unified_text,
+                "COT": unified_text,
+                "GEX": unified_text,
+                "FED_DP": unified_text,
+                "COMBINED": unified_text,
+                "_unified": True,
+                "_model": response.get("model", "unknown"),
+                "_source": response.get("source", "unknown"),
+            }
+        except Exception as e:
+            logger.warning(f"explain_unified failed: {e} — falling back to explain_all()")
+            return self.explain_all(layers)
