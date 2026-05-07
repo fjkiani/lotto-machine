@@ -296,78 +296,197 @@ class SignalExplainer:
         return explanations
 
     def explain_unified(self, layers: dict) -> dict:
-        """Single LLM call reasoning across ALL scorers simultaneously.
-        Replaces 5 serial explain() calls. Returns same key structure as explain_all().
+        """Single LLM call that produces structured per-signal reads with specific numbers.
+        Returns JSON with one verdict per signal — not a narrative paragraph.
         Uses OpenRouter (free) with Groq fallback.
         """
         import json as _json
 
+        # ── Build context with every number the LLM needs ────────────────────
+        spy_spot = layers.get("gex_spot_price") or layers.get("axlfi_spot") or 0
+        call_wall = layers.get("axlfi_call_wall") or 0
+        put_wall = layers.get("axlfi_put_wall") or 0
+        above_call = round(spy_spot - call_wall, 2) if spy_spot and call_wall else None
+        gamma_flip = layers.get("gex_gamma_flip")
+        cot_specs = layers.get("cot_specs_net", 0)
+        cot_comms = layers.get("cot_comm_net", 0)
+        sv_pct = layers.get("sv_pct") or layers.get("spy_short_vol_pct") or 0
+        vix = layers.get("vix")
+        fed_hours = layers.get("fed_veto_hours")
+        fed_event = layers.get("fed_veto_next")
+        alpha_verdict = layers.get("alpha_graph_verdict")
+        alpha_conf = layers.get("alpha_graph_confidence")
+        pol_tickers = layers.get("politician_tickers") or []
+        pol_signal = layers.get("politician_signal", "NONE")
+        absorption = layers.get("absorption_detected", False)
+        absorption_price = layers.get("absorption_price")
+        absorption_ratio = layers.get("absorption_vol_ratio")
+        qqq_sv_delta = layers.get("qqq_sv_delta")
+        qqq_sv_latest = layers.get("qqq_sv_latest")
+        gex_regime = layers.get("gex_regime", "UNKNOWN")
+        gex_total_m = round((layers.get("gex_total") or layers.get("total_gex_dollars") or 0) / 1e6, 1)
+        session_trend = layers.get("spy_session_trend")
+
         context = {
-            "brain_boost": layers.get("brain_boost", 0),
-            "brain_direction": layers.get("brain_direction", "NEUTRAL"),
-            "cot_specs_net": layers.get("cot_specs_net", 0),
-            "cot_comm_net": layers.get("cot_comm_net", 0),
-            "cot_divergent": layers.get("cot_divergent", False),
-            "gex_regime": layers.get("gex_regime", "UNKNOWN"),
-            "gex_total_millions": round(layers.get("gex_total", 0) / 1e6, 2),
-            "gex_gamma_flip": layers.get("gex_gamma_flip"),
-            "spy_spot": layers.get("gex_spot_price") or layers.get("axlfi_spot"),
-            "axlfi_call_wall": layers.get("axlfi_call_wall"),
-            "axlfi_put_wall": layers.get("axlfi_put_wall"),
-            "axlfi_signal": layers.get("axlfi_signal", "NONE"),
-            "spy_above_call_wall": (
-                round((layers.get("gex_spot_price", 0) or 0) - (layers.get("axlfi_call_wall", 0) or 0), 2)
-                if layers.get("gex_spot_price") and layers.get("axlfi_call_wall") else None
-            ),
-            "sv_pct": layers.get("sv_pct", 50),
-            "vix": layers.get("vix"),
-            "politician_cluster": layers.get("politician_cluster", 0),
-            "politician_signal": layers.get("politician_signal", "NONE"),
-            "politician_tickers": layers.get("politician_tickers", []),
-            "fed_veto": layers.get("fed_veto"),
-            "fed_veto_hours": layers.get("fed_veto_hours"),
-            "fed_veto_next_event": layers.get("fed_veto_next"),
-            "alpha_graph_verdict": layers.get("alpha_graph_verdict"),
-            "alpha_graph_confidence": layers.get("alpha_graph_confidence"),
-            "alpha_graph_thesis": layers.get("alpha_graph_thesis"),
+            # Position structure
+            "COT": {
+                "specs_net": cot_specs,
+                "comms_net": cot_comms,
+                "divergent": layers.get("cot_divergent", False),
+                "read": "CROWDED_SHORT" if cot_specs < -80000 else "NEUTRAL",
+            },
+            # Options structure
+            "WALLS": {
+                "spy_spot": spy_spot,
+                "call_wall": call_wall,
+                "put_wall": put_wall,
+                "pts_above_call_wall": above_call,
+                "gamma_flip": gamma_flip,
+                "session_trend": session_trend,
+                "signal": layers.get("axlfi_signal", "UNKNOWN"),
+            },
+            # Volatility / GEX
+            "GEX": {
+                "regime": gex_regime,
+                "total_millions": gex_total_m,
+                "gamma_flip": gamma_flip,
+                "vix": vix,
+            },
+            # Dark pool flow
+            "FLOW": {
+                "spy_short_vol_pct": sv_pct,
+                "qqq_short_vol_latest": qqq_sv_latest,
+                "qqq_short_vol_1day_delta": qqq_sv_delta,
+                "absorption_detected": absorption,
+                "absorption_price": absorption_price,
+                "absorption_vol_ratio": absorption_ratio,
+            },
+            # Macro catalyst
+            "CATALYST": {
+                "fed_veto_hours": fed_hours,
+                "fed_veto_event": fed_event,
+                "veto_active": bool(fed_hours and fed_hours <= 4),
+            },
+            # Alpha graph
+            "ALPHA_GRAPH": {
+                "verdict": alpha_verdict,
+                "confidence": alpha_conf,
+            },
+            # Smart money
+            "SMART_MONEY": {
+                "politician_tickers": pol_tickers,
+                "politician_signal": pol_signal,
+            },
         }
 
-        prompt = f"""You are a trading intelligence system synthesizing live market signals into a single actionable narrative.
+        prompt = f"""You are a trading signal interpreter. You receive live market data and output structured signal reads — one per signal block. Each read must cite the exact number from the data and give a one-line verdict.
 
-LIVE SIGNALS:
+DATA:
 {_json.dumps(context, indent=2)}
 
-Write 4 sentences MAXIMUM:
-1. The dominant setup right now (what the combination of COT + GEX + flow is saying together — not each individually)
-2. The single most important number/signal and exactly why it dominates
-3. The specific price level or event that would INVALIDATE this setup
-4. One concrete, specific thing a trader should watch in the next 4 hours
+Output JSON with this exact structure — no markdown, no extra keys:
+{{
+  "COT": {{
+    "number": "specs_net value as string e.g. -101,440",
+    "read": "one sentence: what this number means RIGHT NOW, not historically",
+    "verdict": "BULLISH | BEARISH | NEUTRAL",
+    "invalidation": "what would flip this read"
+  }},
+  "WALLS": {{
+    "number": "e.g. SPY 733.83 / call wall 720 / +13.83pts above",
+    "read": "one sentence: is SPY pinned, breaking out, or at support — use the actual pts_above_call_wall number",
+    "verdict": "BULLISH | BEARISH | NEUTRAL",
+    "invalidation": "specific price level that flips this"
+  }},
+  "GEX": {{
+    "number": "regime + total_millions + gamma_flip",
+    "read": "one sentence: what dealers are forced to do right now",
+    "verdict": "BULLISH | BEARISH | NEUTRAL",
+    "invalidation": "what changes the dealer behavior"
+  }},
+  "FLOW": {{
+    "number": "spy sv_pct + qqq delta if available + absorption if detected",
+    "read": "one sentence: what dark pool and volume data says about institutional intent",
+    "verdict": "BULLISH | BEARISH | NEUTRAL",
+    "invalidation": "what would flip this"
+  }},
+  "CATALYST": {{
+    "number": "hours until event + event name",
+    "read": "one sentence: is this a detonator (squeeze trigger) or a veto (stay flat)",
+    "verdict": "DETONATOR | VETO | NEUTRAL",
+    "invalidation": "what outcome would flip the setup"
+  }},
+  "COMBINED": {{
+    "number": "count of aligned signals e.g. 4/5 BULLISH",
+    "read": "one sentence: the single most important thing a trader needs to know right now — name the specific price level and the specific event",
+    "verdict": "ARMED | HOLD | VETO",
+    "invalidation": "the one thing that kills the whole setup"
+  }}
+}}
 
-Rules:
-- If spy_above_call_wall is positive, say SPY has broken above the call wall — that's structurally bullish
-- If fed_veto_hours < 24, lead with the event name and hours — that's the most important context
-- If alpha_graph_verdict is ARMED, mention it and the confidence
-- If politician_tickers is non-empty, name the tickers
-- Never say "the combination of signals suggests" — be specific
-- No hedging. No jargon. A trader needs to act on this."""
+Rules — violations will break the system:
+- WALLS.read MUST use the pts_above_call_wall number if it is not null — do not say "pinned between walls" if pts_above_call_wall > 0
+- FLOW.read MUST mention absorption_detected if true, and qqq_short_vol_1day_delta if not null
+- CATALYST.read: if fed_veto_hours < 24, call it a DETONATOR for a crowded-short setup, not a veto — the crowd is already wrong
+- COMBINED.read: name the exact price level (call wall number) and exact event (fed_veto_event) — no generic phrases
+- Every "number" field must contain actual numbers from the data, not descriptions
+- No hedging phrases: "may", "could", "suggests", "might", "appears to"
+- If a data field is null, skip it — do not invent numbers"""
 
         try:
             from backend.app.graph.openrouter_client import call_openrouter as _call_or
+            from backend.app.graph.openrouter_client import extract_json as _extract_json
             response = _call_or(
                 prompt=prompt,
                 role="explain",
-                max_tokens=400,
-                timeout=12,
+                max_tokens=800,
+                timeout=15,
+                use_cache=False,  # always fresh — data changes every call
             )
-            unified_text = response.get("content", "")
-            if not unified_text:
+            raw_content = response.get("content", "")
+            if not raw_content:
                 raise ValueError("Empty response from OpenRouter")
+
+            parsed = _extract_json(raw_content)
+            if not parsed:
+                raise ValueError(f"JSON parse failed. Raw: {raw_content[:200]}")
+
+            # Format each signal block into a labeled string for the UI
+            def _fmt(block: dict, label: str) -> str:
+                if not block:
+                    return ""
+                number = block.get("number", "")
+                read = block.get("read", "")
+                verdict = block.get("verdict", "")
+                inv = block.get("invalidation", "")
+                parts = []
+                if number:
+                    parts.append(f"[{number}]")
+                if read:
+                    parts.append(read)
+                if verdict:
+                    parts.append(f"→ {verdict}")
+                if inv:
+                    parts.append(f"| Invalidated if: {inv}")
+                return " ".join(parts)
+
+            cot_text = _fmt(parsed.get("COT", {}), "COT")
+            walls_text = _fmt(parsed.get("WALLS", {}), "WALLS")
+            gex_text = _fmt(parsed.get("GEX", {}), "GEX")
+            flow_text = _fmt(parsed.get("FLOW", {}), "FLOW")
+            catalyst_text = _fmt(parsed.get("CATALYST", {}), "CATALYST")
+            combined_text = _fmt(parsed.get("COMBINED", {}), "COMBINED")
+
             return {
-                "BRAIN": unified_text,
-                "COT": unified_text,
-                "GEX": unified_text,
-                "FED_DP": unified_text,
-                "COMBINED": unified_text,
+                "COT": cot_text,
+                "GEX": gex_text,
+                "FED_DP": flow_text,
+                "BRAIN": catalyst_text,
+                "COMBINED": combined_text,
+                # Extra structured fields for frontend
+                "WALLS": walls_text,
+                "CATALYST": catalyst_text,
+                "signal_reads": parsed,  # raw JSON for any consumer that wants it
                 "_unified": True,
                 "_model": response.get("model", "unknown"),
                 "_source": response.get("source", "unknown"),

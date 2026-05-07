@@ -83,16 +83,26 @@ COT POSITIONING: {cot_summary}
 FED CALENDAR: {fed_summary}
 VIX: {vix_val if vix_val else "unavailable"}
 
-In 3-4 sentences, explain:
-1. What the COT positioning implies — is this a crowded short (squeeze fuel) or crowded long (distribution risk)?
-2. How the Fed calendar changes the risk profile — is it safe to hold through the event?
-3. What VIX level tells us about vol regime right now
-4. The single macro factor that dominates the setup
-
-Be specific with numbers. No hedging."""
+Answer in JSON only, no markdown:
+{{
+  "cot_read": "one sentence: what the specs_net number means RIGHT NOW — is this squeeze fuel or distribution risk? Use the actual number.",
+  "fed_read": "one sentence: is the upcoming event a detonator (forces shorts to cover) or a veto (stay flat)? Name the event and hours.",
+  "vix_read": "one sentence: what VIX level means for vol regime — is vol suppressed (dealers long gamma, moves dampened) or elevated?",
+  "dominant_factor": "the single number that dominates the setup and why",
+  "regime": "RISK_ON or RISK_OFF or TRANSITIONAL"
+}}"""
 
     content = _safe_call("macro", prompt, max_tokens=400)
-    if not content:
+    parsed_macro = extract_json(content) if content else None
+    if parsed_macro:
+        content = (
+            f"COT: {parsed_macro.get('cot_read', '')} | "
+            f"FED: {parsed_macro.get('fed_read', '')} | "
+            f"VIX: {parsed_macro.get('vix_read', '')} | "
+            f"DOMINANT: {parsed_macro.get('dominant_factor', '')} | "
+            f"REGIME: {parsed_macro.get('regime', 'UNKNOWN')}"
+        )
+    elif not content:
         errors.append("macro_node: empty LLM response")
         content = f"Macro analysis unavailable. COT snapshot: {cot_summary}"
 
@@ -142,16 +152,24 @@ def flow_node(state: AlphaState) -> Dict[str, Any]:
 AXLFI OPTION WALLS: {axlfi_summary}
 DARK POOL FLOW: {dp_summary}
 
-In 3-4 sentences, explain:
-1. What the option wall positioning means — is SPY pinned, breaking out, or at support?
-2. Whether dark pool short volume indicates institutional distribution or normal activity
-3. The specific price level that matters most in the next session and why
-4. Whether smart money is accumulating or distributing based on these signals
-
-Be specific about price levels. Name the exact numbers."""
+Answer in JSON only, no markdown:
+{{
+  "wall_read": "one sentence: is SPY above, below, or at the call wall? Use the exact pts_above number from the summary. Do NOT say 'pinned between walls' if spot is above the call wall.",
+  "dp_read": "one sentence: what the short volume percentage means — above 55% is distribution, below 45% is accumulation, 45-55% is neutral",
+  "key_level": "the single most important price level right now and why",
+  "smart_money_bias": "ACCUMULATING or DISTRIBUTING or NEUTRAL — one sentence justification"
+}}"""
 
     content = _safe_call("flow", prompt, max_tokens=400)
-    if not content:
+    parsed_flow = extract_json(content) if content else None
+    if parsed_flow:
+        content = (
+            f"WALLS: {parsed_flow.get('wall_read', '')} | "
+            f"DP: {parsed_flow.get('dp_read', '')} | "
+            f"KEY LEVEL: {parsed_flow.get('key_level', '')} | "
+            f"SMART MONEY: {parsed_flow.get('smart_money_bias', '')}"
+        )
+    elif not content:
         errors.append("flow_node: empty LLM response")
         content = f"Flow analysis unavailable. AXLFI: {axlfi_summary}"
 
@@ -247,16 +265,19 @@ Synthesize these into a unified trading verdict. Answer in JSON only, no markdow
 {{
   "verdict": "ARMED or HOLD or VETO",
   "confidence": 0.75,
-  "thesis": "2-sentence plain English trade thesis combining all three signals",
-  "primary_risk": "single biggest risk that could invalidate this thesis",
+  "thesis": "2-sentence thesis — sentence 1: what the setup IS right now using specific numbers from the reports, sentence 2: what the trigger is and what invalidates it",
+  "primary_risk": "single biggest risk — name a specific price level or event, not a generic phrase",
   "direction": "BULLISH or BEARISH or MIXED",
-  "synthesis_notes": "1 sentence on which signal dominated and why"
+  "synthesis_notes": "which signal dominated and the exact number that made it dominant"
 }}
 
 Rules:
 - ARMED = all signals aligned, high conviction
 - HOLD = mixed signals, wait for clarity
-- VETO = signals conflict or major risk event imminent"""
+- VETO = signals conflict or major risk event imminent
+- thesis MUST use specific numbers from the reports — no generic phrases like "the combination of signals"
+- If FLOW says SPY is above the call wall, thesis must reflect that — do not say "pinned between walls"
+- primary_risk must name a price level (e.g. "SPY breaks below 720") not a concept (e.g. "volatility risk")"""
 
     content = _safe_call("synthesis", prompt, max_tokens=600, timeout=25)
     parsed = extract_json(content) if content else None

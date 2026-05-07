@@ -845,6 +845,76 @@ async def kill_shots_live():
             logger.warning(f"Alpha graph cache read failed: {_ag_exc}")
             layers["alpha_graph_verdict"] = None
 
+        # ── ENRICH LAYERS: absorption + QQQ short vol delta + session trend ───
+        # These are the pre-move signals the explainer needs to surface edge.
+        try:
+            from live_monitoring.enrichment.apis.volume_spike_detector import VolumeSpikeDetector
+            _vs_inst = _pipe_instances.get('volume_spikes')
+            _vs_data = _vs_inst.get_latest() if _vs_inst else VolumeSpikeDetector().get_latest()
+            if _vs_data:
+                _spikes = _vs_data.get("spikes", [])
+                # Absorption = high volume (ratio > 2.5x) with near-zero price move (< 0.15%)
+                _absorption = [
+                    s for s in _spikes
+                    if s.get("ratio", 0) > 2.5 and abs(s.get("move", 99)) < 0.15
+                ]
+                if _absorption:
+                    _abs = _absorption[-1]  # most recent absorption candle
+                    layers["absorption_detected"] = True
+                    layers["absorption_price"] = _abs.get("close")
+                    layers["absorption_vol_ratio"] = _abs.get("ratio")
+                    layers["absorption_time"] = _abs.get("time")
+                else:
+                    layers["absorption_detected"] = False
+                layers["volume_spikes_today"] = len(_spikes)
+        except Exception as _vs_exc:
+            logger.warning(f"Volume spike enrichment failed: {_vs_exc}")
+
+        try:
+            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SG2
+            _sg2 = _SG2(cache_ttl=300)
+            # QQQ short vol trend — last 2 days delta is the fuel signal
+            _qqq_raw = _sg2.get_ticker_detail_raw("QQQ")
+            if _qqq_raw:
+                _sv_table = _qqq_raw.get("individual_short_volume_table", {})
+                _sv_items = _sv_table.get("data", []) if isinstance(_sv_table, dict) else _sv_table
+                if _sv_items and len(_sv_items) >= 2:
+                    _sv_sorted = sorted(_sv_items, key=lambda x: x.get("date", "") if isinstance(x, dict) else "")
+                    _latest = _sv_sorted[-1]
+                    _prev = _sv_sorted[-2]
+                    def _sv_val(row):
+                        v = float(row.get("short_volume_pct", row.get("short_volume%", row.get("short_volume_percent", 0))) or 0)
+                        return v if v > 1.0 else v * 100.0
+                    _qqq_latest_sv = round(_sv_val(_latest), 1)
+                    _qqq_prev_sv = round(_sv_val(_prev), 1)
+                    _qqq_delta = round(_qqq_latest_sv - _qqq_prev_sv, 1)
+                    layers["qqq_sv_latest"] = _qqq_latest_sv
+                    layers["qqq_sv_prev"] = _qqq_prev_sv
+                    layers["qqq_sv_delta"] = _qqq_delta
+                    # Flag: institutions re-shorting into strength = squeeze fuel
+                    if _qqq_delta > 10 and layers.get("axlfi_signal") == "ABOVE_CALL_WALL":
+                        layers["qqq_reshort_spike"] = True
+                        layers["qqq_reshort_note"] = (
+                            f"QQQ short vol +{_qqq_delta}pp in 1 day while SPY above call wall "
+                            f"= institutions re-shorting into strength = squeeze fuel"
+                        )
+        except Exception as _qqq_exc:
+            logger.warning(f"QQQ short vol delta enrichment failed: {_qqq_exc}")
+
+        try:
+            # SPY session trend from signal-intel data (already computed by the wall tracker)
+            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SG3
+            _sg3 = _SG3(cache_ttl=300)
+            _walls_raw = _sg3.get_option_walls("SPY")
+            if _walls_raw:
+                # get_option_walls returns the raw dict with option_walls keyed by date
+                _today_walls = list((_walls_raw.get("option_walls") or {}).values())
+                if _today_walls:
+                    _tw = _today_walls[-1] if isinstance(_today_walls[-1], dict) else {}
+                    layers["spy_session_trend"] = _tw.get("trend") or _tw.get("read")
+        except Exception as _trend_exc:
+            logger.warning(f"SPY session trend enrichment failed: {_trend_exc}")
+
         # ── LLM EXPLANATIONS (last — sees full enriched layers) ───────────────
         explanations = {}
         try:
