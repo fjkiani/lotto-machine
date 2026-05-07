@@ -5,11 +5,12 @@ Single entry point for all LLM calls in the graph pipeline.
 Routes to the right free model based on role.
 Falls back to Groq llama-3.3-70b if OpenRouter fails.
 
-Model assignments:
-  MACRO / FLOW nodes  → qwen/qwen3-coder-480b-a35b:free   (262K ctx, thinking)
-  REGIME node         → meta-llama/llama-3.3-70b-instruct:free  (66K ctx, fast)
-  SYNTHESIS node      → openai/gpt-oss-120b:free           (131K ctx, MoE reasoning)
-  QUICK / EXPLAIN     → meta-llama/llama-3.3-70b-instruct:free  (fast, free)
+Model assignments (verified available 2026-05-07):
+  MACRO node      → qwen/qwen3-next-80b-a3b-instruct:free  (80B, strong reasoning)
+  FLOW node       → qwen/qwen3-coder:free                  (coder, structured data)
+  REGIME node     → meta-llama/llama-3.3-70b-instruct:free (66K ctx, fast)
+  SYNTHESIS node  → openai/gpt-oss-120b:free               (131K ctx, MoE reasoning)
+  QUICK / EXPLAIN → meta-llama/llama-3.3-70b-instruct:free (fast, free)
 """
 import os
 import json
@@ -27,14 +28,14 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 GROQ_FALLBACK_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
-# Model role registry — free models via OpenRouter
+# Model role registry — free models verified available on OpenRouter 2026-05-07
 MODEL_REGISTRY = {
-    "macro":     "qwen/qwen3-coder-480b-a35b:free",
-    "flow":      "qwen/qwen3-coder-480b-a35b:free",
-    "regime":    "meta-llama/llama-3.3-70b-instruct:free",
-    "synthesis": "openai/gpt-oss-120b:free",
-    "quick":     "meta-llama/llama-3.3-70b-instruct:free",
-    "explain":   "meta-llama/llama-3.3-70b-instruct:free",
+    "macro":     "qwen/qwen3-next-80b-a3b-instruct:free",   # strong macro reasoning
+    "flow":      "qwen/qwen3-coder:free",                    # structured data / flow analysis
+    "regime":    "meta-llama/llama-3.3-70b-instruct:free",  # fast classification
+    "synthesis": "openai/gpt-oss-120b:free",                 # MoE synthesis
+    "quick":     "meta-llama/llama-3.3-70b-instruct:free",  # fast, free
+    "explain":   "meta-llama/llama-3.3-70b-instruct:free",  # fast, free
 }
 
 # In-memory response cache (prompt_hash → {content, expires})
