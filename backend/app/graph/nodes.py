@@ -127,17 +127,20 @@ def flow_node(state: AlphaState) -> Dict[str, Any]:
     spot_price = None
     sv_pct = None
 
+    _call_wall = None
+    _put_wall = None
+    above_call = None
     try:
         from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
         sg = StockgridClient(cache_ttl=300)
         walls = sg.get_option_walls_today(symbol)
         if walls:
             spot_price = getattr(walls, 'spot_price', None) or getattr(walls, 'current_price', None)
-            call_wall = getattr(walls, 'call_wall', None)
-            put_wall = getattr(walls, 'put_wall', None)
-            above_call = round(spot_price - call_wall, 2) if spot_price and call_wall else None
+            _call_wall = getattr(walls, 'call_wall', None)
+            _put_wall = getattr(walls, 'put_wall', None)
+            above_call = round(spot_price - _call_wall, 2) if spot_price and _call_wall else None
             axlfi_summary = (
-                f"Call wall: {call_wall} | Put wall: {put_wall} | "
+                f"Call wall: {_call_wall} | Put wall: {_put_wall} | "
                 f"Spot: {spot_price} | "
                 f"{'ABOVE call wall by ' + str(above_call) + 'pts' if above_call and above_call > 0 else 'BELOW call wall by ' + str(abs(above_call)) + 'pts' if above_call else 'wall proximity unknown'}"
             )
@@ -173,8 +176,22 @@ Answer in JSON only, no markdown:
         errors.append("flow_node: empty LLM response")
         content = f"Flow analysis unavailable. AXLFI: {axlfi_summary}"
 
+    # Return structured dict so SynthesisNode can use numeric pts_above_call_wall
+    flow_data = {
+        "wall_read": parsed_flow.get("wall_read", "") if parsed_flow else axlfi_summary,
+        "dp_read": parsed_flow.get("dp_read", "") if parsed_flow else dp_summary,
+        "key_level": parsed_flow.get("key_level", "") if parsed_flow else "",
+        "smart_money_bias": parsed_flow.get("smart_money_bias", "") if parsed_flow else "",
+        "pts_above_call_wall": above_call,
+        "call_wall": _call_wall,
+        "put_wall": _put_wall,
+        "spot_price": spot_price,
+        "sv_pct": sv_pct,
+        "raw_text": content,
+    }
+
     timings["flow"] = round(time.time() - t0, 2)
-    return {"flow_context": content, "errors": errors, "node_timings": timings}
+    return {"flow_context": flow_data, "errors": errors, "node_timings": timings}
 
 
 # ── RegimeNode ────────────────────────────────────────────────────────────────
@@ -207,6 +224,16 @@ def regime_node(state: AlphaState) -> Dict[str, Any]:
     except Exception as e:
         errors.append(f"regime_node/gex: {e}")
 
+    vix_val = None
+    try:
+        import yfinance as _yf
+        _vix_info = _yf.Ticker("^VIX").fast_info
+        vix_val = round(float(_vix_info.get("lastPrice") or _vix_info.get("regularMarketPrice") or 0), 2)
+        if vix_val > 0:
+            gex_summary += f" | VIX: {vix_val}"
+    except Exception as _vix_e:
+        errors.append(f"regime_node/vix: {_vix_e}")
+
     prompt = f"""You are a volatility regime analyst. Given this GEX data for {symbol}:
 {gex_summary}
 
@@ -215,7 +242,8 @@ Answer in JSON only, no markdown:
   "regime_label": "POSITIVE_GEX or NEGATIVE_GEX or TRANSITIONAL",
   "vol_expectation": "SUPPRESSED or ELEVATED or EXPLOSIVE",
   "dealer_positioning": "SHORT_GAMMA or LONG_GAMMA or NEUTRAL",
-  "key_insight": "one sentence on what this means for intraday moves"
+  "key_insight": "one sentence on what this means for intraday moves",
+  "vix_read": "one sentence: VIX {vix_val} — suppressed (<15), normal (15-20), elevated (20-30), or extreme (>30)? What does this mean for move size?"
 }}"""
 
     content = _safe_call("regime", prompt, max_tokens=300)
@@ -247,8 +275,38 @@ def synthesis_node(state: AlphaState) -> Dict[str, Any]:
     timings = {}
 
     macro = state.get("macro_context", "unavailable")
-    flow = state.get("flow_context", "unavailable")
+    _flow_raw = state.get("flow_context", "unavailable")
+    if isinstance(_flow_raw, dict):
+        flow = _flow_raw.get("raw_text", str(_flow_raw))
+        flow_pts_above = _flow_raw.get("pts_above_call_wall")
+        flow_call_wall = _flow_raw.get("call_wall")
+    else:
+        flow = _flow_raw
+        flow_pts_above = None
+        flow_call_wall = None
     regime = state.get("regime_context", "unavailable")
+
+    # Enrichment signals from state (populated by main.py before graph entry)
+    qqq_delta = state.get("qqq_sv_delta")
+    qqq_spike = state.get("qqq_reshort_spike", False)
+    absorption = state.get("absorption_detected", False)
+    absorption_price_val = state.get("absorption_price")
+
+    enrichment_lines = []
+    if qqq_spike and qqq_delta:
+        enrichment_lines.append(f"QQQ RESHORT SPIKE: short vol +{qqq_delta}pp in 1 day while SPY above call wall = squeeze fuel when catalyst hits")
+    elif qqq_delta is not None:
+        enrichment_lines.append(f"QQQ short vol delta: {qqq_delta:+.1f}pp (1 day)")
+    if absorption:
+        enrichment_lines.append(f"ABSORPTION at ${absorption_price_val}: high vol + near-zero price move = sellers exhausted")
+    enrichment_context = "\n".join(enrichment_lines) if enrichment_lines else "No additional enrichment signals"
+
+    wall_rule = ""
+    if flow_pts_above is not None and flow_call_wall is not None:
+        if flow_pts_above > 0:
+            wall_rule = f"\n- SPY is {flow_pts_above}pts ABOVE the {flow_call_wall} call wall — thesis MUST reflect breakout, do NOT say 'pinned between walls'"
+        else:
+            wall_rule = f"\n- SPY is {abs(flow_pts_above)}pts BELOW the {flow_call_wall} call wall — thesis must reflect resistance overhead"
 
     prompt = f"""You are the Alpha Commander. You have received three independent intelligence reports:
 
@@ -260,6 +318,9 @@ FLOW INTELLIGENCE:
 
 REGIME INTELLIGENCE:
 {regime}
+
+ENRICHMENT SIGNALS:
+{enrichment_context}
 
 Synthesize these into a unified trading verdict. Answer in JSON only, no markdown:
 {{
@@ -277,7 +338,7 @@ Rules:
 - VETO = signals conflict or major risk event imminent
 - thesis MUST use specific numbers from the reports — no generic phrases like "the combination of signals"
 - If FLOW says SPY is above the call wall, thesis must reflect that — do not say "pinned between walls"
-- primary_risk must name a price level (e.g. "SPY breaks below 720") not a concept (e.g. "volatility risk")"""
+- primary_risk must name a price level (e.g. "SPY breaks below 720") not a concept (e.g. "volatility risk"){wall_rule}"""
 
     content = _safe_call("synthesis", prompt, max_tokens=600, timeout=25)
     parsed = extract_json(content) if content else None

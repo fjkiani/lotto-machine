@@ -37,3 +37,13 @@ class AlphaState(TypedDict, total=False):
     # ── Accumulators — Annotated so parallel writes are merged, not conflicted ─
     errors: Annotated[List[str], operator.add]          # appended by each node
     node_timings: Annotated[Dict[str, float], lambda a, b: {**a, **b}]  # merged
+
+    # ── Enrichment signals (populated at graph entry from main.py layers) ─────
+    qqq_sv_delta: Optional[float]          # QQQ short vol 1-day delta in pp
+    qqq_reshort_spike: Optional[bool]      # True if delta > 10pp while above call wall
+    absorption_detected: Optional[bool]    # True if high vol + near-zero price move
+    absorption_price: Optional[float]      # Price at absorption candle
+    absorption_vol_ratio: Optional[float]  # Volume ratio at absorption
+    pts_above_call_wall: Optional[float]   # Positive = above, negative = below
+    spy_short_vol_pct: Optional[float]     # SPY dark pool short vol %
+    vix: Optional[float]                   # VIX level
