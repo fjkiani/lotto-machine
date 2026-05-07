@@ -814,6 +814,10 @@ async def kill_shots_live():
         from backend.app.signals.gex_scorer import GexScorer
         from backend.app.signals.fed_dp_scorer import FedDpScorer
         from backend.app.signals.combined_scorer import CombinedScorer
+        from backend.app.signals.tech_scorer import TechScorer
+        from backend.app.signals.geo_scorer import GeoScorer
+        from backend.app.signals.dp_trend_scorer import DpTrendScorer
+        from backend.app.signals.opex_scorer import OpexScorer
         from backend.app.signals.signal_schema import SignalResult
         from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
@@ -843,19 +847,27 @@ async def kill_shots_live():
         # Evaluate — all 5 scorers in parallel (max 8s each)
         # FED_DP and COMBINED have soft dependencies but can run with defaults
         # and be re-evaluated if needed — the data they need is in layers after aggregation
-        with ThreadPoolExecutor(max_workers=5) as _par_pool:
-            _brain_fut   = _par_pool.submit(lambda: _safe_eval("BRAIN", lambda: BrainScorer().evaluate()))
-            _cot_fut     = _par_pool.submit(lambda: _safe_eval("COT", lambda: CotScorer().evaluate(symbol="ES")))
-            _gex_fut     = _par_pool.submit(lambda: _safe_eval("GEX", lambda: GexScorer().evaluate(cot_boost=0)))
-            _fed_dp_fut  = _par_pool.submit(lambda: _safe_eval("FED_DP", lambda: FedDpScorer().evaluate(brain_reasons=[])))
+        with ThreadPoolExecutor(max_workers=9) as _par_pool:
+            _brain_fut    = _par_pool.submit(lambda: _safe_eval("BRAIN", lambda: BrainScorer().evaluate()))
+            _cot_fut      = _par_pool.submit(lambda: _safe_eval("COT", lambda: CotScorer().evaluate(symbol="ES")))
+            _gex_fut      = _par_pool.submit(lambda: _safe_eval("GEX", lambda: GexScorer().evaluate(cot_boost=0)))
+            _fed_dp_fut   = _par_pool.submit(lambda: _safe_eval("FED_DP", lambda: FedDpScorer().evaluate(brain_reasons=[])))
+            _tech_fut     = _par_pool.submit(lambda: _safe_eval("TECH", lambda: TechScorer().evaluate()))
+            _geo_fut      = _par_pool.submit(lambda: _safe_eval("GEO", lambda: GeoScorer().evaluate()))
+            _dp_trend_fut = _par_pool.submit(lambda: _safe_eval("DP_TREND", lambda: DpTrendScorer().evaluate()))
+            _opex_fut     = _par_pool.submit(lambda: _safe_eval("OPEX", lambda: OpexScorer().evaluate()))
             # COMBINED needs gex+cot — run with empty defaults, re-run after if needed
             _empty_sr = lambda name: SignalResult(name=name, slug=f"{name.lower()}-empty", boost=0, active=False, timestamp=now_iso, source_date=today_str, raw={})
             _combined_fut = _par_pool.submit(lambda: _safe_eval("COMBINED", lambda: CombinedScorer().evaluate(gex_result=_empty_sr("GEX"), cot_result=_empty_sr("COT"))))
-            brain_res    = _brain_fut.result()
-            cot_res      = _cot_fut.result()
-            gex_res      = _gex_fut.result()
-            fed_dp_res   = _fed_dp_fut.result()
-            combined_res = _combined_fut.result()
+            brain_res     = _brain_fut.result()
+            cot_res       = _cot_fut.result()
+            gex_res       = _gex_fut.result()
+            fed_dp_res    = _fed_dp_fut.result()
+            tech_res      = _tech_fut.result()
+            geo_res       = _geo_fut.result()
+            dp_trend_res  = _dp_trend_fut.result()
+            opex_res      = _opex_fut.result()
+            combined_res  = _combined_fut.result()
 
         # Re-run COMBINED with actual gex+cot results (pure Python, instant)
         try:
@@ -864,7 +876,7 @@ async def kill_shots_live():
             pass  # keep the parallel result if re-run fails
 
         # Aggregate Results
-        for res in [brain_res, cot_res, gex_res, fed_dp_res, combined_res]:
+        for res in [brain_res, cot_res, gex_res, fed_dp_res, tech_res, geo_res, dp_trend_res, opex_res, combined_res]:
             score += res.boost
             reasons.extend(res.reasons)
             
