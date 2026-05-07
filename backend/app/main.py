@@ -808,13 +808,26 @@ async def kill_shots_live():
             if _walls:
                 layers["axlfi_call_wall"] = getattr(_walls, "call_wall", None)
                 layers["axlfi_put_wall"] = getattr(_walls, "put_wall", None)
-                _spot = getattr(_walls, "spot_price", None) or layers.get("gex_spot_price")
-                layers["axlfi_spot"] = _spot
-                if _spot and layers.get("axlfi_call_wall"):
-                    layers["axlfi_signal"] = (
-                        "ABOVE_CALL_WALL" if _spot > layers["axlfi_call_wall"]
-                        else "BETWEEN_WALLS"
-                    )
+
+            # Spot price: prefer GEX scorer result, fall back to yfinance
+            _spot = layers.get("gex_spot_price") or 0
+            if not _spot or _spot == 0.0:
+                try:
+                    import yfinance as _yf
+                    _spy_info = _yf.Ticker("SPY").fast_info
+                    _spot = round(float(_spy_info.get("lastPrice") or _spy_info.get("regularMarketPrice") or 0), 2)
+                    if _spot:
+                        layers["gex_spot_price"] = _spot  # backfill for explainer
+                except Exception:
+                    pass
+            layers["axlfi_spot"] = _spot or None
+
+            _call_wall = layers.get("axlfi_call_wall")
+            if _spot and _call_wall:
+                layers["axlfi_signal"] = (
+                    "ABOVE_CALL_WALL" if _spot > _call_wall
+                    else "BETWEEN_WALLS"
+                )
         except Exception as _axlfi_exc:
             logger.warning(f"AXLFI enrichment failed: {_axlfi_exc}")
 
