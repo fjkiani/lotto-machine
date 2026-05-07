@@ -461,7 +461,58 @@ async def _alpha_graph_polling_loop():
     while True:
         try:
             from backend.app.graph.pipeline import run_alpha_pipeline
-            result = await asyncio.to_thread(run_alpha_pipeline, symbol="SPY")
+
+            # Fetch enrichment data to seed the graph state
+            def _fetch_enrichment_for_graph():
+                _enrich = {}
+                try:
+                    from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SG
+                    _sg = _SG(cache_ttl=300)
+                    # QQQ SV delta
+                    _qqq_raw = _sg.get_ticker_detail_raw("QQQ")
+                    if _qqq_raw:
+                        _sv_table = _qqq_raw.get("individual_short_volume_table", {})
+                        _sv_items = _sv_table.get("data", []) if isinstance(_sv_table, dict) else _sv_table
+                        if _sv_items and len(_sv_items) >= 2:
+                            _sv_sorted = sorted(_sv_items, key=lambda x: x.get("date", "") if isinstance(x, dict) else "")
+                            def _sv_val(row):
+                                v = float(row.get("short_volume_pct", row.get("short_volume%", row.get("short_volume_percent", 0))) or 0)
+                                return v if v > 1.0 else v * 100.0
+                            _latest = round(_sv_val(_sv_sorted[-1]), 1)
+                            _prev = round(_sv_val(_sv_sorted[-2]), 1)
+                            _delta = round(_latest - _prev, 1)
+                            _enrich["qqq_sv_delta"] = _delta
+                    # SPY SV%
+                    _spy_detail = _sg.get_ticker_detail("SPY")
+                    if _spy_detail:
+                        _enrich["spy_short_vol_pct"] = round(_spy_detail.short_volume_pct or 50.0, 2)
+                    # AXLFI walls + pts_above_call_wall
+                    _walls = _sg.get_option_walls_today("SPY")
+                    if _walls:
+                        _call_wall = getattr(_walls, "call_wall", None) or 0
+                        try:
+                            import yfinance as _yf
+                            _spot = round(float(_yf.Ticker("SPY").fast_info.get("lastPrice") or 0), 2)
+                            if _spot and _call_wall:
+                                _enrich["pts_above_call_wall"] = round(_spot - _call_wall, 2)
+                                if _delta and _delta > 10 and _spot > _call_wall:
+                                    _enrich["qqq_reshort_spike"] = True
+                        except Exception:
+                            pass
+                except Exception as _ee:
+                    logger.warning(f"Graph enrichment fetch failed: {_ee}")
+                # VIX
+                try:
+                    import yfinance as _yf2
+                    _vix_data = _yf2.Ticker("^VIX").history(period="1d")
+                    if not _vix_data.empty:
+                        _enrich["vix"] = round(float(_vix_data["Close"].iloc[-1]), 2)
+                except Exception:
+                    pass
+                return _enrich
+
+            _enrichment = await asyncio.to_thread(_fetch_enrichment_for_graph)
+            result = await asyncio.to_thread(run_alpha_pipeline, symbol="SPY", enrichment=_enrichment)
             _alpha_graph_cache["SPY"] = {
                 "verdict": result.get("verdict"),
                 "confidence": result.get("confidence"),

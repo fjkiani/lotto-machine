@@ -70,11 +70,18 @@ def get_graph():
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def run_alpha_pipeline(symbol: str = "SPY", thread_id: Optional[str] = None) -> AlphaState:
+def run_alpha_pipeline(
+    symbol: str = "SPY",
+    thread_id: Optional[str] = None,
+    enrichment: Optional[dict] = None,
+) -> AlphaState:
     """
     Run the full alpha pipeline for a symbol.
     Returns the final AlphaState dict.
     thread_id is used for MemorySaver checkpointing — pass same ID to resume.
+    enrichment: optional dict of pre-fetched enrichment fields to seed the initial state
+                (qqq_sv_delta, qqq_reshort_spike, absorption_detected, absorption_price,
+                 absorption_vol_ratio, pts_above_call_wall, spy_short_vol_pct, vix)
     """
     run_id = thread_id or str(uuid.uuid4())
     initial_state: AlphaState = {
@@ -84,6 +91,11 @@ def run_alpha_pipeline(symbol: str = "SPY", thread_id: Optional[str] = None) -> 
         "errors": [],
         "node_timings": {},
     }
+    # Seed enrichment fields if provided
+    if enrichment:
+        for k, v in enrichment.items():
+            if v is not None:
+                initial_state[k] = v
     config = {"configurable": {"thread_id": run_id}}
     graph = get_graph()
     final_state = graph.invoke(initial_state, config=config)
