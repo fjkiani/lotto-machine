@@ -30,12 +30,12 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
 # Model role registry — free models verified available on OpenRouter 2026-05-07
 MODEL_REGISTRY = {
-    "macro":     "qwen/qwen3-next-80b-a3b-instruct:free",   # strong macro reasoning
-    "flow":      "qwen/qwen3-coder:free",                    # structured data / flow analysis
-    "regime":    "meta-llama/llama-3.3-70b-instruct:free",  # fast classification
+    "macro":     "openai/gpt-oss-120b:free",                 # 120B MoE — strong reasoning
+    "flow":      "nvidia/nemotron-3-super-120b-a12b:free",   # 120B — structured data
+    "regime":    "openai/gpt-oss-20b:free",                  # fast classification
     "synthesis": "openai/gpt-oss-120b:free",                 # MoE synthesis
-    "quick":     "meta-llama/llama-3.3-70b-instruct:free",  # fast, free
-    "explain":   "meta-llama/llama-3.3-70b-instruct:free",  # fast, free
+    "quick":     "openai/gpt-oss-20b:free",                  # fast, free
+    "explain":   "openai/gpt-oss-120b:free",                 # best available for narrative
 }
 
 # In-memory response cache (prompt_hash → {content, expires})

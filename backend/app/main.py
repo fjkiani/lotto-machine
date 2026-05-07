@@ -755,7 +755,82 @@ async def kill_shots_live():
         from backend.app.signals.verdict_utils import compute_verdict
         verdict, action, action_plan = compute_verdict(score)
 
-        # ── LLM EXPLANATIONS ─────────────────────────────────────────────
+        # ── ENRICH LAYERS: AXLFI walls + Fed calendar (before explainer) ──────
+        try:
+            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SG
+            _sg = _SG(cache_ttl=300)
+            _walls = _sg.get_option_walls_today("SPY")
+            if _walls:
+                layers["axlfi_call_wall"] = getattr(_walls, "call_wall", None)
+                layers["axlfi_put_wall"] = getattr(_walls, "put_wall", None)
+                _spot = getattr(_walls, "spot_price", None) or layers.get("gex_spot_price")
+                layers["axlfi_spot"] = _spot
+                if _spot and layers.get("axlfi_call_wall"):
+                    layers["axlfi_signal"] = (
+                        "ABOVE_CALL_WALL" if _spot > layers["axlfi_call_wall"]
+                        else "BETWEEN_WALLS"
+                    )
+        except Exception as _axlfi_exc:
+            logger.warning(f"AXLFI enrichment failed: {_axlfi_exc}")
+
+        try:
+            from live_monitoring.enrichment.apis.te_calendar_scraper import TECalendarScraper as _TEC
+            _te = _TEC(cache_ttl=300)
+            _veto = _te.get_hours_until_next_critical()
+            if _veto:
+                _hours, _event = _veto
+                layers["fed_veto_hours"] = round(_hours, 1) if _hours else None
+                layers["fed_veto_next"] = _event
+                if _hours and _hours <= 4:
+                    layers["fed_veto"] = f"CRITICAL EVENT IN {_hours:.1f}h: {_event}"
+        except Exception as _fed_exc:
+            logger.warning(f"Fed calendar enrichment failed: {_fed_exc}")
+
+        # ── ENRICH LAYERS: politician_tickers (from brain_scorer raw data) ────
+        try:
+            _pol_details = layers.get("politician_details", []) or []
+            _pol_tickers = [
+                d.get("ticker") for d in _pol_details
+                if d.get("type") == "buy" and not d.get("is_routine")
+            ]
+            layers["politician_tickers"] = [t for t in _pol_tickers if t]
+            layers["politician_cluster"] = layers.get("politician_cluster", len(_pol_details))
+            layers["politician_signal"] = (
+                f"CLUSTER_BUY: {len(_pol_tickers)} non-routine buys"
+                if _pol_tickers else "NONE"
+            )
+        except Exception as _pol_exc:
+            logger.warning(f"Politician enrichment failed: {_pol_exc}")
+
+        # ── ALPHA GRAPH (before explainer so narrative sees verdict) ──────────
+        import asyncio as _asyncio
+        import uuid as _uuid
+        try:
+            from backend.app.graph.pipeline import get_graph
+            _run_id = str(_uuid.uuid4())
+            _initial = {
+                "symbol": "SPY", "run_id": _run_id,
+                "triggered_at": datetime.now().isoformat(),
+                "macro_context": None, "flow_context": None, "regime_context": None,
+                "synthesis": None, "gate_result": None,
+                "verdict": None, "confidence": None, "thesis": None,
+                "primary_risk": None, "direction": None,
+                "errors": [], "node_timings": {},
+            }
+            _graph = get_graph()
+            _config = {"configurable": {"thread_id": _run_id}}
+            _graph_result = await _asyncio.to_thread(_graph.invoke, _initial, _config)
+            layers["alpha_graph_verdict"] = _graph_result.get("verdict")
+            layers["alpha_graph_confidence"] = _graph_result.get("confidence")
+            layers["alpha_graph_thesis"] = _graph_result.get("thesis")
+            layers["alpha_graph_direction"] = _graph_result.get("direction")
+            layers["alpha_graph_primary_risk"] = _graph_result.get("primary_risk")
+            layers["alpha_graph_gate"] = _graph_result.get("gate_result", {})
+        except Exception as _ag_exc:
+            logger.warning(f"Alpha graph injection failed: {_ag_exc}")
+            layers["alpha_graph_verdict"] = None
+
+        # ── LLM EXPLANATIONS (last — sees full enriched layers) ───────────────
         explanations = {}
         try:
             from backend.app.signals.signal_explainer import SignalExplainer
@@ -768,44 +843,6 @@ async def kill_shots_live():
         for key, text in explanations.items():
             layers[f"explanation_{key}"] = text
 
-        # ── Alpha Graph verdict injection ─────────────────────────────────────
-        try:
-            from backend.app.graph.pipeline import get_graph
-            from backend.app.graph.state import AlphaState
-            import uuid as _uuid
-            import asyncio as _asyncio
-            _run_id = str(_uuid.uuid4())
-            _initial = {
-                "symbol": "SPY",
-                "run_id": _run_id,
-                "triggered_at": datetime.now().isoformat(),
-                "macro_context": None,
-                "flow_context": None,
-                "regime_context": None,
-                "synthesis": None,
-                "gate_result": None,
-                "verdict": None,
-                "confidence": None,
-                "thesis": None,
-                "primary_risk": None,
-                "direction": None,
-                "errors": [],
-                "node_timings": {},
-            }
-            _graph = get_graph()
-            _config = {"configurable": {"thread_id": _run_id}}
-            _graph_result = await _asyncio.to_thread(_graph.invoke, _initial, _config)
-            layers["alpha_graph_verdict"] = _graph_result.get("verdict")
-            layers["alpha_graph_confidence"] = _graph_result.get("confidence")
-            layers["alpha_graph_thesis"] = _graph_result.get("thesis")
-            layers["alpha_graph_direction"] = _graph_result.get("direction")
-            layers["alpha_graph_primary_risk"] = _graph_result.get("primary_risk")
-            layers["alpha_graph_gate"] = _graph_result.get("gate_result", {})
-            layers["alpha_graph_errors"] = _graph_result.get("errors", [])
-        except Exception as _ag_exc:
-            logger.warning(f"Alpha graph injection failed: {_ag_exc}")
-            layers["alpha_graph_verdict"] = None
-
         return {
             'divergence_score': score,
             'verdict': verdict,
@@ -813,7 +850,7 @@ async def kill_shots_live():
             'action_plan': action_plan,
             'layers': layers,
             'reasons': reasons,
-            'explanations': explanations, # Kept for backward compatibility
+            'explanations': explanations,
             'timestamp': now_iso,
         }
     except Exception as e:
