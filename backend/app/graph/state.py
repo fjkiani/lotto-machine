@@ -1,8 +1,12 @@
 """
 AlphaState — shared state TypedDict for the LangGraph alpha pipeline.
-Each node reads from and writes to this dict.
+
+Parallel nodes (macro, flow, regime) each write to their own exclusive key.
+Shared accumulator fields (errors, node_timings) use Annotated reducers so
+LangGraph can merge concurrent writes without conflict.
 """
-from typing import TypedDict, Optional, List, Dict, Any
+import operator
+from typing import TypedDict, Optional, List, Dict, Any, Annotated
 import time
 
 
@@ -12,24 +16,24 @@ class AlphaState(TypedDict, total=False):
     run_id: str                          # UUID for this graph run
     started_at: float                    # time.time() at graph entry
 
-    # ── Node outputs ──────────────────────────────────────────────────────────
-    macro_context: Optional[str]         # MacroNode: COT + Fed narrative
-    flow_context: Optional[str]          # FlowNode: dark pool + AXLFI narrative
-    regime_context: Optional[str]        # RegimeNode: GEX regime + vol narrative
+    # ── Node outputs (each parallel node owns exactly one of these) ───────────
+    macro_context: Optional[str]         # MacroNode exclusive
+    flow_context: Optional[str]          # FlowNode exclusive
+    regime_context: Optional[str]        # RegimeNode exclusive
 
-    # ── Synthesis ─────────────────────────────────────────────────────────────
+    # ── Synthesis (sequential, no conflict) ───────────────────────────────────
     synthesis: Optional[str]             # SynthesisNode: unified LLM reasoning
 
-    # ── Gate ──────────────────────────────────────────────────────────────────
+    # ── Gate (sequential, no conflict) ────────────────────────────────────────
     gate_result: Optional[Dict[str, Any]]  # GateNode: kill chain snapshot
 
-    # ── Final verdict ─────────────────────────────────────────────────────────
+    # ── Final verdict (sequential, no conflict) ───────────────────────────────
     verdict: Optional[str]               # "ARMED" | "HOLD" | "VETO"
     confidence: Optional[float]          # 0.0 – 1.0
     thesis: Optional[str]                # 2-sentence plain English
     primary_risk: Optional[str]          # single biggest risk
     direction: Optional[str]             # "BULLISH" | "BEARISH" | "MIXED"
 
-    # ── Diagnostics ───────────────────────────────────────────────────────────
-    errors: List[str]                    # non-fatal errors accumulated
-    node_timings: Dict[str, float]       # node_name → elapsed seconds
+    # ── Accumulators — Annotated so parallel writes are merged, not conflicted ─
+    errors: Annotated[List[str], operator.add]          # appended by each node
+    node_timings: Annotated[Dict[str, float], lambda a, b: {**a, **b}]  # merged

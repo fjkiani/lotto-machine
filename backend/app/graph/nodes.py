@@ -3,16 +3,20 @@ LangGraph nodes for the Alpha pipeline.
 
 Fan-out (parallel):  MacroNode, FlowNode, RegimeNode
 Fan-in (sequential): SynthesisNode → GateNode → END
+
+IMPORTANT: Parallel nodes must return ONLY their own exclusive output key
+plus their local slice of errors/node_timings (Annotated reducers merge them).
+They must NOT return {**state, ...} — that causes InvalidUpdateError in LangGraph.
 """
 import logging
 import time
-import json
 from typing import Dict, Any
 
 from backend.app.graph.state import AlphaState
 from backend.app.graph.openrouter_client import call_openrouter, extract_json
 
 logger = logging.getLogger(__name__)
+
 
 # ── Shared prompt helpers ─────────────────────────────────────────────────────
 
@@ -28,17 +32,16 @@ def _safe_call(role: str, prompt: str, max_tokens: int = 500, timeout: int = 18)
 
 # ── MacroNode ─────────────────────────────────────────────────────────────────
 
-def macro_node(state: AlphaState) -> AlphaState:
+def macro_node(state: AlphaState) -> Dict[str, Any]:
     """
     Reads COT positioning + Fed calendar context.
-    Uses Qwen (262K ctx, thinking mode) — best for macro reasoning.
+    Returns ONLY macro_context, errors slice, node_timings slice.
     """
     t0 = time.time()
     symbol = state.get("symbol", "SPY")
-    errors = list(state.get("errors", []))
-    timings = dict(state.get("node_timings", {}))
+    errors = []
+    timings = {}
 
-    # Pull live COT data if available
     cot_summary = "COT data unavailable"
     try:
         from live_monitoring.enrichment.apis.cot_client import COTClient
@@ -69,20 +72,20 @@ Be direct and specific. No hedging."""
         content = f"Macro analysis unavailable. COT snapshot: {cot_summary}"
 
     timings["macro"] = round(time.time() - t0, 2)
-    return {**state, "macro_context": content, "errors": errors, "node_timings": timings}
+    return {"macro_context": content, "errors": errors, "node_timings": timings}
 
 
 # ── FlowNode ──────────────────────────────────────────────────────────────────
 
-def flow_node(state: AlphaState) -> AlphaState:
+def flow_node(state: AlphaState) -> Dict[str, Any]:
     """
     Reads dark pool + AXLFI option wall data.
-    Uses Qwen — good for structured data reasoning.
+    Returns ONLY flow_context, errors slice, node_timings slice.
     """
     t0 = time.time()
     symbol = state.get("symbol", "SPY")
-    errors = list(state.get("errors", []))
-    timings = dict(state.get("node_timings", {}))
+    errors = []
+    timings = {}
 
     dp_summary = "Dark pool data unavailable"
     axlfi_summary = "AXLFI data unavailable"
@@ -116,31 +119,35 @@ Be specific about price levels where relevant."""
         content = f"Flow analysis unavailable. AXLFI: {axlfi_summary}"
 
     timings["flow"] = round(time.time() - t0, 2)
-    return {**state, "flow_context": content, "errors": errors, "node_timings": timings}
+    return {"flow_context": content, "errors": errors, "node_timings": timings}
 
 
 # ── RegimeNode ────────────────────────────────────────────────────────────────
 
-def regime_node(state: AlphaState) -> AlphaState:
+def regime_node(state: AlphaState) -> Dict[str, Any]:
     """
     Reads GEX regime + short vol data.
-    Uses Llama-3.3-70b — fast, good for structured classification.
+    Returns ONLY regime_context, errors slice, node_timings slice.
     """
     t0 = time.time()
     symbol = state.get("symbol", "SPY")
-    errors = list(state.get("errors", []))
-    timings = dict(state.get("node_timings", {}))
+    errors = []
+    timings = {}
 
     gex_summary = "GEX data unavailable"
     try:
         from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
         sg = StockgridClient(cache_ttl=300)
-        gex = sg.get_gex_regime(symbol)
+        gex = sg.get_volatility_regime()
         if gex:
+            # get_volatility_regime() returns a dict — use .get() defensively
+            regime_val = gex.get('regime') or gex.get('gex_regime') or gex.get('status', 'UNKNOWN')
+            total_gex = gex.get('total_gex') or gex.get('net_gex') or 0
+            flip = gex.get('flip_level') or gex.get('zero_gamma') or 'N/A'
             gex_summary = (
-                f"Regime: {gex.get('regime', 'UNKNOWN')} | "
-                f"Total GEX: ${gex.get('total_gex', 0)/1e9:.1f}B | "
-                f"Flip level: {gex.get('flip_level', 'N/A')}"
+                f"Regime: {regime_val} | "
+                f"Total GEX: ${float(total_gex)/1e9:.1f}B | "
+                f"Flip level: {flip}"
             )
     except Exception as e:
         errors.append(f"regime_node/gex: {e}")
@@ -170,19 +177,19 @@ Answer in JSON only, no markdown:
         regime_text = f"Regime analysis unavailable. GEX: {gex_summary}"
 
     timings["regime"] = round(time.time() - t0, 2)
-    return {**state, "regime_context": regime_text, "errors": errors, "node_timings": timings}
+    return {"regime_context": regime_text, "errors": errors, "node_timings": timings}
 
 
 # ── SynthesisNode ─────────────────────────────────────────────────────────────
 
-def synthesis_node(state: AlphaState) -> AlphaState:
+def synthesis_node(state: AlphaState) -> Dict[str, Any]:
     """
     Combines macro + flow + regime into a unified verdict.
-    Uses gpt-oss-120b:free — MoE reasoning, best for synthesis.
+    Sequential — reads full state, returns verdict fields + synthesis text.
     """
     t0 = time.time()
-    errors = list(state.get("errors", []))
-    timings = dict(state.get("node_timings", {}))
+    errors = []
+    timings = {}
 
     macro = state.get("macro_context", "unavailable")
     flow = state.get("flow_context", "unavailable")
@@ -223,7 +230,6 @@ Rules:
         thesis = parsed.get("thesis", "")
         primary_risk = parsed.get("primary_risk", "")
         direction = parsed.get("direction", "MIXED")
-        synthesis_text = content
     else:
         errors.append("synthesis_node: JSON parse failed")
         verdict = "HOLD"
@@ -231,12 +237,10 @@ Rules:
         thesis = "Synthesis failed — defaulting to HOLD"
         primary_risk = "LLM synthesis unavailable"
         direction = "MIXED"
-        synthesis_text = content or "unavailable"
 
     timings["synthesis"] = round(time.time() - t0, 2)
     return {
-        **state,
-        "synthesis": synthesis_text,
+        "synthesis": content or "unavailable",
         "verdict": verdict,
         "confidence": confidence,
         "thesis": thesis,
@@ -249,16 +253,16 @@ Rules:
 
 # ── GateNode ──────────────────────────────────────────────────────────────────
 
-def gate_node(state: AlphaState) -> AlphaState:
+def gate_node(state: AlphaState) -> Dict[str, Any]:
     """
     Pure Python gate: pulls live kill chain snapshot and applies veto logic.
-    No LLM call — deterministic rule check.
+    Sequential — no LLM call, deterministic rule check.
     """
     t0 = time.time()
-    errors = list(state.get("errors", []))
-    timings = dict(state.get("node_timings", {}))
+    errors = []
+    timings = {}
     verdict = state.get("verdict", "HOLD")
-    confidence = state.get("confidence", 0.0)
+    confidence = state.get("confidence", 0.0) or 0.0
 
     gate_result = {"kill_chain_available": False, "veto_applied": False}
 
@@ -271,7 +275,6 @@ def gate_node(state: AlphaState) -> AlphaState:
         gate_result["fed_veto_active"] = kc.get("fed_veto_active", False)
         gate_result["layer_4_triggered"] = kc.get("layer_4", {}).get("triggered", False)
 
-        # Apply kill chain veto overrides
         if kc.get("fed_veto_active"):
             verdict = "VETO"
             confidence = max(confidence - 0.3, 0.0)
@@ -288,7 +291,6 @@ def gate_node(state: AlphaState) -> AlphaState:
 
     timings["gate"] = round(time.time() - t0, 2)
     return {
-        **state,
         "verdict": verdict,
         "confidence": confidence,
         "gate_result": gate_result,
