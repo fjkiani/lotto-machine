@@ -334,6 +334,9 @@ async def startup():
     # Background brain polling — keeps intelligence warm every 15 min (delayed 120s)
     asyncio.create_task(_brain_polling_loop())
 
+    # Background alpha graph polling — runs LangGraph pipeline every 10min, caches result
+    asyncio.create_task(_alpha_graph_polling_loop())
+
 
 
 
@@ -418,6 +421,9 @@ async def _staggered_thread_launcher():
     logger.info("✅ All staggered threads launched (4 threads over 2 minutes)")
 
 
+# ── Alpha Graph result cache (populated by background loop) ──
+_alpha_graph_cache: dict = {}  # symbol → {verdict, confidence, thesis, ...}
+
 # ── Module-level BrainManager singleton for polling ──
 _brain_singleton = None
 _brain_lock = __import__('threading').Lock()
@@ -446,6 +452,29 @@ async def _brain_polling_loop():
             logger.error(f"Brain poll failed: {e}")
         await asyncio.sleep(900)  # 15 minutes
 
+
+
+async def _alpha_graph_polling_loop():
+    """Background loop: runs alpha graph every 10min, caches result for /kill-shots-live."""
+    import asyncio
+    await asyncio.sleep(60)  # Let startup finish first
+    while True:
+        try:
+            from backend.app.graph.pipeline import run_alpha_pipeline
+            result = await asyncio.to_thread(run_alpha_pipeline, symbol="SPY")
+            _alpha_graph_cache["SPY"] = {
+                "verdict": result.get("verdict"),
+                "confidence": result.get("confidence"),
+                "thesis": result.get("thesis"),
+                "direction": result.get("direction"),
+                "primary_risk": result.get("primary_risk"),
+                "gate_result": result.get("gate_result", {}),
+                "timestamp": datetime.now().isoformat(),
+            }
+            logger.info(f"Alpha graph cache updated: {result.get('verdict')} @ {result.get('confidence'):.2f}")
+        except Exception as e:
+            logger.warning(f"Alpha graph background poll failed: {e}")
+        await asyncio.sleep(600)  # 10 minutes
 
 
 @app.get("/alpha-graph/models")
@@ -802,32 +831,18 @@ async def kill_shots_live():
         except Exception as _pol_exc:
             logger.warning(f"Politician enrichment failed: {_pol_exc}")
 
-        # ── ALPHA GRAPH (before explainer so narrative sees verdict) ──────────
-        import asyncio as _asyncio
-        import uuid as _uuid
+        # ── ALPHA GRAPH (read from cache — graph runs async in background) ─────
         try:
-            from backend.app.graph.pipeline import get_graph
-            _run_id = str(_uuid.uuid4())
-            _initial = {
-                "symbol": "SPY", "run_id": _run_id,
-                "triggered_at": datetime.now().isoformat(),
-                "macro_context": None, "flow_context": None, "regime_context": None,
-                "synthesis": None, "gate_result": None,
-                "verdict": None, "confidence": None, "thesis": None,
-                "primary_risk": None, "direction": None,
-                "errors": [], "node_timings": {},
-            }
-            _graph = get_graph()
-            _config = {"configurable": {"thread_id": _run_id}}
-            _graph_result = await _asyncio.to_thread(_graph.invoke, _initial, _config)
-            layers["alpha_graph_verdict"] = _graph_result.get("verdict")
-            layers["alpha_graph_confidence"] = _graph_result.get("confidence")
-            layers["alpha_graph_thesis"] = _graph_result.get("thesis")
-            layers["alpha_graph_direction"] = _graph_result.get("direction")
-            layers["alpha_graph_primary_risk"] = _graph_result.get("primary_risk")
-            layers["alpha_graph_gate"] = _graph_result.get("gate_result", {})
+            _cached = _alpha_graph_cache.get("SPY", {})
+            layers["alpha_graph_verdict"] = _cached.get("verdict")
+            layers["alpha_graph_confidence"] = _cached.get("confidence")
+            layers["alpha_graph_thesis"] = _cached.get("thesis")
+            layers["alpha_graph_direction"] = _cached.get("direction")
+            layers["alpha_graph_primary_risk"] = _cached.get("primary_risk")
+            layers["alpha_graph_gate"] = _cached.get("gate_result", {})
+            layers["alpha_graph_last_run"] = _cached.get("timestamp")
         except Exception as _ag_exc:
-            logger.warning(f"Alpha graph injection failed: {_ag_exc}")
+            logger.warning(f"Alpha graph cache read failed: {_ag_exc}")
             layers["alpha_graph_verdict"] = None
 
         # ── LLM EXPLANATIONS (last — sees full enriched layers) ───────────────
