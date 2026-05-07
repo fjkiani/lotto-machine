@@ -876,49 +876,61 @@ async def kill_shots_live():
 
         try:
             from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SG2
+            from concurrent.futures import ThreadPoolExecutor as _TPE, TimeoutError as _TE
             _sg2 = _SG2(cache_ttl=300)
-            # QQQ short vol trend — last 2 days delta is the fuel signal
-            _qqq_raw = _sg2.get_ticker_detail_raw("QQQ")
-            if _qqq_raw:
-                _sv_table = _qqq_raw.get("individual_short_volume_table", {})
-                _sv_items = _sv_table.get("data", []) if isinstance(_sv_table, dict) else _sv_table
-                if _sv_items and len(_sv_items) >= 2:
-                    _sv_sorted = sorted(_sv_items, key=lambda x: x.get("date", "") if isinstance(x, dict) else "")
-                    _latest = _sv_sorted[-1]
-                    _prev = _sv_sorted[-2]
-                    def _sv_val(row):
-                        v = float(row.get("short_volume_pct", row.get("short_volume%", row.get("short_volume_percent", 0))) or 0)
-                        return v if v > 1.0 else v * 100.0
-                    _qqq_latest_sv = round(_sv_val(_latest), 1)
-                    _qqq_prev_sv = round(_sv_val(_prev), 1)
-                    _qqq_delta = round(_qqq_latest_sv - _qqq_prev_sv, 1)
-                    layers["qqq_sv_latest"] = _qqq_latest_sv
-                    layers["qqq_sv_prev"] = _qqq_prev_sv
-                    layers["qqq_sv_delta"] = _qqq_delta
-                    # Flag: institutions re-shorting into strength = squeeze fuel
-                    if _qqq_delta > 10 and layers.get("axlfi_signal") == "ABOVE_CALL_WALL":
-                        layers["qqq_reshort_spike"] = True
-                        layers["qqq_reshort_note"] = (
-                            f"QQQ short vol +{_qqq_delta}pp in 1 day while SPY above call wall "
-                            f"= institutions re-shorting into strength = squeeze fuel"
-                        )
-        except Exception as _qqq_exc:
-            logger.warning(f"QQQ short vol delta enrichment failed: {_qqq_exc}")
-            layers["_debug_qqq_error"] = str(_qqq_exc)
 
-        try:
-            # SPY session trend from signal-intel data (already computed by the wall tracker)
-            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient as _SG3
-            _sg3 = _SG3(cache_ttl=300)
-            _walls_raw = _sg3.get_option_walls("SPY")
-            if _walls_raw:
-                # get_option_walls returns the raw dict with option_walls keyed by date
-                _today_walls = list((_walls_raw.get("option_walls") or {}).values())
-                if _today_walls:
-                    _tw = _today_walls[-1] if isinstance(_today_walls[-1], dict) else {}
-                    layers["spy_session_trend"] = _tw.get("trend") or _tw.get("read")
-        except Exception as _trend_exc:
-            logger.warning(f"SPY session trend enrichment failed: {_trend_exc}")
+            def _fetch_qqq_sv():
+                return _sg2.get_ticker_detail_raw("QQQ")
+
+            def _fetch_spy_walls():
+                return _sg2.get_option_walls("SPY")
+
+            # Run both with 6s timeout — don't block the endpoint
+            with _TPE(max_workers=2) as _pool:
+                _qqq_fut = _pool.submit(_fetch_qqq_sv)
+                _walls_fut = _pool.submit(_fetch_spy_walls)
+
+                try:
+                    _qqq_raw = _qqq_fut.result(timeout=6)
+                    if _qqq_raw:
+                        _sv_table = _qqq_raw.get("individual_short_volume_table", {})
+                        _sv_items = _sv_table.get("data", []) if isinstance(_sv_table, dict) else _sv_table
+                        if _sv_items and len(_sv_items) >= 2:
+                            _sv_sorted = sorted(_sv_items, key=lambda x: x.get("date", "") if isinstance(x, dict) else "")
+                            _latest = _sv_sorted[-1]
+                            _prev = _sv_sorted[-2]
+                            def _sv_val(row):
+                                v = float(row.get("short_volume_pct", row.get("short_volume%", row.get("short_volume_percent", 0))) or 0)
+                                return v if v > 1.0 else v * 100.0
+                            _qqq_latest_sv = round(_sv_val(_latest), 1)
+                            _qqq_prev_sv = round(_sv_val(_prev), 1)
+                            _qqq_delta = round(_qqq_latest_sv - _qqq_prev_sv, 1)
+                            layers["qqq_sv_latest"] = _qqq_latest_sv
+                            layers["qqq_sv_prev"] = _qqq_prev_sv
+                            layers["qqq_sv_delta"] = _qqq_delta
+                            if _qqq_delta > 10 and layers.get("axlfi_signal") == "ABOVE_CALL_WALL":
+                                layers["qqq_reshort_spike"] = True
+                                layers["qqq_reshort_note"] = (
+                                    f"QQQ short vol +{_qqq_delta}pp in 1 day while SPY above call wall "
+                                    f"= institutions re-shorting into strength = squeeze fuel"
+                                )
+                except (_TE, Exception) as _qqq_exc:
+                    logger.warning(f"QQQ short vol delta enrichment failed: {_qqq_exc}")
+                    layers["_debug_qqq_error"] = str(_qqq_exc)
+
+                try:
+                    _walls_raw = _walls_fut.result(timeout=6)
+                    if _walls_raw:
+                        _today_walls = list((_walls_raw.get("option_walls") or {}).values())
+                        if _today_walls:
+                            _tw = _today_walls[-1] if isinstance(_today_walls[-1], dict) else {}
+                            layers["spy_session_trend"] = _tw.get("trend") or _tw.get("read")
+                except (_TE, Exception) as _trend_exc:
+                    logger.warning(f"SPY session trend enrichment failed: {_trend_exc}")
+
+        except Exception as _enrich_exc:
+            logger.warning(f"QQQ/walls enrichment block failed: {_enrich_exc}")
+            layers["_debug_qqq_error"] = str(_enrich_exc)
 
         # ── LLM EXPLANATIONS (last — sees full enriched layers) ───────────────
         explanations = {}
