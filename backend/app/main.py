@@ -964,6 +964,24 @@ async def kill_shots_live():
         except Exception as _vs_exc:
             logger.warning(f"Volume spike enrichment failed: {_vs_exc}")
 
+        # ── COMBINED re-run with enrichment data (AXLFI, QQQ reshort, politician) ──
+        # The first COMBINED run happened before enrichment — re-run now with full data
+        try:
+            # Inject enrichment data into gex_result.raw so CombinedScorer can read it
+            gex_res.raw["axlfi_signal"] = layers.get("axlfi_signal")
+            gex_res.raw["pts_above_call_wall"] = layers.get("pts_above_call_wall") or layers.get("axlfi_call_wall") and layers.get("axlfi_spot") and round(float(layers.get("axlfi_spot", 0)) - float(layers.get("axlfi_call_wall", 0)), 2)
+            gex_res.raw["qqq_reshort_spike"] = layers.get("qqq_reshort_spike", False)
+            gex_res.raw["politician_cluster"] = layers.get("politician_cluster", 0)
+            gex_res.raw["politician_buys"] = len([t for t in layers.get("politician_tickers", []) if t])
+            combined_enriched = CombinedScorer().evaluate(gex_result=gex_res, cot_result=cot_res)
+            # Update score delta (remove old combined boost, add new)
+            score = score - combined_res.boost + combined_enriched.boost
+            combined_res = combined_enriched
+            layers["combined_boost"] = combined_res.boost
+            layers["combined_slug"] = combined_res.slug
+        except Exception as _ce:
+            logger.warning(f"Combined enriched re-run failed: {_ce}")
+
         # ── KILL CHAIN (uses enriched layers — pts_above_call_wall, qqq_reshort_spike) ──
         kill_chain_result = {}
         try:

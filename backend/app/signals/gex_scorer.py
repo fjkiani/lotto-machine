@@ -44,7 +44,7 @@ class GexScorer:
                 "gex_source": "CBOE delayed (free, no auth)"
             }
 
-            is_strong_negative = regime == "NEGATIVE" and abs(total_gex) > 10e9
+            is_strong_negative = regime == "NEGATIVE" and abs(total_gex) > 1e9
 
             if is_strong_negative:
                 if cot_boost >= 3:
@@ -118,14 +118,6 @@ class GexScorer:
                     raw_data['squeeze_confidence_penalty'] = 10
             except Exception as _sq_err:
                 logger.debug(f'Squeeze risk check failed: {_sq_err}')
-
-            try:
-                import yfinance as yf
-                vix_data = yf.Ticker('^VIX').history(period='1d')
-                if not vix_data.empty:
-                    raw_data['vix'] = round(float(vix_data['Close'].iloc[-1]), 2)
-            except Exception:
-                pass
 
             if gamma_flip:
                 above_below = "ABOVE" if spot > gamma_flip else "BELOW"

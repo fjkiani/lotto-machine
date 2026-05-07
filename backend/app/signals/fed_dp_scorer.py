@@ -36,17 +36,37 @@ class FedDpScorer:
                 raw_data["spy_short_vol_pct"] = round(sv_pct, 2)
                 source_date = spy_detail.date if hasattr(spy_detail, 'date') and spy_detail.date else today_str
                 
-                brain_tones = brain_reasons or []
-                fed_hawkish = any('HAWKISH' in str(r).upper() for r in brain_tones)
-                
-                if fed_hawkish and sv_pct > 55:
-                    boost = 3
+                # DP signal logic:
+                # SV% < 45% = low short volume = dark pool BUYING (institutions going long)
+                # SV% 45-55% = neutral zone
+                # SV% > 55% = heavy short volume = distribution or hedging
+                # The bullish signal is LOW SV% (institutions accumulating, not shorting)
+                dp_loading = sv_pct < 45.0
+                dp_neutral = 45.0 <= sv_pct <= 55.0
+                dp_distributing = sv_pct > 55.0
+
+                if dp_loading:
+                    boost = 2
                     raw_data["fed_dp_divergence"] = True
-                    slug = f"fed-hawkish-dp-loading-sv{sv_pct:.0f}-{today_str}"
-                    reasons.append(f"Fed HAWKISH + SPY dark pool loading ({sv_pct:.1f}% SV)")
+                    raw_data["dp_signal"] = "ACCUMULATION"
+                    slug = f"fed-dp-loading-sv{sv_pct:.0f}-{today_str}"
+                    reasons.append(
+                        f"SPY dark pool ACCUMULATION: SV {sv_pct:.1f}% (below 45%) — "
+                        f"institutions buying, not shorting. Bullish divergence."
+                    )
+                elif dp_distributing:
+                    boost = 0
+                    raw_data["fed_dp_divergence"] = False
+                    raw_data["dp_signal"] = "DISTRIBUTION"
+                    slug = f"fed-dp-distributing-sv{sv_pct:.0f}-{today_str}"
+                    reasons.append(
+                        f"SPY dark pool DISTRIBUTION: SV {sv_pct:.1f}% (above 55%) — "
+                        f"heavy short volume, institutions hedging or selling."
+                    )
                 else:
                     raw_data["fed_dp_divergence"] = False
-                    slug = f"fed-dp-neutral-{today_str}"
+                    raw_data["dp_signal"] = "NEUTRAL"
+                    slug = f"fed-dp-neutral-sv{sv_pct:.0f}-{today_str}"
                     
             return SignalResult(
                 name="FED_DP",
