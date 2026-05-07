@@ -92,9 +92,12 @@ class GexScorer:
                 pass
 
             if ema_200 and next_above and ema_200 < spot < next_above:
-                reasons.append(
-                    f"SPY pinned between EMA-200 ({ema_200:.2f}) and confluence ({next_above:.2f}) — no directional edge"
-                )
+                gap = next_above - spot
+                if gap > 2.0:  # Only fire if >2pts below confluence — at confluence = breakout
+                    reasons.append(
+                        f"SPY between EMA-200 ({ema_200:.2f}) and confluence ({next_above:.2f}) — {gap:.1f}pts to next level"
+                    )
+                # If gap <= 2pts, SPY is AT the confluence = breakout attempt, not pinned
 
             # ── Rule: squeeze risk check ─────────────────────────────────────
             try:

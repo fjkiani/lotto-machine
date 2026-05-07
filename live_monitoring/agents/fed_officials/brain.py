@@ -376,7 +376,9 @@ class FedOfficialsBrain:
                     if xref and xref.get("convergence") != "unknown":
                         # Routine trades get 0 divergence boost — mechanical, no signal
                         if not is_routine:
-                            divergence_boost += xref.get("divergence_boost", 0)
+                            # Cap per-ticker boost at 2 to prevent score inflation
+                            _ticker_boost = min(xref.get("divergence_boost", 0), 2)
+                            divergence_boost += _ticker_boost
                         else:
                             xref["routine_flag"] = True
                             xref["reasoning"] = xref.get("reasoning", []) + [
@@ -451,7 +453,7 @@ class FedOfficialsBrain:
             "spouse_alerts": self._get_spouse_alerts(),
             "fed_calendar_events": self._get_calendar_events(),
             "tavily_context": tavily_context,
-            "divergence_boost": divergence_boost,
+            "divergence_boost": max(min(divergence_boost, 6), -4),  # cap: max +6, min -4
             "reasons": reasons,
             "timestamp": now.isoformat(),
         }

@@ -39,12 +39,20 @@ class CotScorer:
                 raw_data["cot_specs_net"] = specs
                 raw_data["cot_comm_net"] = comms
 
-                if specs < -100_000 and comms > 50_000:
+                # Primary signal: specs crowded short (regardless of commercial magnitude)
+                # Commercials just need to be on the other side (divergent=True already confirmed)
+                if specs < -100_000:
                     cot_add = 3
-                    reasons.append(f"COT EXTREME: specs {specs:+,}, comms {comms:+,}")
-                elif specs < -50_000 and comms > 25_000:
+                    reasons.append(
+                        f"COT EXTREME: specs {specs:+,} net short — maximum squeeze fuel. "
+                        f"Commercials {comms:+,} on opposite side = divergence confirmed."
+                    )
+                elif specs < -50_000:
                     cot_add = 1
-                    reasons.append(f"COT mild: specs {specs:+,}, comms {comms:+,}")
+                    reasons.append(
+                        f"COT mild: specs {specs:+,} net short — moderate squeeze setup. "
+                        f"Commercials {comms:+,} diverging."
+                    )
 
             slug = f"cot-{'extreme' if cot_add >= 3 else 'mild' if cot_add > 0 else 'neutral'}-{report_date}"
 
