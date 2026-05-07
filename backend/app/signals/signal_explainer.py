@@ -306,27 +306,50 @@ class SignalExplainer:
             "brain_boost": layers.get("brain_boost", 0),
             "brain_direction": layers.get("brain_direction", "NEUTRAL"),
             "cot_specs_net": layers.get("cot_specs_net", 0),
+            "cot_comm_net": layers.get("cot_comm_net", 0),
             "cot_divergent": layers.get("cot_divergent", False),
             "gex_regime": layers.get("gex_regime", "UNKNOWN"),
             "gex_total_millions": round(layers.get("gex_total", 0) / 1e6, 2),
-            "sv_pct": layers.get("sv_pct", 50),
+            "gex_gamma_flip": layers.get("gex_gamma_flip"),
+            "spy_spot": layers.get("gex_spot_price") or layers.get("axlfi_spot"),
             "axlfi_call_wall": layers.get("axlfi_call_wall"),
             "axlfi_put_wall": layers.get("axlfi_put_wall"),
             "axlfi_signal": layers.get("axlfi_signal", "NONE"),
+            "spy_above_call_wall": (
+                round((layers.get("gex_spot_price", 0) or 0) - (layers.get("axlfi_call_wall", 0) or 0), 2)
+                if layers.get("gex_spot_price") and layers.get("axlfi_call_wall") else None
+            ),
+            "sv_pct": layers.get("sv_pct", 50),
+            "vix": layers.get("vix"),
             "politician_cluster": layers.get("politician_cluster", 0),
             "politician_signal": layers.get("politician_signal", "NONE"),
+            "politician_tickers": layers.get("politician_tickers", []),
             "fed_veto": layers.get("fed_veto"),
+            "fed_veto_hours": layers.get("fed_veto_hours"),
+            "fed_veto_next_event": layers.get("fed_veto_next"),
+            "alpha_graph_verdict": layers.get("alpha_graph_verdict"),
+            "alpha_graph_confidence": layers.get("alpha_graph_confidence"),
+            "alpha_graph_thesis": layers.get("alpha_graph_thesis"),
         }
 
-        prompt = f"""You are a trading intelligence system. Given these simultaneous market signals:
+        prompt = f"""You are a trading intelligence system synthesizing live market signals into a single actionable narrative.
+
+LIVE SIGNALS:
 {_json.dumps(context, indent=2)}
 
-In 3-4 sentences total, explain:
-1. What the COMBINATION of these signals means (not each individually)
-2. The single most important signal and why it dominates
-3. What would INVALIDATE the current setup
+Write 4 sentences MAXIMUM:
+1. The dominant setup right now (what the combination of COT + GEX + flow is saying together — not each individually)
+2. The single most important number/signal and exactly why it dominates
+3. The specific price level or event that would INVALIDATE this setup
+4. One concrete, specific thing a trader should watch in the next 4 hours
 
-Be direct. No jargon. Assume a smart trader who wants the truth."""
+Rules:
+- If spy_above_call_wall is positive, say SPY has broken above the call wall — that's structurally bullish
+- If fed_veto_hours < 24, lead with the event name and hours — that's the most important context
+- If alpha_graph_verdict is ARMED, mention it and the confidence
+- If politician_tickers is non-empty, name the tickers
+- Never say "the combination of signals suggests" — be specific
+- No hedging. No jargon. A trader needs to act on this."""
 
         try:
             from backend.app.graph.openrouter_client import call_openrouter as _call_or

@@ -201,7 +201,7 @@ def compute_kill_chain() -> dict:
                 _pol_details = brain.get("politician_details", [])
                 _pol_tickers = [
                     d.get("ticker") for d in _pol_details
-                    if d.get("direction") == "buy" and not d.get("is_routine")
+                    if d.get("type") == "buy" and not d.get("is_routine")
                 ]
                 raw["politician_cluster"] = _pol_cluster
                 raw["politician_tickers"] = _pol_tickers

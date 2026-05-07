@@ -43,6 +43,8 @@ def macro_node(state: AlphaState) -> Dict[str, Any]:
     timings = {}
 
     cot_summary = "COT data unavailable"
+    fed_summary = "Fed calendar unavailable"
+    vix_val = None
     try:
         from live_monitoring.enrichment.apis.cot_client import COTClient
         cot = COTClient(cache_ttl=3600)
@@ -50,21 +52,44 @@ def macro_node(state: AlphaState) -> Dict[str, Any]:
         if sig:
             cot_summary = (
                 f"Specs net: {sig.get('specs_net', 0):,} contracts | "
+                f"Commercials net: {sig.get('comm_net', 0):,} | "
                 f"Divergent: {sig.get('divergent', False)} | "
                 f"Signal: {sig.get('signal', 'UNKNOWN')}"
             )
     except Exception as e:
         errors.append(f"macro_node/cot: {e}")
 
-    prompt = f"""You are a macro analyst. Given this COT positioning data for {symbol}:
-{cot_summary}
+    try:
+        from live_monitoring.enrichment.apis.te_calendar_scraper import TECalendarScraper
+        te = TECalendarScraper(cache_ttl=300)
+        veto = te.get_hours_until_next_critical()
+        if veto:
+            hours_away, event_name = veto
+            fed_summary = f"Next critical event: {event_name} in {hours_away:.1f} hours"
+            if hours_away <= 4:
+                fed_summary += " ⚠️ VETO ZONE"
+    except Exception as e:
+        errors.append(f"macro_node/fed: {e}")
+
+    try:
+        import yfinance as yf
+        vix_val = round(yf.Ticker("^VIX").fast_info.get("lastPrice", 0), 2)
+    except Exception:
+        pass
+
+    prompt = f"""You are a macro analyst. Given these live signals for {symbol}:
+
+COT POSITIONING: {cot_summary}
+FED CALENDAR: {fed_summary}
+VIX: {vix_val if vix_val else "unavailable"}
 
 In 3-4 sentences, explain:
-1. What the current speculator positioning implies for near-term price direction
-2. Whether this is a contrarian or trend-following signal
-3. The key macro risk that could invalidate this positioning
+1. What the COT positioning implies — is this a crowded short (squeeze fuel) or crowded long (distribution risk)?
+2. How the Fed calendar changes the risk profile — is it safe to hold through the event?
+3. What VIX level tells us about vol regime right now
+4. The single macro factor that dominates the setup
 
-Be direct and specific. No hedging."""
+Be specific with numbers. No hedging."""
 
     content = _safe_call("macro", prompt, max_tokens=400)
     if not content:
@@ -89,29 +114,41 @@ def flow_node(state: AlphaState) -> Dict[str, Any]:
 
     dp_summary = "Dark pool data unavailable"
     axlfi_summary = "AXLFI data unavailable"
+    spot_price = None
+    sv_pct = None
 
     try:
         from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
         sg = StockgridClient(cache_ttl=300)
         walls = sg.get_option_walls_today(symbol)
         if walls:
+            spot_price = getattr(walls, 'spot_price', None) or getattr(walls, 'current_price', None)
+            call_wall = getattr(walls, 'call_wall', None)
+            put_wall = getattr(walls, 'put_wall', None)
+            above_call = round(spot_price - call_wall, 2) if spot_price and call_wall else None
             axlfi_summary = (
-                f"Call wall: {walls.call_wall} | Put wall: {walls.put_wall} | "
-                f"Net GEX: {getattr(walls, 'net_gex', 'N/A')}"
+                f"Call wall: {call_wall} | Put wall: {put_wall} | "
+                f"Spot: {spot_price} | "
+                f"{'ABOVE call wall by ' + str(above_call) + 'pts' if above_call and above_call > 0 else 'BELOW call wall by ' + str(abs(above_call)) + 'pts' if above_call else 'wall proximity unknown'}"
             )
+        sv_pct = sg.get_short_volume_pct(symbol)
+        if sv_pct:
+            dp_summary = f"Short volume: {sv_pct:.1f}% ({'elevated — distribution signal' if sv_pct > 55 else 'normal — no distribution' if sv_pct < 45 else 'neutral'})"
     except Exception as e:
         errors.append(f"flow_node/axlfi: {e}")
 
     prompt = f"""You are a market microstructure analyst. Given these flow signals for {symbol}:
-Dark Pool: {dp_summary}
-AXLFI Option Walls: {axlfi_summary}
+
+AXLFI OPTION WALLS: {axlfi_summary}
+DARK POOL FLOW: {dp_summary}
 
 In 3-4 sentences, explain:
-1. What the option wall positioning implies for price magnet/resistance levels
-2. Whether dark pool flow is accumulation or distribution
-3. The key level to watch in the next session
+1. What the option wall positioning means — is SPY pinned, breaking out, or at support?
+2. Whether dark pool short volume indicates institutional distribution or normal activity
+3. The specific price level that matters most in the next session and why
+4. Whether smart money is accumulating or distributing based on these signals
 
-Be specific about price levels where relevant."""
+Be specific about price levels. Name the exact numbers."""
 
     content = _safe_call("flow", prompt, max_tokens=400)
     if not content:
@@ -285,6 +322,12 @@ def gate_node(state: AlphaState) -> Dict[str, Any]:
             verdict = "HOLD"
             gate_result["veto_applied"] = True
             gate_result["veto_reason"] = "Kill chain not armed — downgraded ARMED→HOLD"
+            # Surface the gate reasoning so it appears in the final thesis
+            gate_result["gate_narrative"] = (
+                f"Alpha graph says {state.get('verdict', 'HOLD')} at {state.get('confidence', 0):.0%} confidence, "
+                f"but kill chain confluence is {kc.get('confluence', 'WAITING')} — "
+                f"waiting for {4 - kc.get('triggered_count', 0)} more layer(s) to confirm before arming."
+            )
 
     except Exception as e:
         errors.append(f"gate_node/kill_chain: {e}")
@@ -294,6 +337,7 @@ def gate_node(state: AlphaState) -> Dict[str, Any]:
         "verdict": verdict,
         "confidence": confidence,
         "gate_result": gate_result,
+        "gate_narrative": gate_result.get("gate_narrative", ""),
         "errors": errors,
         "node_timings": timings,
     }

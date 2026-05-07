@@ -125,7 +125,7 @@ async def kill_chain_monitor():
         current_state = {
             "timestamp": kc.get("timestamp", ""),
             "type": "CHECK",
-            "spy_price": position.get("entry_price", 0) or kc.get("layers", {}).get("gex_total", 0),
+            "spy_price": kc.get("layer_4", {}).get("value", 0) or position.get("entry_price", 0),
             # Real layer values
             "cot_specs_net": layer_1.get("value", 0),
             "layer_1_triggered": layer_1.get("triggered", False),
@@ -767,6 +767,44 @@ async def kill_shots_live():
         # Map explanations directly into layers for Phase 3 Pillar UI mapping
         for key, text in explanations.items():
             layers[f"explanation_{key}"] = text
+
+        # ── Alpha Graph verdict injection ─────────────────────────────────────
+        try:
+            from backend.app.graph.pipeline import get_graph
+            from backend.app.graph.state import AlphaState
+            import uuid as _uuid
+            import asyncio as _asyncio
+            _run_id = str(_uuid.uuid4())
+            _initial = {
+                "symbol": "SPY",
+                "run_id": _run_id,
+                "triggered_at": datetime.now().isoformat(),
+                "macro_context": None,
+                "flow_context": None,
+                "regime_context": None,
+                "synthesis": None,
+                "gate_result": None,
+                "verdict": None,
+                "confidence": None,
+                "thesis": None,
+                "primary_risk": None,
+                "direction": None,
+                "errors": [],
+                "node_timings": {},
+            }
+            _graph = get_graph()
+            _config = {"configurable": {"thread_id": _run_id}}
+            _graph_result = await _asyncio.to_thread(_graph.invoke, _initial, _config)
+            layers["alpha_graph_verdict"] = _graph_result.get("verdict")
+            layers["alpha_graph_confidence"] = _graph_result.get("confidence")
+            layers["alpha_graph_thesis"] = _graph_result.get("thesis")
+            layers["alpha_graph_direction"] = _graph_result.get("direction")
+            layers["alpha_graph_primary_risk"] = _graph_result.get("primary_risk")
+            layers["alpha_graph_gate"] = _graph_result.get("gate_result", {})
+            layers["alpha_graph_errors"] = _graph_result.get("errors", [])
+        except Exception as _ag_exc:
+            logger.warning(f"Alpha graph injection failed: {_ag_exc}")
+            layers["alpha_graph_verdict"] = None
 
         return {
             'divergence_score': score,
