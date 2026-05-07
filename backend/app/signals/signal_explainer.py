@@ -559,6 +559,39 @@ class SignalExplainer:
             combined_text = _fmt(parsed.get("COMBINED", {}), "COMBINED")
             smart_money_text = _fmt(parsed.get("SMART_MONEY", {}), "SMART_MONEY")
 
+            # ── Deterministic reads for auxiliary scorers (no LLM needed) ──────
+            _vix_val = layers.get("vix")
+            _vix_regime = layers.get("vix_regime") or ("EXTREME_FEAR" if _vix_val and _vix_val > 30 else "ELEVATED" if _vix_val and _vix_val > 20 else "SUPPRESSED" if _vix_val and _vix_val < 16 else "NORMAL")
+            _rsi = layers.get("rsi_14")
+            _oil_chg = layers.get("oil_pct_change")
+            _days_opex = layers.get("days_to_opex")
+            _pin = layers.get("pin_strike")
+            _sv_delta = layers.get("sv_2d_delta")
+
+            sentiment_text = (
+                f"[VIX {_vix_val}] {_vix_regime} — {'extreme fear, snap-back risk' if _vix_val and _vix_val > 30 else 'elevated fear, watch for vol crush' if _vix_val and _vix_val > 20 else 'suppressed vol, dealers long gamma' if _vix_val and _vix_val < 16 else 'normal vol regime'}"
+                if _vix_val else "VIX unavailable"
+            )
+            tech_text = (
+                f"[RSI-14 {_rsi}] {'OVERSOLD — potential reversal' if _rsi and _rsi < 30 else 'OVERBOUGHT — caution on longs' if _rsi and _rsi > 70 else 'neutral momentum'}"
+                if _rsi else "RSI unavailable"
+            )
+            geo_text = (
+                f"[Oil {_oil_chg:+.1f}%] GEO WARNING — crude spike signals risk-off"
+                if _oil_chg and _oil_chg > 4
+                else f"[Oil {_oil_chg:+.1f}%] no geo risk" if _oil_chg else "Oil data unavailable"
+            )
+            opex_text = (
+                f"[{_days_opex}d to OPEX] pinning window active near {_pin}" if _days_opex is not None and _days_opex <= 3
+                else f"[{_days_opex}d to OPEX] approaching — watch {_pin}" if _days_opex is not None and _days_opex <= 7
+                else f"[{_days_opex}d to OPEX] no pinning pressure" if _days_opex is not None
+                else "OPEX data unavailable"
+            )
+            dp_trend_text = (
+                f"[SPY SV {layers.get('sv_pct_today', '?')}% / {_sv_delta:+.1f}pp 2d] {'ACCUMULATION — institutions reducing shorts' if _sv_delta and _sv_delta < -5 else 'DISTRIBUTION — institutions increasing shorts' if _sv_delta and _sv_delta > 5 else 'neutral trend'}"
+                if _sv_delta is not None else "DP trend unavailable"
+            )
+
             return {
                 "COT": cot_text,
                 "GEX": gex_text,
@@ -575,6 +608,12 @@ class SignalExplainer:
                 "WALLS": walls_text,
                 "CATALYST": catalyst_text,
                 "SMART_MONEY": smart_money_text,
+                # Auxiliary scorer reads (deterministic, no LLM)
+                "SENTIMENT": sentiment_text,
+                "TECH": tech_text,
+                "GEO": geo_text,
+                "OPEX": opex_text,
+                "DP_TREND": dp_trend_text,
                 "signal_reads": parsed,  # raw JSON for any consumer that wants it
                 "_unified": True,
                 "_model": response.get("model", "unknown"),
