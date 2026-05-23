@@ -1125,9 +1125,65 @@ async def kill_shots_live():
         for key, text in explanations.items():
             layers[f"explanation_{key}"] = text
 
+        # ── RECONCILED VERDICT (GAP 4) ─────────────────────────────────────────
+        # Synthesizes divergence verdict vs kill chain verdict into a single
+        # actionable output. Does NOT modify either source score.
+        kc_verdict = kill_chain_result.get('verdict', 'NEUTRAL') if kill_chain_result else 'NEUTRAL'
+        kc_confluence = kill_chain_result.get('confluence', 'WAITING') if kill_chain_result else 'WAITING'
+        kc_war_veto = kc_verdict == 'WAR_VETO'
+        kc_layer_macro = (kill_chain_result.get('layer_macro') or {}) if kill_chain_result else {}
+        rsi_14 = layers.get('rsi_14') or layers.get('tech_rsi')
+
+        reconciled = verdict  # start from divergence verdict
+        reconciliation_reasons = []
+
+        # Rule 1: WAR_VETO always wins — override any BOOST
+        if kc_war_veto:
+            oil_src = kc_layer_macro.get('oil_wti_source', 'unknown')
+            oil_val = kc_layer_macro.get('oil_wti')
+            war_val = kc_layer_macro.get('value', 0)
+            reconciled = 'WATCH'
+            reconciliation_reasons.append(
+                f'WAR_VETO active (war_status={war_val}/10, oil=${oil_val} src={oil_src}) — '
+                f'LONG suppressed regardless of divergence score'
+            )
+            if oil_src == 'manual':
+                reconciliation_reasons.append(
+                    'WARNING: oil_wti_source=manual — WAR_VETO driven by MANUAL_OIL_PRICE env var, '
+                    'not live feed. Verify MANUAL_OIL_PRICE is intentional before trusting veto.'
+                )
+
+        # Rule 2: RSI overbought (>70) downgrades BOOST → HOLD
+        elif rsi_14 and float(rsi_14) > 70 and reconciled == 'BOOST':
+            reconciled = 'HOLD'
+            reconciliation_reasons.append(
+                f'RSI {float(rsi_14):.1f} overbought — BOOST downgraded to HOLD'
+            )
+
+        # Rule 3: Kill chain DOUBLE or VETO → downgrade BOOST to BUY (partial confluence)
+        elif kc_confluence in ('DOUBLE', 'VETO') and reconciled == 'BOOST':
+            reconciled = 'BUY'
+            reconciliation_reasons.append(
+                f'Kill chain {kc_confluence} (need TRIPLE for full BOOST) — downgraded to BUY'
+            )
+
+        # Rule 4: Kill chain WAITING/SINGLE + divergence BOOST = conflicting signals → HOLD
+        elif kc_confluence in ('WAITING', 'SINGLE') and reconciled == 'BOOST':
+            reconciled = 'HOLD'
+            reconciliation_reasons.append(
+                f'Kill chain {kc_confluence} contradicts divergence BOOST — HOLD until confluence aligns'
+            )
+
+        if not reconciliation_reasons:
+            reconciliation_reasons.append(
+                f'Divergence {verdict} and kill chain {kc_verdict} ({kc_confluence}) aligned — no override'
+            )
+
         return {
             'divergence_score': score,
             'verdict': verdict,
+            'reconciled_verdict': reconciled,
+            'reconciliation_reasons': reconciliation_reasons,
             'action': action,
             'action_plan': action_plan,
             'layers': layers,

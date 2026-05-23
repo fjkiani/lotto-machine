@@ -190,15 +190,26 @@ class MacroOverlay:
             cpi_forecast = 3.0
 
         war_status = 1
+        war_status_components: list = ["base=1"]
         if oil_wti > 90:
             war_status += 2
+            war_status_components.append(f"oil>{90}(+2)")
         if oil_wti > 100:
             war_status += 1
+            war_status_components.append(f"oil>{100}(+1)")
         if hormuz_blocked:
             war_status += 3
-        if _active_geopolitical_high():
+            war_status_components.append("HORMUZ_BLOCKED(+3)")
+        geo_high = _active_geopolitical_high()
+        if geo_high:
             war_status += 2
+            war_status_components.append("MACRO_GEOPOLITICAL_HIGH(+2)")
         war_status = min(10, war_status)
+
+        # Transparency: flag when manual env vars are driving the veto
+        manual_oil_active = oil_source == "manual"
+        manual_geo_active = os.getenv("MACRO_GEOPOLITICAL_HIGH", "").strip().lower() in ("1", "true", "yes", "on")
+        manual_hormuz_active = os.getenv("HORMUZ_BLOCKED", "").strip().lower() in ("1", "true", "yes", "on")
 
         if war_status >= 7:
             macro_regime = "WAR_PREMIUM"
@@ -211,19 +222,36 @@ class MacroOverlay:
 
         veto_longs = war_status >= 7
         veto_reason = (
-            f"War status {war_status}/10 — LONG signals vetoed"
+            f"War status {war_status}/10 — LONG signals vetoed ({', '.join(war_status_components)})"
             if veto_longs
             else ""
         )
+        # Warn when veto is driven by manual env overrides, not live data
+        manual_override_warning = ""
+        if veto_longs and (manual_oil_active or manual_geo_active or manual_hormuz_active):
+            flags = []
+            if manual_oil_active:
+                flags.append(f"MANUAL_OIL_PRICE={oil_wti}")
+            if manual_geo_active:
+                flags.append("MACRO_GEOPOLITICAL_HIGH=1")
+            if manual_hormuz_active:
+                flags.append("HORMUZ_BLOCKED=1")
+            manual_override_warning = (
+                f"WAR_VETO driven by manual env vars: {', '.join(flags)} — "
+                "verify these are intentional before trusting veto"
+            )
+            logger.warning("MacroOverlay: %s", manual_override_warning)
 
         return {
             "oil_wti": oil_wti,
             "oil_wti_source": oil_source,
             "hormuz_blocked": hormuz_blocked,
             "war_status": war_status,
+            "war_status_breakdown": ", ".join(war_status_components),
             "cpi_forecast": cpi_forecast,
             "macro_regime": macro_regime,
             "veto_longs": veto_longs,
             "veto_reason": veto_reason,
+            "manual_override_warning": manual_override_warning or None,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }

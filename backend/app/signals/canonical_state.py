@@ -140,7 +140,10 @@ def persist_from_kill_chain(result: Dict[str, Any], raw: Dict[str, Any]) -> None
     layer1 = result.get("layer_1") or {}
     layer2 = result.get("layer_2") or {}
     layer3 = result.get("layer_3") or {}
+    # layer_4 = AXLFI Wall Position (SPY price vs call/put walls) — NOT macro
+    # layer_macro = Macro Overlay (war_status, oil_wti, macro_regime) — correct source
     layer4 = result.get("layer_4") or {}
+    layer_macro = result.get("layer_macro") or {}
 
     gex_net = float(layer2.get("raw_value") or raw.get("gex_total") or 0.0)
     gex_regime = str(layer2.get("signal") or raw.get("gex_regime") or "")
@@ -152,38 +155,42 @@ def persist_from_kill_chain(result: Dict[str, Any], raw: Dict[str, Any]) -> None
     except (TypeError, ValueError):
         cot_specs = 0
 
-    war_status = int(layer4.get("value") or 0) if layer4 else int(
-        result.get("war_status") or 0
-    )
-    oil_wti = layer4.get("oil_wti")
+    # FIX: war_status comes from layer_macro.value, NOT layer_4.value (which is SPY spot price)
+    war_status = int(layer_macro.get("value") or result.get("war_status") or 0)
+    # FIX: oil_wti comes from layer_macro, NOT layer_4
+    oil_wti = layer_macro.get("oil_wti")
     if oil_wti is not None:
         try:
             oil_wti = float(oil_wti)
         except (TypeError, ValueError):
             oil_wti = None
+    # FIX: macro_regime comes from layer_macro.signal, NOT layer_4.signal (which is ABOVE_CALL_WALL etc.)
     macro_regime = (
-        str(layer4.get("signal") or "")
-        if layer4
-        else str(result.get("macro_regime") or "")
+        str(layer_macro.get("signal") or "")
+        or str(result.get("macro_regime") or "")
     ) or None
 
-    position = result.get("position") or {}
+    # FIX: spy_price comes from raw["spot"] (live GEX spot) or layer_4.value (AXLFI spot),
+    # NOT position.entry_price (which is the KC position entry from a prior activation)
     spy_price = None
     try:
-        ep = position.get("entry_price")
-        if ep:
-            spy_price = float(ep)
+        spot_candidates = [
+            raw.get("axlfi_spot"),  # kill_chain.py line 407: raw["axlfi_spot"] = current_spot
+            layer4.get("value"),    # AXLFI layer_4 also stores current_spot as value
+            raw.get("spot"),        # nested signal dicts use this key
+            raw.get("gex_spot"),
+        ]
+        for candidate in spot_candidates:
+            if candidate and float(candidate) > 100:  # sanity: SPY > 00
+                spy_price = round(float(candidate), 2)
+                break
     except (TypeError, ValueError):
         pass
-    if not spy_price and raw.get("spot"):
-        try:
-            spy_price = float(raw["spot"])
-        except (TypeError, ValueError):
-            pass
 
     zo_directive = f"{result.get('verdict')}|{result.get('direction')}|{result.get('confluence')}"
-    if layer4 and layer4.get("veto_reason"):
-        zo_directive = f"{zo_directive}|{layer4.get('veto_reason')}"
+    veto_reason = layer_macro.get("veto_reason") or layer4.get("veto_reason")
+    if veto_reason:
+        zo_directive = f"{zo_directive}|{veto_reason}"
 
     payload = {
         "kill_chain": result,
