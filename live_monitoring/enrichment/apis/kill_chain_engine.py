@@ -53,6 +53,10 @@ class KillChainEngine:
 
     # ── Full Scan ────────────────────────────────────────────────────────
 
+    def evaluate(self) -> KillChainReport:
+        """Alias for agent/scripts that call `.evaluate()` — identical to run_full_scan()."""
+        return self.run_full_scan()
+
     def run_full_scan(self) -> KillChainReport:
         """
         Pull all data layers and generate a complete intelligence report.

@@ -896,8 +896,35 @@ async def oracle_analyze(req: OracleRequest):
         data = resp.json()
         text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
         if text:
-            # text is a JSON string containing the ZO schema
-            return {"analysis": text, "error": False, "mode": "kill_chain" if req.kill_chain_snapshot else "fallback"}
+            mode = "kill_chain" if req.kill_chain_snapshot else "fallback"
+            parsed: dict = {}
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                parsed = {}
+            if isinstance(parsed, dict) and parsed.get("confidence") is not None:
+                try:
+                    from backend.app.signals.canonical_state import persist_oracle_signal
+
+                    raw_c = parsed.get("confidence")
+                    try:
+                        conf_f = float(raw_c) if raw_c is not None else 0.0
+                    except (TypeError, ValueError):
+                        conf_f = 0.0
+                    strat = parsed.get("strategy")
+                    strat_d = strat if isinstance(strat, dict) else None
+                    persist_oracle_signal(
+                        slug=req.slug,
+                        title=req.title,
+                        action=req.action,
+                        confidence=conf_f,
+                        risk_level=str(parsed.get("risk_level") or ""),
+                        strategy=strat_d,
+                        kill_chain_snapshot=req.kill_chain_snapshot,
+                    )
+                except Exception as pe:
+                    logger.warning("persist_oracle_signal failed: %s", pe)
+            return {"analysis": text, "parsed": parsed or None, "error": False, "mode": mode}
         return {"analysis": json.dumps({"audit": f"ORACLE_UPLINK_FAILURE: {data.get('error', {}).get('message', 'No content.')}"}), "error": True}
     except Exception as e:
         return {"analysis": json.dumps({"audit": f"ORACLE_UPLINK_FAILURE: {str(e)}"}), "error": True}

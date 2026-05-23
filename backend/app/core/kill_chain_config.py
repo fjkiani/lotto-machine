@@ -11,7 +11,10 @@ from typing import Dict, List
 SYMBOLS = {
     "INDEX": "SPY",
     "FUTURES": "ES",
+    # Legacy key — SPX index options; do **not** use for Kill Chain GEX (use GEX_UNDERLYING).
     "INDEX_FUTURES": "SPX",
+    # Single GEX path for 5-layer scan + /gamma/SPY parity (ETF options chain).
+    "GEX_UNDERLYING": "SPY",
     "SECTORS": ["QQQ", "IWM", "VIX"],
 }
 

@@ -1,0 +1,175 @@
+{
+  "computed_at_utc": "2026-04-01T01:45:04.555073+00:00",
+  "spec_compliance_audit": {
+    "mission1": {
+      "base_series_json_per_period": 9,
+      "supplemental_json_per_period": "SPASTT01USM661N (+ WTISPLC when DCOIL empty in 1973)",
+      "inventory_note": "File count under ground_truth/ is not '27' \u2014 it is 9\u00d73 base pulls + 3 SPAST + conditional WTISPLC + 3 master CSV + stats + mission2/3 artifacts. Do not claim exactly 27 files on disk.",
+      "fred_sp500_daily_reality": "FRED SP500 has observation_start 2016-04-01; zero in-window obs for 1973/1990. Drawdown stats use SPASTT01USM661N (1973/1990) or SP500 (2022). `sp500` CSV column is cash index month-end when available else NaN.",
+      "master_csvs": [
+        "1973_macro.csv",
+        "1990_macro.csv",
+        "2022_macro.csv"
+      ],
+      "oil_shock": "harmonized_12m_pre_peak_min_to_window_peak (Mission 1 + NYX scoring)"
+    },
+    "mission2": {
+      "sector_prices_36mo_csv": true,
+      "oil_beta_verified_json": true,
+      "price_sources_keys_match_sectors_keys": true,
+      "use_in_eps_model_false_when_p_gt_0_05": true,
+      "use_in_eps_model_false_for_benchmarks": "USO and SPY always use_in_eps_model=false",
+      "fallbacks": "Yahoo v8 / AV / Stooq documented when yfinance fails."
+    },
+    "mission3": {
+      "live_snapshot_2026_json": true,
+      "manual_analog_score_json": true,
+      "analog_scorer_tolerance_note": "When analog_scorer.py ships, match confidence within 0.02 of scores below."
+    },
+    "computer_tasks": {
+      "analog_data_client_py": "analog/data_client.py",
+      "analog_router_py": "analog/router.py",
+      "sklearn_in_requirements": true
+    }
+  },
+  "oil_feature_harmonization_note": "All four rows use harmonized_oil_shock_pct: 12m minimum strictly before peak month vs peak WTI in the comparison window (Mission 1 windows for analogs; trailing 36m for current).",
+  "feature_names": [
+    "oil_feature",
+    "cpi_yoy",
+    "fed_rate",
+    "unrate",
+    "indpro_mom",
+    "fed_room"
+  ],
+  "use_umcsent_in_vector": false,
+  "nan_imputation": "NaN cells replaced with column median before MinMaxScaler (only if any).",
+  "rows_order": [
+    "1973",
+    "1990",
+    "2022",
+    "current_2026"
+  ],
+  "raw_vectors": [
+    {
+      "period": "1973",
+      "oil_feature": 158.93,
+      "cpi_yoy": 8.7,
+      "fed_rate": 10.5,
+      "unrate": 4.8,
+      "indpro_mom": -1.2,
+      "fed_room": -2.0,
+      "umcsent": 64.0,
+      "drawdown_pct": -45.0,
+      "duration_months": 23,
+      "as_of_date": null
+    },
+    {
+      "period": "1990",
+      "oil_feature": 131.85,
+      "cpi_yoy": 5.4,
+      "fed_rate": 8.0,
+      "unrate": 5.5,
+      "indpro_mom": -0.3,
+      "fed_room": 2.6,
+      "umcsent": 77.0,
+      "drawdown_pct": -14.6,
+      "duration_months": 5,
+      "as_of_date": null
+    },
+    {
+      "period": "2022",
+      "oil_feature": 72.94,
+      "cpi_yoy": 8.0,
+      "fed_rate": 0.25,
+      "unrate": 3.6,
+      "indpro_mom": 0.2,
+      "fed_room": -7.75,
+      "umcsent": 59.0,
+      "drawdown_pct": -24.8,
+      "duration_months": 9,
+      "as_of_date": null
+    },
+    {
+      "period": "current_2026",
+      "oil_feature": 33.2697,
+      "cpi_yoy": 2.434,
+      "fed_rate": 3.64,
+      "unrate": 4.4,
+      "indpro_mom": 0.1511,
+      "fed_room": 1.206,
+      "umcsent": null,
+      "drawdown_pct": null,
+      "duration_months": null,
+      "as_of_date": "2026-03-23"
+    }
+  ],
+  "minmax_scaler_data_min": [
+    33.2697,
+    2.434,
+    0.25,
+    3.6,
+    -1.2,
+    -7.75
+  ],
+  "minmax_scaler_data_max": [
+    158.93,
+    8.7,
+    10.5,
+    5.5,
+    0.2,
+    2.6
+  ],
+  "scaled_matrix": [
+    [
+      1.0,
+      0.9999999999999999,
+      1.0,
+      0.631578947368421,
+      0.0,
+      0.5555555555555556
+    ],
+    [
+      0.7844983658323272,
+      0.4733482285349506,
+      0.7560975609756098,
+      0.9999999999999998,
+      0.6428571428571428,
+      1.0
+    ],
+    [
+      0.3156947739262121,
+      0.8882859878710502,
+      0.0,
+      0.0,
+      1.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.3307317073170732,
+      0.42105263157894757,
+      0.9650714285714286,
+      0.8653140096618357
+    ]
+  ],
+  "euclidean_distance_scaled_space": {
+    "1973": 1.8760475845153337,
+    "1990": 1.2155553291491195,
+    "2022": 1.3875778564591887
+  },
+  "confidence_score_1_over_1_plus_d": {
+    "1973": 0.34769939321727816,
+    "1990": 0.45135410831019435,
+    "2022": 0.4188345093311487
+  },
+  "primary_analog_by_score": "1990",
+  "acceptance_test": {
+    "rule": "analog_scorer.py max confidence delta vs this file must be <= 0.02 per period",
+    "baseline_scores": {
+      "1973": 0.34769939321727816,
+      "1990": 0.45135410831019435,
+      "2022": 0.4188345093311487
+    }
+  }
+}

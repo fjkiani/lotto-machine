@@ -167,6 +167,22 @@ def fetch_hidden_hands() -> dict:
         return {'error': str(e)}
 
 
+def fetch_economic_calendar() -> dict:
+    """Hardcoded April 2026 baseline — next binary event + 48h risk flag."""
+    try:
+        from live_monitoring.enrichment.apis.economic_calendar import EconomicCalendar
+
+        ec = EconomicCalendar()
+        return {
+            "next_binary": ec.get_next_binary(),
+            "risk_flag": ec.get_risk_flag(),
+            "week_events": ec.get_week_events(),
+        }
+    except Exception as e:
+        logger.warning(f"Economic calendar failed: {e}")
+        return {"error": str(e)}
+
+
 def fetch_gex_shared() -> dict:
     """Fetch GEX data ONCE. Result is shared with fetch_derivatives and
     fetch_kill_chain_from_shared to avoid duplicate yfinance downloads (~80MB each)."""

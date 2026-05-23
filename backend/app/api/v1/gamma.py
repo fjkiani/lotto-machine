@@ -21,22 +21,17 @@ router = APIRouter()
 # Shared GEX calculator instance (lazy init)
 # ---------------------------------------------------------------------------
 
-_gex_calc = None
-
-
 def _get_gex_calculator():
-    """Get or create GEXCalculator singleton."""
-    global _gex_calc
-    if _gex_calc is None:
-        try:
-            from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
-            _gex_calc = GEXCalculator(cache_ttl=300)
-        except ImportError as e:
-            raise HTTPException(
-                status_code=503,
-                detail=f"GEXCalculator import failed: {e}"
-            )
-    return _gex_calc
+    """Canonical singleton — must match `backend.app.utils.gex_canonical`."""
+    try:
+        from backend.app.utils.gex_canonical import get_gex_calculator_singleton
+
+        return get_gex_calculator_singleton()
+    except ImportError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"GEXCalculator import failed: {e}",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -87,12 +82,10 @@ async def get_gamma_data(symbol: str):
     Never returns mock/hardcoded data.
     """
     symbol = symbol.upper()
-    calc = _get_gex_calculator()
+    from backend.app.utils.gex_canonical import compute_canonical_gex
 
-    # Map common equity symbols to CBOE format
-    # GEXCalculator already handles SPX/NDX/RUT with underscore prefix
     try:
-        result = calc.compute_gex(symbol)
+        result = compute_canonical_gex(symbol)
     except Exception as e:
         logger.error(f"GEX compute failed for {symbol}: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"CBOE GEX computation error: {e}")

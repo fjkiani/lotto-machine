@@ -32,7 +32,7 @@ const EMPTY_KC: KillChainData = {
   bearish_points: 0,
   layer_1: { name: 'COT Divergence', triggered: false, value: 0, unit: 'Specs Net', signal: 'NEUTRAL' },
   layer_2: { name: 'GEX Regime', triggered: false, value: 0, unit: 'GEX $M', signal: 'NEUTRAL' },
-  layer_3: { name: 'DVR', triggered: false, value: 0, unit: 'Short Vol %', signal: 'WATCHING' },
+  layer_3: { name: 'DVR', triggered: false, value: 0, unit: 'Short Vol %', signal: 'WAITING' },
   position: { entry_price: 0, current_pnl: 0, activated_at: null },
 };
 

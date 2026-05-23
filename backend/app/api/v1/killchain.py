@@ -22,16 +22,10 @@ router = APIRouter()
 # Lazy-init engine (heavy imports, shared instance)
 _engine = None
 
-# GEX singleton — shared across all /killchain/gex requests
-_gex_calc = None
-
-
 def _get_gex_calc():
-    global _gex_calc
-    if _gex_calc is None:
-        from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
-        _gex_calc = GEXCalculator(cache_ttl=300)
-    return _gex_calc
+    from backend.app.utils.gex_canonical import get_gex_calculator_singleton
+
+    return get_gex_calculator_singleton()
 
 
 def _get_engine():
@@ -69,6 +63,14 @@ async def kill_chain_scan():
             if data:
                 # Strip narrative from layer data (it's in the main narrative)
                 layers[name] = data  # Include per-layer narrative
+
+        # Single GEX source: overwrite engine layer with canonical SPY (bug 1 split-brain).
+        try:
+            from backend.app.utils.gex_canonical import build_kill_chain_scan_gex_layer
+
+            layers["gex"] = build_kill_chain_scan_gex_layer("SPY")
+        except Exception as e:
+            logger.warning("Could not align scan GEX to canonical SPY: %s", e)
 
         # Serialize mismatches
         mismatches = []
@@ -120,6 +122,15 @@ async def kill_chain_scan():
             logger.warning(f"Could not fetch ADP predictor for killchain scan: {e}")
             adp_predictor = {"error": str(e)}
 
+        scan_narrative = report.narrative or ""
+        gex_canon = layers.get("gex") or {}
+        if gex_canon.get("narrative"):
+            scan_narrative = (
+                scan_narrative
+                + "\n\n[Canonical GEX / SPY — aligned with /api/v1/gamma/SPY]\n"
+                + str(gex_canon["narrative"])
+            )
+
         response = {
             "alert_level": report.alert_level,
             "timestamp": report.timestamp or datetime.utcnow().isoformat(),
@@ -127,7 +138,7 @@ async def kill_chain_scan():
             "layers_active": report.layers_active,
             "layers_total": 5,
             "layers_failed": report.layers_failed,
-            "narrative": report.narrative,
+            "narrative": scan_narrative,
             "mismatches": mismatches,
             "layers": layers,
             "core_3layer": core_3layer,

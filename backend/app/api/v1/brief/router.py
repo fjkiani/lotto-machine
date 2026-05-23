@@ -22,17 +22,24 @@ Expected peak: ~127MB + ~80MB (GEX) + ~50MB (brain) = ~257MB
 """
 import asyncio
 import logging
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter
+
+_REPO_ROOT = Path(__file__).resolve().parents[5]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 from .cache import get_cache, set_cache, _brief_lock
 from .alert_engine import PreSignalAlertEngine
 from .fetchers.core import (
     fetch_macro_regime, fetch_fedwatch, fetch_veto,
     fetch_nowcast, fetch_thresholds, fetch_hidden_hands,
+    fetch_economic_calendar,
     fetch_gex_shared, fetch_cot_shared,
     build_derivatives, build_kill_chain,
 )
@@ -45,6 +52,26 @@ from .fetchers.signals import (
 logger        = logging.getLogger(__name__)
 router        = APIRouter()
 _alert_engine = PreSignalAlertEngine()
+
+def _attach_regime_trajectory(results: dict) -> None:
+    """Analog scorer regime framing — same MinMax math; trajectory is declarative only."""
+    try:
+        from analog.analog_scorer import score_analogs
+
+        ar = score_analogs()
+        results["regime_trajectory"] = ar.regime_trajectory
+    except Exception as e:
+        logger.warning("regime_trajectory attach failed: %s", e)
+        results["regime_trajectory"] = {
+            "error": str(e),
+            "current_analog": "1990",
+            "trajectory_analog": "1973",
+            "model_note": "",
+            "actual_trigger_conditions": [],
+            "2022_note": "",
+            "next_data_gates": []
+        }
+
 
 def _build_data_quality_flags(results: dict) -> dict:
     """Summarize degraded layers so consumers can separate signal vs data-quality risk."""
@@ -111,6 +138,7 @@ async def master_brief():
     # ── Fast path: cache hit ──────────────────────────────────────────────────
     cached = get_cache()
     if cached is not None:
+        _attach_regime_trajectory(cached)
         return cached
 
     # ── Slow path: compute under mutex ───────────────────────────────────────
@@ -130,7 +158,7 @@ async def master_brief():
             'fed_intelligence': (fetch_fedwatch,     4),
             'economic_veto':    (fetch_veto,         4),
         }
-        w1 = await _run_wave(wave1, loop, max_workers=2)
+        w1 = await _run_wave(wave1, loop, max_workers=4)
         results['fed_intelligence'] = w1.get('fed_intelligence', {'error': 'timeout'})
         results['economic_veto']    = w1.get('economic_veto', {'error': 'timeout'})
 
@@ -150,6 +178,7 @@ async def master_brief():
             'macro_regime':     (fetch_macro_regime,        6),
             'dynamic_thresholds': (fetch_thresholds,        6),
             'nowcast':          (fetch_nowcast,             5),
+            'economic_calendar': (fetch_economic_calendar, 2),
             'adp_prediction':   (fetch_adp_prediction,      5),
             'gdp_nowcast':      (fetch_gdp_nowcast,         5),
             'jobless_claims':   (fetch_jobless_claims,      5),
@@ -160,7 +189,7 @@ async def master_brief():
             'axlfi_walls':      (fetch_axlfi_walls,         6),
             'ta_consensus':     (fetch_ta_consensus,        6),
         }
-        results.update(await _run_wave(wave3, loop, max_workers=2))
+        results.update(await _run_wave(wave3, loop, max_workers=4))
 
         # ── Post-processing ──────────────────────────────────────────────────
         regime_mod = results.get('macro_regime', {}).get('modifier', {}).get('long_penalty', 0)
@@ -185,6 +214,7 @@ async def master_brief():
         results['scan_time'] = round(time.time() - t0, 2)
         results['as_of']     = datetime.utcnow().isoformat()
         results['data_quality_flags'] = _build_data_quality_flags(results)
+        _attach_regime_trajectory(results)
 
         set_cache(results)
         return results

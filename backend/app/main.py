@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
+from backend.app.api import llm_routes
 from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate, intraday, brief, oracle, morningstar
 from backend.app.core.dependencies import set_monitor_bridge
 
@@ -80,6 +81,7 @@ app.include_router(intraday.router, prefix="/api/v1", tags=["intraday"])
 app.include_router(brief.router, prefix="/api/v1", tags=["brief"])
 app.include_router(oracle.router, prefix="/api/v1", tags=["oracle"])
 app.include_router(morningstar.router, prefix="/api/v1", tags=["morningstar"])
+app.include_router(llm_routes.router, prefix="/api", tags=["llm-aliases"])
 
 
 @app.get("/debug/git")
@@ -253,6 +255,12 @@ async def startup():
         _thread_status['paper_trade_scheduler'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
         _thread_status['econ_release_capture'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
         logger.info("⚡ API_LIGHT_MODE=1 — skipping monitor/thread startup for responsive API diagnostics")
+        _port = os.getenv("PORT", "8000")
+        logger.info(
+            "📡 Local smoke: curl -sS -m 90 http://127.0.0.1:%s/api/v1/health && "
+            "scripts/smoke_signals.sh (first /signals can take 10–25s; not a 3s endpoint)",
+            _port,
+        )
         return
 
     if MONITOR_AVAILABLE:
@@ -344,7 +352,13 @@ async def startup():
     # Background alpha graph polling — runs LangGraph pipeline every 10min, caches result
     asyncio.create_task(_alpha_graph_polling_loop())
 
-
+    _port = os.getenv("PORT", "8000")
+    logger.info(
+        "📡 Signals smoke: curl -sS -m 90 http://127.0.0.1:%s/api/v1/signals | "
+        "repo: PORT=%s ./scripts/smoke_signals.sh",
+        _port,
+        _port,
+    )
 
 
 async def _staggered_thread_launcher():

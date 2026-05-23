@@ -1083,3 +1083,425 @@ Resolve the trade-relevant integrity gaps from manager audit without introducing
 - `/api/v1/brief/master`
   - includes `data_quality_flags`
   - includes standardized derivatives GEX fields even under degraded fetch conditions
+
+---
+
+## U) Oracle bridge, canonical routes, macro overlay, economic calendar (2026-04-02)
+
+### What shipped
+- **Kill chain inject:** `load_latest_kill_chain_for_inject(max_age_sec=120)` rejects stale SQLite rows so timed-out `/signals` paths do not resurrect pre-DVR `score`/`verdict`. `_inject_kill_chain` treats **SOFT_VETO** / **WAR_VETO** as LONG-suppressing overlays (action → `WATCH` where specified).
+- **Oracle → signals:** `POST /api/v1/oracle/analyze` parses Groq JSON and calls `persist_oracle_signal` → `oracle_signals` in `data/kill_chain_canonical.db`. `GET /api/v1/signals` merges `load_recent_oracle_signals(max_age_hours=4)`, sets `is_master`/`is_primary` (oracle uses confidence ≥75 on 0–100 scale, ≥7.5 on 0–10). `master_only` filters on `is_master` after enrich.
+- **Legacy HTTP aliases:** `POST /api/llm/analyze` → same handler as oracle analyze; `GET /api/llm/trend` → `get_trend_summary()`; `GET /api/snapshots` → paginated `canonical_snapshots` (mounted under `prefix="/api"` in `main.py`).
+- **Macro overlay:** `live_monitoring/enrichment/apis/macro_overlay.py` — WTI via yfinance, optional `HORMUZ_BLOCKED`, `MACRO_GEOPOLITICAL_HIGH`, `MACRO_GEOPOLITICAL_TEXT` / `MACRO_CPI_FORECAST_YOY`. Wired as **layer_4** in `compute_kill_chain()`; **WAR_VETO** when `veto_longs` (war_status ≥ 7).
+- **Economic calendar:** `live_monitoring/enrichment/apis/economic_calendar.py` — hardcoded April 2026 events; `fetch_economic_calendar()` in brief **Wave 3** (`economic_calendar` key on `/brief/master`).
+- **Canonical persistence:** `persist_from_kill_chain` writes `spy_price`, `war_status`, `oil_wti`, `macro_regime`, `zo_directive`; migrates legacy SQLite with `ALTER TABLE` for missing columns.
+
+### Verification commands (local)
+```bash
+API_LIGHT_MODE=1 uvicorn backend.app.main:app --port 8020   # use free port if 8015 busy
+PYTHONPATH=$(pwd) python3 -c "from backend.app.signals.kill_chain import compute_kill_chain; r=compute_kill_chain(); print(r['score'], r['verdict'], r.get('layer_4'))"
+curl -sS "http://127.0.0.1:8020/api/v1/signals" | python3 -c "import json,sys; d=json.load(sys.stdin); s=d['signals'][0]; print(s['kill_chain_score'], s['kill_chain_verdict'])"
+curl -sS "http://127.0.0.1:8020/api/llm/trend"
+curl -sS "http://127.0.0.1:8020/api/snapshots?limit=2"
+PYTHONPATH=$(pwd) python3 -c "from live_monitoring.enrichment.apis.economic_calendar import EconomicCalendar; import json; ec=EconomicCalendar(); print(json.dumps(ec.get_next_binary())); print(json.dumps(ec.get_risk_flag()))"
+```
+
+### Files touched
+- `backend/app/signals/canonical_state.py`, `backend/app/signals/kill_chain.py`, `backend/app/api/v1/signals.py`, `backend/app/api/v1/oracle.py`, `backend/app/main.py`, `backend/app/api/llm_routes.py`
+- `live_monitoring/enrichment/apis/macro_overlay.py`, `live_monitoring/enrichment/apis/economic_calendar.py`
+- `backend/app/api/v1/brief/router.py`, `backend/app/api/v1/brief/fetchers/core.py`, `backend/app/api/v1/brief/fetchers/__init__.py`
+
+---
+
+## V) Manager Local Probe Debrief — cde006b merge + live endpoints (2026-05-23)
+
+**Purpose:** Manager review artifact. Every payload below was captured from **live HTTP** against local API (`http://127.0.0.1:8015`) or **live compute** (`compute_kill_chain()`), not from fixtures or hardcoded test values.
+
+**Git state:** `HEAD=cde006b` (32 commits from `fjkiani/lotto-machine` branch) + local WIP merge (canonical KC, DVR, macro overlay, signals AH staleness). Five merge conflicts resolved (`main.py`, `kill_chain.py`, `verdict_utils.py`, `requirements.txt`, `.env.example`).
+
+**Probe artifact (full JSON):** `/tmp/manager_probe_2026-05-23.json`  
+**Probe UTC:** `2026-05-23T23:36:53Z`  
+**Runtime:** `API_LIGHT_MODE=1`, `KILL_CHAIN_SCORE_DEBUG=1`, `PORT=8015`
+
+### Reproduce (manager)
+
+```bash
+cd ai-hedge-fund-main
+KILL_CHAIN_SCORE_DEBUG=1 API_LIGHT_MODE=1 PORT=8015 ./scripts/restart_api.sh 2>&1 | tee /tmp/ai-hedge-api.log
+# wait ~90s for import (langgraph + brain modules)
+PORT=8015 ./scripts/smoke_signals.sh
+grep -E 'PRE_INJECT|POST_INJECT' /tmp/ai-hedge-api.log
+```
+
+### Latency table (this run)
+
+| Endpoint | HTTP | Wall sec |
+|----------|------|----------|
+| `/health` | 200 | 0.023 |
+| `/api/v1/health` | 200 | 0.001 |
+| `/api/v1/signals` | 200 | 8.822 |
+| `/api/v1/killchain/scan` | 200 | 19.689 |
+| `/kill-shots-live` | 200 | 2.918 |
+| `/api/v1/brief/master` | 200 | 6.044 |
+| `/api/v1/darkpool/SPY/summary` | 200 | 0.024 |
+| `/api/v1/gamma/SPY` | 200 | 0.003 |
+| `/api/v1/market/SPY/quote` | 200 | 0.030 |
+| `/api/llm/trend` | 200 | 0.234 |
+| `/api/snapshots?limit=2` | 200 | 0.002 |
+| `compute_kill_chain()` direct | — | 8.722 |
+
+**Note:** First cold `/api/v1/brief/master` under concurrent load previously hit **90s timeout**; cached retry returned **200 in 9ms**. Do not run scan + kill-shots + cold brief in parallel for SLO probes.
+
+---
+
+### Bug 4 seal — inject parity (live log lines)
+
+```
+INFO:backend.app.signals.kill_chain:PRE_INJECT_SCORE: 8 WAR_VETO
+INFO:backend.app.api.v1.signals:POST_INJECT_SCORE: 8 WAR_VETO
+```
+
+**Pass:** Direct KC score matches signals inject score (`8 WAR_VETO`).
+
+---
+
+### A) `GET /health` and `GET /api/v1/health`
+
+```json
+{"status":"healthy","monitor_available":true,"timestamp":"2026-05-23T16:36:53.061558"}
+```
+
+(v1 health identical shape, sub-2ms.)
+
+---
+
+### B) `GET /api/v1/signals` — envelope + first signal (live)
+
+**Envelope:**
+```json
+{
+  "count": 1,
+  "master_count": 0,
+  "us_market_rth": false,
+  "signal_stale_count": 1,
+  "timestamp": "2026-05-23T23:37:01.884758",
+  "regime_tier": 1
+}
+```
+
+**First signal (DarkPoolTrend — real AXLFI/GEX/DP numbers from upstream):**
+```json
+{
+  "id": "dp_trend_SPY_2026-05-22",
+  "symbol": "SPY",
+  "action": "WATCH",
+  "confidence": 25,
+  "entry_price": 745.64,
+  "dp_trend_velocity": 99.5,
+  "gex": {
+    "symbol": "SPY",
+    "net_gex": 6199614.086679999,
+    "gamma_regime": "POSITIVE",
+    "gamma_flip": 750.0,
+    "max_pain": 710.0,
+    "spot_price": 745.64
+  },
+  "warnings": ["Kill Chain WAR_VETO — LONG suppressed (8pts, was 93%)"],
+  "kill_chain_verdict": "WAR_VETO",
+  "kill_chain_score": 8,
+  "kill_chain_direction": "BEARISH",
+  "signal_age_seconds": 25206,
+  "stale": true,
+  "source": "DarkPoolTrend"
+}
+```
+
+**Manager note:** After-hours path marks signal stale (`us_market_rth=false`, age ~7h). WAR_VETO correctly suppresses LONG (93% → 25% confidence). GAP 6 `last_signal` from `alerts_history.db` **not yet** in response.
+
+---
+
+### C) `compute_kill_chain()` direct — layer split (live)
+
+```json
+{
+  "score": 8,
+  "verdict": "WAR_VETO",
+  "direction": "BEARISH",
+  "confluence": "DOUBLE",
+  "verdict_score_layers_only": 2,
+  "total_points_with_brain": 6,
+  "layer_1": {
+    "name": "COT Divergence",
+    "triggered": true,
+    "value": -140605,
+    "report_date": "2026-05-19",
+    "specs_long": 270382,
+    "specs_short": 410987
+  },
+  "layer_2": {
+    "name": "GEX Regime",
+    "triggered": false,
+    "value": 6.2,
+    "raw_value": 6199614.086679999,
+    "symbol": "SPY",
+    "signal": "POSITIVE"
+  },
+  "layer_3": {
+    "name": "DVR",
+    "triggered": false,
+    "value": 53.0,
+    "signal": "DISTRIBUTION_WATCH",
+    "label": "BORDERLINE_PRE_LAYER3",
+    "layer3_threshold_pct": 55.0
+  },
+  "layer_4": {
+    "name": "AXLFI Wall Position",
+    "triggered": true,
+    "value": 745.64,
+    "signal": "ABOVE_CALL_WALL",
+    "pts_above_call_wall": 10.64
+  },
+  "layer_5": {
+    "name": "QQQ Reshort Spike",
+    "triggered": false,
+    "value": -6.7,
+    "signal": "NEUTRAL"
+  },
+  "layer_macro": {
+    "name": "Macro Overlay",
+    "triggered": true,
+    "value": 8,
+    "signal": "WAR_PREMIUM",
+    "veto_longs": true,
+    "veto_reason": "War status 8/10 — LONG signals vetoed",
+    "oil_wti": 99.0,
+    "oil_wti_source": "manual"
+  },
+  "computed_at_utc": "2026-05-23T23:37:39.547019+00:00"
+}
+```
+
+**Merge fix verified:** `layer_4` = AXLFI walls (upstream cde006b); `layer_macro` = geopolitical overlay (local WIP) — no longer overwrites each other.
+
+**Score semantics:** `verdict_score_layers_only=2` (COT+GEX/DVR only) vs displayed `score=8` after macro WAR_VETO floor. Manager must not compare layer-2 score to inject score without macro context.
+
+---
+
+### D) `GET /api/v1/killchain/scan` — 5-layer vs 3-layer parity (live)
+
+```json
+{
+  "alert_level": "GREEN",
+  "layers_active": 5,
+  "layers_total": 5,
+  "core_3layer": {
+    "confluence": "DOUBLE",
+    "triggered_count": 2,
+    "layer_2": { "symbol": "SPY", "raw_value": 6199614.086679999, "signal": "POSITIVE" },
+    "layer_3": { "value": 53.0, "signal": "DISTRIBUTION_WATCH" },
+    "score": 8,
+    "verdict": "WAR_VETO",
+    "direction": "BEARISH"
+  }
+}
+```
+
+**Integrity flag:** `alert_level=GREEN` while `core_3layer.verdict=WAR_VETO` — UI must not treat GREEN as "all clear" when macro veto active. Brief embed uses `alert_level=RED` for same underlying KC (see §F).
+
+---
+
+### E) `GET /kill-shots-live` — divergence vs kill chain split (live)
+
+```json
+{
+  "verdict": "BOOST",
+  "divergence_score": 10,
+  "action": "+15% confidence on all signals — high conviction confluence",
+  "timestamp": "2026-05-23T16:37:21.577531",
+  "layers": {
+    "brain_boost": 6,
+    "hidden_hands": {
+      "politician_buys": 1,
+      "politician_sells": 4,
+      "divergence_boost": 6,
+      "insider_net_usd": 49920271.30
+    }
+  },
+  "kill_chain": {
+    "score": 8,
+    "verdict": "WAR_VETO",
+    "direction": "BEARISH",
+    "confluence": "DOUBLE"
+  }
+}
+```
+
+**GAP 4 confirmed in production payload:** Top-level `verdict=BOOST` (5-scorer sum) **contradicts** nested `kill_chain.verdict=WAR_VETO`. No `reconciled_verdict` field yet. This is the #1 manager-facing integrity gap for narrative/divergence work.
+
+**GAP 5 confirmed:** `finnhub_signals` in brief/hidden_hands shows duplicate ticker `A` (buy + sell) and duplicate `QCOM` sells — Finnhub loop not deduped by ticker.
+
+---
+
+### F) `GET /api/v1/brief/master` — derivatives + integrity flags (live)
+
+```json
+{
+  "scan_time": 6.04,
+  "as_of": "2026-05-23T23:37:30.533068",
+  "data_quality_flags": {
+    "integrity_status": "DEGRADED",
+    "degraded_layers": { "vol_regime": "No regime data" }
+  },
+  "derivatives": {
+    "gex_regime": "POSITIVE",
+    "total_gex_raw": 6199614.086679999,
+    "total_gex_millions": 6.2,
+    "gex_symbol": "SPY",
+    "spot": 745.64,
+    "gamma_flip": 750.0,
+    "max_pain": 710.0,
+    "cot_spec_net": -140605,
+    "cot_divergent": true
+  },
+  "kill_chain_state": {
+    "alert_level": "RED",
+    "layers_active": 4,
+    "regime_modifier": -5,
+    "confidence_cap": 65,
+    "cap_reason": "ADP Employment Change Weekly 91.6h"
+  },
+  "adp_prediction": {
+    "consensus": 75000,
+    "prediction": 69000,
+    "signal": "IN_LINE"
+  },
+  "economic_calendar": {
+    "risk_flag": { "has_binary_within_48h": false, "risk_action": "CLEAR" },
+    "week_events": []
+  }
+}
+```
+
+**Cross-endpoint checks (same probe window):**
+- GEX raw `6199614.086679999` matches across `/gamma/SPY`, `/signals` gex block, KC layer_2.
+- COT specs net `-140605` consistent across brief, KC, scan.
+- SPY spot `745.64` (brief/GEX) vs quote `745.59` (yfinance 1m session sum) — within normal tick variance.
+
+---
+
+### G) `GET /api/v1/darkpool/SPY/summary` (live)
+
+```json
+{
+  "symbol": "SPY",
+  "summary": {
+    "dp_percent": 53.0,
+    "short_volume_pct": 53.0,
+    "net_short_dollars": 526828693.84588623,
+    "dvr_zone": "DISTRIBUTION_WATCH",
+    "dvr_label": "BORDERLINE_PRE_LAYER3",
+    "dvr_layer3_triggered": false,
+    "nearest_support": { "price": 730.0, "volume": 277478 },
+    "nearest_resistance": { "price": 750.0, "volume": 234597 }
+  }
+}
+```
+
+**Pass:** `net_short_dollars` non-zero, derived from live price × net short volume (not hard-zero bug).
+
+---
+
+### H) `GET /api/v1/market/SPY/quote` (live)
+
+```json
+{
+  "symbol": "SPY",
+  "price": 745.5900268554688,
+  "volume": 31181288,
+  "last_bar_volume": 1075456,
+  "source": "yfinance_1m_history",
+  "timestamp": "2026-05-23T23:37:30.594591"
+}
+```
+
+**Pass:** Session `volume` is full-day sum; `last_bar_volume` separate.
+
+---
+
+### I) Canonical SQLite — `data/kill_chain_canonical.db` (live read)
+
+```json
+[
+  {
+    "id": 22,
+    "captured_at": "2026-05-23T23:37:39.550727+00:00",
+    "kill_chain_score": 8,
+    "kill_chain_verdict": "WAR_VETO",
+    "confluence": "DOUBLE",
+    "gex_regime": "POSITIVE",
+    "dvr_pct": 53.0,
+    "cot_specs_net": -140605,
+    "spy_price": 650.73,
+    "war_status": 745,
+    "macro_regime": "ABOVE_CALL_WALL"
+  }
+]
+```
+
+**Integrity flags (manager action):**
+- `spy_price=650.73` is **stale kill-chain position entry**, not live SPY (~745.6). Persist layer maps wrong fields into `war_status` / `macro_regime` columns (`745`, `ABOVE_CALL_WALL` look like price/signal bleed). Fix in `canonical_state.persist_from_kill_chain` before trusting trend API for audit.
+
+---
+
+### J) `GET /api/llm/trend` + `GET /api/snapshots?limit=2` (live)
+
+```json
+{
+  "current": { "score": 8, "verdict": "WAR_VETO", "direction": "BEARISH", "cot_net": -140605, "dvr_pct": 53.0 },
+  "previous": { "score": 8, "verdict": "WAR_VETO", "direction": "BEARISH" },
+  "drift_direction": "STABLE",
+  "zo_directive": "WAR_VETO|BEARISH|DOUBLE"
+}
+```
+
+Snapshots paginate same canonical rows (routes live on `main` after merge).
+
+---
+
+### K) Gap Audit Fix Plan — honest status vs this probe
+
+| Gap | Plan | Verified this run |
+|-----|------|-------------------|
+| 5 Finnhub dedup | Not shipped | **FAIL** — duplicate `A`, `QCOM` in live `finnhub_signals` |
+| 7 FOMC spam | Not shipped | **N/A** this window (`week_events: []`) |
+| 1 Brain direction | Not shipped | **PARTIAL** — `politician_buys/sells` in kill-shots layers; no top-level `direction`; BOOST despite net sells |
+| 6 Signals AH | Partial | **PASS** staleness fields; **MISSING** `last_signal` |
+| 4 Verdict reconciliation | Not shipped | **FAIL** — BOOST vs WAR_VETO same response |
+| 3 Narrative memory | Not wired | **N/A** HTTP probe |
+| 2 Brief timeouts | Mostly done | **PASS** 6s warm; cold 90s fail under contention |
+
+**Plan artifact gap:** `.cursor/rules/gap-audit.mdc` and `tests/test_gap*.py` **do not exist** on disk — agent must create before claiming "MDC written."
+
+---
+
+### L) Merge resolution summary (what changed locally)
+
+| File | Decision |
+|------|----------|
+| `kill_chain.py` | Drop upstream early politician boost; keep `_pre_brain` inject parity; `layer_macro` separate from AXLFI `layer_4` |
+| `main.py` | Keep alpha-graph polling **and** smoke-signals log |
+| `verdict_utils.py` | Upstream 5-signal bands (score 4 → NEUTRAL) |
+| `requirements.txt` | `langgraph` + `scikit-learn` |
+| `.env.example` | `OPENROUTER_API_KEY` + macro overlay vars |
+
+**Frontend:** `npx tsc --noEmit` → 0 errors after merge.
+
+---
+
+### M) Recommended manager next actions
+
+1. **GAP 4 first on `/kill-shots-live`:** emit `reconciled_verdict` + `reconciliation_reasons[]` when `kill_chain.verdict` conflicts with divergence `verdict`.
+2. **Fix canonical persist column mapping** (`spy_price`, `war_status`, `macro_regime`) — trend/snapshots currently inherit stale/wrong metadata.
+3. **GAP 5:** dedup Finnhub loop in `brain.py` before Phase B score work.
+4. **Do not push to Render** until cold `/brief/master` SLO proven under single-flight probe (<30s).
+5. Re-run this probe on Render after deploy: same script, `BASE=https://lotto-machine-3.onrender.com`.
