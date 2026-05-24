@@ -270,6 +270,7 @@ async def startup():
         asyncio.create_task(_staggered_thread_launcher())
         asyncio.create_task(_brain_polling_loop())
         asyncio.create_task(_alpha_graph_polling_loop())
+        asyncio.create_task(_auto_snapshot_loop())
         _port = os.getenv("PORT", "8000")
         logger.info(
             "📡 Local smoke: curl -sS -m 90 http://127.0.0.1:%s/api/v1/health && "
@@ -367,6 +368,9 @@ async def startup():
     # Background alpha graph polling — runs LangGraph pipeline every 10min, caches result
     asyncio.create_task(_alpha_graph_polling_loop())
 
+    # Autonomous training snapshot capture — saves kill-shots result every 30min during market hours
+    asyncio.create_task(_auto_snapshot_loop())
+
     _port = os.getenv("PORT", "8000")
     logger.info(
         "📡 Signals smoke: curl -sS -m 90 http://127.0.0.1:%s/api/v1/signals | "
@@ -459,6 +463,125 @@ async def _staggered_thread_launcher():
 
 # ── Alpha Graph result cache (populated by background loop) ──
 _alpha_graph_cache: dict = {}  # symbol → {verdict, confidence, thesis, ...}
+_last_kill_shots_result: dict = {}  # cached for autonomous snapshot loop
+
+
+def _compute_regime(layers: dict, kill_chain_result: dict | None) -> str:
+    """
+    Compute authoritative market regime from already-fetched data in layers.
+    No new API calls — uses spy_change_pct, vix, rsi_14, kill_chain verdict.
+
+    Returns: STRONG_UPTREND | UPTREND | CHOPPY | DOWNTREND | STRONG_DOWNTREND
+    """
+    try:
+        kc_verdict = (kill_chain_result or {}).get('verdict', '')
+        vix = float(layers.get('vix') or layers.get('vix_level') or 20.0)
+        rsi = float(layers.get('rsi_14') or layers.get('tech_rsi') or 50.0)
+
+        # Derive SPY daily change from layers (gex_spot_price vs prior close proxy)
+        # Use tech scorer data if available
+        spy_chg = float(layers.get('spy_change_pct') or layers.get('tech_spy_change') or 0.0)
+
+        # WAR_VETO always = strong downtrend
+        if kc_verdict == 'WAR_VETO':
+            return 'STRONG_DOWNTREND'
+
+        # VIX spike + down move
+        if vix > 28 and spy_chg < -0.8:
+            return 'STRONG_DOWNTREND'
+        if vix > 22 and spy_chg < -0.4:
+            return 'DOWNTREND'
+        if spy_chg < -0.3 or rsi < 38:
+            return 'DOWNTREND'
+
+        # Choppy: small move + moderate VIX
+        if abs(spy_chg) < 0.15 and vix < 22:
+            return 'CHOPPY'
+
+        # Uptrend
+        if spy_chg > 0.6 and rsi > 62:
+            return 'STRONG_UPTREND'
+        if spy_chg > 0.25 or rsi > 55:
+            return 'UPTREND'
+
+        return 'CHOPPY'
+    except Exception:
+        return 'UNKNOWN'
+
+
+async def _auto_snapshot_loop():
+    """
+    Autonomous training snapshot capture — runs every 30 min during market hours.
+    Saves kill-shots-live result to training JSONL without operator action.
+
+    Market hours: 9:30am–4:00pm ET, Mon–Fri.
+    Guard: skips if last auto-snapshot was < 25 min ago (prevents duplicates).
+    """
+    import asyncio
+    from datetime import datetime, timezone, timedelta
+    import pytz
+
+    ET = pytz.timezone('America/New_York')
+    INTERVAL_MIN = 30
+
+    await asyncio.sleep(90)  # Let startup + alpha graph finish first
+    logger.info("🤖 Auto-snapshot loop started")
+
+    _last_auto_ts: datetime | None = None
+
+    while True:
+        try:
+            now_et = datetime.now(ET)
+            is_weekday = now_et.weekday() < 5
+            market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+            market_close = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+            in_market_hours = is_weekday and market_open <= now_et <= market_close
+
+            if in_market_hours:
+                # Check guard: don't save if we saved < 25 min ago
+                too_soon = (_last_auto_ts is not None and 
+                           (datetime.now(timezone.utc) - _last_auto_ts).total_seconds() < 25 * 60)
+
+                if not too_soon and _last_kill_shots_result:
+                    result = _last_kill_shots_result
+                    result_age_s = (datetime.now(timezone.utc) - 
+                                   datetime.fromisoformat(result.get('timestamp', '2000-01-01T00:00:00'))
+                                   .replace(tzinfo=timezone.utc)).total_seconds()
+
+                    # Only save if result is fresh (< 35 min old)
+                    if result_age_s < 35 * 60:
+                        try:
+                            from backend.app.api.v1.training import save_snapshot, SnapshotRequest
+                            regime = _compute_regime(result.get('layers', {}), result.get('kill_chain'))
+                            req = SnapshotRequest(
+                                payload=result,
+                                label=result.get('reconciled_verdict') or result.get('verdict') or 'UNKNOWN',
+                                note=f'Auto-captured at {now_et.strftime("%H:%M ET")}',
+                                regime=regime,
+                                symbol='SPY',
+                                confidence=float((result.get('kill_chain') or {}).get('score') or 
+                                                result.get('divergence_score') or 0),
+                                signal_type='KILL_CHAIN_AUTO',
+                                direction=(
+                                    'BLOCKED' if 'VETO' in (result.get('reconciled_verdict') or '') else
+                                    'LONG' if 'BOOST' in (result.get('reconciled_verdict') or '') else
+                                    None
+                                ),
+                                source='auto',
+                            )
+                            saved = await save_snapshot(req)
+                            _last_auto_ts = datetime.now(timezone.utc)
+                            logger.info(f"🤖 Auto-snapshot saved: {saved.get('snapshot_id')} regime={regime} label={req.label}")
+                        except Exception as snap_e:
+                            logger.warning(f"⚠️ Auto-snapshot failed: {snap_e}")
+                    else:
+                        logger.debug(f"Auto-snapshot: result too old ({result_age_s:.0f}s), skipping")
+                elif too_soon:
+                    logger.debug("Auto-snapshot: too soon since last save, skipping")
+        except Exception as loop_e:
+            logger.warning(f"Auto-snapshot loop error: {loop_e}")
+
+        await asyncio.sleep(INTERVAL_MIN * 60)
 
 # ── Module-level BrainManager singleton for polling ──
 _brain_singleton = None
@@ -1228,7 +1351,11 @@ async def kill_shots_live():
                 'veto_reason': kc_layer_macro.get('veto_reason'),
             }
 
-        return {
+        # Compute authoritative regime and inject into response
+        regime = _compute_regime(layers, kill_chain_result)
+        layers['regime'] = regime  # also available in layers for downstream use
+
+        result_payload = {
             'divergence_score': score,
             'verdict': verdict,
             'reconciled_verdict': reconciled,
@@ -1240,8 +1367,13 @@ async def kill_shots_live():
             'reasons': reasons,
             'explanations': explanations,
             'kill_chain': kill_chain_result,
+            'regime': regime,
             'timestamp': now_iso,
         }
+        # Cache for autonomous snapshot loop
+        global _last_kill_shots_result
+        _last_kill_shots_result = result_payload
+        return result_payload
     except Exception as e:
         logger.error(f"Kill Shots Live Error: {e}")
         return {"error": str(e)}

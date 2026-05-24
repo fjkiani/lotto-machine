@@ -481,6 +481,63 @@ function ReconciliationEngine({ d }: { d: KillShotsResponse }) {
   );
 }
 
+
+// ── Similar Setups Strip ──────────────────────────────────────────────────────
+interface SimilarSetupsData {
+  count: number;
+  wins: number;
+  losses: number;
+  neutral: number;
+  win_rate: number | null;
+  avg_pnl_pct: number | null;
+  message?: string;
+}
+
+function SimilarSetupsStrip({ regime, direction }: { regime: string; direction?: string }) {
+  const [data, setData] = useState<SimilarSetupsData | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!regime || regime === 'UNKNOWN') return;
+    setLoading(true);
+    const params = new URLSearchParams({ regime, days: '30' });
+    if (direction) params.set('direction', direction);
+    fetch(`${API}/api/v1/training/similar-setups?${params}`)
+      .then(r => r.json())
+      .then(j => { setData(j); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [regime, direction]);
+
+  if (loading) return null;
+  if (!data || data.count < 3) return null;
+
+  const wr = data.win_rate ?? 0;
+  const wrColor = wr > 55 ? 'text-emerald-400' : wr > 45 ? 'text-amber-400' : 'text-rose-400';
+  const avgPnl = data.avg_pnl_pct;
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-950 border border-white/5 rounded-lg text-[9px] font-mono">
+      <span className="text-zinc-600 uppercase tracking-widest font-black text-[8px]">Similar 30d</span>
+      <span className="text-zinc-500">{data.count} signals</span>
+      <span className="text-zinc-700">·</span>
+      <span className="text-emerald-400">{data.wins}W</span>
+      <span className="text-zinc-700">/</span>
+      <span className="text-rose-400">{data.losses}L</span>
+      {data.neutral > 0 && <><span className="text-zinc-700">/</span><span className="text-zinc-500">{data.neutral}F</span></>}
+      <span className="text-zinc-700">·</span>
+      <span className={`font-black ${wrColor}`}>WR {wr.toFixed(0)}%</span>
+      {avgPnl !== null && (
+        <>
+          <span className="text-zinc-700">·</span>
+          <span className={avgPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+            avg {avgPnl >= 0 ? '+' : ''}{avgPnl.toFixed(2)}%
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── 7. Train Button (with deferred outcome tracking) ─────────────────────────
 // Design:
 //   - Snapshot saved immediately with regime/direction/confidence labels
@@ -503,7 +560,14 @@ interface PendingSnapshot {
 }
 
 // Infer regime from kill chain data
+// Priority: use d.regime (authoritative, computed server-side from real price data)
+// Fallback: derive from verdict string (heuristic, less accurate)
 function inferRegime(d: KillShotsResponse): string {
+  // Use authoritative regime from kill-shots-live response if available
+  if ((d as any).regime && (d as any).regime !== 'UNKNOWN') {
+    return (d as any).regime as string;
+  }
+  // Fallback heuristic (used when backend hasn't been updated yet)
   const kc = d.kill_chain;
   if (!kc) return 'UNKNOWN';
   const score = kc.score ?? 0;
@@ -580,7 +644,7 @@ function TrainButton({ d }: { d: KillShotsResponse }) {
     }
   };
 
-  const recordOutcome = async (snapshotId: string, outcome: 'WIN' | 'LOSS' | 'NEUTRAL', pnlPct: number) => {
+  const recordOutcome = async (snapshotId: string, outcome: 'WIN' | 'LOSS' | 'NEUTRAL', pnlPct: number, source: string) => {
     setOutcomeState('recording');
     try {
       const capturedAt = overdueSnapshots.find(s => s.snapshot_id === snapshotId)?.captured_at ?? '';
@@ -590,7 +654,7 @@ function TrainButton({ d }: { d: KillShotsResponse }) {
       const res = await fetch(`${API}/api/v1/training/outcome`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ snapshot_id: snapshotId, outcome, pnl_pct: pnlPct, days_elapsed: daysElapsed }),
+        body: JSON.stringify({ snapshot_id: snapshotId, outcome, pnl_pct: pnlPct, days_elapsed: daysElapsed, source }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const j = await res.json();
@@ -666,6 +730,13 @@ function TrainButton({ d }: { d: KillShotsResponse }) {
         </div>
       </div>
 
+      {/* Similar setups strip — shows historical performance for this regime */}
+      <SimilarSetupsStrip
+        regime={inferRegime(d)}
+        direction={(d.reconciled_verdict ?? '').includes('VETO') ? 'BLOCKED' :
+                   (d.reconciled_verdict ?? '').includes('BOOST') ? 'LONG' : undefined}
+      />
+
       {/* Deferred outcome panel — shown when overdue snapshots exist */}
       {showOutcomePanel && overdueSnapshots.length > 0 && (
         <div className="bg-zinc-950 border border-amber-500/20 rounded-xl p-4 space-y-3">
@@ -697,66 +768,86 @@ interface OutcomeRowProps {
   snap: PendingSnapshot;
   outcomeState: OutcomeState;
   outcomeErrMsg: string;
-  onRecord: (id: string, outcome: 'WIN' | 'LOSS' | 'NEUTRAL', pnl: number) => void;
+  onRecord: (id: string, outcome: 'WIN' | 'LOSS' | 'NEUTRAL', pnl: number, source: string) => void;
 }
 
 function OutcomeRow({ snap, outcomeState, outcomeErrMsg, onRecord }: OutcomeRowProps) {
   const [pnlInput, setPnlInput] = useState('');
+  const [sourceInput, setSourceInput] = useState('');
   const capturedDate = new Date(snap.captured_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const daysOverdue = snap.days_overdue ?? 0;
+  // Quality gate: source must be non-empty before submit is enabled
+  const canSubmit = sourceInput.trim().length >= 3 && outcomeState !== 'recording';
 
   return (
-    <div className="flex items-center gap-3 flex-wrap py-2 border-t border-white/5">
-      <div className="flex-1 min-w-0">
-        <div className="text-[9px] font-mono text-zinc-400 truncate">
-          <span className="text-zinc-600">{capturedDate}</span>
-          {' · '}
-          <span className="text-cyan-400/70">{snap.label}</span>
-          {' · '}
-          <span className="text-zinc-500">{snap.regime}</span>
-          {snap.direction && <span className="text-zinc-600"> · {snap.direction}</span>}
+    <div className="flex flex-col gap-2 py-2 border-t border-white/5">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <div className="text-[9px] font-mono text-zinc-400 truncate">
+            <span className="text-zinc-600">{capturedDate}</span>
+            {' · '}
+            <span className="text-cyan-400/70">{snap.label}</span>
+            {' · '}
+            <span className="text-zinc-500">{snap.regime}</span>
+            {snap.direction && <span className="text-zinc-600"> · {snap.direction}</span>}
+          </div>
+          <div className="text-[8px] font-mono text-amber-400/60">
+            {daysOverdue > 0 ? `${daysOverdue}d overdue` : 'due today'} · id: {snap.snapshot_id}
+          </div>
         </div>
-        <div className="text-[8px] font-mono text-amber-400/60">
-          {daysOverdue > 0 ? `${daysOverdue}d overdue` : 'due today'} · id: {snap.snapshot_id}
-        </div>
+        <input
+          type="number"
+          placeholder="P&L %"
+          value={pnlInput}
+          onChange={e => setPnlInput(e.target.value)}
+          className="w-16 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded text-[9px] font-mono text-zinc-300 placeholder-zinc-700 focus:outline-none focus:border-cyan-500/40"
+          step="0.1"
+        />
       </div>
-      <input
-        type="number"
-        placeholder="P&L %"
-        value={pnlInput}
-        onChange={e => setPnlInput(e.target.value)}
-        className="w-16 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded text-[9px] font-mono text-zinc-300 placeholder-zinc-700 focus:outline-none focus:border-cyan-500/40"
-        step="0.1"
-      />
+      {/* Source field — required quality gate */}
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          placeholder="Source of P&L (required) — e.g. 'closed at 2pm, +1.4%'"
+          value={sourceInput}
+          onChange={e => setSourceInput(e.target.value)}
+          className={`flex-1 px-2 py-1 bg-zinc-900 border rounded text-[9px] font-mono text-zinc-300 placeholder-zinc-600 focus:outline-none transition-colors ${
+            sourceInput.trim().length >= 3 ? 'border-emerald-500/40' : 'border-zinc-700 focus:border-amber-500/40'
+          }`}
+        />
+        {sourceInput.trim().length < 3 && (
+          <span className="text-[8px] font-mono text-amber-400/60 whitespace-nowrap">required</span>
+        )}
+      </div>
       <div className="flex items-center gap-1">
         <button
-          onClick={() => onRecord(snap.snapshot_id, 'WIN', parseFloat(pnlInput) || 0)}
-          disabled={outcomeState === 'recording'}
-          className="flex items-center gap-1 px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded text-[9px] font-black text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-40"
+          onClick={() => onRecord(snap.snapshot_id, 'WIN', parseFloat(pnlInput) || 0, sourceInput.trim())}
+          disabled={!canSubmit}
+          className="flex items-center gap-1 px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded text-[9px] font-black text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <TrendingUp className="w-2.5 h-2.5" /> WIN
         </button>
         <button
-          onClick={() => onRecord(snap.snapshot_id, 'NEUTRAL', parseFloat(pnlInput) || 0)}
-          disabled={outcomeState === 'recording'}
-          className="flex items-center gap-1 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-[9px] font-black text-zinc-400 hover:bg-zinc-700 transition-all disabled:opacity-40"
+          onClick={() => onRecord(snap.snapshot_id, 'NEUTRAL', parseFloat(pnlInput) || 0, sourceInput.trim())}
+          disabled={!canSubmit}
+          className="flex items-center gap-1 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-[9px] font-black text-zinc-400 hover:bg-zinc-700 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <Minus className="w-2.5 h-2.5" /> FLAT
         </button>
         <button
-          onClick={() => onRecord(snap.snapshot_id, 'LOSS', parseFloat(pnlInput) || 0)}
-          disabled={outcomeState === 'recording'}
-          className="flex items-center gap-1 px-2 py-1 bg-rose-500/10 border border-rose-500/30 rounded text-[9px] font-black text-rose-400 hover:bg-rose-500/20 transition-all disabled:opacity-40"
+          onClick={() => onRecord(snap.snapshot_id, 'LOSS', parseFloat(pnlInput) || 0, sourceInput.trim())}
+          disabled={!canSubmit}
+          className="flex items-center gap-1 px-2 py-1 bg-rose-500/10 border border-rose-500/30 rounded text-[9px] font-black text-rose-400 hover:bg-rose-500/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <TrendingDown className="w-2.5 h-2.5" /> LOSS
         </button>
+        {outcomeState === 'recorded' && (
+          <CheckCircle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 ml-1" />
+        )}
+        {outcomeState === 'error' && (
+          <span className="text-[9px] font-mono text-rose-400 ml-1">{outcomeErrMsg}</span>
+        )}
       </div>
-      {outcomeState === 'recorded' && (
-        <CheckCircle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-      )}
-      {outcomeState === 'error' && (
-        <span className="text-[9px] font-mono text-rose-400">{outcomeErrMsg}</span>
-      )}
     </div>
   );
 }
