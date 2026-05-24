@@ -389,6 +389,44 @@ def _inject_kill_chain(signals: List[dict], kc: dict) -> List[dict]:
                 )
             sig["macro_regime"] = regime
 
+        # ── CPI pre-release modifier (Phase 1 research — stable regimes only) ──────
+        # Fires only when: CPI event within 24h, stable regime (not STAGFLATION/RECESSION),
+        # VIX < 22, RF forecast diverges from consensus by > 0.15%.
+        # Boost: +8% max (weak signal — tiebreaker only, not standalone).
+        # Research basis: commit ad2c9b1, Pre-COVID DM p=0.023 (significant).
+        if (econ_hours is not None and econ_hours <= 24.0
+                and "CPI" in (econ_event or "").upper()
+                and sig_action in ("LONG", "SHORT")):
+            try:
+                from backend.app.signals.macro_pre_release import get_pre_release_modifier
+                _regime_str = sig.get("macro_regime", "NEUTRAL")
+                _vix_val = float(
+                    (kc.get("layers") or {}).get("vix")
+                    or (kc.get("layers") or {}).get("vix_level")
+                    or 20.0
+                )
+                _cpi_mod = get_pre_release_modifier(
+                    sig_action=sig_action,
+                    macro_regime=_regime_str,
+                    vix=_vix_val,
+                    econ_event=econ_event or "",
+                )
+                if _cpi_mod:
+                    _orig_conf = sig["confidence"]
+                    sig["confidence"] = min(
+                        int(sig["confidence"]) + _cpi_mod["boost"], 99
+                    )
+                    sig["warnings"].append(f"📈 {_cpi_mod['warning']}")
+                    sig["cpi_pre_release"] = {
+                        "rf_forecast": _cpi_mod["rf_forecast"],
+                        "consensus": _cpi_mod["consensus"],
+                        "divergence": _cpi_mod["divergence"],
+                        "direction": _cpi_mod["direction"],
+                        "boost": _cpi_mod["boost"],
+                    }
+            except Exception as _cpi_exc:
+                logger.debug("CPI pre-release modifier failed (non-fatal): %s", _cpi_exc)
+
     return signals
 
 

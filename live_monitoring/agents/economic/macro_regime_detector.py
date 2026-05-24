@@ -102,14 +102,68 @@ class MacroRegimeDetector:
         except Exception:
             pass
 
-        # Composite inflation score (0 = low, 1 = high)
-        inflation_inputs = [v for v in [core_pce_yoy, cpi_yoy, nowcast_cpi] if v is not None]
-        if inflation_inputs:
-            avg_inflation = sum(inflation_inputs) / len(inflation_inputs)
-            # Scale: 2% = 0 (target), 4% = 1 (high), 6%+ = 1.0 (capped)
-            inflation_score = min(max((avg_inflation - 2.0) / 2.0, -0.5), 1.0)
-        else:
-            inflation_score = 0.0
+        # PCE MoM (r=+0.548 with next CPI — Phase 1 research, commit ad2c9b1)
+        pce_mom = None
+        pce = self._get_fred_latest('PCEPI', limit=2)
+        if pce and len(pce) >= 2 and pce[1] > 0:
+            pce_mom = ((pce[0] - pce[1]) / pce[1]) * 100
+            components['pce_mom'] = round(pce_mom, 3)
+
+        # PPI All Commodities MoM (r=+0.544 with next CPI)
+        ppi_mom = None
+        ppi = self._get_fred_latest('PPIACO', limit=2)
+        if ppi and len(ppi) >= 2 and ppi[1] > 0:
+            ppi_mom = ((ppi[0] - ppi[1]) / ppi[1]) * 100
+            components['ppi_mom'] = round(ppi_mom, 3)
+
+        # T10YIEM TIPS breakeven (r=+0.461 with next CPI — market inflation expectations)
+        breakeven = None
+        t10yiem = self._get_fred_latest('T10YIEM', limit=1)
+        if t10yiem:
+            breakeven = t10yiem[0]
+            components['t10yiem_breakeven'] = round(breakeven, 2)
+
+        # Composite inflation score — weighted by Phase 1 research feature importances
+        # Weights: CPI YoY (0.4) + Core PCE YoY (0.3) + PCE MoM (0.1) + PPI MoM (0.1) + T10YIEM (0.1)
+        # Scale: 2% = 0 (target), 4% = 1 (high), 6%+ = 1.0 (capped)
+        # PCE MoM and PPI MoM are scaled to annualised equivalent (* 12) for comparability
+        inflation_score = 0.0
+        total_weight = 0.0
+
+        if cpi_yoy is not None:
+            inflation_score += 0.4 * min(max((cpi_yoy - 2.0) / 2.0, -0.5), 1.0)
+            total_weight += 0.4
+        if core_pce_yoy is not None:
+            inflation_score += 0.3 * min(max((core_pce_yoy - 2.0) / 2.0, -0.5), 1.0)
+            total_weight += 0.3
+        if pce_mom is not None:
+            pce_ann = pce_mom * 12  # annualise MoM
+            inflation_score += 0.1 * min(max((pce_ann - 2.0) / 2.0, -0.5), 1.0)
+            total_weight += 0.1
+        if ppi_mom is not None:
+            ppi_ann = ppi_mom * 12  # annualise MoM
+            inflation_score += 0.1 * min(max((ppi_ann - 2.0) / 2.0, -0.5), 1.0)
+            total_weight += 0.1
+        if breakeven is not None:
+            # T10YIEM is already a YoY-equivalent rate (e.g. 2.3%)
+            inflation_score += 0.1 * min(max((breakeven - 2.0) / 2.0, -0.5), 1.0)
+            total_weight += 0.1
+
+        # Fallback: if no FRED data at all, use Cleveland nowcast simple average
+        if total_weight == 0.0:
+            fallback_inputs = [v for v in [nowcast_cpi] if v is not None]
+            if fallback_inputs:
+                avg_inflation = sum(fallback_inputs) / len(fallback_inputs)
+                inflation_score = min(max((avg_inflation - 2.0) / 2.0, -0.5), 1.0)
+        elif total_weight < 1.0:
+            # Rescale to full weight if some series unavailable
+            inflation_score = inflation_score / total_weight
+
+        # Blend in Cleveland nowcast if available (soft override — 10% weight)
+        if nowcast_cpi is not None and total_weight > 0.0:
+            nowcast_score = min(max((nowcast_cpi - 2.0) / 2.0, -0.5), 1.0)
+            inflation_score = 0.9 * inflation_score + 0.1 * nowcast_score
+
         components['inflation_score'] = round(inflation_score, 3)
 
         # ── Growth Score ──
