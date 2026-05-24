@@ -18,7 +18,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { RefreshCw, AlertOctagon, ArrowDown, Info, Database } from 'lucide-react';
+import { RefreshCw, AlertOctagon, ArrowDown, Info, Database, CheckCircle, XCircle, Clock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 import type { KillShotsResponse, KillChainResult, KillChainLayerMacro } from '../widgets/kill-shots/types';
 import { PillarCardCot }      from '../widgets/kill-shots/PillarCardCot';
@@ -481,31 +481,98 @@ function ReconciliationEngine({ d }: { d: KillShotsResponse }) {
   );
 }
 
-// ── 7. Train Button ───────────────────────────────────────────────────────────
+// ── 7. Train Button (with deferred outcome tracking) ─────────────────────────
+// Design:
+//   - Snapshot saved immediately with regime/direction/confidence labels
+//   - snapshot_id stored in localStorage keyed by timestamp
+//   - After OUTCOME_WINDOW_DAYS (default 3), operator records WIN/LOSS/NEUTRAL
+//   - Only snapshots WITH outcomes are exported for fine-tuning
+//   - Pending outcomes shown as a badge on the button
+
 type TrainState = 'idle' | 'saving' | 'saved' | 'error';
+type OutcomeState = 'idle' | 'recording' | 'recorded' | 'error';
+
+interface PendingSnapshot {
+  snapshot_id: string;
+  captured_at: string;
+  outcome_due: string;
+  label: string;
+  regime: string;
+  direction?: string;
+  days_overdue?: number;
+}
+
+// Infer regime from kill chain data
+function inferRegime(d: KillShotsResponse): string {
+  const kc = d.kill_chain;
+  if (!kc) return 'UNKNOWN';
+  const score = kc.score ?? 0;
+  const verdict = d.reconciled_verdict ?? d.verdict ?? '';
+  if (verdict.includes('WAR_VETO') || verdict.includes('HARD_VETO')) return 'STRONG_DOWNTREND';
+  if (verdict.includes('SOFT_VETO') || verdict.includes('WATCH')) return 'DOWNTREND';
+  if (verdict.includes('BOOST') || verdict.includes('BUY')) return score > 70 ? 'STRONG_UPTREND' : 'UPTREND';
+  return 'CHOPPY';
+}
 
 function TrainButton({ d }: { d: KillShotsResponse }) {
   const [state, setState] = useState<TrainState>('idle');
-  const [total, setTotal] = useState<number | null>(null);
+  const [complete, setComplete] = useState<number | null>(null);
   const [errMsg, setErrMsg] = useState('');
+  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
+  const [outcomeDue, setOutcomeDue] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [overdueCount, setOverdueCount] = useState<number>(0);
+  const [showOutcomePanel, setShowOutcomePanel] = useState(false);
+  const [overdueSnapshots, setOverdueSnapshots] = useState<PendingSnapshot[]>([]);
+  const [outcomeState, setOutcomeState] = useState<OutcomeState>('idle');
+  const [outcomeErrMsg, setOutcomeErrMsg] = useState('');
+
+  // Poll pending outcomes on mount and after saves
+  const refreshPending = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/api/v1/training/pending-outcomes`);
+      if (!res.ok) return;
+      const j = await res.json();
+      setPendingCount((j.overdue_count ?? 0) + (j.upcoming_count ?? 0));
+      setOverdueCount(j.overdue_count ?? 0);
+      setOverdueSnapshots(j.overdue ?? []);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    refreshPending();
+    const iv = setInterval(refreshPending, 60_000); // refresh every minute
+    return () => clearInterval(iv);
+  }, [refreshPending]);
 
   const save = async () => {
     setState('saving');
     try {
+      const regime = inferRegime(d);
+      const kc = d.kill_chain;
       const res = await fetch(`${API}/api/v1/training/snapshot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           payload: d,
-          label: d.reconciled_verdict ?? d.verdict,
+          label: d.reconciled_verdict ?? d.verdict ?? 'UNKNOWN',
           note: 'Manual label from operator',
+          regime,
+          symbol: d.layers?.spy_price ? 'SPY' : 'SPY',
+          confidence: kc?.score ?? null,
+          signal_type: 'KILL_CHAIN',
+          direction: (d.reconciled_verdict ?? '').includes('VETO') ? 'BLOCKED'
+                   : (d.reconciled_verdict ?? '').includes('BOOST') ? 'LONG' : null,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const j = await res.json();
-      setTotal(j.total_records ?? null);
+      setComplete(j.complete_records ?? 0);
+      setLastSnapshotId(j.snapshot_id ?? null);
+      setOutcomeDue(j.outcome_due_date ?? null);
       setState('saved');
-      setTimeout(() => setState('idle'), 5000);
+      await refreshPending();
+      setTimeout(() => setState('idle'), 8000);
     } catch (e: any) {
       setErrMsg(e.message || 'Save failed');
       setState('error');
@@ -513,44 +580,183 @@ function TrainButton({ d }: { d: KillShotsResponse }) {
     }
   };
 
+  const recordOutcome = async (snapshotId: string, outcome: 'WIN' | 'LOSS' | 'NEUTRAL', pnlPct: number) => {
+    setOutcomeState('recording');
+    try {
+      const capturedAt = overdueSnapshots.find(s => s.snapshot_id === snapshotId)?.captured_at ?? '';
+      const daysElapsed = capturedAt
+        ? Math.round((Date.now() - new Date(capturedAt).getTime()) / 86_400_000)
+        : 3;
+      const res = await fetch(`${API}/api/v1/training/outcome`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snapshot_id: snapshotId, outcome, pnl_pct: pnlPct, days_elapsed: daysElapsed }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json();
+      setComplete(j.complete_records ?? null);
+      setOutcomeState('recorded');
+      await refreshPending();
+      setTimeout(() => { setOutcomeState('idle'); setShowOutcomePanel(false); }, 3000);
+    } catch (e: any) {
+      setOutcomeErrMsg(e.message || 'Record failed');
+      setOutcomeState('error');
+      setTimeout(() => setOutcomeState('idle'), 4000);
+    }
+  };
+
+  const dueDateStr = outcomeDue
+    ? new Date(outcomeDue).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null;
+
   return (
-    <div className="flex items-center justify-between flex-wrap gap-3 pt-4 border-t border-white/5">
-      <div className="flex items-center gap-2">
-        <Database className="w-3.5 h-3.5 text-zinc-600" />
-        <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Training Pipeline</span>
-      </div>
-      <div className="flex items-center gap-3">
-        {state === 'saved' && total != null && (
-          <span className="text-[10px] font-mono text-emerald-400">
-            Snapshot saved ({total} total){total >= 50 ? ' — ready to export' : ` — ${50 - total} more to go`}
-          </span>
-        )}
-        {state === 'error' && (
-          <span className="text-[10px] font-mono text-rose-400">{errMsg}</span>
-        )}
-        <button
-          onClick={save}
-          disabled={state === 'saving'}
-          className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[10px] font-black text-zinc-400 hover:text-cyan-400 hover:border-cyan-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {state === 'saving' ? (
-            <><RefreshCw className="w-3 h-3 animate-spin" /> Saving…</>
-          ) : state === 'saved' ? (
-            <><span className="text-emerald-400">✓</span> Saved</>
-          ) : (
-            <><Database className="w-3 h-3" /> Train LLM on this snapshot</>
+    <div className="pt-4 border-t border-white/5 space-y-3">
+      {/* Header row */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <Database className="w-3.5 h-3.5 text-zinc-600" />
+          <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Training Pipeline</span>
+          {overdueCount > 0 && (
+            <button
+              onClick={() => setShowOutcomePanel(v => !v)}
+              className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/30 rounded text-[9px] font-black text-amber-400 hover:bg-amber-500/25 transition-all"
+            >
+              <Clock className="w-2.5 h-2.5" />
+              {overdueCount} outcome{overdueCount !== 1 ? 's' : ''} due
+            </button>
           )}
-        </button>
-        {total != null && total >= 50 && (
-          <a
-            href={`${API}/api/v1/training/export`}
-            download="kill_chain_snapshots.jsonl"
-            className="px-3 py-1.5 bg-zinc-900 border border-emerald-500/30 rounded-lg text-[10px] font-black text-emerald-400 hover:bg-emerald-500/10 transition-all"
+          {complete != null && (
+            <span className="text-[9px] font-mono text-zinc-600">
+              {complete}/50 complete{complete >= 50 ? ' ✓' : ''}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {state === 'saved' && (
+            <span className="text-[10px] font-mono text-emerald-400">
+              Saved · outcome due {dueDateStr ?? 'in 3 days'}
+            </span>
+          )}
+          {state === 'error' && (
+            <span className="text-[10px] font-mono text-rose-400">{errMsg}</span>
+          )}
+          <button
+            onClick={save}
+            disabled={state === 'saving'}
+            className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[10px] font-black text-zinc-400 hover:text-cyan-400 hover:border-cyan-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Export JSONL
-          </a>
-        )}
+            {state === 'saving' ? (
+              <><RefreshCw className="w-3 h-3 animate-spin" /> Saving…</>
+            ) : state === 'saved' ? (
+              <><CheckCircle className="w-3 h-3 text-emerald-400" /> Saved</>
+            ) : (
+              <><Database className="w-3 h-3" /> Train LLM on this snapshot</>
+            )}
+          </button>
+          {complete != null && complete >= 50 && (
+            <a
+              href={`${API}/api/v1/training/export`}
+              download="kill_chain_snapshots_complete.jsonl"
+              className="px-3 py-1.5 bg-zinc-900 border border-emerald-500/30 rounded-lg text-[10px] font-black text-emerald-400 hover:bg-emerald-500/10 transition-all"
+            >
+              Export JSONL
+            </a>
+          )}
+        </div>
       </div>
+
+      {/* Deferred outcome panel — shown when overdue snapshots exist */}
+      {showOutcomePanel && overdueSnapshots.length > 0 && (
+        <div className="bg-zinc-950 border border-amber-500/20 rounded-xl p-4 space-y-3">
+          <div className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-2">
+            Record Outcomes — Supervised Training Labels
+          </div>
+          {overdueSnapshots.slice(0, 5).map(snap => (
+            <OutcomeRow
+              key={snap.snapshot_id}
+              snap={snap}
+              outcomeState={outcomeState}
+              outcomeErrMsg={outcomeErrMsg}
+              onRecord={recordOutcome}
+            />
+          ))}
+          {overdueSnapshots.length > 5 && (
+            <div className="text-[9px] font-mono text-zinc-600 text-center">
+              +{overdueSnapshots.length - 5} more overdue
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Outcome Row — one overdue snapshot with WIN/LOSS/NEUTRAL buttons ──────────
+interface OutcomeRowProps {
+  snap: PendingSnapshot;
+  outcomeState: OutcomeState;
+  outcomeErrMsg: string;
+  onRecord: (id: string, outcome: 'WIN' | 'LOSS' | 'NEUTRAL', pnl: number) => void;
+}
+
+function OutcomeRow({ snap, outcomeState, outcomeErrMsg, onRecord }: OutcomeRowProps) {
+  const [pnlInput, setPnlInput] = useState('');
+  const capturedDate = new Date(snap.captured_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const daysOverdue = snap.days_overdue ?? 0;
+
+  return (
+    <div className="flex items-center gap-3 flex-wrap py-2 border-t border-white/5">
+      <div className="flex-1 min-w-0">
+        <div className="text-[9px] font-mono text-zinc-400 truncate">
+          <span className="text-zinc-600">{capturedDate}</span>
+          {' · '}
+          <span className="text-cyan-400/70">{snap.label}</span>
+          {' · '}
+          <span className="text-zinc-500">{snap.regime}</span>
+          {snap.direction && <span className="text-zinc-600"> · {snap.direction}</span>}
+        </div>
+        <div className="text-[8px] font-mono text-amber-400/60">
+          {daysOverdue > 0 ? `${daysOverdue}d overdue` : 'due today'} · id: {snap.snapshot_id}
+        </div>
+      </div>
+      <input
+        type="number"
+        placeholder="P&L %"
+        value={pnlInput}
+        onChange={e => setPnlInput(e.target.value)}
+        className="w-16 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded text-[9px] font-mono text-zinc-300 placeholder-zinc-700 focus:outline-none focus:border-cyan-500/40"
+        step="0.1"
+      />
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onRecord(snap.snapshot_id, 'WIN', parseFloat(pnlInput) || 0)}
+          disabled={outcomeState === 'recording'}
+          className="flex items-center gap-1 px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded text-[9px] font-black text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-40"
+        >
+          <TrendingUp className="w-2.5 h-2.5" /> WIN
+        </button>
+        <button
+          onClick={() => onRecord(snap.snapshot_id, 'NEUTRAL', parseFloat(pnlInput) || 0)}
+          disabled={outcomeState === 'recording'}
+          className="flex items-center gap-1 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-[9px] font-black text-zinc-400 hover:bg-zinc-700 transition-all disabled:opacity-40"
+        >
+          <Minus className="w-2.5 h-2.5" /> FLAT
+        </button>
+        <button
+          onClick={() => onRecord(snap.snapshot_id, 'LOSS', parseFloat(pnlInput) || 0)}
+          disabled={outcomeState === 'recording'}
+          className="flex items-center gap-1 px-2 py-1 bg-rose-500/10 border border-rose-500/30 rounded text-[9px] font-black text-rose-400 hover:bg-rose-500/20 transition-all disabled:opacity-40"
+        >
+          <TrendingDown className="w-2.5 h-2.5" /> LOSS
+        </button>
+      </div>
+      {outcomeState === 'recorded' && (
+        <CheckCircle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+      )}
+      {outcomeState === 'error' && (
+        <span className="text-[9px] font-mono text-rose-400">{outcomeErrMsg}</span>
+      )}
     </div>
   );
 }
