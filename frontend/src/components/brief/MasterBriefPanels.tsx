@@ -1,19 +1,16 @@
 /**
- * MasterBriefPanels — entry point for the Today's Brief page.
- *
- * ExploitationCommandCenter: compact kill-shots verdict bar (reconciled verdict,
- * SPY position, WAR_VETO warning, link to /signal-chain). Fetches independently.
- * UnifiedBriefView: Alpha Terminal V8 — full brief, owns its own data fetching.
+ * MasterBriefPanels — kill chain verdict bar + compact macro edge strip.
+ * UnifiedBriefView removed: it caused Groq 429 errors, re-rendered duplicate data,
+ * and buried the kill chain verdict under 6 bloated components.
  */
-
 import { ExploitationCommandCenter } from './ExploitationCommandCenter';
-import { UnifiedBriefView } from './UnifiedBriefView';
+import { MacroEdgeStrip } from './MacroEdgeStrip';
 
 export function MasterBriefPanels() {
   return (
     <>
       <ExploitationCommandCenter />
-      <UnifiedBriefView />
+      <MacroEdgeStrip />
     </>
   );
 }
