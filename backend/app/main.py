@@ -471,13 +471,27 @@ async def _brain_polling_loop():
             logger.info(f"🧠 Background brain poll complete — divergence_boost={boost}")
         except Exception as e:
             logger.error(f"Brain poll failed: {e}")
-        await asyncio.sleep(900)  # 15 minutes
+        finally:
+            # OOM FIX: reclaim memory after each brain poll (Finnhub + feedparser objects)
+            import gc as _gc; _gc.collect()
+        # OOM FIX: 30min on Render (512MB), 15min elsewhere
+        _brain_interval = 1800 if os.getenv("RENDER") else 900
+        await asyncio.sleep(_brain_interval)  # 30min on Render, 15min local
 
 
 
 async def _alpha_graph_polling_loop():
-    """Background loop: runs alpha graph every 10min, caches result for /kill-shots-live."""
+    """Background loop: runs alpha graph every 10min (30min on Render), caches result for /kill-shots-live.
+
+    OOM FIX: gated behind OPENROUTER_API_KEY — if not set, the LangGraph nodes call
+    OpenRouter and fail anyway, but the enrichment fetches (yfinance×3 + StockgridClient)
+    still consume ~40-80MB per cycle. Skip entirely if no key configured.
+    """
     import asyncio
+    # OOM FIX: skip alpha graph polling if no LLM key — enrichment fetches waste memory
+    if not os.getenv("OPENROUTER_API_KEY") and not os.getenv("GROQ_API_KEY"):
+        logger.warning("⚠️ Alpha graph polling disabled — no OPENROUTER_API_KEY or GROQ_API_KEY set")
+        return
     await asyncio.sleep(60)  # Let startup finish first
     while True:
         try:
@@ -546,7 +560,12 @@ async def _alpha_graph_polling_loop():
             logger.info(f"Alpha graph cache updated: {result.get('verdict')} @ {result.get('confidence'):.2f}")
         except Exception as e:
             logger.warning(f"Alpha graph background poll failed: {e}")
-        await asyncio.sleep(600)  # 10 minutes
+        finally:
+            # OOM FIX: reclaim memory after each alpha graph run
+            import gc as _gc; _gc.collect()
+        # OOM FIX: 30min on Render (512MB), 10min elsewhere
+        _alpha_interval = 1800 if os.getenv("RENDER") else 600
+        await asyncio.sleep(_alpha_interval)  # 30min on Render, 10min local
 
 
 @app.get("/alpha-graph/models")
