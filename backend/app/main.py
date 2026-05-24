@@ -24,7 +24,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from backend.app.api import llm_routes
-from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate, intraday, brief, oracle, morningstar
+from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate, intraday, brief, oracle, morningstar, training
 from backend.app.core.dependencies import set_monitor_bridge
 
 logging.basicConfig(level=logging.INFO)
@@ -81,6 +81,7 @@ app.include_router(intraday.router, prefix="/api/v1", tags=["intraday"])
 app.include_router(brief.router, prefix="/api/v1", tags=["brief"])
 app.include_router(oracle.router, prefix="/api/v1", tags=["oracle"])
 app.include_router(morningstar.router, prefix="/api/v1", tags=["morningstar"])
+app.include_router(training.router, prefix="/api/v1", tags=["training"])
 app.include_router(llm_routes.router, prefix="/api", tags=["llm-aliases"])
 
 
