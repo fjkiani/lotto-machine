@@ -1,0 +1,195 @@
+---
+description: "Today's Brief page (/) — zero-click landing page. Component hierarchy, API endpoints, Groq 429 prevention rules, verdict vocabulary mapping, how to add panels."
+alwaysApply: false
+---
+
+# Today's Brief Page — Production Handoff
+
+**Route:** `/` (default) and `/brief`  
+**Page file:** `frontend/src/pages/TodaysBrief.tsx`  
+**Last updated:** 2026-05-23
+
+---
+
+## Component Hierarchy (top to bottom)
+
+```
+TodaysBrief (orchestrator — fetches all data, passes typed props)
+├── market-open-banner          — redirects to /live when market is open
+├── VerdictBanner               — giant color-coded verdict (morning brief)
+├── KC Reconciliation Note      — amber banner when morning brief ≠ live KC
+├── MasterBriefPanels
+│   ├── ExploitationCommandCenter  — live kill chain verdict + action plan drawer
+│   └── MacroEdgeStrip             — regime, next event, ADP/GDP, Fed path
+├── ThesisBar                   — SPY position vs wall in plain English
+├── SignalPills                 — bullish/bearish signal breakdown
+├── Approved Tickers            — green TickerCard grid
+├── Blocked Tickers             — red TickerCard grid
+├── DataWarnings                — yellow banner for volume anomalies
+├── Volume Profile row          — suppressed if data_error
+├── IndexStrip                  — SPY/QQQ/IWM with DP sparklines
+└── GateHealthBar               — win rate, blocked/allowed, avg R
+```
+
+---
+
+## API Endpoints Used
+
+| Endpoint | Interval | Purpose |
+|----------|----------|---------|
+| `GET /morning-brief` | 60s (market hours only) | Main brief data |
+| `GET /kill-shots-live` | once on mount | KC reconciliation verdict |
+| `GET /api/v1/gate/health?n=20` | once on mount | Gate health stats |
+| `GET /api/v1/intraday/snapshot` | once on mount | Market open check |
+| `GET /data/gate_signals_today.json` | once (after brief loads) | Confidence scores |
+| `GET /api/v1/ta/{sym}/consensus` | once per ticker | TA consensus |
+| `GET /api/v1/axlfi/clusters?universe=sp500` | once | Forward returns |
+| `GET /brief/master` | 120s (MacroEdgeStrip) | Macro edge data |
+| `GET /kill-shots-live` | 30s (ExploitationCommandCenter) | Live KC verdict |
+
+**Base URLs:**
+```ts
+const MONITOR_URL = VITE_API_URL.replace('/api/v1', '');  // morning-brief lives here
+const API_URL = VITE_API_URL;                              // /api/v1/... endpoints
+const API_BASE = VITE_API_URL.replace('/api/v1', '');      // /kill-shots-live lives here
+```
+
+---
+
+## Verdict Vocabulary Mapping
+
+The morning brief uses one vocabulary; the kill chain uses another. Both are now handled by `VerdictBanner`.
+
+| Morning Brief | Kill Chain | Meaning |
+|---------------|------------|---------|
+| STRONG_BUY | BOOST | All layers aligned, deploy capital |
+| BUY | BUY | Edge present, trade approved names |
+| NEUTRAL | NEUTRAL / HOLD | No clear edge |
+| CAUTION | WATCH | Mixed signals, reduce size |
+| SELL | HARD_VETO / WAR_VETO | Risk off, no new longs |
+| — | SOFT_VETO | One layer red, reduce size |
+
+`VerdictBanner` handles all 11 vocabulary items. If a new verdict is added to the kill chain, add it to `VERDICT_STYLES` in `VerdictBanner.tsx`.
+
+---
+
+## KC Reconciliation Note
+
+Shown when `kcVerdict !== null && kcVerdict !== brief.verdict`.
+
+```tsx
+const showKcReconciliation = kcVerdict !== null && kcVerdict !== brief.verdict;
+```
+
+Amber banner with link to `/signal-chain`. Fetches `/kill-shots-live` once on mount (not polled — brief page doesn't need live KC updates, only the note).
+
+---
+
+## Groq 429 Prevention Rules
+
+**NEVER add these to Today's Brief:**
+- `InlineOracleBriefing` — calls Groq on every card expand
+- `OracleContext` / `useOracle` / `useOracleBrief` — oracle hooks
+- `UnifiedBriefView` — was removed 2026-05-23 (caused 429 errors)
+- Any component that calls `/oracle/brief` or `/oracle/event-brief` on mount
+
+**Safe to add:**
+- Components that fetch from `/brief/master`, `/kill-shots-live`, `/api/v1/*` (non-oracle)
+- Static data displays
+- Components with explicit user-triggered LLM calls (button click, not auto-fetch)
+
+**Why:** Oracle endpoints call OpenRouter Nemotron. Auto-fetching on every page load = rate limit exhaustion. All oracle calls must be user-triggered or cached server-side.
+
+---
+
+## How to Add a New Panel to MasterBriefPanels
+
+`MasterBriefPanels.tsx` is the insertion point for new intelligence strips between the KC verdict and ThesisBar.
+
+```tsx
+// MasterBriefPanels.tsx
+export function MasterBriefPanels() {
+  return (
+    <>
+      <ExploitationCommandCenter />  {/* live KC verdict + action plan */}
+      <MacroEdgeStrip />             {/* regime, events, ADP/GDP, Fed */}
+      <MyNewPanel />                 {/* add here */}
+    </>
+  );
+}
+```
+
+**Rules for new panels:**
+1. Must fetch its own data (no props from TodaysBrief)
+2. Must return `null` on error (non-breaking)
+3. No oracle/Groq calls on mount
+4. Poll interval ≥ 60s (don't hammer the backend)
+
+---
+
+## ExploitationCommandCenter — Action Plan Drawer
+
+Click "Action Plan" button to expand entry/invalidation/window from `/kill-shots-live`.
+
+Fields: `data.action_plan.position`, `.entry_trigger`, `.invalidation`, `.time_window`
+
+If `action_plan` is null (backend didn't compute it), the button is hidden.
+
+---
+
+## MacroEdgeStrip — Data Contract
+
+Fetches `GET /brief/master` every 120s via `useMasterBrief(120_000)` hook.
+
+Fields used:
+- `data.macro_regime.regime` — RISK_ON / RISK_OFF / NEUTRAL
+- `data.economic_veto.next_event` — next high-impact event name
+- `data.economic_veto.hours_away` — hours until event
+- `data.economic_veto.confidence_cap` — max confidence during veto window
+- `data.fed_intelligence.rate_path.next_meeting` — next FOMC date
+- `data.fed_intelligence.rate_path.may_p_cut` — probability of cut
+- `data.adp_prediction` — ADP signal
+- `data.gdp_nowcast` — GDP nowcast signal
+
+---
+
+## TickerCard Enrichment
+
+Each `TickerCard` receives optional enrichment from TodaysBrief:
+- `confidence` — from `gate_signals_today.json` (gate signal confidence score)
+- `taConsensus` — from `/api/v1/ta/{sym}/consensus`
+- `forwardReturn5d` — from `/api/v1/axlfi/clusters?universe=sp500`
+
+These are fetched in parallel after `brief` loads. Failures are silent (undefined props).
+
+---
+
+## File Locations
+
+```
+frontend/src/
+  pages/TodaysBrief.tsx                          ← orchestrator (all fetch logic)
+  components/brief/
+    VerdictBanner.tsx                            ← verdict display (all 11 vocab items)
+    MasterBriefPanels.tsx                        ← ExploitationCommandCenter + MacroEdgeStrip
+    ExploitationCommandCenter.tsx                ← live KC verdict + action plan drawer
+    MacroEdgeStrip.tsx                           ← compact macro edge strip
+    ThesisBar.tsx                                ← SPY vs wall
+    SignalPills.tsx                              ← bullish/bearish pills
+    TickerCard.tsx                               ← approved/blocked ticker cards
+    DataWarnings.tsx                             ← yellow warning banner
+    IndexStrip.tsx                               ← SPY/QQQ/IWM sparklines
+    GateHealthBar.tsx                            ← win rate / avg R
+  hooks/
+    useMasterBrief.ts                            ← /brief/master polling hook
+  styles/brief.css                               ← all brief page styles
+```
+
+---
+
+## Known Gaps / Next Steps
+
+- [ ] `VerdictBanner` still shows morning brief verdict as hero — consider replacing with live KC verdict as primary
+- [ ] `GateHealthBar` shows "No tracked outcomes yet" until gate signals are logged — needs outcome tracking
+- [ ] `IndexStrip` DP sparklines fetch `/axlfi/detail/{sym}` — may be slow on first load
+- [ ] Market open banner redirects to `/live` — LiveSession page may not be production-ready

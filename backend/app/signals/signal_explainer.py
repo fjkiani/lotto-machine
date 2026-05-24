@@ -4,8 +4,8 @@ Signal Explainer — LLM-Powered Plain English Explanations
 Takes raw signal data + per-signal prompt templates → Groq inference → 
 2-3 sentence plain English explanation.
 
-Backend: Groq free tier (Llama 3.3 70B) — no monthly call limit.
-Previously: Cohere trial (1000 calls/month, hit 429 at 28 remaining).
+Backend: OpenRouter Nemotron 120B (free tier) — no monthly call limit.
+Previously: Groq Llama 3.3 70B (migrated 2026-05-23).
 
 Each signal gets:
   1. What this means for a trader
@@ -22,9 +22,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = "llama-3.3-70b-versatile"
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+# LLM routing via OpenRouter (Nemotron 120B free)
+from backend.app.graph.openrouter_client import _openrouter_post, NEMOTRON_MODEL, OPENROUTER_API_KEY
+GROQ_API_KEY = OPENROUTER_API_KEY  # backward-compat alias for init check
 
 # 4-hour disk cache — survives restarts, keeps Groq rate limit safe
 _CACHE_DIR = Path("/tmp/kill_shots_explanations")
@@ -98,8 +98,8 @@ class SignalExplainer:
     """
     LLM-powered explanation engine for Kill Shots signals.
     
-    Backend: Groq free tier (Llama 3.3 70B) — no monthly call limit.
-    Disk cache: 4 hours per signal to stay under Groq's per-minute rate limits.
+    Backend: OpenRouter Nemotron 120B (free tier) — no monthly call limit.
+    Disk cache: 4 hours per signal to stay under rate limits.
     Fallback: deterministic templates if Groq is unreachable.
     """
 
@@ -108,9 +108,9 @@ class SignalExplainer:
         self._mem_cache: Dict[str, str] = {}
         _CACHE_DIR.mkdir(parents=True, exist_ok=True)
         if self.api_key:
-            logger.info("✅ SignalExplainer Groq client initialized (Llama 3.3 70B)")
+            logger.info("✅ SignalExplainer OpenRouter client initialized (Nemotron 120B)")
         else:
-            logger.warning("⚠️ GROQ_API_KEY not set — explanations will use templates")
+            logger.warning("⚠️ OPENROUTER_API_KEY not set — explanations will use templates")
 
     def _disk_cache_key(self, signal_name: str, raw_data: dict) -> str:
         """Stable hash for disk cache keying."""
@@ -168,40 +168,32 @@ class SignalExplainer:
         if not self.api_key:
             return self._template_fallback(signal_name, raw_data)
 
-        # 4. Groq API call (OpenAI-compatible)
+        # 4. OpenRouter API call (Nemotron 120B)
         try:
-            import httpx
-            resp = httpx.post(
-                GROQ_URL,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": GROQ_MODEL,
-                    "messages": [
-                        {"role": "system", "content": (
-                            "You are a concise trading intelligence explainer. "
-                            "Answer in exactly 2-3 sentences. No bullet points. "
-                            "No disclaimers. Be direct and actionable."
-                        )},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "temperature": 0.3,
-                    "max_tokens": 200,
-                },
-                timeout=15.0,
+            explanation = _openrouter_post(
+                messages=[
+                    {"role": "system", "content": (
+                        "You are a concise trading intelligence explainer. "
+                        "Answer in exactly 2-3 sentences. No bullet points. "
+                        "No disclaimers. Be direct and actionable."
+                    )},
+                    {"role": "user", "content": prompt},
+                ],
+                model=NEMOTRON_MODEL,
+                max_tokens=200,
+                timeout=15,
             )
-            resp.raise_for_status()
-            explanation = resp.json()["choices"][0]["message"]["content"].strip()
+            if not explanation:
+                raise ValueError("empty response")
+            explanation = explanation.strip()
 
             self._mem_cache[dk] = explanation
             self._write_disk_cache(dk, explanation)
-            logger.info(f"✅ Groq explanation generated for {signal_name}")
+            logger.info(f"✅ OpenRouter explanation generated for {signal_name}")
             return explanation
 
         except Exception as e:
-            logger.warning(f"⚠️ Groq explanation failed for {signal_name}: {e}")
+            logger.warning(f"⚠️ OpenRouter explanation failed for {signal_name}: {e}")
             return self._template_fallback(signal_name, raw_data)
 
     def _template_fallback(self, signal_name: str, data: dict) -> str:
@@ -298,7 +290,7 @@ class SignalExplainer:
     def explain_unified(self, layers: dict) -> dict:
         """Single LLM call that produces structured per-signal reads with specific numbers.
         Returns JSON with one verdict per signal — not a narrative paragraph.
-        Uses OpenRouter (free) with Groq fallback.
+        Uses OpenRouter Nemotron 120B (free).
         """
         import json as _json
 

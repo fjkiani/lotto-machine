@@ -72,6 +72,9 @@ export interface KillShotsLayers {
   dp_trend_boost?: number;
   dp_trend_slug?: string;
   explanation_DP_TREND?: string;
+  sv_pct_today?: number | null;   // DpTrendScorer raw: SPY short vol % today
+  sv_pct_prev?: number | null;    // DpTrendScorer raw: SPY short vol % yesterday
+  sv_2d_delta?: number | null;    // DpTrendScorer raw: today - yesterday (pp)
 
   // OPEX scorer
   opex_boost?: number;

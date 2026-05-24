@@ -504,8 +504,8 @@ async def _alpha_graph_polling_loop():
     """
     import asyncio
     # OOM FIX: skip alpha graph polling if no LLM key — enrichment fetches waste memory
-    if not os.getenv("OPENROUTER_API_KEY") and not os.getenv("GROQ_API_KEY"):
-        logger.warning("⚠️ Alpha graph polling disabled — no OPENROUTER_API_KEY or GROQ_API_KEY set")
+    if not os.getenv("OPENROUTER_API_KEY"):
+        logger.warning("⚠️ Alpha graph polling disabled — OPENROUTER_API_KEY not set")
         return
     await asyncio.sleep(60)  # Let startup finish first
     while True:
@@ -591,7 +591,7 @@ async def list_models():
         return {
             "openrouter_configured": bool(_OR_KEY),
             "model_registry": MODEL_REGISTRY,
-            "groq_fallback": bool(os.getenv("GROQ_API_KEY")),
+            "openrouter": bool(os.getenv("OPENROUTER_API_KEY")),
             "timestamp": datetime.now().isoformat(),
         }
     except Exception as e:

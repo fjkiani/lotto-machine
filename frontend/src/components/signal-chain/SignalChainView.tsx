@@ -59,11 +59,16 @@ const TIPS: Record<string, { source: string; why: string }> = {
   confluence: { source: 'Kill chain engine',              why: 'SINGLE=1, DOUBLE=2, TRIPLE=3, QUAD=4 layers triggered. DOUBLE+ = armed for signal.' },
   cot_boost:  { source: 'Kill chain layer 1 (COT)',       why: '+3 = extreme short positioning (>100K net short). Triggers bearish confluence.' },
   gex_boost:  { source: 'Kill chain layer 2 (GEX)',       why: '+2 = negative gamma regime. Dealers amplify moves — momentum accelerates.' },
-  brain_boost:{ source: 'LangGraph alpha graph (Groq)',   why: 'Composite signal from 5+ sub-agents. +4 = high conviction. Runs every 30min on Render.' },
+  brain_boost:{ source: 'LangGraph alpha graph (OpenRouter Nemotron)', why: 'Composite signal from 5+ sub-agents. +4 = high conviction. Runs every 30min on Render.' },
   fed_boost:  { source: 'Fed calendar + dark pool',       why: 'Fed veto window (48h around FOMC) or DP distribution signal (short_vol_pct > 55%).' },
   comb_boost: { source: 'Confluence rules engine',        why: 'COT+GEX, COT+above-wall, QQQ reshort, politician cluster. Each rule = +1 or +2.' },
-  war_status: { source: 'Macro overlay (oil + geopolitical)', why: '0-10 scale. ≥7 = WAR_VETO overrides all long signals regardless of divergence score.' },
-  score:      { source: 'Divergence scorer (sum of 5 pillars)', why: 'Total points from COT+GEX+BRAIN+FED_DP+COMBINED. Threshold determines verdict (BOOST/WATCH/VETO).' },
+  war_status:     { source: 'Macro overlay (oil + geopolitical)', why: '0-10 scale. ≥7 = WAR_VETO overrides all long signals regardless of divergence score.' },
+  score:          { source: 'Divergence scorer (sum of 5 pillars)', why: 'Total points from COT+GEX+BRAIN+FED_DP+COMBINED. Threshold determines verdict (BOOST/WATCH/VETO).' },
+  dp_trend_boost: { source: 'DpTrendScorer — Stockgrid 2-day SV% delta', why: '+1 = SV% falling >5pp (accumulation). -1 = SV% rising >5pp above 55% (distribution). 0 = neutral.' },
+  sv_pct_today:   { source: 'Stockgrid short volume % (today)', why: 'SPY short volume as % of total. >55% = institutions distributing. <45% = accumulation signal.' },
+  sv_2d_delta:    { source: 'Stockgrid SV% delta (today − yesterday)', why: 'Rate of change. >+5pp spike = reshort signal. <-5pp drop = covering = bullish.' },
+  tech_boost:     { source: 'TechScorer — RSI-14 on SPY', why: '+1 = RSI oversold (<30). -1 = RSI overbought (>70). Prevents chasing extended moves.' },
+  geo_boost:      { source: 'GeoScorer — WTI oil price + geopolitical flags', why: 'Feeds war_status. High oil = macro headwind. WAR_VETO fires at war_status ≥7.' },
 };
 
 // ── Tooltip component ─────────────────────────────────────────────────────────
@@ -270,6 +275,8 @@ function RawInputsStrip({ d, openTip, setOpenTip }: { d: KillShotsResponse; open
         {cell('RSI-14',        rsi?.toFixed(1) ?? null,                                                                        'rsi')}
         {cell('WTI Oil',       oilWti != null ? `$${oilWti.toFixed(1)}` : null,                                               'oil_wti')}
         {cell('KC Confluence', kc?.confluence ?? null,                                                                         'confluence')}
+        {cell('DP SV%',        l.sv_pct_today != null ? `${l.sv_pct_today.toFixed(1)}%` : null,                                'sv_pct_today', l.sv_pct_today != null ? (l.sv_pct_today > 55 ? '#f43f5e' : l.sv_pct_today < 45 ? '#10b981' : undefined) : undefined)}
+        {cell('SV Δ 2d',       l.sv_2d_delta != null ? `${l.sv_2d_delta > 0 ? '+' : ''}${l.sv_2d_delta.toFixed(1)}pp` : null, 'sv_2d_delta',  l.sv_2d_delta != null ? (l.sv_2d_delta > 5 ? '#f43f5e' : l.sv_2d_delta < -5 ? '#10b981' : undefined) : undefined)}
       </div>
     </div>
   );
@@ -278,34 +285,56 @@ function RawInputsStrip({ d, openTip, setOpenTip }: { d: KillShotsResponse; open
 // ── 4. Scorer Pillars ─────────────────────────────────────────────────────────
 function ScorerPillars({ d, openTip, setOpenTip }: { d: KillShotsResponse; openTip: string | null; setOpenTip: (id: string | null) => void }) {
   const l = d.layers;
-  const scorers = [
+  const primaryScorers = [
     { name: 'COT',      boost: l.cot_boost ?? 0,      tipId: 'cot_boost' },
     { name: 'GEX',      boost: l.gex_boost ?? 0,      tipId: 'gex_boost' },
     { name: 'BRAIN',    boost: l.brain_boost ?? 0,    tipId: 'brain_boost' },
     { name: 'FED/DP',   boost: l.fed_dp_boost ?? 0,   tipId: 'fed_boost' },
     { name: 'COMBINED', boost: l.combined_boost ?? 0, tipId: 'comb_boost' },
   ];
+  const secondaryScorers = [
+    { name: 'TECH',     boost: l.tech_boost ?? 0,     tipId: 'tech_boost' },
+    { name: 'GEO',      boost: l.geo_boost ?? 0,      tipId: 'geo_boost' },
+    { name: 'DP_TREND', boost: l.dp_trend_boost ?? 0, tipId: 'dp_trend_boost' },
+    { name: 'OPEX',     boost: l.opex_boost ?? 0,     tipId: 'comb_boost' },
+    { name: 'SENTIMENT',boost: l.sentiment_boost ?? 0,tipId: 'comb_boost' },
+  ];
   const total = d.divergence_score;
   const vStyle = vc(d.verdict);
 
   return (
     <div className="space-y-4">
+      {/* Primary scorers row */}
       <div className="bg-zinc-950 border border-white/5 rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap text-[11px] font-mono">
         <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Score</span>
-        {scorers.map((s, i) => (
+        {primaryScorers.map((s, i) => (
           <React.Fragment key={s.name}>
             <span className="text-zinc-500 flex items-center">
               {s.name}
               <Tip id={s.tipId} openTip={openTip} setOpenTip={setOpenTip} />
             </span>
-            <span className="font-black" style={{ color: s.boost > 0 ? '#f97316' : '#52525b' }}>+{s.boost}</span>
-            {i < scorers.length - 1 && <span className="text-zinc-700">+</span>}
+            <span className="font-black" style={{ color: s.boost > 0 ? '#f97316' : s.boost < 0 ? '#f43f5e' : '#52525b' }}>{s.boost > 0 ? '+' : ''}{s.boost}</span>
+            {i < primaryScorers.length - 1 && <span className="text-zinc-700">+</span>}
           </React.Fragment>
         ))}
         <span className="text-zinc-700 mx-1">=</span>
         <span className="font-black text-white">{total}</span>
         <span className="text-zinc-700">→</span>
         <span className="font-black" style={{ color: vStyle.fg }}>{d.verdict}</span>
+      </div>
+      {/* Secondary scorers row */}
+      <div className="bg-zinc-950/60 border border-white/[0.03] rounded-xl px-4 py-2.5 flex items-center gap-3 flex-wrap text-[10px] font-mono">
+        <span className="text-[8px] font-black text-zinc-700 uppercase tracking-widest">Secondary</span>
+        {secondaryScorers.map((s, i) => (
+          <React.Fragment key={s.name}>
+            <span className="text-zinc-600 flex items-center">
+              {s.name}
+              <Tip id={s.tipId} openTip={openTip} setOpenTip={setOpenTip} />
+            </span>
+            <span className="font-black" style={{ color: s.boost > 0 ? '#f97316' : s.boost < 0 ? '#f43f5e' : '#3f3f46' }}>{s.boost > 0 ? '+' : ''}{s.boost}</span>
+            {i < secondaryScorers.length - 1 && <span className="text-zinc-800">+</span>}
+          </React.Fragment>
+        ))}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <PillarCardCot data={l} />

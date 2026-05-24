@@ -1,13 +1,13 @@
 """
-Oracle API — Groq Llama 3.3 70B inference endpoint.
+Oracle API — OpenRouter Nemotron 120B inference endpoint.
 
 Two endpoints:
   POST /api/v1/oracle/analyze  → Kill Chain drill-down (per-signal, existing)
   POST /api/v1/oracle/brief    → Unified oracle: full /brief/master context → one Groq call
 
 Production rule:
-  All LLM calls go through this backend. GROQ_API_KEY lives here only.
-  Frontend reads oracle context slices — never calls Groq directly in production.
+  All LLM calls go through this backend. OPENROUTER_API_KEY lives here only.
+  Frontend reads oracle context slices — never calls OpenRouter directly in production.
 """
 import os
 import json
@@ -23,8 +23,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL   = "llama-3.3-70b-versatile"
+# LLM routing via OpenRouter (Nemotron 120B free)
+from backend.app.graph.openrouter_client import _openrouter_post_async, NEMOTRON_MODEL
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
 # ── In-memory oracle cache (hash → {result, cached_until}) ────────────────────
 _oracle_cache: dict = {}
@@ -495,8 +496,7 @@ async def oracle_brief(req: BriefOracleRequest):
     """
     import datetime
 
-    api_key = os.getenv("GROQ_API_KEY", "")
-    if not api_key:
+    if not OPENROUTER_API_KEY:
         return {**ORACLE_FALLBACK, "generated_at": datetime.datetime.utcnow().isoformat()}
 
     oracle_payload = build_oracle_payload(req.brief)
@@ -513,26 +513,19 @@ async def oracle_brief(req: BriefOracleRequest):
         + json.dumps(oracle_payload, indent=2, default=str)
     )
 
-    groq_payload = {
-        "model": GROQ_MODEL,
-        "messages": [
-            {"role": "system", "content": NYX_SYSTEM},
-            {"role": "user",   "content": user_prompt},
-        ],
-        "temperature": 0.25,
-        "max_tokens":  900,
-        "response_format": {"type": "json_object"},
-    }
+    messages = [
+        {"role": "system", "content": NYX_SYSTEM},
+        {"role": "user",   "content": user_prompt},
+    ]
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                GROQ_API_URL,
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json=groq_payload,
-            )
-        raw = resp.json()
-        content = raw.get("choices", [{}])[0].get("message", {}).get("content", "")
+        content = await _openrouter_post_async(
+            messages=messages,
+            model=NEMOTRON_MODEL,
+            max_tokens=900,
+            timeout=30.0,
+            response_format={"type": "json_object"},
+        )
         parsed = json.loads(content) if content else {}
 
         generated_at  = datetime.datetime.utcnow().isoformat()
@@ -568,7 +561,7 @@ async def oracle_brief(req: BriefOracleRequest):
 
     except Exception as e:
         import logging
-        logging.getLogger(__name__).error(f"oracle/brief Groq error: {e}", exc_info=True)
+        logging.getLogger(__name__).error(f"oracle/brief OpenRouter error: {e}", exc_info=True)
         return {**ORACLE_FALLBACK, "generated_at": datetime.datetime.utcnow().isoformat()}
 
 
@@ -615,10 +608,9 @@ async def oracle_event_brief(req: EventBriefRequest):
     """
     import datetime
 
-    api_key = os.getenv("GROQ_API_KEY", "")
-    if not api_key:
+    if not OPENROUTER_API_KEY:
         return {
-            "summary": "BRIEFING_ENGINE_OFFLINE: GROQ_API_KEY not configured.",
+            "summary": "BRIEFING_ENGINE_OFFLINE: OPENROUTER_API_KEY not configured.",
             "trade_implication": None,
             "risk_level": "UNKNOWN",
             "confidence": 0.0,
@@ -761,24 +753,26 @@ async def oracle_event_brief(req: EventBriefRequest):
         + json.dumps(context, indent=2, default=str)
     )
 
-    groq_payload = {
-        "model": GROQ_MODEL,
-        "messages": [
-            {"role": "system", "content": NYX_EVENT_SYSTEM},
-            {"role": "user",   "content": user_prompt},
-        ],
-        "max_tokens":  400,
-        "temperature": 0.2,
-    }
+    messages_event = [
+        {"role": "system", "content": NYX_EVENT_SYSTEM},
+        {"role": "user",   "content": user_prompt},
+    ]
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json=groq_payload,
-            )
-            resp.raise_for_status()
+        raw = await _openrouter_post_async(
+            messages=messages_event,
+            model=NEMOTRON_MODEL,
+            max_tokens=400,
+            timeout=15.0,
+        )
+        if not raw:
+            return {
+                "summary": "BRIEFING_ENGINE_OFFLINE: OpenRouter returned empty response.",
+                "trade_implication": None,
+                "risk_level": "UNKNOWN",
+                "confidence": 0.0,
+            }
+        raw = raw.strip()
     except Exception as exc:
         return {
             "summary": f"BRIEFING_ENGINE_OFFLINE: {exc}",
@@ -786,8 +780,6 @@ async def oracle_event_brief(req: EventBriefRequest):
             "risk_level": "UNKNOWN",
             "confidence": 0.0,
         }
-
-    raw = resp.json()["choices"][0]["message"]["content"].strip()
     # Strip accidental fences
     if raw.startswith("```"):
         raw = "\n".join(raw.split("\n")[1:])
@@ -869,32 +861,23 @@ def _build_fallback_prompt(req: OracleRequest) -> str:
 @router.post("/oracle/analyze")
 async def oracle_analyze(req: OracleRequest):
     """Per-signal KC drill-down. Preserved for KillChainDashboard dev/fallback use."""
-    api_key = os.getenv("GROQ_API_KEY", "")
-    if not api_key:
-        return {"analysis": "ORACLE_UPLINK_FAILURE: GROQ_API_KEY not configured on server.", "error": True}
+    if not OPENROUTER_API_KEY:
+        return {"analysis": "ORACLE_UPLINK_FAILURE: OPENROUTER_API_KEY not configured on server.", "error": True}
 
     user_prompt = _build_kc_prompt(req) if req.kill_chain_snapshot else _build_fallback_prompt(req)
 
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": [
-            {"role": "system", "content": ZO_KC_SYSTEM},
-            {"role": "user",   "content": user_prompt},
-        ],
-        "temperature": 0.35,
-        "max_tokens": 1200,
-        "response_format": {"type": "json_object"},
-    }
-
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            resp = await client.post(
-                GROQ_API_URL,
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json=payload,
-            )
-        data = resp.json()
-        text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        text = await _openrouter_post_async(
+            messages=[
+                {"role": "system", "content": ZO_KC_SYSTEM},
+                {"role": "user",   "content": user_prompt},
+            ],
+            model=NEMOTRON_MODEL,
+            max_tokens=1200,
+            timeout=20.0,
+            response_format={"type": "json_object"},
+        )
+        text = text or ""
         if text:
             mode = "kill_chain" if req.kill_chain_snapshot else "fallback"
             parsed: dict = {}
