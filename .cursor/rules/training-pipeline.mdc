@@ -70,29 +70,48 @@ default                                → CHOPPY
 
 ## Historical Data — Real Findings (Dec 2025, 1h OHLC backfill)
 
-### What we found
-- dp_learning.db had 307 BOUNCE outcomes with max_move_pct = 0.3/0.4 (HARDCODED thresholds, not real moves)
-- Backfilled using Yahoo Finance 1h OHLC bars (344 bars/symbol for Dec 2025)
-- Timestamps confirmed as ET local time
+### Data quality audit (completed 2026-05-24)
 
-### Real win rates (resistance bounces, FROM_BELOW)
-| Filter | n | Tradeable (≥0.2%) | CI |
-|--------|---|-------------------|----|
-| All resistance bounces | 119 | 37.0% | — |
-| MORNING | 46 | 21.7% | — |
-| MIDDAY | 35 | 14.3% | — |
-| **AFTERNOON** | **38** | **76.3%** | **[61-87%]** |
-| touch_count ≥ 14 | 34 | 70.6% | [54-83%] |
-| AFTERNOON + tc ≥ 14 | 15 | **100%** | [80-100%] |
-| QQQ resistance | 43 | 53.0% | — |
+**Raw db_learning.db:** 372 rows total
+- 159 rows EXCLUDED: 156 batch artifacts (time_of_day=None, Dec 18/19/23/24 — same approach_price stamped on all records at 12:00 noon) + 3 Dec 5 QQQ records with corrupted prices (~100 pts off actual)
+- **213 clean records** across 5 real trading days: Dec 5, 10, 11, 12, 16 2025
+
+**Original data problems found and fixed:**
+1. `max_move_pct` was hardcoded (0.3/0.4 thresholds), not real price moves → backfilled with Yahoo Finance 1h OHLC
+2. Timezone bug: `find_bar()` compared naive ET to naive UTC (5h mismatch) → fixed with pytz.localize() in `find_bar_fixed()`
+3. Batch artifacts: Dec 18/19/23/24 records all share identical timestamp (12:00:00) and approach_price per day → excluded via `time_of_day IS NOT NULL` filter
+4. Dec 5 QQQ: approach_price 519-525 vs actual QQQ 624-628 (~100 pts off) → excluded
+
+### Real win rates — CLEAN DATA ONLY (resistance bounces, FROM_BELOW, n=121)
+
+| Filter | n | Tradeable (≥0.2% move) | Wilson CI |
+|--------|---|------------------------|-----------|
+| **SPY resistance (all)** | **78** | **70.5%** | **[60-79%]** |
+| QQQ resistance (all) | 43 | 27.9% | [17-43%] |
+| MORNING (all symbols) | 47 | 74.5% | [60-85%] |
+| MIDDAY (all symbols) | 36 | 38.9% | [25-55%] |
+| AFTERNOON (all symbols) | 38 | 47.4% | [32-63%] |
+
+**⚠️ CRITICAL CAVEAT — DATE CONFOUND:**
+The MORNING=74.5% finding is NOT a robust time-of-day rule. It is driven by Dec 12 being a 100%-tradeable bearish day (SPY -0.30%, resistance held all morning). With only 5 trading days, date effects and time-of-day effects cannot be separated.
+
+**What we can actually claim:**
+- ✅ SPY resistance bounces work ~55-70% of the time (n=78-121, CI lower bound 46-60%) — real edge
+- ✅ QQQ resistance bounces do NOT work (27.9%, n=43) — do not trade
+- ❌ MORNING > AFTERNOON — cannot claim, confounded by Dec 12 date effect
+- ❌ touch_count=2 = 100% — n=10, single day effect, not robust
+- ❌ Any time-of-day rule — need 30+ trading days to separate from date/regime effects
+
+**What we need to validate time-of-day rules:** 30+ trading days of real intraday data. The autonomous snapshot loop will build this. Alternatively: Polygon or TwelveData API key for historical 5m data.
 
 ### Support bounces (FROM_ABOVE)
-- 3.7% tradeable — essentially broken in Dec 2025 (downtrend context)
+- ~4% tradeable — essentially broken in Dec 2025 (downtrend context)
 - Do NOT trade support bounces without regime filter
 
-### Key insight
-The "82.5% bounce rate" was categorical (price didn't break through level), not tradeable.
-Real tradeable rate for the best filter: **76.3% (AFTERNOON resistance, n=38, CI: 61-87%)**.
+### The original "82.5% bounce rate" claim
+- Was categorical (price didn't break through level), not a directional move
+- Real tradeable rate for SPY resistance: **55.4% overall** (n=121, CI: 46-64%)
+- This is a marginal but real edge — lower CI bound barely above 50%
 
 ## Similar Setups Strip
 
@@ -156,6 +175,7 @@ GET /api/v1/training/status
 ## Remaining Gaps
 
 1. **spy_change_pct in layers** — `_compute_regime()` reads `layers.get("spy_change_pct")` but this field may not be populated by all scorer paths. If 0.0, regime defaults to CHOPPY. Fix: add SPY daily change to TechScorer output.
-2. **DOWNTREND/CHOPPY validation** — All Dec 2025 data is in a downtrend context. AFTERNOON resistance rule (76.3%) needs validation in uptrend/choppy regimes.
+2. **Date/regime confound** — All Dec 2025 data spans only 5 trading days. Time-of-day rules (MORNING/AFTERNOON) cannot be validated until 30+ days of data are collected.
 3. **Confidence calibration** — Bonus/penalty values are heuristic v1. Need isotonic regression on 200+ complete records.
-4. **GEX + war_status rules** — gex_history.db has 1 row. Cannot derive SR rules until 30+ days of GEX data collected.
+4. **GEX + war_status rules** — gex_history.db has 1 row. Cannot derive suppression rules until 30+ days of GEX data collected.
+5. **QQQ exclusion rule** — Data clearly shows QQQ resistance bounces don't work (27.9%). Should add a filter: suppress LONG signals on QQQ resistance FROM_BELOW until validated on 30+ days.
