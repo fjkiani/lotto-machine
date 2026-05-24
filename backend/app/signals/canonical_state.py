@@ -170,18 +170,18 @@ def persist_from_kill_chain(result: Dict[str, Any], raw: Dict[str, Any]) -> None
         or str(result.get("macro_regime") or "")
     ) or None
 
-    # FIX: spy_price comes from raw["spot"] (live GEX spot) or layer_4.value (AXLFI spot),
-    # NOT position.entry_price (which is the KC position entry from a prior activation)
+    # FIX: spy_price from live spot chain — never position.entry_price
     spy_price = None
     try:
         spot_candidates = [
-            raw.get("axlfi_spot"),  # kill_chain.py line 407: raw["axlfi_spot"] = current_spot
-            layer4.get("value"),    # AXLFI layer_4 also stores current_spot as value
-            raw.get("spot"),        # nested signal dicts use this key
+            raw.get("axlfi_spot"),
+            layer4.get("value"),
+            raw.get("spot"),
             raw.get("gex_spot"),
+            raw.get("gex_spot_price"),
         ]
         for candidate in spot_candidates:
-            if candidate and float(candidate) > 100:  # sanity: SPY > 00
+            if candidate and float(candidate) > 100:
                 spy_price = round(float(candidate), 2)
                 break
     except (TypeError, ValueError):

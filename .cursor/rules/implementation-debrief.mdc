@@ -1505,3 +1505,47 @@ Snapshots paginate same canonical rows (routes live on `main` after merge).
 3. **GAP 5:** dedup Finnhub loop in `brain.py` before Phase B score work.
 4. **Do not push to Render** until cold `/brief/master` SLO proven under single-flight probe (<30s).
 5. Re-run this probe on Render after deploy: same script, `BASE=https://lotto-machine-3.onrender.com`.
+
+---
+
+## W) Manager confirmation + remediation (2026-05-23, post-26e96d2)
+
+**Manager audit of PR #2 / commit `26e96d2`:** Structural plumbing verified (§V). Data integrity gaps acknowledged. Follow-up commit re-applies fixes manager cited as `f163ae5`/`50ab07e` (those SHAs were not on branch).
+
+### Confirmed by manager
+
+| Item | Status in 26e96d2 |
+|------|-------------------|
+| 5-layer KC (AXLFI + QQQ) | ✅ |
+| `layer_macro` ≠ `layer_4` | ✅ |
+| Canonical SQLite + DVR + GEX SSOT | ✅ (persist mapping **wrong**) |
+| Signals AH staleness | ✅ |
+| `reconciled_verdict` | ❌ |
+| `gap-audit.mdc` / `test_gap*.py` | ❌ |
+| Canonical column mapping | ❌ |
+| WAR_VETO oil source transparency | ❌ |
+
+### Root cause: `API_LIGHT_MODE=1` dead shell on Render
+
+`startup()` returned early when `API_LIGHT_MODE=1`, so **lines 347–353 never ran** (`_staggered_thread_launcher`, `_brain_polling_loop`, `_alpha_graph_polling_loop`). Render with `API_LIGHT_MODE=1` = dead API shell.
+
+**Env var answer:**
+
+| Variable | Local dev | Render production |
+|----------|-----------|-------------------|
+| `API_LIGHT_MODE` | `1` via `scripts/dev_api.sh` — skips UnifiedAlphaMonitor only; brain/alpha-graph threads still start after fix | **Must be `0` or unset.** `render.yaml` sets `API_LIGHT_MODE=0`. Ignored if `1` when `RENDER` is set. |
+| `RENDER` | unset | `true` (Render platform) |
+| `KILL_CHAIN_SCORE_DEBUG` | `1` for inject parity grep | `0` |
+
+### Shipped in follow-up (post manager sign-off)
+
+1. `canonical_state.persist_from_kill_chain` — `layer_macro` for war/oil/macro; live spot for `spy_price`
+2. `reconcile_verdicts()` — `/kill-shots-live` returns `reconciled_verdict`, `reconciliation_reasons[]`
+3. `war_veto_transparency` on KC + kill-shots when `WAR_VETO`
+4. `API_LIGHT_MODE` startup — Render guard; light mode keeps async background tasks
+5. `_safe_eval` non-blocking executor shutdown
+6. `render.yaml` — `API_LIGHT_MODE=0`
+
+### Still open
+
+- GAP 5 Finnhub dedup, GAP 7 FOMC spam, gap-audit MDC + tests, GAP 1 brain direction, GAP 6 `last_signal`

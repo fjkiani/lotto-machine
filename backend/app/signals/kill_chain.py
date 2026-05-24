@@ -629,6 +629,15 @@ def compute_kill_chain() -> dict:
             result["score"] = min(max(int(result.get("score") or 0), 8), 10)
             result["direction"] = "BEARISH"
             result["armed"] = True
+            oil_src = str(overlay.get("oil_wti_source") or "unknown")
+            result["war_veto_transparency"] = {
+                "source": "macro_overlay",
+                "war_status": int(overlay.get("war_status") or 0),
+                "oil_wti": overlay.get("oil_wti"),
+                "oil_wti_source": oil_src,
+                "manual_oil_warning": oil_src == "manual",
+                "veto_reason": str(overlay.get("veto_reason") or ""),
+            }
         else:
             result["score"] = min(int(result.get("score") or 0), 10)
 

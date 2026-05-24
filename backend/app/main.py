@@ -249,12 +249,26 @@ async def startup():
     import asyncio
     import threading
 
-    # Lightweight API mode for local diagnostics: skip background monitors/threads.
+    # Production guard: Render must never run light mode (skips all background tasks).
+    if os.getenv("RENDER") and os.getenv("API_LIGHT_MODE", "0") == "1":
+        logger.warning(
+            "⚠️ API_LIGHT_MODE=1 ignored on Render — forcing full startup "
+            "(light mode skips brain/alpha-graph/staggered threads)"
+        )
+        os.environ["API_LIGHT_MODE"] = "0"
+
+    # Lightweight API mode for local diagnostics: skip UnifiedAlphaMonitor only.
     if os.getenv("API_LIGHT_MODE", "0") == "1":
         _thread_status['monitor_run_loop'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
         _thread_status['paper_trade_scheduler'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
         _thread_status['econ_release_capture'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
-        logger.info("⚡ API_LIGHT_MODE=1 — skipping monitor/thread startup for responsive API diagnostics")
+        logger.info(
+            "⚡ API_LIGHT_MODE=1 — skipping UnifiedAlphaMonitor; "
+            "still starting brain/alpha-graph/staggered threads"
+        )
+        asyncio.create_task(_staggered_thread_launcher())
+        asyncio.create_task(_brain_polling_loop())
+        asyncio.create_task(_alpha_graph_polling_loop())
         _port = os.getenv("PORT", "8000")
         logger.info(
             "📡 Local smoke: curl -sS -m 90 http://127.0.0.1:%s/api/v1/health && "
@@ -859,10 +873,11 @@ async def kill_shots_live():
 
         def _safe_eval(name, fn):
             """Run a scorer with timeout. Returns empty result if it hangs."""
+            from concurrent.futures import ThreadPoolExecutor
+            executor = ThreadPoolExecutor(max_workers=1)
             try:
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(fn)
-                    return future.result(timeout=SCORER_TIMEOUT)
+                future = executor.submit(fn)
+                return future.result(timeout=SCORER_TIMEOUT)
             except FuturesTimeout:
                 logger.warning(f"⏰ {name} timed out after {SCORER_TIMEOUT}s — returning empty")
                 return SignalResult(
@@ -877,6 +892,8 @@ async def kill_shots_live():
                     boost=0, active=False, timestamp=now_iso,
                     source_date=today_str, raw={"error": str(e)}
                 )
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
 
         # Evaluate — all 5 scorers in parallel (max 8s each)
         # FED_DP and COMBINED have soft dependencies but can run with defaults
@@ -1198,11 +1215,24 @@ async def kill_shots_live():
                 f'Divergence {verdict} and kill chain {kc_verdict} ({kc_confluence}) aligned — no override'
             )
 
+        war_veto_transparency = None
+        if kc_war_veto:
+            oil_src = kc_layer_macro.get('oil_wti_source', 'unknown')
+            war_veto_transparency = {
+                'source': 'macro_overlay',
+                'war_status': kc_layer_macro.get('value'),
+                'oil_wti': kc_layer_macro.get('oil_wti'),
+                'oil_wti_source': oil_src,
+                'manual_oil_warning': oil_src == 'manual',
+                'veto_reason': kc_layer_macro.get('veto_reason'),
+            }
+
         return {
             'divergence_score': score,
             'verdict': verdict,
             'reconciled_verdict': reconciled,
             'reconciliation_reasons': reconciliation_reasons,
+            'war_veto_transparency': war_veto_transparency,
             'action': action,
             'action_plan': action_plan,
             'layers': layers,
