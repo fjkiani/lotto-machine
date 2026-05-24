@@ -12,6 +12,7 @@ const NAV_ITEMS = [
     { path: '/feds', label: 'The Feds', icon: '🏦' },
     { path: '/politicians', label: 'Politicians', icon: '🏛️' },
     { path: '/exploit', label: 'Exploit', icon: '🐺' },
+    { path: '/signal-chain', label: 'Signal Chain', icon: '⛓️' },
     { path: '/axlfi', label: 'AXLFI Intel', icon: '🛰️' },
     { path: '/gamma', label: 'Gamma', icon: '📈' },
     { path: '/squeeze', label: 'Squeeze', icon: '🔥' },
@@ -34,6 +35,7 @@ export function NavBar() {
             position: 'sticky',
             top: 0,
             zIndex: 50,
+            overflowX: 'auto',
         }}>
             {/* Logo */}
             <div style={{
@@ -41,6 +43,7 @@ export function NavBar() {
                 alignItems: 'center',
                 gap: '0.5rem',
                 marginRight: '2rem',
+                flexShrink: 0,
             }}>
                 <span style={{ fontSize: '1.25rem' }}>🔥</span>
                 <span style={{
@@ -50,6 +53,7 @@ export function NavBar() {
                     background: 'linear-gradient(135deg, #a78bfa, #818cf8)',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
+                    whiteSpace: 'nowrap',
                 }}>
                     ALPHA TERMINAL
                 </span>
@@ -58,6 +62,7 @@ export function NavBar() {
             {/* Nav Links */}
             {NAV_ITEMS.map(item => {
                 const isActive = location.pathname === item.path;
+                const isSignalChain = item.path === '/signal-chain';
                 return (
                     <Link
                         key={item.path}
@@ -70,26 +75,28 @@ export function NavBar() {
                             borderRadius: '0.5rem',
                             fontSize: '0.8125rem',
                             fontWeight: isActive ? 600 : 400,
-                            color: isActive ? '#e2e8f0' : 'rgba(148, 163, 184, 0.8)',
+                            color: isActive ? '#e2e8f0' : isSignalChain ? 'rgba(34, 211, 238, 0.85)' : 'rgba(148, 163, 184, 0.8)',
                             background: isActive
-                                ? 'rgba(139, 92, 246, 0.15)'
+                                ? (isSignalChain ? 'rgba(34, 211, 238, 0.12)' : 'rgba(139, 92, 246, 0.15)')
                                 : 'transparent',
                             border: isActive
-                                ? '1px solid rgba(139, 92, 246, 0.3)'
-                                : '1px solid transparent',
+                                ? (isSignalChain ? '1px solid rgba(34, 211, 238, 0.4)' : '1px solid rgba(139, 92, 246, 0.3)')
+                                : isSignalChain ? '1px solid rgba(34, 211, 238, 0.15)' : '1px solid transparent',
                             textDecoration: 'none',
                             transition: 'all 0.2s ease',
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
                         }}
                         onMouseEnter={e => {
                             if (!isActive) {
-                                (e.target as HTMLElement).style.background = 'rgba(255,255,255,0.04)';
-                                (e.target as HTMLElement).style.color = '#cbd5e1';
+                                (e.currentTarget as HTMLElement).style.background = isSignalChain ? 'rgba(34,211,238,0.08)' : 'rgba(255,255,255,0.04)';
+                                (e.currentTarget as HTMLElement).style.color = isSignalChain ? '#22d3ee' : '#cbd5e1';
                             }
                         }}
                         onMouseLeave={e => {
                             if (!isActive) {
-                                (e.target as HTMLElement).style.background = 'transparent';
-                                (e.target as HTMLElement).style.color = 'rgba(148, 163, 184, 0.8)';
+                                (e.currentTarget as HTMLElement).style.background = 'transparent';
+                                (e.currentTarget as HTMLElement).style.color = isSignalChain ? 'rgba(34, 211, 238, 0.85)' : 'rgba(148, 163, 184, 0.8)';
                             }
                         }}
                     >
