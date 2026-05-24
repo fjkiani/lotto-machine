@@ -1,0 +1,158 @@
+---
+description: Training pipeline design — deferred outcome tracking, regime labeling, supervised fine-tuning loop
+globs: ["backend/app/api/v1/training.py", "frontend/src/components/signal-chain/SignalChainView.tsx"]
+alwaysApply: false
+---
+
+# Training Pipeline — Deferred Outcome Tracking
+
+## Design Principle
+Snapshots are captured immediately when the operator clicks "Train LLM on this snapshot."
+Outcomes (WIN/LOSS/NEUTRAL) are recorded 1–5 days later, after price has moved.
+Only records WITH outcomes are exported for fine-tuning. This prevents label leakage.
+
+## Data Flow
+
+```
+Operator clicks TrainButton
+        │
+        ▼
+POST /training/snapshot
+  - Stores full kill chain payload as JSONL line
+  - Assigns snapshot_id (UUID)
+  - Records regime, direction, confidence, signal_type
+  - Registers in pending_outcomes.json index with outcome_due_date (+3 days default)
+  - Returns: { snapshot_id, outcome_due_date, complete_records }
+        │
+        ▼ (3 days later)
+GET /training/pending-outcomes
+  - Returns overdue[] (past due_date) + upcoming[] (within 2 days)
+  - Each entry has: snapshot_id, captured_at, outcome_due, label, regime, direction, days_overdue
+  - Frontend polls this every 60s; shows amber badge when overdue_count > 0
+        │
+        ▼
+Operator opens OutcomePanel, enters P&L %, clicks WIN/LOSS/FLAT
+        │
+        ▼
+POST /training/outcome
+  - Body: { snapshot_id, outcome: "WIN"|"LOSS"|"NEUTRAL", pnl_pct, days_elapsed }
+  - Patches JSONL record in-place (adds outcome, pnl_pct, days_elapsed, outcome_recorded_at)
+  - Removes from pending_outcomes.json index
+  - Returns: { complete_records }
+        │
+        ▼
+GET /training/export?complete_only=true  (default)
+  - Returns only JSONL lines where outcome field is present
+  - Download as kill_chain_snapshots_complete.jsonl
+  - Export button only appears in UI when complete_records >= 50
+```
+
+## File Locations
+
+| File | Purpose |
+|------|---------|
+| `data/training_snapshots.jsonl` | Append-only JSONL, one record per snapshot |
+| `data/pending_outcomes.json` | Index of snapshots awaiting outcome recording |
+
+### JSONL Record Schema (complete record)
+```json
+{
+  "snapshot_id": "uuid4",
+  "captured_at": "2026-05-23T14:32:00Z",
+  "outcome_due_date": "2026-05-26T14:32:00Z",
+  "label": "WAR_VETO",
+  "regime": "STRONG_DOWNTREND",
+  "direction": "BLOCKED",
+  "confidence": 87,
+  "signal_type": "KILL_CHAIN",
+  "symbol": "SPY",
+  "note": "Manual label from operator",
+  "payload": { ...full KillShotsResponse... },
+  "outcome": "WIN",
+  "pnl_pct": 1.4,
+  "days_elapsed": 3,
+  "outcome_recorded_at": "2026-05-26T09:15:00Z"
+}
+```
+
+## Regime Inference (frontend)
+
+`inferRegime(d: KillShotsResponse)` in `SignalChainView.tsx`:
+- `WAR_VETO` or `HARD_VETO` in verdict → `STRONG_DOWNTREND`
+- `SOFT_VETO` or `WATCH` → `DOWNTREND`
+- `BOOST` or `BUY` with score > 70 → `STRONG_UPTREND`
+- `BOOST` or `BUY` with score ≤ 70 → `UPTREND`
+- Otherwise → `CHOPPY`
+
+This is a v1 heuristic. Upgrade path: pull regime from `MarketContextDetector` output once it's wired into the kill chain response.
+
+## Suppression Rules (from training_gaps.json)
+
+These rules should be applied BEFORE generating a signal, not after:
+
+| Rule | Condition | Action | Evidence |
+|------|-----------|--------|----------|
+| SR-01 | regime IN (UPTREND, STRONG_UPTREND) AND direction=SHORT | BLOCK | 147 trades, 0% WR |
+| SR-02 | regime IN (DOWNTREND, STRONG_DOWNTREND) AND direction=LONG | BLOCK | gate_backtest |
+| SR-03 | dp_bounce AND touch_count=1 | -40% confidence | 15.3% tradeable |
+| SR-04 | dp_bounce AND touch_count>13 | -30% confidence | 0-40% tradeable |
+| SR-05 | dp_bounce AND morning AND support | -25% confidence | 33% tradeable, n=6 (LOW CONFIDENCE) |
+| SR-06 | dp_bounce AND midday AND resistance AND touch 3-13 | +20% confidence | 95.2%, n=21 (caveat: small n) |
+| SR-07 | FROM_OPEN AND QQQ AND |chg|<0.6% | BLOCK | 79.3% at 0.6% (n=29, directional) |
+| SR-08 | FROM_OPEN/ROLLING AND CHOPPY AND confidence<80 | BLOCK | 72% timeout rate |
+
+## Confidence Scoring Formula (v1 heuristic)
+
+```
+base = 50
++ regime_aligned:        +15  (signal direction matches regime)
++ synthesis_bias_aligned: +15  (matches reconciled verdict direction)
++ dp_touch_3_13:         +12  (touch count in sweet spot)
++ midday:                 +8  (10:30am–2:30pm ET)
++ resistance_level:       +5  (bouncing off resistance, not support)
++ volume_above_avg:       +5  (volume > 20-day avg)
+- against_regime:        -25  (→ BLOCK if total < 35)
+- first_touch:           -15  (touch_count = 1)
+- high_touch:            -10  (touch_count > 13)
+- morning:               -8   (before 10:30am ET)
+- low_from_open:         -10  (FROM_OPEN signal, |chg| < 0.6%)
+
+fire_threshold = 60
+high_confidence = 75
+```
+
+## Unresolvable Gaps (do not claim these are fixed)
+
+1. **war_status + GEX rules** — `gex_history.db` has only 1 row. Cannot derive SR rules for war_status ≥ 7 + GEX positive. Need 30+ days of GEX data.
+2. **DOWNTREND/CHOPPY validation** — All 30-day backtest data is STRONG_UPTREND (SPY +10.1%). SR-02 and SR-08 are extrapolated, not validated.
+3. **DP bounce label validity** — 51% of bounce outcomes in dp_learning.db were recorded at t=0 (label assigned at approach, not after price movement). These are invalid training labels.
+4. **Confidence magnitude calibration** — All bonus/penalty values are heuristic v1. Need isotonic regression on 200+ complete training records to calibrate.
+
+## API Endpoints
+
+```
+POST /api/v1/training/snapshot
+  Body: { payload, label, note, regime, symbol, confidence, signal_type, direction }
+  Returns: { snapshot_id, outcome_due_date, total_records, complete_records, pending_outcome_count }
+
+POST /api/v1/training/outcome
+  Body: { snapshot_id, outcome, pnl_pct, days_elapsed }
+  Returns: { status, complete_records }
+
+GET /api/v1/training/pending-outcomes
+  Returns: { overdue_count, upcoming_count, overdue: [...], upcoming: [...] }
+
+GET /api/v1/training/export?complete_only=true
+  Returns: JSONL download (only records with outcomes)
+
+GET /api/v1/training/status
+  Returns: { total_records, complete_records, pending_outcome_count, overdue_outcome_count }
+```
+
+## Next Steps
+
+1. **Wire MarketContextDetector regime into kill chain response** — so `inferRegime()` can use real regime instead of verdict heuristic
+2. **Add GEX history collection** — log daily GEX to `gex_history.db` so SR rules for war_status + GEX can be derived in 30 days
+3. **Calibrate confidence formula** — once 200+ complete records exist, run isotonic regression on pnl_pct vs confidence score
+4. **Migrate 53 Gemini calls in src/** — still using `google.generativeai` directly (ZETA audit gap P1)
+5. **Wire PaperTrader into unified_monitor.py** — currently built but not imported (ZETA audit gap P2)
