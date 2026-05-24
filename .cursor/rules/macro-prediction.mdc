@@ -1,226 +1,206 @@
 ---
-description: Economic data prediction framework — can we predict macro releases before they happen?
-globs: ["research/macro_prediction/**"]
+description: Economic prediction framework — 5-phase FRED-enhanced audit findings
+globs: ["research/macro_prediction/**", "backend/**/*macro*", "backend/**/*econ*"]
 alwaysApply: false
 ---
 
-# Macro Prediction Framework — Honest Audit
+# Economic Prediction Framework — FRED-Enhanced Audit
 
-**Completed:** 2026-05-24  
-**Data:** BLS Public API + Yahoo Finance monthly, 2018–2025  
-**Method:** Walk-forward validation (train on t-24 months, predict t+1, roll forward)  
-**Audit standard:** Diebold-Mariano / McNemar significance tests on all claims
-
----
-
-## The Core Question
-
-> Can we predict economic data releases before they happen — and if so, why or why not?
-
-**Short answer: No, not with free data and statistical confidence.**
-
-All four phases show improvements over naive baselines, but none are statistically significant at the 5% or 10% level. The honest answer is that the free data available (BLS + Yahoo Finance monthly) is insufficient to demonstrate a reliable predictive edge.
+**Branch:** manager-audit/cde006-canonical-kc-20260523  
+**Last updated:** 2026-05-24  
+**Data:** 29 FRED series + 10 Yahoo Finance tickers, 2014–2026, 149 months  
+**Validation:** Walk-forward only (no look-ahead). Diebold-Mariano (regression) / McNemar (classification) significance tests. Regime-stratified: Pre-COVID (<2020-03), COVID (2020-03–2022-01), Post-COVID (≥2022-01).
 
 ---
 
-## Data Sources (Free, No API Key)
+## Core Finding
 
-### BLS Public API
-| Series | ID | Availability |
-|--------|----|-------------|
-| CPI-U All Items | CUUR0000SA0 | Monthly, ~2.5 weeks after month end |
-| Core CPI | CUUR0000SA0L1E | Same |
-| PPI Final Demand | WPSFD4 | Monthly, ~2 weeks after month end |
-| Unemployment Rate | LNS14000000 | First Friday of following month |
-| Nonfarm Payrolls | CES0000000001 | First Friday of following month |
-| Avg Hourly Earnings | CES0500000003 | With NFP |
+**None of the 5 phases produce a robust, statistically significant edge across all market regimes.** The only significant result is Phase 1 CPI in the Pre-COVID regime (DM p=0.023). All other results are either non-significant or actively harmful.
 
-### Yahoo Finance Monthly
-TLT, ^TNX, ^IRX, TIP, UUP, DBC, GLD, SPY, IWM, HYG, LQD, XLF
-
-### What We're Missing (would unlock real edge)
-| Data | Source | Cost | Expected improvement |
-|------|--------|------|---------------------|
-| Initial Claims (IC4WSA) | FRED API | Free (needs key) | NFP corr: ~0.6 |
-| ADP Employment | adpemploymentreport.com | Free (no API) | NFP corr: ~0.85 |
-| ISM PMI Employment | ISM | Subscription | NFP corr: ~0.7 |
-| FRED API key | fred.stlouisfed.org | Free, instant | Unlocks 800k+ series |
-
-**Action item:** Register for FRED API key at https://fred.stlouisfed.org/docs/api/api_key.html
+This is the honest answer to "can we predict economic releases before they happen?" — **sometimes, in stable regimes, with the right leading indicators. Never robustly across regime shifts.**
 
 ---
 
-## Phase 1 — CPI MoM Prediction
+## Phase 1 — CPI Prediction
 
-**Question:** Can market signals + PPI predict next month's CPI print?
+**Target:** Next month's CPI MoM %  
+**Best model:** Random Forest with FRED features  
+**Dataset:** 144 months (2014–2026), walk-forward test n=108
 
-**Results (walk-forward, n=67 test months, 2020–2025):**
-| Model | RMSE | vs Naive | DM p-value |
-|-------|------|----------|-----------|
-| Naive (last month) | 0.363% | baseline | — |
-| Ridge | 0.440% | worse | — |
-| Random Forest | 0.309% | -15% | **p=0.19 ✗** |
+### Key Features (by correlation with target)
+| Feature | r | Interpretation |
+|---------|---|----------------|
+| CPIAUCSL_MOM (lag) | +0.550 | CPI momentum — strongest single predictor |
+| PCEPI_MOM | +0.548 | PCE leads CPI by ~1 month |
+| PPIACO_MOM | +0.544 | Commodity input costs pass through |
+| YF_DBC_RET | +0.538 | Commodity ETF — market-priced input costs |
+| CPILFESL_MOM | +0.493 | Core CPI momentum |
+| T10YIEM | +0.461 | 10yr breakeven = market's CPI forecast |
+| MICH | +0.395 | Michigan inflation expectations |
 
-**Verdict: MARGINAL, NOT SIGNIFICANT**
+### Walk-Forward Results
+| Era | n | Naive RMSE | RF RMSE | DM p | Verdict |
+|-----|---|-----------|---------|------|---------|
+| All | 108 | 0.2762% | 0.2453% | 0.197 | Marginal, unproven |
+| Pre-COVID | 35 | 0.2038% | 0.1503% | **0.023 ✓** | **Significant** |
+| COVID | 22 | 0.2765% | 0.2903% | 0.809 | RF worse (noise regime) |
+| Post-COVID | 51 | 0.3163% | 0.2750% | 0.267 | Beats naive, not significant |
 
-**What actually predicts CPI:**
-1. CPI momentum (r=+0.54) — last month's CPI is the best predictor
-2. Commodity prices / DBC return (r=+0.51) — input cost pass-through
-3. PPI MoM (r=+0.46) — ⚠ partial leakage: PPI released ~2 days before CPI
-4. TIPS breakeven (r=+0.29) — market-implied inflation, weaker than expected
-5. TLT return (r=-0.27) — bond market signal, directionally correct but weak
-
-**Why TIPS/TLT are weaker than expected:**
-Market prices already embed consensus CPI expectations. The marginal signal from TIPS is small because professional forecasters already use it. The commodity price signal (DBC) is stronger because it captures input cost dynamics that consensus models underweight.
-
-**Leakage note:** PPI for month t is released ~2 days before CPI for month t. In monthly data this is effectively concurrent. Without PPI: RF RMSE 0.314% (still beats naive, corr=0.544).
-
-**Era breakdown:**
-- COVID (n=22): Ridge fails badly (0.577% vs naive 0.321%). RF holds (0.295%).
-- Post-COVID (n=44): Both Ridge and RF beat naive.
-
----
-
-## Phase 2 — NFP Prediction (Labor Market)
-
-**Question:** Can market proxies predict monthly nonfarm payrolls?
-
-**Results (walk-forward, n=68 test months):**
-| Era | Naive RMSE | RF RMSE | DM p-value |
-|-----|-----------|---------|-----------|
-| All | 3,670k | 2,670k | p=0.39 ✗ |
-| COVID | 6,438k | 4,663k | — |
-| Post-COVID | 176k | **285k (WORSE)** | — |
-
-**Verdict: NO EDGE**
-
-**Critical findings:**
-1. RF "beats" naive overall only because COVID outliers (Apr 2020: -20M jobs) are huge and RF shrinks toward zero — not because it's learning anything
-2. Without COVID outliers (|NFP| < 500k, n=50): RF RMSE 266k vs naive 199k — **RF is worse**
-3. Post-COVID: RF correlation = **-0.389** (predicting in the wrong direction)
-4. The RF trained on COVID volatility fails completely in the stable post-COVID labor market
-
-**Why market proxies fail for NFP:**
-- NFP has ~±100k sampling noise from the birth-death model adjustment
-- The best predictors (ADP, initial claims) are NOT in the feature set
-- Monthly equity/bond returns have r < 0.35 with NFP changes
-- Post-COVID labor market is structurally different (tight market, low claims)
-
-**What would work:**
-- Initial claims (IC4WSA): r ≈ -0.6 with NFP → free via FRED API key
-- ADP Employment: r ≈ 0.85 with BLS NFP → free release, no machine API
-- ISM PMI Employment component: r ≈ 0.7 → requires subscription
-
-**Phase 2 is incomplete by design** — the critical features are not freely accessible without a FRED API key.
+### Interpretation
+- Pre-COVID: PPI/PCE/commodity signals have genuine predictive power in stable inflation regimes
+- COVID: All models fail — supply chain shocks break the input-cost → CPI relationship
+- Post-COVID: RF beats naive but not significantly (n=51, high variance from rate-hike era)
+- **Do not use this model during regime transitions**
 
 ---
 
-## Phase 3 — 10yr Yield Direction (Up/Down)
+## Phase 2 — NFP Prediction
 
-**Question:** Can macro data predict whether the 10yr yield rises or falls next month?
+**Target:** Next month's Nonfarm Payrolls MoM (thousands)  
+**Best model:** RF with IC4WSA (4-week avg initial claims)  
+**Dataset:** Post-COVID regime-aware (train 2022+)
 
-**Results (walk-forward, n=51 test months, 2020–2024):**
-| Model | Accuracy | vs Majority-Class | McNemar p |
-|-------|----------|------------------|----------|
-| Majority class (always UP) | 60.8% | baseline | — |
-| Logit | 60.8% | **+0pp** | p=0.71 ✗ |
-| RF | 54.9% | -5.9pp (worse) | — |
+### Results
+| Era | n | Naive RMSE | RF RMSE | DM p | Verdict |
+|-----|---|-----------|---------|------|---------|
+| Post-COVID | 33 | 110k | 120k | 0.382 | RF worse |
 
-**Verdict: NO EDGE**
-
-**Critical corrections from initial analysis:**
-- Initial report claimed "Logit +12pp vs naive (49%)" — this was misleading
-- The naive baseline (last direction = next) = 49% is BELOW majority-class (60.8%)
-- Correct comparison: Logit 60.8% = majority-class baseline exactly — zero improvement
-- COVID era 68% accuracy is explained by the sustained rate-hike trend (always-UP would also score ~59% in that period; Logit adds only +9pp)
-
-**Logit confusion matrix reveals UP-bias:**
-- Predicts DOWN only 20/51 times
-- DOWN recall: 65% (better than expected)
-- UP recall: 58% (worse than expected)
-- The model is not learning yield direction — it's learning the rate-hike regime
-
-**Data limitation:** ^TNX only available from 2019-08 on Yahoo Finance. Test set ends 2024-04 — missing 20 months of recent rate-cut cycle data.
-
-**Why yield direction is hard:**
-- Fed forward guidance dominates (not in any free dataset)
-- Geopolitical shocks (not predictable)
-- QE/QT distorts the yield-macro relationship
-- Monthly data is too coarse — yield moves happen on specific announcement days
+### Key Finding
+- IC4WSA r=-0.957 with NFP (COVID contaminated by CARES Act claims spike)
+- Without COVID: r=-0.490 (genuine signal)
+- Post-COVID regime-aware RF corr=0.573 (direction right) but RMSE worse than naive
+- **Root cause:** NFP has ~100k noise floor from birth-death model. Without ADP (2-day lead) and ISM PMI, the model can't beat naive on magnitude.
+- **Verdict: No edge. Model incomplete without ADP/ISM.**
 
 ---
 
-## Phase 4 — SPY Regime Prediction
+## Phase 3 — Yield Direction
 
-**Question:** Can monthly macro data predict next month's SPY regime (UPTREND/DOWNTREND/CHOPPY)?
+**Target:** 10yr Treasury yield direction next month (up/down)  
+**Best model:** Logistic Regression with FRED yield features  
+**Dataset:** 146 months (2014–2026), walk-forward test n=110
 
-**Results (walk-forward, n=68 test months):**
-| Model | Accuracy | vs Majority-Class | McNemar p |
-|-------|----------|------------------|----------|
-| Majority class (always UPTREND) | 61.8% | baseline | — |
-| RF | 50.0% | **-11.8pp (WORSE)** | p=0.84 ✗ |
-| Logit | 44.1% | -17.7pp (much worse) | — |
+### Walk-Forward Results
+| Era | n | Majority class | Logit | McNemar p | Verdict |
+|-----|---|---------------|-------|-----------|---------|
+| All | 110 | 53.6% | 54.5% | 1.000 | No edge |
+| Pre-COVID | 37 | 51.4% | 70.3% | 0.096 | Marginal |
+| COVID | 22 | 59.1% | 54.5% | 1.000 | No edge |
+| Post-COVID | 51 | 52.9% | 43.1% | 0.472 | **Model inverts** |
 
-**Verdict: NO EDGE — RF is actively harmful**
+### Critical Finding: Post-COVID Regime Inversion
+The model trained on "higher inflation → higher yields" breaks post-2022. After the Fed pivot, the model predicts DOWN when yields are actually going UP (27 actual UP, logit calls only 20 UP out of 51). **Using this model post-2022 would actively lose money.**
 
-**Per-class accuracy (RF):**
-| Class | n | RF Accuracy |
-|-------|---|------------|
-| UPTREND | 42 | 78.6% |
-| DOWNTREND | 20 | **5.0%** |
-| CHOPPY | 6 | **0.0%** |
+### Top Predictors
+HYG return (credit stress), DGS10 level, Core CPI MoM, DBC return, SPY return
 
-The RF learns UPTREND well (because it's 62% of months) but completely fails DOWNTREND and CHOPPY — the two classes that matter most for risk management.
-
-**Critical correction — connection to `_compute_regime()`:**
-The plan claimed Phase 4 "feeds `_compute_regime()` in main.py." This is **incorrect**.
-
-- `_compute_regime()` uses **same-day** signals: `spy_change_pct`, `vix`, `rsi_14`, `kill_chain.verdict`
-- Phase 4 uses **monthly** macro data to predict **next month's** regime
-- These are orthogonal problems — different time horizons, different features, different use cases
-
-**Implication:** `_compute_regime()` should remain a same-day heuristic. Monthly macro data cannot improve it. The current Taylor-Rule-style heuristic (VIX + SPY change + RSI) is appropriate for intraday signal generation.
-
-**What would actually improve `_compute_regime()`:**
-- Daily VIX level (already available)
-- SPY vs 50-day MA (available via yfinance)
-- Validate the regime labels against actual intraday signal outcomes (the training pipeline is building this)
+**Verdict: No robust edge. Pre-COVID signal doesn't survive regime shifts.**
 
 ---
 
-## Cross-Phase Feature Correlation Summary
+## Phase 4 — Equity Regime Prediction
 
-| Feature | CPI MoM | Yield Dir | NFP Change | SPY Regime |
-|---------|---------|-----------|-----------|-----------|
-| CPI MoM (lag) | **+0.54** | weak | weak | weak |
-| Commodities (DBC) | **+0.51** | weak | **+0.42** | weak |
-| SPY return | weak | weak | **+0.48** | weak |
-| PPI MoM | **+0.46** | weak | **+0.34** | weak |
-| Breakeven proxy | +0.29 | +0.28 | weak | weak |
-| TLT return | -0.27 | -0.28 | weak | weak |
-| HYG return | weak | weak | weak | weak |
-| Dollar (UUP) | weak | weak | weak | weak |
+**Target:** SPY regime next month (UPTREND/DOWNTREND/CHOPPY)  
+**Best model:** RF with balanced class weights, VIX + Sahm proxy + yield slope  
+**Dataset:** 130 months (2014–2025), walk-forward test n=94
 
-**Key insight:** Commodity prices (DBC) are the most cross-cutting predictor — they signal both CPI and NFP. Market-implied inflation (TIPS breakeven) is weaker than commodity prices for predicting actual CPI.
+### Walk-Forward Results
+| Era | n | Majority class | RF (balanced) | McNemar p | Verdict |
+|-----|---|---------------|---------------|-----------|---------|
+| All | 94 | 60.6% | 45.7% | **0.006** | **RF significantly WORSE** |
+| Pre-COVID | 27 | 55.6% | 44.4% | 0.450 | No edge |
+| COVID | 22 | 68.2% | 54.5% | 0.371 | No edge |
+| Post-COVID | 45 | 60.0% | 42.2% | **0.027** | **RF significantly WORSE** |
+
+### McNemar Direction Check
+- b (RF gains over naive): 4
+- c (RF loses vs naive): 18
+- **Net: RF loses 14 more cases than naive**
+
+### Classification Report (All periods)
+| Class | Precision | Recall | F1 |
+|-------|-----------|--------|-----|
+| CHOPPY | 0.38 | 0.27 | 0.32 |
+| DOWNTREND | 0.07 | 0.04 | 0.05 |
+| UPTREND | 0.55 | 0.68 | 0.61 |
+
+DOWNTREND recall=4% — the model essentially cannot identify downtrends.
+
+### Root Cause
+Balanced class_weight forces the model to predict minority classes (DOWNTREND, CHOPPY) more often, which actively hurts accuracy in an UPTREND-dominated dataset (57.7% UPTREND). The macro features don't have enough signal to overcome the base rate.
+
+**Verdict: No edge. Model is actively harmful vs majority-class baseline.**
+
+### Connection to `_compute_regime()` in main.py
+Phase 4 uses monthly macro data to predict next-month SPY regime. `_compute_regime()` uses same-day intraday data to label current regime. These are different time horizons and different feature sets — **do not conflate them.** Monthly macro prediction cannot replace intraday regime detection.
 
 ---
 
-## Honest Summary
+## Phase 5 — GDP Nowcast
 
-| Phase | Target | Best Model | Sig? | Verdict |
-|-------|--------|-----------|------|---------|
-| 1 CPI | MoM % | RF -15% RMSE | p=0.19 ✗ | Marginal, unproven |
-| 2 NFP | k jobs | RF worse post-COVID | p=0.39 ✗ | No edge (incomplete) |
-| 3 Yield | Up/Down | Logit = majority class | p=0.71 ✗ | No edge |
-| 4 Regime | SPY regime | RF worse than majority | p=0.84 ✗ | No edge |
+**Target:** Real GDP QoQ growth % (quarterly)  
+**Best model:** RF with monthly leading indicators (last month of quarter)  
+**Dataset:** 44 quarters (2014–2025), walk-forward test n=32
 
-**Bottom line:** With free data (BLS + Yahoo Finance monthly), no phase demonstrates a statistically significant predictive edge over the appropriate baseline. The CPI model has the most promise (r=0.54, RF beats naive) but p=0.19 means we cannot rule out noise.
+### Walk-Forward Results
+| Era | n | Naive RMSE | RF RMSE | DM p | Verdict |
+|-----|---|-----------|---------|------|---------|
+| All | 32 | 2.089% | 2.213% | 0.244 | RF worse |
+| Pre-COVID | 10 | 0.691% | 0.625% | 0.292 | Beats naive (n too small) |
+| COVID | 7 | 4.347% | 4.621% | 0.261 | RF worse |
+| Post-COVID | 15 | 0.421% | 0.472% | 0.374 | RF worse |
 
-**To unlock real edge, in priority order:**
-1. FRED API key (free) → initial claims, 800k+ series
-2. Daily data instead of monthly → yield direction becomes tractable
-3. ADP Employment (free release, manual scrape) → NFP prediction
-4. 5+ more years of data → CPI model significance
+### Top Predictors
+CLAIMS_TREND (0.225), SAHM_PROXY (0.209), PAYEMS_MOM (0.143), UNRATE (0.140), HOUST_MOM (0.104)
+
+### Key Finding
+- COVID quarters (Q2 2020: -7.9%, Q3 2020: +7.8%) dominate RMSE and make all-period comparison nearly meaningless
+- Pre-COVID RF corr=0.628 is genuinely interesting but n=10 is too small for significance
+- Naive baseline = historical mean GDP growth (appropriate for mean-reverting quarterly series)
+- **Verdict: No edge. COVID outliers overwhelm the signal. Need ISM PMI and ADP for real nowcasting.**
+
+---
+
+## What Would Actually Work
+
+Based on the academic literature and these results:
+
+1. **CPI in stable regimes:** PPI + PCE + TIPS breakeven give ~15% RMSE improvement. Use only when VIX < 20 and no active Fed pivot.
+
+2. **NFP with ADP + ISM:** ADP (2-day lead) + ISM Manufacturing Employment + IC4WSA would likely give significant edge. Not available free.
+
+3. **Yield direction with Fed communication:** Adding FOMC meeting dates, dot plot changes, and Fed speech sentiment would likely improve Phase 3. Not available free.
+
+4. **GDP with ISM PMI:** ISM Manufacturing PMI is the single best GDP nowcast predictor (r~0.6 with GDP). Not available free via FRED.
+
+---
+
+## Data Sources
+
+### FRED API (key: set in env as FRED_API_KEY)
+29 series: CPI, Core CPI, PCE, Core PCE, PPI (FD + All), Michigan expectations, NFP, Unemployment, ICSA, IC4WSA, CCSA, Avg Hours, Avg Earnings, GDP, Real GDP, Industrial Production, Retail Sales, Durable Goods, Housing Starts, Fed Funds, DGS10, DGS2, DGS1MO, T10Y2Y, T10YIEM (breakeven), HY OAS spread, M2, Consumer Credit
+
+### Yahoo Finance (monthly, free)
+SPY, QQQ, IWM, TLT, TIP, HYG, UUP, DBC, GLD, ^VIX
+
+### Missing (would need paid APIs)
+- ADP Employment (2-day NFP lead)
+- ISM Manufacturing PMI (best GDP nowcast)
+- Bloomberg consensus forecasts (to measure "surprise" vs consensus)
+- CME FedWatch probabilities (rate decision signal)
+
+---
+
+## Audit Standards Applied
+
+1. Walk-forward validation only — no look-ahead bias
+2. Wilson CIs on all classification metrics
+3. Baseline comparison required — every model vs naive
+4. Regime-stratified results (Pre-COVID / COVID / Post-COVID)
+5. Honest null results documented with root cause analysis
+6. No data leakage — features available BEFORE release date
+7. Diebold-Mariano test for regression, McNemar for classification
+8. McNemar direction verified (b vs c) — significant worse ≠ significant better
 
 ---
 
@@ -228,7 +208,10 @@ The plan claimed Phase 4 "feeds `_compute_regime()` in main.py." This is **incor
 
 | File | Description |
 |------|-------------|
-| `research/macro_prediction/data_loader.py` | Shared BLS + Yahoo Finance loader |
+| `research/macro_prediction/data_loader.py` | FRED + Yahoo Finance loader, feature engineering |
 | `research/macro_prediction/phase1_cpi.py` | CPI walk-forward model |
-| `/mnt/results/macro_prediction_audit.png` | 4-phase corrected chart |
-| `/mnt/results/macro_phase1_cpi.png` | Phase 1 detailed chart |
+| `research/macro_prediction/phase2_nfp.py` | NFP model (incomplete without ADP) |
+| `research/macro_prediction/phase3_yields.py` | Yield direction model |
+| `research/macro_prediction/phase4_regime.py` | Equity regime model |
+| `research/macro_prediction/phase5_gdp.py` | GDP nowcast model |
+| `/mnt/results/macro_prediction_audit_v2.png` | 5-phase audit chart |
