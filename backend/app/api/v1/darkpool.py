@@ -106,6 +106,11 @@ class DPSummary(BaseModel):
     dp_position_dollars: Optional[float] = None
     net_short_dollars: Optional[float] = None
     short_volume_pct: Optional[float] = None
+    # DVR semantics (Kill Chain–aligned; values derived from short_volume_pct only)
+    dvr_zone: Optional[str] = None
+    dvr_label: Optional[str] = None
+    dvr_layer3_triggered: Optional[bool] = None
+    dvr_interpretation: Optional[str] = None
     nearest_support: Optional[DPLevel] = None
     nearest_resistance: Optional[DPLevel] = None
     battlegrounds: List[DPLevel] = Field(default_factory=list)
@@ -130,6 +135,199 @@ class DPSummaryResponse(BaseModel):
     symbol: str
     summary: DPSummary
     timestamp: datetime
+
+
+# ---------------------------------------------------------------------------
+# Sync summary builder — shared by HTTP route and Kill Chain DVR (one short_vol %)
+# ---------------------------------------------------------------------------
+
+
+def build_dpsummary_response(symbol: str) -> DPSummaryResponse:
+    """
+    Same Stockgrid + canonical GEX path as GET /darkpool/{symbol}/summary.
+    Synchronous; raises HTTPException on hard failures (caller may catch for KC fallback).
+    """
+    symbol = symbol.upper()
+    sg = _get_stockgrid()
+    current_price = _get_current_price(symbol)
+
+    try:
+        detail = sg.get_ticker_detail(symbol)
+        top_positions = sg.get_top_positions(limit=20)
+    except Exception as e:
+        logger.error(f"Stockgrid DP summary call failed for {symbol}: {e}")
+        raise HTTPException(status_code=502, detail=f"Stockgrid error: {e}")
+
+    if not detail and top_positions:
+        for pos in top_positions:
+            if pos.ticker == symbol:
+                detail = pos
+                break
+
+    if not detail and not top_positions:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No dark pool data for {symbol} from Stockgrid",
+        )
+
+    raw_pct = (detail.short_volume_pct if detail else 0.5) or 0.5
+    dp_percent = round(raw_pct if raw_pct > 1 else raw_pct * 100, 1)
+    dp_percent = max(0, min(100, dp_percent))
+    buying_pressure = round(max(0, 100 - dp_percent), 1)
+
+    total_volume = abs(int((detail.short_volume if detail else 0) or (detail.dp_position_shares if detail else 0) or 0))
+    dp_position_dollars = abs((detail.dp_position_dollars if detail else 0) or 0)
+
+    net_short_shares = getattr(detail, "net_short_volume", None) if detail else None
+    if (net_short_shares is None or net_short_shares == 0) and top_positions:
+        for pos in top_positions:
+            if pos.ticker == symbol and hasattr(pos, "net_short_volume"):
+                net_short_shares = getattr(pos, "net_short_volume", None)
+                if net_short_shares is not None:
+                    break
+    net_short_dollars = (float(net_short_shares) * float(current_price)) if net_short_shares is not None else None
+
+    raw_short_vol_pct = round(raw_pct if raw_pct > 1 else raw_pct * 100, 1) if detail else None
+
+    nearest_support = None
+    nearest_resistance = None
+    battlegrounds = []
+
+    try:
+        from backend.app.utils.gex_canonical import compute_canonical_gex
+
+        gex_result = compute_canonical_gex(symbol)
+        if gex_result and gex_result.spot_price:
+            gamma_walls_above = [w for w in (gex_result.gamma_walls or []) if w.strike >= current_price]
+            if gamma_walls_above:
+                cw = max(gamma_walls_above, key=lambda w: w.gex)
+                nearest_resistance = DPLevel(
+                    price=round(cw.strike, 2),
+                    volume=cw.open_interest,
+                    level_type="RESISTANCE",
+                    strength=round(abs(cw.gex / 1e6), 1),
+                    distance_from_price=round(abs(cw.strike - current_price), 2),
+                )
+            neg_zones_below = [z for z in (gex_result.negative_zones or []) if z.strike <= current_price]
+            if neg_zones_below:
+                pw = min(neg_zones_below, key=lambda z: z.gex)
+                nearest_support = DPLevel(
+                    price=round(pw.strike, 2),
+                    volume=pw.open_interest,
+                    level_type="SUPPORT",
+                    strength=round(abs(pw.gex / 1e6), 1),
+                    distance_from_price=round(abs(current_price - pw.strike), 2),
+                )
+    except Exception as e:
+        logger.warning(f"GEX data unavailable for {symbol} S/R levels: {e}")
+
+    if not nearest_resistance and not nearest_support:
+        if detail and current_price:
+            svp = detail.short_volume_pct or 50
+            vol = abs(int(detail.dp_position_shares or 0))
+            if svp > 55:
+                nearest_resistance = DPLevel(
+                    price=round(current_price, 2),
+                    volume=vol,
+                    level_type="RESISTANCE",
+                    strength=min(100.0, svp),
+                    distance_from_price=0.0,
+                )
+            elif svp < 45:
+                nearest_support = DPLevel(
+                    price=round(current_price, 2),
+                    volume=vol,
+                    level_type="SUPPORT",
+                    strength=min(100.0, 100 - svp),
+                    distance_from_price=0.0,
+                )
+            else:
+                battlegrounds.append(
+                    DPLevel(
+                        price=round(current_price, 2),
+                        volume=vol,
+                        level_type="BATTLEGROUND",
+                        strength=50.0,
+                        distance_from_price=0.0,
+                    )
+                )
+
+    if top_positions and current_price:
+        for pos in top_positions:
+            if pos.ticker != symbol:
+                continue
+            if not pos.dp_position_dollars or not pos.dp_position_shares:
+                continue
+            implied_price = abs(pos.dp_position_dollars / pos.dp_position_shares)
+            if not implied_price:
+                continue
+            svp = pos.short_volume_pct or 50
+            vol = abs(int(pos.dp_position_shares))
+            if svp > 55:
+                level_type = "RESISTANCE"
+            elif svp < 45:
+                level_type = "SUPPORT"
+            else:
+                level_type = "BATTLEGROUND"
+            level = DPLevel(
+                price=round(implied_price, 2),
+                volume=vol,
+                level_type=level_type,
+                strength=0,
+                distance_from_price=round(abs(implied_price - current_price), 4),
+            )
+            if level_type == "SUPPORT" and implied_price < current_price:
+                if nearest_support is None or level.distance_from_price < nearest_support.distance_from_price:
+                    nearest_support = level
+            elif level_type == "RESISTANCE" and implied_price > current_price:
+                if nearest_resistance is None or level.distance_from_price < nearest_resistance.distance_from_price:
+                    nearest_resistance = level
+            elif level_type == "BATTLEGROUND":
+                battlegrounds.append(level)
+        battlegrounds.sort(key=lambda x: x.distance_from_price or 999)
+
+    try:
+        from backend.app.signals.dvr_semantics import interpret_dvr
+
+        _dvr = interpret_dvr(raw_short_vol_pct)
+    except Exception:
+        _dvr = {
+            "zone": None,
+            "label": None,
+            "layer3_triggered": None,
+            "note": None,
+        }
+
+    summary = DPSummary(
+        total_volume=total_volume,
+        dp_percent=dp_percent,
+        buying_pressure=buying_pressure,
+        dp_position_dollars=dp_position_dollars if dp_position_dollars else None,
+        net_short_dollars=net_short_dollars,
+        short_volume_pct=raw_short_vol_pct,
+        dvr_zone=_dvr.get("zone"),
+        dvr_label=_dvr.get("label"),
+        dvr_layer3_triggered=_dvr.get("layer3_triggered"),
+        dvr_interpretation=_dvr.get("note"),
+        nearest_support=nearest_support,
+        nearest_resistance=nearest_resistance,
+        battlegrounds=battlegrounds[:5],
+    )
+
+    return DPSummaryResponse(symbol=symbol, summary=summary, timestamp=datetime.now())
+
+
+def get_dp_short_volume_pct_for_kill_chain(symbol: str = "SPY") -> Optional[float]:
+    """
+    DVR for compute_kill_chain — must match GET /darkpool/{symbol}/summary short_volume_pct.
+    Returns None if summary cannot be built (caller may fall back to Stockgrid helper).
+    """
+    try:
+        resp = build_dpsummary_response(symbol.upper())
+        return resp.summary.short_volume_pct
+    except Exception as exc:
+        logger.warning("Kill Chain DVR: DP summary path failed (%s), will fall back: %s", symbol, exc)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -274,176 +472,13 @@ async def get_dp_summary(symbol: str):
     """
     Get aggregated dark pool summary for a symbol from Stockgrid.
     """
-    symbol = symbol.upper()
-    sg = _get_stockgrid()
-    current_price = _get_current_price(symbol)
-
     try:
-        detail = sg.get_ticker_detail(symbol)
-        top_positions = sg.get_top_positions(limit=20)
+        return build_dpsummary_response(symbol)
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Stockgrid DP summary call failed for {symbol}: {e}")
-        raise HTTPException(status_code=502, detail=f"Stockgrid error: {e}")
-
-    # Try to find the symbol in top positions if detail is None
-    if not detail and top_positions:
-        for pos in top_positions:
-            if pos.ticker == symbol:
-                detail = pos
-                break
-
-    if not detail and not top_positions:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No dark pool data for {symbol} from Stockgrid"
-        )
-
-    # Derive buying pressure from short volume %
-    # Stockgrid returns short_volume_pct as raw percentage (e.g. 54.4) OR decimal (0.544)
-    raw_pct = (detail.short_volume_pct if detail else 0.5) or 0.5
-    # Normalize: if > 1, it's already a percentage; if <= 1, multiply by 100
-    dp_percent = round(raw_pct if raw_pct > 1 else raw_pct * 100, 1)
-    dp_percent = max(0, min(100, dp_percent))  # Clamp to 0-100
-    buying_pressure = round(max(0, 100 - dp_percent), 1)
-
-    total_volume = abs(int((detail.short_volume if detail else 0) or (detail.dp_position_shares if detail else 0) or 0))
-    dp_position_dollars = abs((detail.dp_position_dollars if detail else 0) or 0)
-
-    # net_short_volume is shares in Stockgrid payloads; convert to dollars using current price.
-    # Do not force abs() so direction is preserved (positive = net short pressure).
-    net_short_shares = getattr(detail, "net_short_volume", None) if detail else None
-    if (net_short_shares is None or net_short_shares == 0) and top_positions:
-        for pos in top_positions:
-            if pos.ticker == symbol and hasattr(pos, "net_short_volume"):
-                net_short_shares = getattr(pos, "net_short_volume", None)
-                if net_short_shares is not None:
-                    break
-    net_short_dollars = (float(net_short_shares) * float(current_price)) if net_short_shares is not None else None
-
-    # B3 FIX: Return raw Stockgrid short_volume_pct, not the derived dp_percent
-    raw_short_vol_pct = round(raw_pct if raw_pct > 1 else raw_pct * 100, 1) if detail else None
-
-    # B2 FIX v2: Wire GEX call/put walls as nearest resistance/support
-    # The DP short-vol classification tells us the BIAS (selling vs buying pressure),
-    # but the actual LEVELS come from the GEX gamma walls — those are the real
-    # support/resistance strikes defined by options market makers.
-    nearest_support = None
-    nearest_resistance = None
-    battlegrounds = []
-
-    # Try to get GEX levels for this symbol (same data the GEX panel uses)
-    gex_call_wall = None   # highest positive GEX above price = resistance/ceiling
-    gex_put_wall = None    # most negative GEX below price = support/floor
-    gex_max_pain = None
-    try:
-        from backend.app.api.v1.gamma import _get_gex_calculator
-        calc = _get_gex_calculator()
-        gex_result = calc.compute_gex(symbol)
-        if gex_result and gex_result.spot_price:
-            # Call wall = highest positive GEX strike >= current price
-            gamma_walls_above = [w for w in (gex_result.gamma_walls or []) if w.strike >= current_price]
-            if gamma_walls_above:
-                cw = max(gamma_walls_above, key=lambda w: w.gex)
-                gex_call_wall = cw
-                nearest_resistance = DPLevel(
-                    price=round(cw.strike, 2),
-                    volume=cw.open_interest,
-                    level_type="RESISTANCE",
-                    strength=round(abs(cw.gex / 1e6), 1),  # gamma in millions
-                    distance_from_price=round(abs(cw.strike - current_price), 2),
-                )
-            # Put wall = most negative GEX strike <= current price
-            neg_zones_below = [z for z in (gex_result.negative_zones or []) if z.strike <= current_price]
-            if neg_zones_below:
-                pw = min(neg_zones_below, key=lambda z: z.gex)
-                gex_put_wall = pw
-                nearest_support = DPLevel(
-                    price=round(pw.strike, 2),
-                    volume=pw.open_interest,
-                    level_type="SUPPORT",
-                    strength=round(abs(pw.gex / 1e6), 1),
-                    distance_from_price=round(abs(current_price - pw.strike), 2),
-                )
-            gex_max_pain = gex_result.max_pain
-    except Exception as e:
-        logger.warning(f"GEX data unavailable for {symbol} S/R levels: {e}")
-
-    # Fallback: if GEX gave nothing, use DP short-vol classification
-    if not nearest_resistance and not nearest_support:
-        if detail and current_price:
-            svp = detail.short_volume_pct or 50
-            vol = abs(int(detail.dp_position_shares or 0))
-            if svp > 55:
-                nearest_resistance = DPLevel(
-                    price=round(current_price, 2), volume=vol,
-                    level_type="RESISTANCE", strength=min(100.0, svp),
-                    distance_from_price=0.0,
-                )
-            elif svp < 45:
-                nearest_support = DPLevel(
-                    price=round(current_price, 2), volume=vol,
-                    level_type="SUPPORT", strength=min(100.0, 100 - svp),
-                    distance_from_price=0.0,
-                )
-            else:
-                battlegrounds.append(DPLevel(
-                    price=round(current_price, 2), volume=vol,
-                    level_type="BATTLEGROUND", strength=50.0,
-                    distance_from_price=0.0,
-                ))
-
-    # Also check same-symbol positions in the top list for additional levels
-    if top_positions and current_price:
-        for pos in top_positions:
-            if pos.ticker != symbol:
-                continue  # Skip other symbols — their prices are different scales
-            if not pos.dp_position_dollars or not pos.dp_position_shares:
-                continue
-            implied_price = abs(pos.dp_position_dollars / pos.dp_position_shares)
-            if not implied_price:
-                continue
-            svp = pos.short_volume_pct or 50  # Already a percentage
-            vol = abs(int(pos.dp_position_shares))
-            if svp > 55:
-                level_type = "RESISTANCE"
-            elif svp < 45:
-                level_type = "SUPPORT"
-            else:
-                level_type = "BATTLEGROUND"
-            level = DPLevel(
-                price=round(implied_price, 2),
-                volume=vol,
-                level_type=level_type,
-                strength=0,
-                distance_from_price=round(abs(implied_price - current_price), 4),
-            )
-            if level_type == "SUPPORT" and implied_price < current_price:
-                if nearest_support is None or level.distance_from_price < nearest_support.distance_from_price:
-                    nearest_support = level
-            elif level_type == "RESISTANCE" and implied_price > current_price:
-                if nearest_resistance is None or level.distance_from_price < nearest_resistance.distance_from_price:
-                    nearest_resistance = level
-            elif level_type == "BATTLEGROUND":
-                battlegrounds.append(level)
-        battlegrounds.sort(key=lambda x: x.distance_from_price or 999)
-
-    summary = DPSummary(
-        total_volume=total_volume,
-        dp_percent=dp_percent,
-        buying_pressure=buying_pressure,
-        dp_position_dollars=dp_position_dollars if dp_position_dollars else None,
-        net_short_dollars=net_short_dollars,
-        short_volume_pct=raw_short_vol_pct,
-        nearest_support=nearest_support,
-        nearest_resistance=nearest_resistance,
-        battlegrounds=battlegrounds[:5],
-    )
-
-    return DPSummaryResponse(
-        symbol=symbol,
-        summary=summary,
-        timestamp=datetime.now(),
-    )
+        logger.error(f"DP summary failed for {symbol}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/darkpool/{symbol}/prints", response_model=DPPrintsResponse)

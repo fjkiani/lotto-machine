@@ -13,6 +13,7 @@ import { Gamma } from './pages/Gamma';
 import { Squeeze } from './pages/Squeeze';
 import { Options } from './pages/Options';
 import { LiveSession } from './pages/LiveSession';
+import { SignalChain } from './pages/SignalChain';
 import './index.css';
 
 function App() {
@@ -33,10 +34,10 @@ function App() {
         <Route path="/squeeze" element={<Squeeze />} />
         <Route path="/options" element={<Options />} />
         <Route path="/live" element={<LiveSession />} />
+        <Route path="/signal-chain" element={<SignalChain />} />
       </Routes>
     </BrowserRouter>
   );
 }
 
 export default App;
-

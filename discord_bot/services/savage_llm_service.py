@@ -26,15 +26,15 @@ class SavageLLMService:
 
     def __init__(self):
         """Initialize savage LLM service"""
-        self.api_key = os.getenv("GROQ_API_KEY", "").strip()
+        self.api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
         self.default_level = os.getenv("SAVAGE_LEVEL", "chained_pro")
 
         if not self.api_key:
-            logger.error("GROQ_API_KEY not found in environment")
+            logger.error("OPENROUTER_API_KEY not found in environment")
             self.ready = False
         else:
             self.ready = True
-            logger.info("Savage LLM service initialized (Groq)")
+            logger.info("Savage LLM service initialized (OpenRouter Nemotron)")
 
     async def get_savage_response(self, query: str, level: str = None) -> Dict[str, Any]:
         """
@@ -49,7 +49,7 @@ class SavageLLMService:
         """
         if not self.ready:
             return {
-                "error": "Savage LLM not configured. Set GROQ_API_KEY.",
+                "error": "Savage LLM not configured. Set OPENROUTER_API_KEY.",
                 "status": "error"
             }
 

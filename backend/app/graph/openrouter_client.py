@@ -3,14 +3,15 @@ OpenRouter Multi-LLM Client
 ============================
 Single entry point for all LLM calls in the graph pipeline.
 Routes to the right free model based on role.
-Falls back to Groq llama-3.3-70b if OpenRouter fails.
+Primary: OpenRouter (OPENROUTER_API_KEY).
+Fallback: OpenRouter Nemotron (same key, different model) — no Groq dependency.
 
-Model assignments (verified available 2026-05-07):
-  MACRO node      → qwen/qwen3-next-80b-a3b-instruct:free  (80B, strong reasoning)
-  FLOW node       → qwen/qwen3-coder:free                  (coder, structured data)
-  REGIME node     → meta-llama/llama-3.3-70b-instruct:free (66K ctx, fast)
-  SYNTHESIS node  → openai/gpt-oss-120b:free               (131K ctx, MoE reasoning)
-  QUICK / EXPLAIN → meta-llama/llama-3.3-70b-instruct:free (fast, free)
+Model assignments (verified available 2026-05-23):
+  MACRO node      → nvidia/nemotron-3-super-120b-a12b:free  (120B MoE, strong reasoning)
+  FLOW node       → nvidia/nemotron-3-super-120b-a12b:free  (120B — structured data)
+  REGIME node     → nvidia/nemotron-3-super-120b-a12b:free  (fast classification)
+  SYNTHESIS node  → nvidia/nemotron-3-super-120b-a12b:free  (MoE synthesis)
+  QUICK / EXPLAIN → nvidia/nemotron-3-super-120b-a12b:free  (fast, free)
 """
 import os
 import json
@@ -25,17 +26,18 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
-GROQ_FALLBACK_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
-# Model role registry — free models verified available on OpenRouter 2026-05-07
+# Primary model — NVIDIA Nemotron 3 Super 120B (free tier, OpenRouter)
+NEMOTRON_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+
+# Model role registry — all roles route to Nemotron (free, 120B, strong reasoning)
 MODEL_REGISTRY = {
-    "macro":     "openai/gpt-oss-120b:free",                 # 120B MoE — strong reasoning
-    "flow":      "nvidia/nemotron-3-super-120b-a12b:free",   # 120B — structured data
-    "regime":    "openai/gpt-oss-20b:free",                  # fast classification
-    "synthesis": "openai/gpt-oss-120b:free",                 # MoE synthesis
-    "quick":     "openai/gpt-oss-20b:free",                  # fast, free
-    "explain":   "openai/gpt-oss-20b:free",                  # fast — structured JSON reads, not prose
+    "macro":     NEMOTRON_MODEL,
+    "flow":      NEMOTRON_MODEL,
+    "regime":    NEMOTRON_MODEL,
+    "synthesis": NEMOTRON_MODEL,
+    "quick":     NEMOTRON_MODEL,
+    "explain":   NEMOTRON_MODEL,
 }
 
 # In-memory response cache (prompt_hash → {content, expires})
@@ -45,6 +47,89 @@ _CACHE_TTL = 600  # 10 minutes
 
 def _cache_key(model: str, prompt: str) -> str:
     return hashlib.md5(f"{model}:{prompt}".encode()).hexdigest()
+
+
+def _openrouter_post(
+    messages: list,
+    model: str,
+    max_tokens: int,
+    timeout: int,
+    response_format: Optional[Dict] = None,
+) -> Optional[str]:
+    """
+    Raw OpenRouter POST. Returns content string or None on failure.
+    Shared by call_openrouter() and all direct callers in oracle/agents/explainer.
+    """
+    if not OPENROUTER_API_KEY:
+        logger.warning("OPENROUTER_API_KEY not set — LLM call skipped")
+        return None
+    body: Dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": 0.3,
+    }
+    if response_format:
+        body["response_format"] = response_format
+    try:
+        resp = httpx.post(
+            OPENROUTER_BASE_URL,
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://lotto-machine.onrender.com",
+                "X-Title": "Alpha Terminal",
+                "Content-Type": "application/json",
+            },
+            json=body,
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"]
+        logger.info(f"✅ OpenRouter {model} OK ({len(content)} chars)")
+        return content
+    except Exception as e:
+        logger.error(f"💀 OpenRouter {model} failed: {e}")
+        return None
+
+
+async def _openrouter_post_async(
+    messages: list,
+    model: str,
+    max_tokens: int,
+    timeout: float,
+    response_format: Optional[Dict] = None,
+) -> Optional[str]:
+    """Async variant of _openrouter_post for FastAPI endpoints."""
+    if not OPENROUTER_API_KEY:
+        logger.warning("OPENROUTER_API_KEY not set — LLM call skipped")
+        return None
+    body: Dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": 0.3,
+    }
+    if response_format:
+        body["response_format"] = response_format
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(
+                OPENROUTER_BASE_URL,
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "HTTP-Referer": "https://lotto-machine.onrender.com",
+                    "X-Title": "Alpha Terminal",
+                    "Content-Type": "application/json",
+                },
+                json=body,
+            )
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"]
+        logger.info(f"✅ OpenRouter async {model} OK ({len(content)} chars)")
+        return content
+    except Exception as e:
+        logger.error(f"💀 OpenRouter async {model} failed: {e}")
+        return None
 
 
 def call_openrouter(
@@ -58,10 +143,10 @@ def call_openrouter(
 ) -> Dict[str, Any]:
     """
     Call OpenRouter with automatic model selection by role.
-    Falls back to Groq llama-3.3-70b on any OpenRouter failure.
-    Returns: {"content": str, "model": str, "source": "openrouter"|"groq_fallback"|"error"}
+    All roles route to nvidia/nemotron-3-super-120b-a12b:free.
+    Returns: {"content": str, "model": str, "source": "openrouter"|"cache"|"error"}
     """
-    resolved_model = model or MODEL_REGISTRY.get(role, MODEL_REGISTRY["quick"])
+    resolved_model = model or MODEL_REGISTRY.get(role, NEMOTRON_MODEL)
 
     # Cache check
     if use_cache:
@@ -76,80 +161,31 @@ def call_openrouter(
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
-    # ── Try OpenRouter first ──────────────────────────────────────────────────
-    if OPENROUTER_API_KEY:
-        try:
-            resp = httpx.post(
-                OPENROUTER_BASE_URL,
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "HTTP-Referer": "https://lotto-machine.onrender.com",
-                    "X-Title": "Alpha Terminal",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": resolved_model,
-                    "messages": messages,
-                    "max_tokens": max_tokens,
-                    "temperature": 0.3,
-                },
-                timeout=timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            content = data["choices"][0]["message"]["content"]
-            result = {"content": content, "model": resolved_model, "source": "openrouter"}
-            if use_cache:
-                _cache[_cache_key(resolved_model, prompt)] = {
-                    "data": result,
-                    "expires": time.time() + _CACHE_TTL,
-                }
-            logger.info(f"✅ OpenRouter {resolved_model} OK ({len(content)} chars)")
-            return result
-        except Exception as e:
-            logger.warning(f"⚠️ OpenRouter failed ({resolved_model}): {e} — falling back to Groq")
-
-    # ── Groq fallback ─────────────────────────────────────────────────────────
-    if GROQ_API_KEY:
-        try:
-            resp = httpx.post(
-                GROQ_FALLBACK_URL,
-                headers={
-                    "Authorization": f"Bearer {GROQ_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "llama-3.3-70b-versatile",
-                    "messages": messages,
-                    "max_tokens": max_tokens,
-                    "temperature": 0.3,
-                },
-                timeout=timeout,
-            )
-            resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"]
-            logger.info(f"✅ Groq fallback OK ({len(content)} chars)")
-            return {"content": content, "model": "llama-3.3-70b-versatile", "source": "groq_fallback"}
-        except Exception as e:
-            logger.error(f"💀 Groq fallback also failed: {e}")
+    content = _openrouter_post(messages, resolved_model, max_tokens, timeout)
+    if content:
+        result = {"content": content, "model": resolved_model, "source": "openrouter"}
+        if use_cache:
+            _cache[_cache_key(resolved_model, prompt)] = {
+                "data": result,
+                "expires": time.time() + _CACHE_TTL,
+            }
+        return result
 
     return {
         "content": "",
         "model": "none",
         "source": "error",
-        "error": "All LLM backends failed",
+        "error": "OpenRouter LLM call failed",
     }
 
 
 def extract_json(content: str) -> Optional[Dict]:
     """Extract JSON from LLM response, handling markdown code blocks."""
-    # Strip markdown code fences
     content = re.sub(r"```(?:json)?\n?", "", content).strip()
     content = content.rstrip("`").strip()
     try:
         return json.loads(content)
     except Exception:
-        # Try to find first JSON object in the response
         match = re.search(r'\{.*\}', content, re.DOTALL)
         if match:
             try:

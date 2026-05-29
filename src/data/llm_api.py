@@ -78,8 +78,14 @@ DIRECTIVES:
 COMBAT PROTOCOL: Engage. Analyze. Dominate. Extract Alpha."""
 
 
-GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL_DEFAULT = "llama-3.3-70b-versatile"
+# LLM routing via OpenRouter (Nemotron 120B free)
+try:
+    from backend.app.graph.openrouter_client import _openrouter_post as _or_post, NEMOTRON_MODEL as _NEMOTRON
+except ImportError:
+    _or_post = None
+    _NEMOTRON = "nvidia/nemotron-3-super-120b-a12b:free"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+GROQ_MODEL_DEFAULT = _NEMOTRON  # backward-compat alias
 
 
 def _groq_chat(
@@ -87,47 +93,43 @@ def _groq_chat(
     max_tokens: int,
     temperature: float,
 ) -> str:
-    """OpenAI-compatible Groq chat; raises on HTTP or empty content."""
-    import requests
-
-    api_key = os.getenv("GROQ_API_KEY", "").strip()
-    if not api_key:
-        raise ValueError("GROQ_API_KEY not set")
-    model = os.getenv("GROQ_MODEL", GROQ_MODEL_DEFAULT)
-    r = requests.post(
-        GROQ_CHAT_URL,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        },
-        timeout=120,
-    )
-    r.raise_for_status()
-    data = r.json()
-    content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
-    if not content.strip():
-        raise ValueError("Empty Groq response")
+    """OpenRouter Nemotron 120B chat (replaces Groq); raises on empty content."""
+    if not OPENROUTER_API_KEY:
+        raise ValueError("OPENROUTER_API_KEY not set")
+    if _or_post:
+        content = _or_post(messages=messages, model=_NEMOTRON, max_tokens=max_tokens, timeout=120)
+    else:
+        import httpx
+        resp = httpx.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://lotto-machine.onrender.com",
+                "X-Title": "Alpha Terminal",
+                "Content-Type": "application/json",
+            },
+            json={"model": _NEMOTRON, "messages": messages, "temperature": temperature, "max_tokens": max_tokens},
+            timeout=120,
+        )
+        resp.raise_for_status()
+        content = (resp.json().get("choices") or [{}])[0].get("message", {}).get("content") or ""
+    if not content or not content.strip():
+        raise ValueError("Empty OpenRouter response")
     return content.strip()
 
 
 def query_llm_savage(query: str, level: str = "chained_pro") -> Dict[str, Any]:
     """
-    Savage financial persona via Groq (GROQ_API_KEY). Replaces legacy Gemini path.
+    Savage financial persona via OpenRouter Nemotron 120B. Replaces legacy Groq path.
 
     Levels: basic | alpha_warrior | full_savage | chained_pro (two-pass amplify).
     """
     ts = datetime.datetime.now().isoformat()
     try:
-        if not os.getenv("GROQ_API_KEY", "").strip():
-            logger.error("GROQ_API_KEY not found in environment")
+        if not OPENROUTER_API_KEY:
+            logger.error("OPENROUTER_API_KEY not found in environment")
             return {
-                "response": "Savage LLM not configured. Set GROQ_API_KEY.",
+                "response": "Savage LLM not configured. Set OPENROUTER_API_KEY.",
                 "timestamp": ts,
                 "level": level,
                 "error": "API key not configured",

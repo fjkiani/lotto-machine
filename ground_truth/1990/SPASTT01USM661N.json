@@ -1,0 +1,304 @@
+{
+  "realtime_start": "2026-03-31",
+  "realtime_end": "2026-03-31",
+  "observation_start": "1989-01-01",
+  "observation_end": "1992-12-31",
+  "units": "lin",
+  "output_type": 1,
+  "file_type": "json",
+  "order_by": "observation_date",
+  "sort_order": "asc",
+  "count": 48,
+  "offset": 0,
+  "limit": 100000,
+  "observations": [
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1989-01-01",
+      "value": "15.88492"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1989-02-01",
+      "value": "16.3478"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1989-03-01",
+      "value": "16.30056"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1989-04-01",
+      "value": "16.7725"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1989-05-01",
+      "value": "17.35978"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1989-06-01",
+      "value": "17.90099"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1989-07-01",
+      "value": "18.33109"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1989-08-01",
+      "value": "19.10661"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1989-09-01",
+      "value": "19.11225"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1989-10-01",
+      "value": "19.06244"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1989-11-01",
+      "value": "18.66268"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1989-12-01",
+      "value": "19.07521"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1990-01-01",
+      "value": "18.56648"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1990-02-01",
+      "value": "18.07759"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1990-03-01",
+      "value": "18.44583"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1990-04-01",
+      "value": "18.38141"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1990-05-01",
+      "value": "18.94923"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1990-06-01",
+      "value": "19.47706"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1990-07-01",
+      "value": "19.47469"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1990-08-01",
+      "value": "17.96866"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1990-09-01",
+      "value": "17.15432"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1990-10-01",
+      "value": "16.64209"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1990-11-01",
+      "value": "17.05451"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1990-12-01",
+      "value": "17.78271"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1991-01-01",
+      "value": "17.62213"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1991-02-01",
+      "value": "19.58308"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1991-03-01",
+      "value": "20.15921"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1991-04-01",
+      "value": "20.56992"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1991-05-01",
+      "value": "20.49271"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1991-06-01",
+      "value": "20.53056"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1991-07-01",
+      "value": "20.62734"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1991-08-01",
+      "value": "21.12646"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1991-09-01",
+      "value": "21.04894"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1991-10-01",
+      "value": "21.10341"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1991-11-01",
+      "value": "21.11836"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1991-12-01",
+      "value": "21.21873"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1992-01-01",
+      "value": "22.71159"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1992-02-01",
+      "value": "22.59063"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1992-03-01",
+      "value": "22.30278"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1992-04-01",
+      "value": "22.23713"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1992-05-01",
+      "value": "22.63905"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1992-06-01",
+      "value": "22.24978"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1992-07-01",
+      "value": "22.59568"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1992-08-01",
+      "value": "22.78407"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1992-09-01",
+      "value": "22.78987"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1992-10-01",
+      "value": "22.47702"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1992-11-01",
+      "value": "23.05813"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1992-12-01",
+      "value": "23.71526"
+    }
+  ]
+}

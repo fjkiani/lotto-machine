@@ -19,7 +19,7 @@ import logging
 import time
 import json
 import os
-import requests
+from live_monitoring.enrichment.apis._http import get_session
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Any
 
@@ -141,7 +141,7 @@ class StockgridClient:
 
         for attempt in range(self._max_retries):
             try:
-                r = requests.get(url, headers=self.HEADERS, params=params, timeout=25)
+                r = get_session().get(url, headers=self.HEADERS, params=params, timeout=25)
                 if r.status_code == 200 and "json" in r.headers.get("content-type", ""):
                     data = r.json()
                     self._write_disk_cache(disk_key, data)

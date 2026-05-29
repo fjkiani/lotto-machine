@@ -1,0 +1,304 @@
+{
+  "realtime_start": "2026-03-31",
+  "realtime_end": "2026-03-31",
+  "observation_start": "1972-01-01",
+  "observation_end": "1975-12-31",
+  "units": "lin",
+  "output_type": 1,
+  "file_type": "json",
+  "order_by": "observation_date",
+  "sort_order": "asc",
+  "count": 48,
+  "offset": 0,
+  "limit": 100000,
+  "observations": [
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1972-01-01",
+      "value": "3.51"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1972-02-01",
+      "value": "3.30"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1972-03-01",
+      "value": "3.83"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1972-04-01",
+      "value": "4.17"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1972-05-01",
+      "value": "4.27"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1972-06-01",
+      "value": "4.46"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1972-07-01",
+      "value": "4.55"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1972-08-01",
+      "value": "4.81"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1972-09-01",
+      "value": "4.87"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1972-10-01",
+      "value": "5.05"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1972-11-01",
+      "value": "5.06"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1972-12-01",
+      "value": "5.33"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1973-01-01",
+      "value": "5.94"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1973-02-01",
+      "value": "6.58"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1973-03-01",
+      "value": "7.09"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1973-04-01",
+      "value": "7.12"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1973-05-01",
+      "value": "7.84"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1973-06-01",
+      "value": "8.49"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1973-07-01",
+      "value": "10.40"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1973-08-01",
+      "value": "10.50"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1973-09-01",
+      "value": "10.78"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1973-10-01",
+      "value": "10.01"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1973-11-01",
+      "value": "10.03"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1973-12-01",
+      "value": "9.95"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1974-01-01",
+      "value": "9.65"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1974-02-01",
+      "value": "8.97"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1974-03-01",
+      "value": "9.35"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1974-04-01",
+      "value": "10.51"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1974-05-01",
+      "value": "11.31"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1974-06-01",
+      "value": "11.93"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1974-07-01",
+      "value": "12.92"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1974-08-01",
+      "value": "12.01"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1974-09-01",
+      "value": "11.34"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1974-10-01",
+      "value": "10.06"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1974-11-01",
+      "value": "9.45"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1974-12-01",
+      "value": "8.53"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1975-01-01",
+      "value": "7.13"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1975-02-01",
+      "value": "6.24"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1975-03-01",
+      "value": "5.54"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1975-04-01",
+      "value": "5.49"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1975-05-01",
+      "value": "5.22"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1975-06-01",
+      "value": "5.55"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1975-07-01",
+      "value": "6.10"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1975-08-01",
+      "value": "6.14"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1975-09-01",
+      "value": "6.24"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1975-10-01",
+      "value": "5.82"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1975-11-01",
+      "value": "5.22"
+    },
+    {
+      "realtime_start": "2026-03-31",
+      "realtime_end": "2026-03-31",
+      "date": "1975-12-01",
+      "value": "5.20"
+    }
+  ]
+}

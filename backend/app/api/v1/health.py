@@ -20,6 +20,21 @@ router = APIRouter()
 health_registry = CheckerHealthRegistry()
 
 
+@router.get("/health")
+async def api_v1_health():
+    """Liveness for probes expecting /api/v1/health (mirrors root /health shape)."""
+    try:
+        import live_monitoring.orchestrator.unified_monitor  # noqa: F401 — probe importability
+        monitor_available = True
+    except ImportError:
+        monitor_available = False
+    return {
+        "status": "healthy",
+        "monitor_available": monitor_available,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
 class CheckerHealthResponse(BaseModel):
     """Health response for a single checker"""
     name: str

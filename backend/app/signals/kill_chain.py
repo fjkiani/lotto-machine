@@ -24,7 +24,7 @@ import logging
 import os
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
@@ -32,15 +32,14 @@ logger = logging.getLogger(__name__)
 
 _kc_cache: Dict[str, Any] = {"data": None, "ts": 0}
 _kc_lock = threading.Lock()
-# 15-minute TTL — COT is weekly, GEX changes hourly. Reduce cold-start stampede risk.
-_CACHE_TTL = 900
+# 5-minute TTL — GEX/DVR must not diverge from /darkpool summary for 15+ minutes (bug 3).
+_CACHE_TTL = 300
 
 # ── Module-level client singletons — shared across ALL callers ────────────────
 # (compute_kill_chain is called from /kill-chain, /signals/master, /killchain/scan)
-# Creating a new COTClient or GEXCalculator per-call means N concurrent callers
-# each trigger an independent CFTC download + yfinance options chain fetch = OOM.
+# Creating a new COTClient per-call means N concurrent callers
+# each trigger an independent CFTC download = OOM. GEX uses `gex_canonical` singleton.
 _cot_client = None
-_gex_client = None
 _client_init_lock = threading.Lock()
 
 
@@ -53,17 +52,6 @@ def _get_cot_client():
                 from live_monitoring.enrichment.apis.cot_client import COTClient
                 _cot_client = COTClient(cache_ttl=3600)
     return _cot_client
-
-
-def _get_gex_client():
-    """Lazy singleton GEXCalculator — one options chain download shared across all callers."""
-    global _gex_client
-    if _gex_client is None:
-        with _client_init_lock:
-            if _gex_client is None:
-                from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
-                _gex_client = GEXCalculator(cache_ttl=300)
-    return _gex_client
 
 
 # 🔥 OOM FIX: BrainManager singleton — prevents fresh LLM/Tavily sessions per call
@@ -178,44 +166,6 @@ def compute_kill_chain() -> dict:
         sv_pct: float = 50.0
         current_spot: float = 0.0
 
-        # ── Brain Manager (insider / politician divergence — boosts score only) ───
-        try:
-            brain = _get_brain_manager().get_report(use_cache=True)  # 🔥 OOM FIX: singleton
-            if brain:
-                boost = brain.get("divergence_boost", 0)
-                brain_direction = str(brain.get("direction", "NEUTRAL")).upper()
-                raw["brain_boost"] = boost
-                raw["brain_direction"] = brain_direction
-                if "BEAR" in brain_direction:
-                    bearish_pts += boost
-                else:
-                    bullish_pts += boost
-        except Exception as exc:
-            raw["brain_error"] = str(exc)
-
-        # ── Politician Cluster Boost ─────────────────────────────────────────────
-        try:
-            if brain:
-                _pol_cluster = brain.get("politician_cluster", 0)
-                _pol_buys = brain.get("politician_buys", 0)
-                _pol_details = brain.get("politician_details", [])
-                _pol_tickers = [
-                    d.get("ticker") for d in _pol_details
-                    if d.get("type") == "buy" and not d.get("is_routine")
-                ]
-                raw["politician_cluster"] = _pol_cluster
-                raw["politician_tickers"] = _pol_tickers
-                if _pol_cluster >= 3 and _pol_buys > 0:
-                    bullish_pts += 2
-                    raw["politician_signal"] = f"CLUSTER_BUY: {_pol_cluster} politicians buying"
-                elif _pol_cluster >= 2 and _pol_buys > 0:
-                    bullish_pts += 1
-                    raw["politician_signal"] = f"DUAL_BUY: {_pol_cluster} politicians buying"
-                else:
-                    raw["politician_signal"] = "NONE"
-        except Exception as _exc:
-            raw["politician_error"] = str(_exc)
-
         # ── Layer 1 — COT Divergence ──────────────────────────────────────────────
         try:
             cot = _get_cot_client().get_divergence_signal("ES")
@@ -226,6 +176,11 @@ def compute_kill_chain() -> dict:
                 raw["cot_specs_net"] = es_specs
                 raw["cot_comm_net"] = comms
                 raw["cot_divergent"] = divergent
+                raw["cot_report_date"] = cot.get("report_date")
+                raw["cot_specs_long"] = cot.get("specs_long")
+                raw["cot_specs_short"] = cot.get("specs_short")
+                raw["cot_contract_name"] = cot.get("contract_name")
+                raw["cot_specs_net_definition"] = cot.get("specs_net_definition")
 
                 if divergent and es_specs < -100_000 and comms > 50_000:
                     bullish_pts += 3
@@ -270,28 +225,33 @@ def compute_kill_chain() -> dict:
 
         # ── Layer 2 — GEX Regime + Layer 3 DVR (Short-Vol) ───────────────────────
         try:
+            from backend.app.utils.gex_canonical import compute_canonical_gex
+            from backend.app.api.v1.darkpool import get_dp_short_volume_pct_for_kill_chain
             from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
 
-            gex_calc = _get_gex_client()
-            # Use SPY consistently across the stack so kill-chain, /gamma/SPY,
-            # and /brief/master share the same notional base and magnitude.
-            gex_result = gex_calc.compute_gex("SPY")
+            # Canonical GEX: same singleton + path as GET /api/v1/gamma/SPY (not SPX proxy).
+            gex_result = compute_canonical_gex("SPY")
             regime = gex_result.gamma_regime or ""
             total_gex = gex_result.total_gex
             current_spot = gex_result.spot_price or 0.0
 
-            try:
-                sg = StockgridClient()
-                sv_pct = sg.get_short_volume_pct("SPY") or 50.0
-            except Exception:
-                pass
+            # DVR: same short_volume_pct as GET /api/v1/darkpool/SPY/summary (detail + enrichment).
+            sv_pct = get_dp_short_volume_pct_for_kill_chain("SPY")
+            if sv_pct is None:
+                try:
+                    sg = StockgridClient()
+                    sv_pct = sg.get_short_volume_pct("SPY") or 50.0
+                except Exception:
+                    sv_pct = 50.0
 
             raw["gex_regime"] = regime
             raw["gex_total"] = total_gex
             raw["sv_pct"] = sv_pct
 
+            from .dvr_semantics import ACCUMULATION_CEILING_PCT, LAYER3_TRIGGER_PCT as _DVR_L3
+
             if "NEGATIVE" in regime and abs(total_gex) > 1e6:
-                if sv_pct > 55:
+                if sv_pct > _DVR_L3:
                     bearish_pts += 2
                     raw["gex_signal"] = "NEG_GEX + HIGH_SV → BEARISH AMPLIFIER"
                     signals.append({
@@ -309,16 +269,37 @@ def compute_kill_chain() -> dict:
                             "sv_pct": sv_pct
                         }
                     })
+                elif sv_pct >= ACCUMULATION_CEILING_PCT:
+                    bearish_pts += 1
+                    raw["gex_signal"] = "NEG_GEX + ELEVATED_SV → DISTRIBUTION_PRESSURE"
+                    signals.append({
+                        "id": f"gex-dist-watch-{datetime.utcnow().strftime('%Y-%m-%d')}",
+                        "source": "GEX",
+                        "type": "BEARISH",
+                        "strength": "MEDIUM",
+                        "headline": "NEGATIVE gamma with elevated off-exchange short vol",
+                        "detail": (
+                            "Short vol in upper watch band: distribution pressure, not accumulation; "
+                            "snap-back long bias is reduced until DVR clears."
+                        ),
+                        "data": {
+                            "symbol": "SPY",
+                            "spot": current_spot,
+                            "total_gex_millions": round(total_gex / 1e6, 2),
+                            "total_gex_raw": total_gex,
+                            "sv_pct": sv_pct
+                        }
+                    })
                 else:
                     bullish_pts += 1
-                    raw["gex_signal"] = "NEG_GEX + NEUTRAL_SV → SNAP_BACK_RISK"
+                    raw["gex_signal"] = "NEG_GEX + LOW_SV → SNAP_BACK_RISK"
                     signals.append({
                         "id": f"gex-snapback-{datetime.utcnow().strftime('%Y-%m-%d')}",
                         "source": "GEX",
                         "type": "BULLISH",
                         "strength": "MEDIUM",
-                        "headline": "NEGATIVE gamma but neutral short-vol",
-                        "detail": "Snap-back risk is high. Market is compressed but not panicked.",
+                        "headline": "NEGATIVE gamma with muted short-vol",
+                        "detail": "Snap-back risk elevated. Short-vol not in distribution band.",
                         "data": {
                             "symbol": "SPY",
                             "spot": current_spot,
@@ -349,10 +330,32 @@ def compute_kill_chain() -> dict:
         except Exception as exc:
             raw["gex_error"] = str(exc)
 
+        # Verdict score uses COT + GEX/DVR layers only — BrainManager must not shift inject vs CLI.
+        _pre_brain_bull = bullish_pts
+        _pre_brain_bear = bearish_pts
+
+        # ── Brain Manager (divergence — affects direction context, NOT verdict score) ─
+        try:
+            brain = _get_brain_manager().get_report(use_cache=True)
+            if brain:
+                boost = int(brain.get("divergence_boost", 0) or 0)
+                brain_direction = str(brain.get("direction", "NEUTRAL")).upper()
+                raw["brain_boost"] = boost
+                raw["brain_direction"] = brain_direction
+                if "BEAR" in brain_direction:
+                    bearish_pts += boost
+                else:
+                    bullish_pts += boost
+        except Exception as exc:
+            raw["brain_error"] = str(exc)
+
         # ── Structured layer output ──────────────────────────────────────────────
+        from .dvr_semantics import LAYER3_TRIGGER_PCT, interpret_dvr
+
         layer_1_triggered = es_specs < -50_000
         layer_2_triggered = "NEGATIVE" in regime
-        layer_3_triggered = sv_pct > 55.0
+        layer_3_triggered = sv_pct > LAYER3_TRIGGER_PCT
+        dvr_meta = interpret_dvr(sv_pct)
 
         layer_1 = {
             "name": "COT Divergence",
@@ -360,6 +363,13 @@ def compute_kill_chain() -> dict:
             "value": es_specs,
             "unit": "Specs Net",
             "signal": "CROWDED_SHORT" if layer_1_triggered else "NEUTRAL",
+            "report_date": raw.get("cot_report_date"),
+            "specs_long": raw.get("cot_specs_long"),
+            "specs_short": raw.get("cot_specs_short"),
+            "specs_net_definition": raw.get(
+                "cot_specs_net_definition",
+                "Noncommercial long minus short (CFTC legacy); compare only at matching report_date.",
+            ),
         }
         layer_2 = {
             "name": "GEX Regime",
@@ -375,7 +385,10 @@ def compute_kill_chain() -> dict:
             "triggered": layer_3_triggered,
             "value": sv_pct,
             "unit": "Short Vol %",
-            "signal": "PANIC_THRESHOLD" if layer_3_triggered else "WATCHING",
+            "signal": dvr_meta["zone"],
+            "label": dvr_meta["label"],
+            "interpretation": dvr_meta["note"],
+            "layer3_threshold_pct": LAYER3_TRIGGER_PCT,
         }
 
         # ── Layer 4 — AXLFI Wall Position ───────────────────────────────────────
@@ -515,8 +528,8 @@ def compute_kill_chain() -> dict:
         else:
             confluence = "WAITING"
 
-        # ── Final score and verdict ───────────────────────────────────────────────
-        total_score = bullish_pts + bearish_pts
+        # ── Final score and verdict (layers only — matches inject / CLI parity) ───
+        verdict_score = min(int(_pre_brain_bull + _pre_brain_bear), 10)
 
         if bullish_pts > bearish_pts + 1:
             direction = "BULLISH"
@@ -526,7 +539,7 @@ def compute_kill_chain() -> dict:
             direction = "MIXED"
 
         from .verdict_utils import compute_verdict
-        verdict, _, _ = compute_verdict(total_score)
+        verdict, _, _ = compute_verdict(verdict_score)
 
         # ── Position / P&L state ─────────────────────────────────────────────────
         state = _load_state()
@@ -561,7 +574,7 @@ def compute_kill_chain() -> dict:
 
         # ── Final result ──────────────────────────────────────────────────────────
         result = {
-            "score": total_score,
+            "score": verdict_score,
             "verdict": verdict,
             "direction": direction,
             "confluence": confluence,
@@ -580,9 +593,69 @@ def compute_kill_chain() -> dict:
             "signals": signals,
             "layers": raw,
             "errors": any("error" in k for k in raw),
+            "computed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "verdict_score_layers_only": verdict_score,
+            "total_points_with_brain": min(int(bullish_pts + bearish_pts), 10),
         }
+
+        # ── Macro overlay (geopolitical / oil) ───────────────────────────────────
+        try:
+            from live_monitoring.enrichment.apis.macro_overlay import MacroOverlay
+
+            overlay = MacroOverlay().get_current_overlay()
+        except Exception as exc:
+            logger.warning("MacroOverlay failed: %s", exc)
+            overlay = {
+                "war_status": 1,
+                "veto_longs": False,
+                "veto_reason": "",
+                "macro_regime": "REFLATION",
+                "oil_wti": None,
+            }
+
+        result["layer_macro"] = {
+            "name": "Macro Overlay",
+            "triggered": bool(overlay.get("veto_longs")),
+            "value": int(overlay.get("war_status") or 0),
+            "unit": "War Status / 10",
+            "signal": str(overlay.get("macro_regime") or ""),
+            "veto_longs": bool(overlay.get("veto_longs")),
+            "veto_reason": str(overlay.get("veto_reason") or ""),
+            "oil_wti": overlay.get("oil_wti"),
+            "oil_wti_source": overlay.get("oil_wti_source"),
+        }
+        if overlay.get("veto_longs"):
+            result["verdict"] = "WAR_VETO"
+            result["score"] = min(max(int(result.get("score") or 0), 8), 10)
+            result["direction"] = "BEARISH"
+            result["armed"] = True
+            oil_src = str(overlay.get("oil_wti_source") or "unknown")
+            result["war_veto_transparency"] = {
+                "source": "macro_overlay",
+                "war_status": int(overlay.get("war_status") or 0),
+                "oil_wti": overlay.get("oil_wti"),
+                "oil_wti_source": oil_src,
+                "manual_oil_warning": oil_src == "manual",
+                "veto_reason": str(overlay.get("veto_reason") or ""),
+            }
+        else:
+            result["score"] = min(int(result.get("score") or 0), 10)
+
+        try:
+            from backend.app.signals.canonical_state import persist_from_kill_chain
+
+            persist_from_kill_chain(result, raw)
+        except Exception as exc:
+            logger.warning("canonical_state persist failed: %s", exc)
 
         _kc_cache["data"] = result
         _kc_cache["ts"] = time.time()
+        if os.getenv("KILL_CHAIN_SCORE_DEBUG"):
+            # Grep-friendly seal: grep -E 'PRE_INJECT|POST_INJECT' api.log
+            logger.info(
+                "PRE_INJECT_SCORE: %s %s",
+                result.get("score"),
+                result.get("verdict"),
+            )
         return result
 

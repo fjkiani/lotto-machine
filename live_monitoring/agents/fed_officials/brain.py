@@ -31,17 +31,22 @@ class FedOfficialsBrain:
       - Divergence boost + reasons ready for signal_generator
     """
 
+    # Phase 1 — The Leak Killers: max size for _seen_urls insertion-order eviction
+    _SEEN_URLS_MAX = 500
+
     def __init__(self, db=None):
-        # Reuse existing DB or create fresh connection
+        # Reuse existing DB or create fresh connection — store path only, no persistent conn
         if db is None:
             from live_monitoring.agents.fed_officials.database import FedOfficialsDatabase
             self.db = FedOfficialsDatabase()
-            self._conn = sqlite3.connect(self.db.db_path)
+            self._db_path = str(self.db.db_path)
         elif hasattr(db, 'db_path'):
             self.db = db
-            self._conn = sqlite3.connect(db.db_path)
+            self._db_path = str(db.db_path)
         else:
-            self._conn = db  # raw connection
+            # raw connection passed in — extract path and close it; we'll open per-call
+            self._db_path = db.execute("PRAGMA database_list").fetchone()[2]
+            db.close()
             self.db = None
 
         # ⚡ Zeta Cache Control
@@ -50,7 +55,9 @@ class FedOfficialsBrain:
         self._cache_ttl = timedelta(minutes=15)
 
         self.diffbot_token = os.getenv("DIFFBOT_TOKEN")
-        self._seen_urls = set()
+        # Phase 1 fix 1.4: bounded set + insertion-order list for eviction
+        self._seen_urls: set = set()
+        self._seen_urls_order: list = []
 
         # Finnhub client for insider MSPR + news enrichment
         try:
@@ -88,6 +95,25 @@ class FedOfficialsBrain:
         except ImportError:
             self.sentiment = None
 
+
+    def _get_conn(self):
+        """
+        Per-call SQLite connection context manager.
+
+        Phase 1 fix 1.2a — The Leak Killers:
+        Replaces the persistent self._conn that was opened in __init__ and
+        never closed, leaking one file descriptor every ~30 seconds.
+
+        Usage:
+            with self._get_conn() as conn:
+                cursor = conn.cursor()
+                cursor.execute(...)
+        """
+        import contextlib
+        conn = sqlite3.connect(self._db_path, timeout=15, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        return contextlib.closing(conn)
+
     # ── Fed Speeches ─────────────────────────────────────────────────────────
 
     def scan_fed_speeches(self, hours: int = 24) -> List[Dict]:
@@ -98,9 +124,10 @@ class FedOfficialsBrain:
         # Persistent dedup: check DB for existing hashes, not just RAM
         existing_hashes = set()
         try:
-            cursor = self._conn.cursor()
-            cursor.execute("SELECT url FROM comments WHERE url IS NOT NULL")
-            existing_hashes = {row[0] for row in cursor.fetchall()}
+            with self._get_conn() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT url FROM comments WHERE url IS NOT NULL")
+                existing_hashes = {row[0] for row in cursor.fetchall()}
         except Exception:
             pass  # Table might not exist yet — normal on first run
 
@@ -111,7 +138,13 @@ class FedOfficialsBrain:
 
         results = []
         for item in new_items:
-            self._seen_urls.add(item.link)
+            # Phase 1 fix 1.4: bounded _seen_urls — evict oldest when cap exceeded
+            if item.link not in self._seen_urls:
+                self._seen_urls.add(item.link)
+                self._seen_urls_order.append(item.link)
+                if len(self._seen_urls) > self._SEEN_URLS_MAX:
+                    oldest = self._seen_urls_order.pop(0)
+                    self._seen_urls.discard(oldest)
             speech = self._diffbot_extract(item.link)
             if speech and speech.get("full_text"):
                 # Parse speaker from title: "Bowman, Liquidity Resiliency..." → "Bowman"
@@ -147,20 +180,21 @@ class FedOfficialsBrain:
         """If DB has no recent trades, trigger the scrapers to populate.
         Self-healing: brain doesn't depend on external cron to have data."""
         try:
-            cursor = self._conn.cursor()
+            with self._get_conn() as conn:
+                cursor = conn.cursor()
 
-            # Check if politician_trades has any recent rows
-            cursor.execute("""
-                SELECT COUNT(*) FROM politician_trades
-                WHERE created_at >= datetime('now', '-1 days')
-            """)
-            pol_count = cursor.fetchone()[0]
+                # Check if politician_trades has any recent rows
+                cursor.execute("""
+                    SELECT COUNT(*) FROM politician_trades
+                    WHERE created_at >= datetime('now', '-1 days')
+                """)
+                pol_count = cursor.fetchone()[0]
 
-            cursor.execute("""
-                SELECT COUNT(*) FROM insider_trades
-                WHERE created_at >= datetime('now', '-1 days')
-            """)
-            ins_count = cursor.fetchone()[0]
+                cursor.execute("""
+                    SELECT COUNT(*) FROM insider_trades
+                    WHERE created_at >= datetime('now', '-1 days')
+                """)
+                ins_count = cursor.fetchone()[0]
 
             if pol_count > 0 and ins_count > 0:
                 logger.debug(f"DB has fresh data: {pol_count} pol trades, {ins_count} insider trades")
@@ -194,16 +228,17 @@ class FedOfficialsBrain:
         Returns a set of (politician_name, ticker, transaction_type) tuples that are routine."""
         routine_keys = set()
         try:
-            cursor = self._conn.cursor()
-            cursor.execute("""
-                SELECT politician_name, ticker, transaction_type, COUNT(*) as cnt
-                FROM politician_trades
-                GROUP BY politician_name, ticker, transaction_type
-                HAVING cnt >= 3
-            """)
-            for row in cursor.fetchall():
-                routine_keys.add((row[0], row[1], row[2]))
-                logger.info(f"DRIP filter: {row[0]} {row[1]} {row[2]} flagged ROUTINE ({row[3]} occurrences)")
+            with self._get_conn() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT politician_name, ticker, transaction_type, COUNT(*) as cnt
+                    FROM politician_trades
+                    GROUP BY politician_name, ticker, transaction_type
+                    HAVING cnt >= 3
+                """)
+                for row in cursor.fetchall():
+                    routine_keys.add((row[0], row[1], row[2]))
+                    logger.info(f"DRIP filter: {row[0]} {row[1]} {row[2]} flagged ROUTINE ({row[3]} occurrences)")
         except sqlite3.OperationalError:
             pass
         return routine_keys
@@ -212,36 +247,36 @@ class FedOfficialsBrain:
 
     def scan_hidden_hands(self, days: int = 7) -> Dict:
         """Exploit the live pipes we already opened. Direct SQL on populated tables."""
-        cursor = self._conn.cursor()
-
         # Detect routine/DRIP trades before processing
         routine_keys = self._detect_routine_trades()
 
         # Politician trades — table may not exist on fresh Render deploy
         pol_rows = []
-        try:
-            cursor.execute("""
-                SELECT politician_name, ticker, transaction_type, trade_size, trade_date, owner
-                FROM politician_trades
-                WHERE created_at >= datetime('now', ? || ' days')
-                ORDER BY created_at DESC LIMIT 20
-            """, (f"-{days}",))
-            pol_rows = cursor.fetchall()
-        except sqlite3.OperationalError as e:
-            logger.warning(f"politician_trades query failed (table may not exist): {e}")
-
-        # Insider trades — same resilience
         ins_rows = []
-        try:
-            cursor.execute("""
-                SELECT executive_name, company, ticker, transaction_type, trade_value_usd, trade_date
-                FROM insider_trades
-                WHERE created_at >= datetime('now', ? || ' days')
-                ORDER BY created_at DESC LIMIT 20
-            """, (f"-{days}",))
-            ins_rows = cursor.fetchall()
-        except sqlite3.OperationalError as e:
-            logger.warning(f"insider_trades query failed (table may not exist): {e}")
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("""
+                    SELECT politician_name, ticker, transaction_type, trade_size, trade_date, owner
+                    FROM politician_trades
+                    WHERE created_at >= datetime('now', ? || ' days')
+                    ORDER BY created_at DESC LIMIT 20
+                """, (f"-{days}",))
+                pol_rows = cursor.fetchall()
+            except sqlite3.OperationalError as e:
+                logger.warning(f"politician_trades query failed (table may not exist): {e}")
+
+            # Insider trades — same resilience
+            try:
+                cursor.execute("""
+                    SELECT executive_name, company, ticker, transaction_type, trade_value_usd, trade_date
+                    FROM insider_trades
+                    WHERE created_at >= datetime('now', ? || ' days')
+                    ORDER BY created_at DESC LIMIT 20
+                """, (f"-{days}",))
+                ins_rows = cursor.fetchall()
+            except sqlite3.OperationalError as e:
+                logger.warning(f"insider_trades query failed (table may not exist): {e}")
 
         # Compute net insider buying
         insider_buys = sum(
@@ -469,15 +504,16 @@ class FedOfficialsBrain:
     def _get_spouse_alerts(self) -> List[Dict]:
         """Surface spouse trade alerts from DB. Queries the `owner` column."""
         try:
-            cursor = self._conn.cursor()
-            cursor.execute("""
-                SELECT politician_name, ticker, transaction_type, trade_size, trade_date, owner
-                FROM politician_trades
-                WHERE LOWER(owner) = 'spouse'
-                   OR LOWER(owner) = 'joint'
-                ORDER BY created_at DESC LIMIT 10
-            """)
-            rows = cursor.fetchall()
+            with self._get_conn() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT politician_name, ticker, transaction_type, trade_size, trade_date, owner
+                    FROM politician_trades
+                    WHERE LOWER(owner) = 'spouse'
+                       OR LOWER(owner) = 'joint'
+                    ORDER BY created_at DESC LIMIT 10
+                """)
+                rows = cursor.fetchall()
             return [
                 {
                     "politician": r[0], "ticker": r[1], "type": r[2],

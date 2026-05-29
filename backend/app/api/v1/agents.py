@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL_DEFAULT = "llama-3.3-70b-versatile"
+# LLM routing via OpenRouter (Nemotron 120B free)
+from backend.app.graph.openrouter_client import _openrouter_post_async, NEMOTRON_MODEL
 
 # Agent registry
 _agents = {}
@@ -45,9 +45,9 @@ async def signal_brief(payload: Optional[Dict[str, Any]] = Body(default=None)):
     """
     Tactical signal briefing via Groq (server-side key). Replaces browser Gemini calls.
     """
-    api_key = os.getenv("GROQ_API_KEY", "").strip()
-    if not api_key:
-        raise HTTPException(503, detail="GROQ_API_KEY not configured")
+    from backend.app.graph.openrouter_client import OPENROUTER_API_KEY
+    if not OPENROUTER_API_KEY:
+        raise HTTPException(503, detail="OPENROUTER_API_KEY not configured")
 
     tickers = payload.get("tickers")
     if isinstance(tickers, list):
@@ -68,37 +68,22 @@ async def signal_brief(payload: Optional[Dict[str, Any]] = Body(default=None)):
         "Analyze the signal: order flow / gamma / positioning context, risks, and catalysts. "
         "Concise bullets; no grounding URLs required."
     )
-    model = os.getenv("GROQ_MODEL", GROQ_MODEL_DEFAULT)
-    groq_body = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_block},
-        ],
-        "temperature": 0.35,
-        "max_tokens": 900,
-    }
+    model = NEMOTRON_MODEL
     try:
-        async with httpx.AsyncClient(timeout=45.0) as client:
-            resp = await client.post(
-                GROQ_CHAT_URL,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=groq_body,
-            )
-        resp.raise_for_status()
-        raw = resp.json()
-        text = (raw.get("choices") or [{}])[0].get("message", {}).get("content") or ""
-        if not text.strip():
-            raise ValueError("empty Groq content")
+        text = await _openrouter_post_async(
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_block},
+            ],
+            model=model,
+            max_tokens=900,
+            timeout=45.0,
+        )
+        if not text or not text.strip():
+            raise ValueError("empty OpenRouter content")
         return {"analysis": text.strip(), "model": model, "timestamp": datetime.now().isoformat()}
-    except httpx.HTTPStatusError as e:
-        logger.error("signal-brief Groq HTTP error: %s", e)
-        raise HTTPException(502, detail=f"Groq error: {e.response.status_code}") from e
     except Exception as e:
-        logger.error("signal-brief failed: %s", e)
+        logger.error("signal-brief OpenRouter failed: %s", e)
         raise HTTPException(502, detail=str(e)) from e
 
 

@@ -1,0 +1,665 @@
+# Kill Chain & Economic Probes — Raw Outputs (2026-04-02)
+
+This file records **verbatim command output** from the nine probes and the five architecture context blocks, plus **ARTIFACT — Live HTTP verification pass (2026-04-02)** at the end (measured curls, two-signal `/signals` body, **GEX split-brain** parse from `/api/v1/killchain/scan`, oracle POST). No substitute for re-running commands on your machine.
+
+---
+
+## PROBE 1 — Live `GET /api/v1/signals` (complete raw JSON)
+
+**Command:** `curl -sS -m 60 http://127.0.0.1:8015/api/v1/signals`
+
+**Note:** Backend must be this repo’s app (e.g. `uvicorn backend.app.main:app --port 8015`). Port 8000 may be a different service.
+
+**Raw body (single line as returned):**
+
+```json
+{"signals":[{"id":"dp_trend_SPY_2026-04-01","symbol":"SPY","type":"darkpool_trend","action":"LONG","confidence":63.3,"entry_price":655.24,"entry_note":"Entry valid within $650.65–$658.52 range. Above $658.52 — wait for pullback.","stop_price":650.65,"target_price":665.07,"risk_reward":2.1,"reasoning":["Regime Tier 2: longs permitted","DP 5d trend: 55,226,066 → 58,071,856 block position (AXLFI) (5.2% accumulation)","Price 5d: $645.09 → $655.24 (+1.6%)","Divergence: NO — DP and price aligned","GEX: POSITIVE (+279,345), gamma_flip=6825, max_pain=6800","Option floor: put_wall $650.0, call_wall $670.0","Confluence: LONG @ velocity 5.2% → confidence 63.3%"],"reasoning_chain":["Regime Tier 2: longs permitted","DP 5d trend: 55,226,066 → 58,071,856 block position (AXLFI) (5.2% accumulation)","Price 5d: $645.09 → $655.24 (+1.6%)","Divergence: NO — DP and price aligned","GEX: POSITIVE (+279,345), gamma_flip=6825, max_pain=6800","Option floor: put_wall $650.0, call_wall $670.0","Confluence: LONG @ velocity 5.2% → confidence 63.3%"],"invalidation_conditions":["DP trend reverses (velocity drops below 5%)","Regime upgrades to Tier 3+","Price breaks below put_wall $650.0"],"dp_trend_velocity":5.2,"key_levels":{"call_wall":670.0,"put_wall":650.0,"poc":670.0,"gamma_flip":6825.0,"max_pain":6800.0},"gex":{"net_gex":279345.2288512188,"gamma_regime":"POSITIVE","gamma_flip":6825.0,"max_pain":6800.0,"top_wall":6575.0},"warnings":[],"timestamp":"2026-04-01T23:12:47.421332","signal_generated_at":"2026-04-01 16:00 ET (end-of-day)","source":"DarkPoolTrend","is_master":false,"regime_tier":2}],"count":1,"master_count":0,"regime_tier":2,"timestamp":"2026-04-02T03:12:57.557569"}
+```
+
+**Observation:** Top-level keys are `signals`, `count`, `master_count`, `regime_tier`, `timestamp`. There are **no** top-level `layer_1`, `layer_2`, `layer_3`, `score`, or `verdict` on this endpoint response.
+
+### Same machine — `GET /api/v1/signals/master` (raw JSON, later request)
+
+```json
+{"signals":[{"id":"dp_trend_SPY_2026-04-01","symbol":"SPY","type":"darkpool_trend","action":"LONG","confidence":63,"entry_price":655.24,"entry_note":"Entry valid within $650.65–$658.52 range. Above $658.52 — wait for pullback.","stop_price":650.65,"target_price":665.07,"risk_reward":2.1,"reasoning":["Regime Tier 2: longs permitted","DP 5d trend: 55,226,066 → 58,071,856 block position (AXLFI) (5.2% accumulation)","Price 5d: $645.09 → $655.24 (+1.6%)","Divergence: NO — DP and price aligned","GEX: POSITIVE (+84,520), gamma_flip=6890, max_pain=6800","Option floor: put_wall $650.0, call_wall $670.0","Confluence: LONG @ velocity 5.2% → confidence 63.3%"],"reasoning_chain":["Regime Tier 2: longs permitted","DP 5d trend: 55,226,066 → 58,071,856 block position (AXLFI) (5.2% accumulation)","Price 5d: $645.09 → $655.24 (+1.6%)","Divergence: NO — DP and price aligned","GEX: POSITIVE (+84,520), gamma_flip=6890, max_pain=6800","Option floor: put_wall $650.0, call_wall $670.0","Confluence: LONG @ velocity 5.2% → confidence 63.3%"],"invalidation_conditions":["DP trend reverses (velocity drops below 5%)","Regime upgrades to Tier 3+","Price breaks below put_wall $650.0"],"dp_trend_velocity":5.2,"key_levels":{"call_wall":670.0,"put_wall":650.0,"poc":670.0,"gamma_flip":6890.0,"max_pain":6800.0},"gex":{"net_gex":84519.81824117868,"gamma_regime":"POSITIVE","gamma_flip":6890.0,"max_pain":6800.0,"top_wall":6575.0},"warnings":[],"timestamp":"2026-04-01T23:18:53.083500","signal_generated_at":"2026-04-01 16:00 ET (end-of-day)","source":"DarkPoolTrend","is_master":false,"regime_tier":2,"kill_chain_verdict":"NEUTRAL","kill_chain_score":7,"kill_chain_direction":"BULLISH","macro_regime":"NEUTRAL"}],"count":1,"master_count":0,"regime_tier":2,"timestamp":"2026-04-02T03:18:54.543590"}
+```
+
+**Observation:** Each signal gains `kill_chain_verdict`, `kill_chain_score`, `kill_chain_direction`, `macro_regime` — still **no** `layer_1` / `layer_2` / `layer_3` nested objects on the signal.
+
+---
+
+## PROBE 2 — `live_monitoring/data/kill_chain/kill_chain_state.json` (exact file contents)
+
+Captured read-only at probe time:
+
+```json
+{
+  "triple_active": true,
+  "last_check": "2026-04-02T03:12:57.756980",
+  "spy_price": 655.24,
+  "position": {
+    "entry_price": 650.73,
+    "activated_at": "2026-03-31T20:47:12.173449",
+    "current_pnl": 0.69
+  }
+}
+```
+
+---
+
+## PROBE 3 — `grep` wiring + which kill chain `/api/v1/signals` uses
+
+### Command A
+
+```text
+backend/app//signals/kill_chain.py:39:# (compute_kill_chain is called from /kill-chain, /signals/master, /killchain/scan)
+backend/app//signals/__init__.py:6:    from backend.app.signals.kill_chain import compute_kill_chain
+backend/app//api/v1/signals.py:35:from backend.app.signals.kill_chain import compute_kill_chain
+backend/app//api/v1/signals.py:700:        from backend.app.signals.kill_chain import compute_kill_chain
+backend/app//api/v1/killchain.py:41:            from live_monitoring.enrichment.apis.kill_chain_engine import KillChainEngine
+backend/app//api/v1/killchain.py:87:            from backend.app.signals.kill_chain import compute_kill_chain
+backend/app//api/v1/brief/fetchers/core.py:172:    fetch_kill_chain_from_shared to avoid duplicate yfinance downloads (~80MB each)."""
+backend/app//api/v1/brief/fetchers/core.py:292:            from live_monitoring.enrichment.apis.kill_chain_engine import KillChainEngine
+backend/app//api/v1/brief/fetchers/kc_mismatch_lite.py:9:Called from core.build_kill_chain() with shared data.
+backend/app//api/v1/brief/router.py:12:FedWatch), then Wave 2 builds derived layers (derivatives, kill_chain) from
+backend/app//api/v1/brief/router.py:134:    Wave 2: build_derivatives + build_kill_chain (from shared data, sync)
+backend/app//main.py:100:    from backend.app.signals.kill_chain import compute_kill_chain
+backend/app//main.py:475:        from live_monitoring.kill_chain_logger import get_kill_chain_signals
+```
+
+### Command B (`backend/app/api/`)
+
+```text
+backend/app/api//v1/signals.py:35:from backend.app.signals.kill_chain import compute_kill_chain
+backend/app/api//v1/signals.py:163:def _inject_kill_chain(signals: List[dict], kc: dict) -> List[dict]:
+backend/app/api//v1/signals.py:205:        sig["kill_chain_verdict"] = verdict
+backend/app/api//v1/signals.py:206:        sig["kill_chain_score"] = score
+backend/app/api//v1/signals.py:207:        sig["kill_chain_direction"] = kc_direction
+backend/app/api//v1/signals.py:369:        kc = _safe_fetch("KillChain", lambda: compute_kill_chain(), timeout=KC_TIMEOUT, default=None)
+backend/app/api//v1/signals.py:371:            all_signals = _inject_kill_chain(all_signals, kc)
+backend/app/api//v1/signals.py:697:async def get_kill_chain_signals():
+backend/app/api//v1/signals.py:700:        from backend.app.signals.kill_chain import compute_kill_chain
+backend/app/api//v1/signals.py:701:        kc = compute_kill_chain()
+... (truncated — full grep in repo; killchain.py and brief also reference both systems)
+```
+
+**Answer (wiring):**
+
+- **Exact import:** `from backend.app.signals.kill_chain import compute_kill_chain` — `backend/app/api/v1/signals.py` line 35.
+- **Exact call in `get_signals` path:** `kc = _safe_fetch("KillChain", lambda: compute_kill_chain(), timeout=KC_TIMEOUT, default=None)` then `all_signals = _inject_kill_chain(all_signals, kc)`.
+
+`KillChainEngine` is imported in `killchain.py` and parts of `brief/fetchers/core.py`, **not** as the scorer inside `get_signals`.
+
+---
+
+## PROBE 4 — `Signals.tsx` / kill chain response keys
+
+**File:** `frontend/src/pages/Signals.tsx`
+
+This page does **not** destructure the `/api/v1/signals` JSON at all. It loads **history** and **scorecard** via `signalsApi.getHistory()` / `getScorecard()`, and delegates **active** signals to `<SignalsCenter />`.
+
+**Relevant lines (no `layer_1` / `layer_2` / `layer_3`):**
+
+```tsx
+  const loadHistory = async () => {
+    try {
+      const data = (await signalsApi.getHistory()) as { alerts: AlertHistoryItem[] };
+      setHistory(data?.alerts || []);
+```
+
+```tsx
+      {activeTab === 'active' && <SignalsCenter />}
+```
+
+**`SignalsCenter.tsx`** loads signals via:
+
+```tsx
+      const [allRes, masterRes] = await Promise.allSettled([
+        signalsApi.getAll() as Promise<SignalResponse>,
+        signalsApi.getMaster() as Promise<SignalResponse>
+      ]);
+```
+
+`SignalResponse` only types `signals`, `count`, `master_count`, `timestamp`, `regime_tier`, etc. **`SignalData`** in `SignalSlug.tsx` does **not** include `layer_1` / `layer_2` / `layer_3`. **`SignalsCenter.tsx`** contains **no** `kill_chain` or `layer_1` string matches.
+
+**Kill-chain layers in the UI** are consumed by **`KillChainDashboard.tsx`** (and types in `killchain/types.ts`), which expect `layer_1` on a **kill-chain monitor** payload, not on the signals list response shape described in PROBE 1.
+
+---
+
+## PROBE 5 — `adp_prediction` / `gdp_nowcast` in `TodaysBrief.tsx` and `MasterBriefPanels.tsx`
+
+**`rg adp_prediction|gdp_nowcast` in both files:** **no matches**.
+
+Confirmed explicitly: neither file references those keys by those names.
+
+---
+
+## PROBE 6 — `adp_predictor.py` consensus
+
+There is **no** `BASE_CONSENSUS` symbol. Hardcoded fallback and consensus fetchers include:
+
+```python
+    _FALLBACK_CONSENSUS = 40_000
+```
+
+```python
+    def _fetch_consensus_te_calendar(self) -> Optional[int]:
+        """Primary: TE US calendar monthly ADP (exclude Weekly rows)."""
+```
+
+There is **no** method named `_get_consensus()` on `ADPPredictor`. Consensus is resolved via `_fetch_consensus_te_calendar`, `_fetch_consensus_forexfactory`, etc. (see full file `live_monitoring/enrichment/apis/adp_predictor.py`).
+
+---
+
+## PROBE 7 — `compute_kill_chain` vs `KillChainEngine().evaluate()`
+
+### 7a — stderr + stdout (as run)
+
+Stderr included logger noise from BrainManager / Finnhub / Diffbot during the run; **not** a Python traceback.
+
+JSON **stdout** (`compute_kill_chain`):
+
+```json
+{
+  "score": 4,
+  "verdict": "SOFT_VETO",
+  "direction": "BULLISH",
+  "confluence": "DOUBLE",
+  "triggered_count": 2,
+  "armed": true,
+  "bullish_points": 3,
+  "bearish_points": 1,
+  "layer_1": {
+    "name": "COT Divergence",
+    "triggered": true,
+    "value": -80891,
+    "unit": "Specs Net",
+    "signal": "CROWDED_SHORT"
+  },
+  "layer_2": {
+    "name": "GEX Regime",
+    "triggered": true,
+    "value": -0.397,
+    "unit": "GEX $M",
+    "raw_value": -397281.97164800036,
+    "symbol": "SPY",
+    "signal": "NEGATIVE"
+  },
+  "layer_3": {
+    "name": "DVR",
+    "triggered": false,
+    "value": 50.0,
+    "unit": "Short Vol %",
+    "signal": "WATCHING"
+  },
+  "position": {
+    "entry_price": 650.73,
+    "activated_at": "2026-03-31T20:47:12.173449",
+    "current_pnl": 0.69
+  },
+  "signals": [
+    {
+      "id": "cot-spec-short-2026-04-02",
+      "source": "COT",
+      "type": "BEARISH",
+      "strength": "MEDIUM",
+      "headline": "Specs net short -80,891 contracts",
+      "detail": "Spec trap loaded — squeeze fuel if market rallies, but currently bearish.",
+      "data": {
+        "spec_net": -80891,
+        "side": "SHORT"
+      }
+    }
+  ],
+  "layers": {
+    "brain_boost": 3,
+    "brain_direction": "NEUTRAL",
+    "cot_specs_net": -80891,
+    "cot_comm_net": -3321,
+    "cot_divergent": false,
+    "cot_signal": "SPEC_SHORTS_NO_DIVERGENCE → BEARISH",
+    "gex_regime": "NEGATIVE",
+    "gex_total": -397281.97164800036,
+    "sv_pct": 50.0,
+    "gex_signal": "NEUTRAL"
+  },
+  "errors": false
+}
+```
+
+### 7b — full traceback
+
+```text
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+    result = KillChainEngine().evaluate()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'KillChainEngine' object has no attribute 'evaluate'
+```
+
+**Note:** `KillChainEngine` exposes `run_full_scan()`, not `evaluate()`.
+
+---
+
+## PROBE 8 — `EconomicCalendar.get_week_events()`
+
+**Full traceback:**
+
+```text
+Traceback (most recent call last):
+  File "<string>", line 2, in <module>
+    from live_monitoring.enrichment.apis.economic_calendar import EconomicCalendar
+ModuleNotFoundError: No module named 'live_monitoring.enrichment.apis.economic_calendar'
+```
+
+---
+
+## PROBE 9 — `iran|geopolitical|hormuz|macro_override` (ripgrep, repo)
+
+Representative matches (not exhaustive; `hormuz` and `macro_override` had **no** matches in `*.py,*.ts,*.tsx`):
+
+```text
+./backend/app/signals/geo_scorer.py
+9:    Computes Geopolitical risk (Oil spikes, NewsAPI terror/war headlines).
+
+./live_monitoring/enrichment/models/enriched_signal.py
+65:    type: str  # "ECONOMIC", "EARNINGS", "GEOPOLITICAL"
+
+./live_monitoring/enrichment/trump_intelligence.py
+34:    GEOPOLITICAL = "geopolitical"
+112-118: russia/putin/ukraine/iran/israel/nato keyword map
+250-252: geopolitical_escalation scenario
+569: "Military options on the table for Iran, says Trump"
+
+./live_monitoring/agents/trump_playbook.py
+245: "SPY": "Mild negative if geopolitical"
+
+./live_monitoring/agents/trump_collector_agent.py
+61: iran/iranian
+87-88: war/military → geopolitical
+```
+
+**`hormuz`:** no results.
+
+**`macro_override`:** no results.
+
+---
+
+## Context Block 1 — Architecture
+
+There are two kill chain implementations. `backend/app/signals/kill_chain.py` is the **active scorer** wired into `/api/v1/signals` (via `compute_kill_chain`). `live_monitoring/enrichment/apis/kill_chain_engine.py` is the **5-layer engine** used by **`GET /api/v1/killchain/scan`** and parts of brief construction — **not** the same as “called by nothing” (it is called from `killchain.py` and brief fetchers). **Fixes to signal modifier behavior** belong in `compute_kill_chain` + `signals.py` injection; **fixes to 5-layer scan** belong in the engine/registry.
+
+## Context Block 2 — The Gap
+
+The **signals list endpoint** returns **trade signals** + optional **injected** `kill_chain_verdict` / `score` / `direction` on each item (`/signals/master`), **not** the full `layer_1/2/3` object tree. The **compute_kill_chain** dict **does** include `layer_1`, `layer_2`, `layer_3`. UI that only binds to `/api/v1/signals` without master injection or a dedicated KC endpoint will **not** show layers unless those fields are added to the API or the UI calls `/kill-chain` / `KillChainDashboard` path.
+
+## Context Block 3 — Stated “Current Live Values”
+
+Treat as **hypothesis / narrative** unless re-verified on your session: numbers in that block may drift from PROBE outputs (e.g. specs net −80,891 vs −113,057). **PROBE 2** shows `entry_price` **650.73** (not `$0.00`) for this workspace snapshot.
+
+## Context Block 4 — Economic Layer
+
+ADP / GDPNow may exist in `/api/v1/brief/master`; **PROBE 5** confirms `TodaysBrief.tsx` and `MasterBriefPanels.tsx` do not reference `adp_prediction` / `gdp_nowcast` by key name — any rendering would need explicit components/hooks.
+
+## Context Block 5 — Missing Layer
+
+No `iran_geopolitical.py` surfaced in probes; **PROBE 9** shows `iran` / `geopolitical` strings in trump/enrichment code, **not** a dedicated Hormuz override module. `hormuz` / `macro_override` strings were **absent** in code search.
+
+---
+
+## Stress tests ST-1 — ST-6 — **executed** (raw CLI output)
+
+**Environment:** Backend `API_LIGHT_MODE=1` on `http://127.0.0.1:8015` (verified `GET /api/v1/health` → 200). Commands run from machine; **not** rewritten from memory.
+
+### ST-1 — `/api/llm/analyze` (exact user message to Groq)
+
+**Commands:**
+
+```bash
+curl -sS -m 10 -w "\nHTTP %{http_code}\n" -X POST "http://127.0.0.1:8015/api/llm/analyze" -H "Content-Type: application/json" -d '{}'
+curl -sS -m 10 -w "\nHTTP %{http_code}\n" -X POST "http://127.0.0.1:8015/api/v1/llm/analyze" -H "Content-Type: application/json" -d '{}'
+```
+
+**Actual output:**
+
+```text
+{"detail":"Not Found"}
+HTTP 404
+{"detail":"Not Found"}
+HTTP 404
+```
+
+**Result:** No route serves `/api/llm/analyze` or `/api/v1/llm/analyze`. There is **no** rendered “user message string” from that endpoint — it does not exist. Groq in this repo is invoked from **`POST /api/v1/oracle/analyze`** (see ST-1b proxy below), which builds a different prompt via `_build_kc_prompt` / `_build_fallback_prompt`, not the Task-4 SPX/GEX template unless implemented there.
+
+**ST-1b proxy — `POST /api/v1/oracle/analyze` (live, proves Groq path exists):**
+
+```bash
+curl -sS -m 30 -w "\nHTTP %{http_code}\n" -X POST "http://127.0.0.1:8015/api/v1/oracle/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"ST proxy","action":"LONG","slug":"st-run","kill_chain_snapshot":{"score":5,"verdict":"NEUTRAL","direction":"MIXED","confluence":"DOUBLE","triggered_count":2,"armed":false,"bullish_points":3,"bearish_points":2,"spy_spot":655.24,"layers":[]}}'
+```
+
+**Actual body (single line):**
+
+```json
+{"analysis":"{\n  \"think\": \"Analyzing the clicked signal 'ST proxy' in the context of a NEUTRAL verdict and MIXED direction, with a confluence of DOUBLE and a score of 5.0. The bullish points outweigh the bearish points by 1, indicating a slight inclination towards a bullish trend. The SPY spot is at $655.24, and 2 out of 0 layers are triggered, suggesting an inconsistency in the system checks and activations that needs to be addressed.\",\n   \"audit\": \"The current market state is a powder keg, with the potential for a blood bath if the bullish trend does not materialize. The slight bullish inclination could incinerate bearish positions if not managed properly, making it crucial to navigate this mixed direction with precision.\",\n   \"strategy\": {\n      \"name\": \"ST Proxy Scalp\",\n      \"trigger\": \"Layer 1 activation with a bullish bias\",\n      \"target\": \"SPY $662.50\"\n   },\n   \"agent_instructions\": \"```python\\n# Define the trading logic based on the ST proxy signal\\ndef trade_st_proxy(spy_spot, bullish_bias):\\n    if bullish_bias and spy_spot > 650:\\n        # Execute a long position with a target of $662.50\\n        print('Executing long position')\\n    else:\\n        # Maintain a neutral position or close existing trades\\n        print('Maintaining neutral position')\\n\\n# Example usage\\nspy_spot = 655.24\\nbullish_bias = True\\ntrade_st_proxy(spy_spot, bullish_bias)\\n```\",\n   \"risk_level\": \"YELLOW\",\n   \"confidence\": 82\n}","error":false,"mode":"kill_chain"}
+```
+
+`HTTP 200`
+
+---
+
+### ST-2 — `/api/v1/signals` after analyze
+
+**Command:**
+
+```bash
+curl -sS -m 45 -w "\nHTTP %{http_code}\n" "http://127.0.0.1:8015/api/v1/signals"
+```
+
+**Actual output (full JSON + HTTP line):**
+
+```json
+{"signals":[{"id":"dp_trend_SPY_2026-04-01","symbol":"SPY","type":"darkpool_trend","action":"LONG","confidence":63,"entry_price":655.24,"entry_note":"Entry valid within $650.65–$658.52 range. Above $658.52 — wait for pullback.","stop_price":650.65,"target_price":665.07,"risk_reward":2.1,"reasoning":["Regime Tier 2: longs permitted","DP 5d trend: 55,226,066 → 58,071,856 block position (AXLFI) (5.2% accumulation)","Price 5d: $645.09 → $655.24 (+1.6%)","Divergence: NO — DP and price aligned","GEX: POSITIVE (+84,520), gamma_flip=6890, max_pain=6800","Option floor: put_wall $650.0, call_wall $670.0","Confluence: LONG @ velocity 5.2% → confidence 63.3%"],"reasoning_chain":["Regime Tier 2: longs permitted","DP 5d trend: 55,226,066 → 58,071,856 block position (AXLFI) (5.2% accumulation)","Price 5d: $645.09 → $655.24 (+1.6%)","Divergence: NO — DP and price aligned","GEX: POSITIVE (+84,520), gamma_flip=6890, max_pain=6800","Option floor: put_wall $650.0, call_wall $670.0","Confluence: LONG @ velocity 5.2% → confidence 63.3%"],"invalidation_conditions":["DP trend reverses (velocity drops below 5%)","Regime upgrades to Tier 3+","Price breaks below put_wall $650.0"],"dp_trend_velocity":5.2,"key_levels":{"call_wall":670.0,"put_wall":650.0,"poc":670.0,"gamma_flip":6890.0,"max_pain":6800.0},"gex":{"net_gex":84519.81824117868,"gamma_regime":"POSITIVE","gamma_flip":6890.0,"max_pain":6800.0,"top_wall":6575.0},"warnings":[],"timestamp":"2026-04-01T23:22:12.743796","signal_generated_at":"2026-04-01 16:00 ET (end-of-day)","source":"DarkPoolTrend","is_master":false,"regime_tier":2,"kill_chain_verdict":"NEUTRAL","kill_chain_score":7,"kill_chain_direction":"BULLISH","macro_regime":"NEUTRAL"},{"id":"alert_745","symbol":"SPY","type":"economic_release","action":"WATCH","confidence":50,"entry_price":655.239990234375,"stop_price":648.69,"target_price":661.79,"risk_reward":1.0,"reasoning":["📊 ECON DATA: Initial Jobless Claims","Actual: 210000.0 | Previous: 205000.0 | Change: +2.44%"],"warnings":[],"timestamp":"2026-03-31T14:36:14.247304","source":"AlertDB:fred_capture","is_master":false,"technical_context":{"trigger_source":"alert_monitor","time_horizon":"intraday","levels":{"entry":655.239990234375,"target":661.79,"stop":648.69,"target_pct":"-1.0%","stop_pct":"+1.0%"},"risk_profile":{"risk_reward":1.0,"max_loss_pct":1.0,"position_size_pct":1.0},"embed_fields":[]},"regime_tier":2,"kill_chain_verdict":"NEUTRAL","kill_chain_score":7,"kill_chain_direction":"BULLISH","macro_regime":"NEUTRAL"}],"count":2,"master_count":0,"regime_tier":2,"timestamp":"2026-04-02T03:22:22.029517"}
+```
+
+`HTTP 200`
+
+**Result:** **No** signal has `"source":"ORACLE"`. Closest second signal is `AlertDB:fred_capture`. **`is_primary`** does not appear on any object (spec field not implemented in this response).
+
+---
+
+### ST-3 — SQL `market_snapshots`
+
+**Check `.env`:**
+
+```text
+no DATABASE in .env
+```
+
+**Command:**
+
+```bash
+psql -d postgres -c "SELECT id, captured_at, spx_price, zo_directive, confluence_state FROM market_snapshots ORDER BY captured_at DESC LIMIT 3;"
+```
+
+**Actual output:**
+
+```text
+psql: error: connection to server on socket "/tmp/.s.PGSQL.5432" failed: No such file or directory
+	Is the server running locally and accepting connections on that socket?
+```
+
+**Result:** **Zero rows** — not because the table is empty; **Postgres is not reachable** on default socket and no `DATABASE_URL` / `POSTGRES*` in `.env`. Scheduler/DB **not verifiable** from this host as configured.
+
+---
+
+### ST-4 — `/api/llm/trend`
+
+**Commands:**
+
+```bash
+curl -sS -m 10 -w "\nHTTP %{http_code}\n" "http://127.0.0.1:8015/api/llm/trend"
+curl -sS -m 10 -w "\nHTTP %{http_code}\n" "http://127.0.0.1:8015/api/v1/llm/trend"
+```
+
+**Actual output:**
+
+```text
+{"detail":"Not Found"}
+HTTP 404
+{"detail":"Not Found"}
+HTTP 404
+```
+
+**Result:** Route **not implemented**; no `current`/`previous`/`drift_direction` JSON to show.
+
+---
+
+### ST-5 — Staleness + `GET /api/snapshots?limit=1`
+
+**Commands:**
+
+```bash
+curl -sS -m 10 -w "\nHTTP %{http_code}\n" "http://127.0.0.1:8015/api/snapshots?limit=1"
+curl -sS -m 10 -w "\nHTTP %{http_code}\n" "http://127.0.0.1:8015/api/v1/snapshots?limit=1"
+```
+
+**Actual output:**
+
+```text
+{"detail":"Not Found"}
+HTTP 404
+{"detail":"Not Found"}
+HTTP 404
+```
+
+**Result:** Cannot observe `zo_directive` or `[STALE — ZO REFRESH REQUIRED]` — **endpoints missing**.
+
+---
+
+### ST-6 — ORACLE signal `is_primary` when conviction ≥ 7
+
+**Blocked:** No ORACLE signal in `/api/v1/signals` (ST-2). Oracle HTTP response exposes LLM `confidence` inside nested JSON string in `analysis`, not a top-level `conviction` field aligned with feed injection.
+
+**Result:** **`is_primary` on ORACLE signal — not testable** until ORACLE signals are appended to `/api/v1/signals` and field exists.
+
+---
+
+**Re-run commands** (from repo root):
+
+```bash
+curl -sS http://127.0.0.1:8015/api/v1/signals
+PYTHONPATH=$(pwd) python3 -c "from backend.app.signals.kill_chain import compute_kill_chain; import json; print(json.dumps(compute_kill_chain(), indent=2, default=str))"
+```
+
+---
+
+## Stress tests ST-1 — ST-6 — **re-run after DVR semantics patch** (2026-03-31)
+
+**Environment:** Fresh uvicorn with current repo code: `API_LIGHT_MODE=1`, `http://127.0.0.1:8016` (8015 may still be an older process).
+
+**Code shipped this cycle:** `backend/app/signals/dvr_semantics.py`; `kill_chain.py` (DVR zones, NEG_GEX + 50–55% branch = distribution pressure not snap-back long); `darkpool.py` (`dvr_zone`, `dvr_interpretation`, …); `cot_client.py` (audit fields on `get_divergence_signal`).
+
+### ST-1 — `/api/llm/analyze`
+
+```bash
+curl -sS -m 10 -w "\nHTTP %{http_code}\n" -X POST "http://127.0.0.1:8016/api/llm/analyze" -H "Content-Type: application/json" -d '{}'
+```
+
+**Actual output:**
+
+```text
+{"detail":"Not Found"}
+HTTP 404
+```
+
+**ST-1b** — `POST /api/v1/oracle/analyze` (full `kill_chain_snapshot`) → **HTTP 200**, nested JSON in `analysis` with `confidence`, `risk_level`, etc. (same shape as prior probe; not duplicated here full-body to save space).
+
+### ST-2 — `/api/v1/signals`
+
+**Actual (parsed):**
+
+```text
+count 1
+oracle []
+sources ['DarkPoolTrend']
+```
+
+**Result:** Still **no** `source: "ORACLE"` after oracle analyze.
+
+### ST-3 — `market_snapshots`
+
+**Actual:**
+
+```text
+psql: error: connection to server on socket "/tmp/.s.PGSQL.5432" failed: No such file or directory
+```
+
+### ST-4 — `/api/llm/trend`
+
+```text
+{"detail":"Not Found"}
+HTTP 404
+```
+
+### ST-5 — `/api/snapshots`
+
+```text
+{"detail":"Not Found"}
+HTTP 404
+```
+
+### ST-6 — ORACLE `is_primary`
+
+**Blocked:** ST-2 unchanged.
+
+### Local proof — `compute_kill_chain()` layer audit (COT + DVR, no hardcoded marks)
+
+```json
+{
+  "layer_1": {
+    "name": "COT Divergence",
+    "triggered": true,
+    "value": -80891,
+    "unit": "Specs Net",
+    "signal": "CROWDED_SHORT",
+    "report_date": "2026-03-24",
+    "specs_long": 214137,
+    "specs_short": 295028,
+    "specs_net_definition": "Noncommercial (managed money) long minus short, CFTC legacy futures; verify same report_date and contract row when comparing to external COT screenshots."
+  },
+  "layer_3": {
+    "name": "DVR",
+    "triggered": false,
+    "value": 50.0,
+    "unit": "Short Vol %",
+    "signal": "DISTRIBUTION_WATCH",
+    "label": "BORDERLINE_PRE_LAYER3",
+    "interpretation": "Short vol 50.00% in watch band [50, 55) — heavy off-exchange short vs demand; not institutional absorption; approaching layer 3.",
+    "layer3_threshold_pct": 55.0
+  }
+}
+```
+
+### Local proof — `GET /api/v1/darkpool/SPY/summary` (8016, excerpt)
+
+`short_volume_pct` from live feed; DVR fields derived from that value only:
+
+```json
+"short_volume_pct": 57.0,
+
+"dvr_zone": "PANIC_THRESHOLD",
+"dvr_label": "LAYER3_ARMED",
+"dvr_layer3_triggered": true,
+"dvr_interpretation": "Short vol 57.00% above 55% — Kill Chain layer 3 triggered (distribution / capitulation band per DVR rules)."
+```
+
+**Completion verdict:** **6/6 manager stress criteria remain NOT MET** (404 LLM/trend/snapshots, no Postgres, no ORACLE on `/signals`). **DVR interpretation discrepancy** (e.g. 54.4% labeled bullish absorption) is **addressed in this repo** via shared semantics; **COT −344k vs −80k** is explained operationally by **report_date + long/short breakdown** in API output for apples-to-apples checks — numbers are **not** hardcoded.
+
+---
+
+## ARTIFACT — Live HTTP verification pass (2026-04-02)
+
+**Who / when:** Cursor agent re-ran curls against **`http://127.0.0.1:8015`** (repo `uvicorn`, same host as prior probes). **Purpose:** prove endpoints respond with **measured HTTP + wall time**, and record **GEX cross-endpoint inconsistency** (not memory-only).
+
+**Health**
+
+```bash
+curl -sS -m 3 -w "HTTP %{http_code} %{time_total}s\n" -o /dev/null http://127.0.0.1:8015/api/v1/health
+```
+
+```text
+HTTP 200 0.003919s
+```
+
+**Summary table (same session)**
+
+| Endpoint | HTTP | Wall time (representative) | Notes |
+|----------|------|----------------------------|--------|
+| `GET /api/v1/health` | 200 | ~4 ms | — |
+| `GET /api/v1/signals` | 200 | **0.01–12.3 s** (varies with upstream) | **`count`: 2, `master_count`: 0**; sources **`DarkPoolTrend`**, **`AlertDB:fred_capture`** |
+| `GET /kill-chain` | 200 | ~3–5 ms (cached) / ~2.7 s | Root monitor JSON; **`kill_chain.layer_2`** **NEGATIVE**, **`raw_value`** **−397281.97** |
+| `GET /api/v1/killchain/scan` | 200 | ~2.5–4.8 s | **`alert_level`:** GREEN, **`layers_active`:** 5 — see **split-brain GEX** below |
+| `GET /api/v1/gamma/SPY` | 200 | ~0.55 s | **`total_gex`** **−397281.97**, **`current_regime`:** **NEGATIVE**, **`current_price`:** 655.24 |
+| `GET /api/v1/darkpool/SPY/summary` | 200 | ~0.42 s | **`short_volume_pct`:** 57.0, **`net_short_dollars`:** ~2.26e9 |
+| `POST /api/v1/oracle/analyze` | 200 | ~1.2 s | Body: `{"title":"PROBE","slug":"artifact"}` → **`error`: false, `mode`: fallback** (Groq path); `analysis` is LLM JSON string |
+
+---
+
+### Raw body — `GET /api/v1/signals` (2026-04-02, two-signal response)
+
+**Command:** `curl -sS -m 60 http://127.0.0.1:8015/api/v1/signals`
+
+```json
+{"signals":[{"id":"dp_trend_SPY_2026-04-01","symbol":"SPY","type":"darkpool_trend","action":"LONG","confidence":63.3,"entry_price":655.24,"entry_note":"Entry valid within $650.65–$658.52 range. Above $658.52 — wait for pullback.","stop_price":650.65,"target_price":665.07,"risk_reward":2.1,"reasoning":["Regime Tier 2: longs permitted","DP 5d trend: 55,226,066 → 58,071,856 block position (AXLFI) (5.2% accumulation)","Price 5d: $645.09 → $655.24 (+1.6%)","Divergence: NO — DP and price aligned","GEX: POSITIVE (+297,827), gamma_flip=6825, max_pain=6800","Option floor: put_wall $650.0, call_wall $670.0","Confluence: LONG @ velocity 5.2% → confidence 63.3%"],"reasoning_chain":["Regime Tier 2: longs permitted","DP 5d trend: 55,226,066 → 58,071,856 block position (AXLFI) (5.2% accumulation)","Price 5d: $645.09 → $655.24 (+1.6%)","Divergence: NO — DP and price aligned","GEX: POSITIVE (+297,827), gamma_flip=6825, max_pain=6800","Option floor: put_wall $650.0, call_wall $670.0","Confluence: LONG @ velocity 5.2% → confidence 63.3%"],"invalidation_conditions":["DP trend reverses (velocity drops below 5%)","Regime upgrades to Tier 3+","Price breaks below put_wall $650.0"],"dp_trend_velocity":5.2,"key_levels":{"call_wall":670.0,"put_wall":650.0,"poc":670.0,"gamma_flip":6825.0,"max_pain":6800.0},"gex":{"net_gex":297827.1377450592,"gamma_regime":"POSITIVE","gamma_flip":6825.0,"max_pain":6800.0,"top_wall":6575.0},"warnings":[],"timestamp":"2026-04-01T23:42:17.718944","signal_generated_at":"2026-04-01 16:00 ET (end-of-day)","source":"DarkPoolTrend","is_master":false,"regime_tier":2},{"id":"alert_745","symbol":"SPY","type":"economic_release","action":"WATCH","confidence":50,"entry_price":655.239990234375,"stop_price":648.69,"target_price":661.79,"risk_reward":1.0,"reasoning":["📊 ECON DATA: Initial Jobless Claims","Actual: 210000.0 | Previous: 205000.0 | Change: +2.44%"],"warnings":[],"timestamp":"2026-03-31T14:36:14.247304","source":"AlertDB:fred_capture","is_master":false,"technical_context":{"trigger_source":"alert_monitor","time_horizon":"intraday","levels":{"entry":655.239990234375,"target":661.79,"stop":648.69,"target_pct":"-1.0%","stop_pct":"+1.0%"},"risk_profile":{"risk_reward":1.0,"max_loss_pct":1.0,"position_size_pct":1.0},"embed_fields":[]},"regime_tier":2}],"count":2,"master_count":0,"regime_tier":2,"timestamp":"2026-04-02T03:42:27.915510"}
+```
+
+**Observation:** DarkPoolTrend signal embeds **`gex.gamma_regime`:** **POSITIVE** and **`net_gex`:** **297827** — same order of magnitude as **SPX-style** GEX in **`/api/v1/killchain/scan`** `layers.gex`, **not** the **SPY** GEX from **`/api/v1/gamma/SPY`**.
+
+---
+
+### ARTIFACT — GEX split-brain in **one** `GET /api/v1/killchain/scan` response
+
+**Command:**
+
+```bash
+curl -sS -m 90 http://127.0.0.1:8015/api/v1/killchain/scan | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+lg=(d.get('layers') or {}).get('gex') or {}
+c2=(d.get('core_3layer') or {}).get('layer_2') or {}
+print('layers.gex total_gex', lg.get('total_gex'), 'gamma_regime', lg.get('gamma_regime'))
+print('core_3layer.layer_2 raw_value', c2.get('raw_value'), 'signal', c2.get('signal'))
+print('alert_level', d.get('alert_level'), 'layers_active', d.get('layers_active'))
+"
+```
+
+**Actual output:**
+
+```text
+layers.gex total_gex 297827.1377450592 gamma_regime POSITIVE
+core_3layer.layer_2 raw_value -397281.97164800036 signal NEGATIVE
+alert_level GREEN layers_active 5
+```
+
+**Cross-check same session:**
+
+| Source | `total_gex` / net | Regime |
+|--------|-------------------|--------|
+| `GET /api/v1/gamma/SPY` | **−397281.97** | **NEGATIVE** |
+| `GET /kill-chain` → `kill_chain.layer_2` | **−397281.97** (raw) | **NEGATIVE** |
+| `GET /api/v1/killchain/scan` → `layers.gex` | **+297827.14** | **POSITIVE** |
+| `GET /api/v1/killchain/scan` → `core_3layer.layer_2` | **−397281.97** | **NEGATIVE** |
+| `GET /api/v1/signals` → DarkPoolTrend `gex` | **+297827.14** | **POSITIVE** |
+
+**Verdict for builders:** Single canonical GEX (symbol + chain + units) must feed **5-layer narrative**, **3-layer parity**, **`/gamma/{symbol}`**, and **DarkPoolTrend** reasoning — or UI and signals will **contradict** on regime.
+
+---
+
+### ARTIFACT — `POST /api/v1/oracle/analyze` (minimal body)
+
+**Command:**
+
+```bash
+curl -sS -m 35 -X POST http://127.0.0.1:8015/api/v1/oracle/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"title":"PROBE","slug":"artifact"}'
+```
+
+**Shape (abridged):** `{"analysis":"<stringified JSON from Groq>","error":false,"mode":"fallback"}` — **`analysis`** is a **string** containing nested `think` / `audit` / `strategy` / `agent_instructions` / `risk_level` / `confidence` per server prompt. Content varies per model call; **HTTP 200** confirms uplink + route.
+
+**Typo trap (recorded):** `POST .../api/v1/oralyze/analyze` → **HTTP 404** (`{"detail":"Not Found"}`).
+
+---
+
+### Re-run (copy-paste)
+
+```bash
+BASE=http://127.0.0.1:8015
+curl -sS -m 3 -w "\nhealth %{http_code} %{time_total}s\n" -o /dev/null "$BASE/api/v1/health"
+curl -sS -m 60 "$BASE/api/v1/signals" | python3 -c "import json,sys;d=json.load(sys.stdin);print(d['count'],d['master_count'],sorted({s.get('source')for s in d.get('signals',[])}))"
+curl -sS -m 90 "$BASE/api/v1/killchain/scan" | python3 -c "import json,sys;d=json.load(sys.stdin);print('layers.gex',d['layers']['gex']['total_gex'],d['layers']['gex']['gamma_regime']);print('core3 L2',d['core_3layer']['layer_2']['raw_value'],d['core_3layer']['layer_2']['signal'])"
+curl -sS -m 20 "$BASE/api/v1/gamma/SPY" | python3 -c "import json,sys;d=json.load(sys.stdin);print(d['total_gex'],d['current_regime'])"
+curl -sS -m 35 -X POST "$BASE/api/v1/oracle/analyze" -H "Content-Type: application/json" -d '{"title":"PROBE","slug":"rerun"}' | python3 -c "import json,sys;d=json.load(sys.stdin);print(d.get('error'),d.get('mode'))"
+```

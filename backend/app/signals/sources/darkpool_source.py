@@ -12,26 +12,10 @@ Signal logic:
 Author: Zo (no hardcoding, no tiered confidence, no fake data)
 """
 import logging
-import threading
 from datetime import datetime
 from typing import List
 
 logger = logging.getLogger(__name__)
-
-# Module-level GEXCalculator singleton — shared across all fetch_darkpool_signals calls
-_gex_calc = None
-_gex_lock = threading.Lock()
-
-
-def _get_gex():
-    global _gex_calc
-    if _gex_calc is None:
-        with _gex_lock:
-            if _gex_calc is None:
-                from live_monitoring.enrichment.apis.gex_calculator import GEXCalculator
-                _gex_calc = GEXCalculator(cache_ttl=300)
-    return _gex_calc
-
 
 def fetch_darkpool_signals(symbol: str = "SPY", regime_tier: int = 1) -> List[dict]:
     """Generate signals from 5-day dark pool position trend.
@@ -102,32 +86,30 @@ def fetch_darkpool_signals(symbol: str = "SPY", regime_tier: int = 1) -> List[di
         except Exception as wall_exc:
             logger.debug(f"Option walls unavailable: {wall_exc}")
 
-        # ── GEX Layer 2 — gamma regime from CBOE ──────────────────────────
+        # ── GEX Layer 2 — prefer last compute_kill_chain snapshot (stamped) else live canonical
         gex_data = {}
         try:
-            gex_calc = _get_gex()
-            gex_ticker = "SPX" if symbol in ("SPY", "SPX") else symbol
-            gex_result = gex_calc.compute_gex(gex_ticker)
-            gex_data = {
-                "net_gex": gex_result.total_gex,
-                "gamma_regime": gex_result.gamma_regime,
-                "gamma_flip": gex_result.gamma_flip,
-                "max_pain": gex_result.max_pain,
-                "top_wall": gex_result.gamma_walls[0].strike if gex_result.gamma_walls else None,
-            }
-            if gex_result.gamma_flip and gex_result.gamma_flip != 0.0:
-                key_levels["gamma_flip"] = gex_result.gamma_flip
-            key_levels["max_pain"] = gex_result.max_pain
+            from backend.app.signals.canonical_state import get_stamped_gex_for_symbol
+            from backend.app.utils.gex_canonical import canonical_gex_as_dict
 
-            # GEX modifies confidence
-            if gex_result.gamma_regime == "NEGATIVE" and direction == "SHORT":
+            gex_symbol = symbol if symbol in ("SPY", "QQQ", "IWM") else "SPY"
+            gex_data = get_stamped_gex_for_symbol(gex_symbol, max_age_sec=600) or canonical_gex_as_dict(
+                gex_symbol
+            )
+            gf = gex_data.get("gamma_flip")
+            mp = gex_data.get("max_pain")
+            if gf and gf != 0.0:
+                key_levels["gamma_flip"] = gf
+            key_levels["max_pain"] = mp
+
+            regime = gex_data.get("gamma_regime") or ""
+            if regime == "NEGATIVE" and direction == "SHORT":
                 base_confidence = min(base_confidence + 5, 95)
-            elif gex_result.gamma_regime == "POSITIVE" and direction == "LONG":
+            elif regime == "POSITIVE" and direction == "LONG":
                 base_confidence = min(base_confidence + 3, 95)
 
-            # Warn if gamma_flip is 0 (uncomputed)
-            if gex_result.gamma_flip == 0.0:
-                logger.warning(f"GEX gamma_flip is 0.0 for {gex_ticker} — may be uncomputed")
+            if gf == 0.0:
+                logger.warning("GEX gamma_flip is 0.0 for %s — may be uncomputed", gex_symbol)
         except Exception as gex_exc:
             logger.warning(f"GEX Layer 2 unavailable: {gex_exc}")
 
@@ -139,10 +121,14 @@ def fetch_darkpool_signals(symbol: str = "SPY", regime_tier: int = 1) -> List[di
             f"Divergence: {'YES — institutional accumulation detected' if is_divergent else 'NO — DP and price aligned'}",
         ]
         if gex_data:
-            gex_net = gex_data.get("net_gex", 0)
+            gex_net = gex_data.get("net_gex") or 0
+            gf = gex_data.get("gamma_flip")
+            mp = gex_data.get("max_pain")
+            gf_s = f"{float(gf):.0f}" if gf is not None else "—"
+            mp_s = f"{float(mp):.0f}" if mp is not None else "—"
             reasoning_chain.append(
                 f"GEX: {gex_data.get('gamma_regime', '?')} ({gex_net:+,.0f}), "
-                f"gamma_flip={gex_data.get('gamma_flip', 0):.0f}, max_pain={gex_data.get('max_pain', 0):.0f}"
+                f"gamma_flip={gf_s}, max_pain={mp_s}"
             )
         if key_levels:
             reasoning_chain.append(

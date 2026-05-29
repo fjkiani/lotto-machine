@@ -3,20 +3,21 @@
  * 
  * Manager-approved hierarchy:
  *   1. VERDICT (giant, color-coded) — first 3 words answer "trade or not?"
- *   2. One-sentence summary (the most valuable line)
- *   3. Thesis status (SPY position vs wall, plain English)
- *   4. Approved names (green cards with confidence + TA, expandable slugs)
- *   5. Blocked names (red cards with explanations)
- *   6. Data warnings (yellow banner — volume anomalies, DP sign issues)
- *   7. Index strip (SPY/QQQ/IWM with DP sparklines)
- *   8. Gate Health (bottom)
+ *   2. Kill chain reconciliation note (amber) — if morning brief contradicts live KC
+ *   3. One-sentence summary (the most valuable line)
+ *   4. Thesis status (SPY position vs wall, plain English)
+ *   5. Approved names (green cards with confidence + TA, expandable slugs)
+ *   6. Blocked names (red cards with explanations)
+ *   7. Data warnings (yellow banner — volume anomalies, DP sign issues)
+ *   8. Index strip (SPY/QQQ/IWM with DP sparklines)
+ *   9. Gate Health (bottom)
  * 
  * All rendering delegated to brief/ components.
  * All styles in brief.css.
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import '../styles/brief.css';
 
 import { VerdictBanner } from '../components/brief/VerdictBanner';
@@ -31,6 +32,7 @@ import { MasterBriefPanels } from '../components/brief/MasterBriefPanels';
 const MONITOR_URL = import.meta.env.VITE_MONITOR_URL || 
   (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '');
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '');
 
 // ── Interfaces ────────────────────────────────────────────
 
@@ -102,6 +104,9 @@ export function TodaysBrief() {
   const [gateHealthError, setGateHealthError] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
 
+  // Kill chain reconciliation
+  const [kcVerdict, setKcVerdict] = useState<string | null>(null);
+
   // Enrichment: confidence scores, TA consensus, forward returns
   const [gateSignals, setGateSignals] = useState<GateSignal[]>([]);
   const [taData, setTaData] = useState<Record<string, string>>({});
@@ -132,6 +137,19 @@ export function TodaysBrief() {
     }, 60000);
     return () => clearInterval(interval);
   }, [fetchBrief]);
+
+  // ── Kill chain reconciliation ──────────────────────────
+  useEffect(() => {
+    fetch(`${API_BASE}/kill-shots-live`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && !data.error) {
+          const rv: string = data.reconciled_verdict ?? data.verdict ?? null;
+          if (rv) setKcVerdict(rv);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Gate health ────────────────────────────────────────
   useEffect(() => {
@@ -223,11 +241,25 @@ export function TodaysBrief() {
     }
   });
 
+  // Kill chain reconciliation: show amber note if verdicts diverge
+  const showKcReconciliation = kcVerdict !== null && kcVerdict !== brief.verdict;
+
   // Lookup helpers
   function getConfidence(sym: string): number | undefined {
     const sig = gateSignals.find(s => s.ticker === sym);
     return sig?.confidence;
   }
+
+  // Format morning brief generated_at time
+  const briefTime = brief.generated_at
+    ? new Date(brief.generated_at + (brief.generated_at.endsWith('Z') ? '' : 'Z'))
+        .toLocaleTimeString('en-US', {
+          timeZone: 'America/New_York',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }) + ' ET'
+    : '7:45 AM ET';
 
   return (
     <div className="brief-container">
@@ -247,16 +279,49 @@ export function TodaysBrief() {
         wallBreachDetails={brief.wall_breach_details}
       />
 
-      {/* 1.5 UNIFIED INTELLIGENCE — Master Brief Panels */}
+      {/* 1.5 KILL CHAIN RECONCILIATION — shown only when morning brief contradicts live KC */}
+      {showKcReconciliation && (
+        <div
+          style={{
+            background: 'rgba(234,179,8,0.08)',
+            borderBottom: '1px solid rgba(234,179,8,0.25)',
+            padding: '8px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#eab308' }}>
+            ⚡ Kill chain override: morning brief says{' '}
+            <strong>{brief.verdict}</strong> ({briefTime}) · live kill chain says{' '}
+            <strong>{kcVerdict}</strong> (live).
+          </span>
+          <Link
+            to="/signal-chain"
+            style={{
+              fontSize: '10px',
+              fontFamily: 'monospace',
+              color: '#22d3ee',
+              textDecoration: 'underline',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Signal Chain shows why →
+          </Link>
+        </div>
+      )}
+
+      {/* 2. UNIFIED INTELLIGENCE — Master Brief Panels */}
       <MasterBriefPanels />
 
-      {/* 2. THESIS STATUS */}
+      {/* 3. THESIS STATUS */}
       <ThesisBar spy={brief.spy} />
 
-      {/* 3. SIGNAL PILLS */}
+      {/* 4. SIGNAL PILLS */}
       <SignalPills signals={brief.signals} />
 
-      {/* 4. APPROVED NAMES */}
+      {/* 5. APPROVED NAMES */}
       {brief.approved_tickers.length > 0 && (
         <div style={{ marginBottom: '1rem' }}>
           <div className="ticker-section__title ticker-section__title--approved">
@@ -277,7 +342,7 @@ export function TodaysBrief() {
         </div>
       )}
 
-      {/* 5. BLOCKED NAMES */}
+      {/* 6. BLOCKED NAMES */}
       {brief.blocked_tickers.length > 0 && (
         <div style={{ marginBottom: '1rem' }}>
           <div className="ticker-section__title ticker-section__title--blocked">
@@ -298,10 +363,10 @@ export function TodaysBrief() {
         </div>
       )}
 
-      {/* 6. DATA WARNINGS */}
+      {/* 7. DATA WARNINGS */}
       <DataWarnings warnings={dataWarnings} />
 
-      {/* 7. VOLUME CONTEXT (suppressed if DATA_ERROR) */}
+      {/* 8. VOLUME CONTEXT (suppressed if DATA_ERROR) */}
       {!brief.volume_profile.data_error && (
         <div className="volume-row">
           <span className="volume-row__label">Volume Profile</span>
@@ -314,25 +379,15 @@ export function TodaysBrief() {
         </div>
       )}
 
-      {/* 8. INDEX STRIP */}
+      {/* 9. INDEX STRIP */}
       <IndexStrip brief={brief} />
 
-      {/* 9. GATE HEALTH */}
+      {/* 10. GATE HEALTH */}
       <GateHealthBar gateHealth={gateHealth} gateHealthError={gateHealthError} />
 
       {/* Footer */}
       <div className="brief-footer">
-        {brief.date} · Generated {
-          brief.generated_at
-            ? new Date(brief.generated_at + (brief.generated_at.endsWith('Z') ? '' : 'Z'))
-                .toLocaleTimeString('en-US', {
-                  timeZone: 'America/New_York',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hour12: true,
-                }) + ' ET'
-            : 'Unknown'
-        }
+        {brief.date} · Generated {briefTime}
       </div>
     </div>
   );

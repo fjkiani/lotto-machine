@@ -6,6 +6,11 @@ export interface KillChainLayer {
   value: number;
   unit: string;
   signal: string;
+  /** DVR-only: machine label from backend (e.g. BORDERLINE_PRE_LAYER3) */
+  label?: string;
+  /** Human-readable interpretation line from backend */
+  interpretation?: string;
+  layer3_threshold_pct?: number;
 }
 
 export interface KillChainPosition {

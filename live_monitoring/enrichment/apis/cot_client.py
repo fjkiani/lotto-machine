@@ -355,8 +355,16 @@ class COTClient:
             "direction": direction,
             "description": desc,
             "specs_net": pos.specs_net,
+            "specs_long": pos.specs_long,
+            "specs_short": pos.specs_short,
             "comm_net": pos.comm_net,
             "report_date": pos.report_date,
+            "contract_name": pos.contract_name,
+            "open_interest": pos.open_interest,
+            "specs_net_definition": (
+                "Noncommercial (managed money) long minus short, CFTC legacy futures; "
+                "verify same report_date and contract row when comparing to external COT screenshots."
+            ),
         }
 
     # ── Narrative ────────────────────────────────────────────────────────

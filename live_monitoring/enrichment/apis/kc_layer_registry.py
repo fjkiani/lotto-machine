@@ -80,7 +80,6 @@ except ImportError:
 # 🔥 OOM FIX: Module-level singletons for COT + GEX used by LayerRegistry
 import threading as _kc_threading
 _kc_cot_singleton = None
-_kc_gex_singleton = None
 _kc_singleton_lock = _kc_threading.Lock()
 
 def _get_cot_singleton():
@@ -92,12 +91,10 @@ def _get_cot_singleton():
     return _kc_cot_singleton
 
 def _get_gex_singleton():
-    global _kc_gex_singleton
-    if _kc_gex_singleton is None:
-        with _kc_singleton_lock:
-            if _kc_gex_singleton is None:
-                _kc_gex_singleton = GEXCalculator(cache_ttl=config.CACHE_TTLS.get("GEX", 300))
-    return _kc_gex_singleton
+    """Same calculator instance as `gex_canonical` / `/api/v1/gamma` (one process-wide singleton)."""
+    from backend.app.utils.gex_canonical import get_gex_calculator_singleton
+
+    return get_gex_calculator_singleton()
 
 
 # ─── Layer Registry ────────────────────────────────────────────────────────
@@ -226,15 +223,20 @@ class LayerRegistry:
     def gex_fetcher(self):
         @self._layer_safe_fetch("gex")
         def fetch():
-            symbol = config.SYMBOLS["INDEX_FUTURES"]
-            calc = self._clients["gex"]
-            result = calc.compute_gex(symbol)
+            from backend.app.utils.gex_canonical import (
+                compute_canonical_gex,
+                canonical_gex_narrative,
+            )
+
+            symbol = config.SYMBOLS.get("GEX_UNDERLYING", "SPY")
+            result = compute_canonical_gex(symbol)
             return {
                 "spot_price": result.spot_price,
                 "total_gex": result.total_gex,
                 "gamma_regime": result.gamma_regime,
                 "gamma_flip": result.gamma_flip,
                 "max_pain": result.max_pain,
+                "gex_symbol": symbol,
                 "gamma_walls": [
                     {"strike": w.strike, "gex": w.gex, "signal": w.signal}
                     for w in result.gamma_walls[:5]
@@ -243,7 +245,7 @@ class LayerRegistry:
                     {"strike": z.strike, "gex": z.gex}
                     for z in result.negative_zones[:3]
                 ],
-                "narrative": calc.get_narrative(symbol),
+                "narrative": canonical_gex_narrative(symbol),
             }
         return fetch
 

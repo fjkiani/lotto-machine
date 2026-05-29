@@ -1,0 +1,29 @@
+{
+  "peak_sp500": 19.47706,
+  "trough_sp500": 16.64209,
+  "confirmed_drawdown_pct": -14.5554,
+  "peak_date": "1990-06-30",
+  "trough_date": "1990-10-31",
+  "duration_months": 4,
+  "oil_baseline_12m_before_peak": 17.05,
+  "oil_price_at_peak": 39.53,
+  "oil_peak_date": "1990-09-30",
+  "confirmed_oil_shock_pct": 131.8475,
+  "oil_shock_method": "harmonized_12m_pre_peak_min_to_window_peak",
+  "oil_baseline_rule": "min_12m_before_peak_month",
+  "drawdown_field_names_note": "Keys peak_sp500 / trough_sp500 are legacy names; numeric levels come from equity_drawdown_series_id (total return index or cash SP500), not always FRED SP500 cash.",
+  "period": "1990",
+  "window_start": "1989-01-01",
+  "window_end": "1992-12-31",
+  "wti_column_fred_series": "DCOILWTICO",
+  "wti_model_input": "FRED DCOILWTICO (or WTISPLC monthly pre-1986); not CME CL=F front month.",
+  "sp500_cash_column_fred_series": "SP500",
+  "equity_drawdown_series_id": "SPASTT01USM661N",
+  "sp500_cash_fred_note": "FRED SP500 daily: no observations before ~2016-04-01; `sp500` CSV column is NaN for 1973/1990 windows.",
+  "provenance": {
+    "DCOILWTICO": "FRED WTI Cushing daily; observation range begins 1986-01-02.",
+    "WTISPLC": "Monthly spot WTI used for `wti` column when DCOILWTICO has no observations in window.",
+    "SP500": "FRED S&P 500 daily \u2014 use only when observations exist in-window (2022 window).",
+    "SPASTT01USM661N": "Monthly S&P 500 total return index \u2014 used for drawdown stats in 1973/1990; also in CSV as sp_total_return_idx. Not interchangeable with Shiller price column P."
+  }
+}

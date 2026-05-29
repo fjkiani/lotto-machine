@@ -1,0 +1,186 @@
+---
+description: "Signal Chain page (/signal-chain) — full A→Z signal lineage from raw inputs to reconciled verdict. Component tree, data contracts, how to add scorers/tooltips, training pipeline handoff."
+alwaysApply: false
+---
+
+# Signal Chain Page — Production Handoff
+
+**Route:** `/signal-chain`  
+**Page file:** `frontend/src/pages/SignalChain.tsx` (3-line wrapper)  
+**All logic:** `frontend/src/components/signal-chain/SignalChainView.tsx` (615 lines, all co-located)  
+**Last updated:** 2026-05-23
+
+---
+
+## Architecture
+
+One file. All 7 sub-components co-located. No separate files per step.
+
+```
+SignalChainView (main export)
+├── ReconciledVerdictBar   — final decision + WAR_VETO warning + reconciliation reasons
+├── HistoryStrip           — Δ vs prev snapshot (SPY/COT/score/verdict)
+├── RawInputsStrip         — all live numbers with ⓘ tooltips (14 cells)
+├── ScorerPillars          — primary row (5) + secondary row (5) + PillarCard components
+├── KillChainGate          — 5 layers + macro, click-to-expand
+├── ReconciliationEngine   — divergence scorer vs kill chain → reconciled
+└── TrainButton            — JSONL snapshot append for fine-tuning
+```
+
+**Data source:** `GET /kill-shots-live` (30s poll)  
+**History source:** `GET /api/snapshots?limit=2` (on mount only)  
+**Training endpoint:** `POST /api/v1/training/snapshot`
+
+---
+
+## API Base URL Pattern
+
+```ts
+const API = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '');
+// API = base URL without /api/v1
+// Usage: fetch(`${API}/kill-shots-live`)         → correct
+// Usage: fetch(`${API}/api/v1/training/snapshot`) → correct
+// NEVER: fetch(`${API}/api/v1/api/v1/...`)        → double prefix bug
+```
+
+---
+
+## Tooltip System
+
+**18 tooltip definitions** in `TIPS` dict at top of file. Click-to-toggle (not hover). One open at a time via shared `openTip` state.
+
+### How to add a new tooltip
+
+1. Add entry to `TIPS` dict:
+```ts
+my_field: { source: 'Where this number comes from', why: 'Why it matters for the trade decision.' },
+```
+
+2. Use `<Tip id="my_field" openTip={openTip} setOpenTip={setOpenTip} />` inline next to the value.
+
+3. Add the field to `KillShotsLayers` in `frontend/src/components/widgets/kill-shots/types.ts` if it's a new layers field.
+
+---
+
+## How to Add a New Scorer Pillar
+
+The kill-shots-live endpoint runs scorers in parallel and writes results into `layers` via `res.raw`. To surface a new scorer:
+
+### Step 1 — Verify the field exists in the response
+```bash
+curl https://lotto-machine-wr6t.onrender.com/kill-shots-live | python3 -m json.tool | grep "my_scorer"
+```
+
+### Step 2 — Add to `KillShotsLayers` in `types.ts`
+```ts
+my_scorer_boost?: number;
+my_scorer_slug?: string;
+explanation_MY_SCORER?: string;
+```
+
+### Step 3 — Add to `secondaryScorers` array in `ScorerPillars`
+```ts
+{ name: 'MY_SCORER', boost: l.my_scorer_boost ?? 0, tipId: 'my_scorer_boost' },
+```
+
+### Step 4 — Add tooltip
+```ts
+my_scorer_boost: { source: 'MyScorer — data source', why: 'What this boost means for the verdict.' },
+```
+
+### Step 5 — Add PillarCard (optional, for detailed view)
+Copy `PillarCardCot.tsx` pattern. Pass `data={l}` and read your fields from it.
+
+---
+
+## Primary vs Secondary Scorers
+
+**Primary (5):** COT, GEX, BRAIN, FED/DP, COMBINED — these drive the divergence score directly.  
+**Secondary (5):** TECH, GEO, DP_TREND, OPEX, SENTIMENT — run in parallel, contribute to score, shown in dimmer row.
+
+Both rows are in `ScorerPillars`. Primary row shows `= total → verdict`. Secondary row shows individual boosts only.
+
+---
+
+## Raw Inputs Strip — All 14 Cells
+
+| Cell | Field | Source |
+|------|-------|--------|
+| SPY | `l.axlfi_spot ?? l.gex_spot_price` | CBOE AXLFI |
+| Call Wall | `l.axlfi_call_wall` | CBOE options OI |
+| Put Wall | `l.axlfi_put_wall` | CBOE options OI |
+| Pts vs Wall | `l.pts_above_call_wall` | Derived |
+| GEX Regime | `l.gex_regime` | CBOE net GEX |
+| Total GEX | `l.total_gex_dollars` | CBOE net GEX $M |
+| COT Specs | `l.cot_specs_net` | CFTC COT report |
+| QQQ SV Δ | `l.qqq_sv_delta` | Stockgrid |
+| VIX | `l.vix` | CBOE VIX |
+| RSI-14 | `l.rsi_14` | 14-period RSI on SPY |
+| WTI Oil | `l.oil_wti` | yfinance / manual |
+| KC Confluence | `kc?.confluence` | Kill chain engine |
+| DP SV% | `l.sv_pct_today` | Stockgrid (DpTrendScorer) |
+| SV Δ 2d | `l.sv_2d_delta` | Stockgrid 2-day delta |
+
+---
+
+## Kill Chain Gate — 5 Layers
+
+| Layer | Name | Trigger condition |
+|-------|------|-------------------|
+| layer_1 | COT Extreme | specs_net < -100K |
+| layer_2 | GEX Negative | gex_regime = NEGATIVE |
+| layer_3 | DVR Distribution | sv_pct > threshold |
+| layer_4 | AXLFI Call Wall | SPY above call wall |
+| layer_5 | QQQ Reshort | qqq_sv_delta > 10pp + above wall |
+| layer_macro | Macro / WAR | war_status ≥ 7 |
+
+Confluence levels: WAITING (0) → SINGLE (1) → DOUBLE (2) → TRIPLE (3) → QUAD (4+)
+
+---
+
+## History Strip
+
+Fetches `GET /api/snapshots?limit=2`. Returns `{ snapshots: SnapRow[] }`.
+
+Fields used: `captured_at`, `spy_price`, `cot_net`, `score`, `verdict`.
+
+If fewer than 2 snapshots exist, strip renders null (no error shown).
+
+---
+
+## LLM Model Reference
+
+The `brain_boost` tooltip references OpenRouter Nemotron 120B (migrated from Groq 2026-05-23).  
+All LLM calls route through `backend/app/graph/openrouter_client.py`.  
+Model: `nvidia/nemotron-3-super-120b-a12b:free`
+
+---
+
+## Known Gaps / Next Steps
+
+- [ ] `dp_trend_velocity` field in types.ts declared but not yet populated by backend (DpTrendScorer writes `sv_2d_delta` instead — use that)
+- [ ] HistoryStrip `gex_net` field: snapshots endpoint may not include this — shows `—` gracefully
+- [ ] PillarCard for DP_TREND, TECH, GEO not yet created — secondary row shows boost only
+- [ ] TrainButton: collect 50+ snapshots, then Export JSONL → fine-tune with OpenAI
+
+---
+
+## File Locations
+
+```
+frontend/src/
+  pages/SignalChain.tsx                          ← 3-line wrapper
+  components/signal-chain/SignalChainView.tsx    ← ALL logic (615 lines)
+  components/signal-chain/PillarCardCombined.tsx ← confluence rules card
+  components/widgets/kill-shots/types.ts         ← KillShotsLayers, KillChainResult, KillShotsResponse
+  components/widgets/kill-shots/PillarCardCot.tsx
+  components/widgets/kill-shots/PillarCardGex.tsx
+  components/widgets/kill-shots/PillarCardBrain.tsx
+  components/widgets/kill-shots/PillarCardFedDp.tsx
+
+backend/app/
+  main.py                                        ← GET /kill-shots-live endpoint (~line 840)
+  api/v1/training.py                             ← POST /training/snapshot, GET /training/export
+  signals/kill_chain.py                          ← compute_kill_chain()
+  signals/dp_trend_scorer.py                     ← DpTrendScorer (sv_pct_today, sv_2d_delta)
+```

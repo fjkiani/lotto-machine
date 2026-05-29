@@ -23,7 +23,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate, intraday, brief, oracle, morningstar
+from backend.app.api import llm_routes
+from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate, intraday, brief, oracle, morningstar, training
 from backend.app.core.dependencies import set_monitor_bridge
 
 logging.basicConfig(level=logging.INFO)
@@ -80,6 +81,8 @@ app.include_router(intraday.router, prefix="/api/v1", tags=["intraday"])
 app.include_router(brief.router, prefix="/api/v1", tags=["brief"])
 app.include_router(oracle.router, prefix="/api/v1", tags=["oracle"])
 app.include_router(morningstar.router, prefix="/api/v1", tags=["morningstar"])
+app.include_router(training.router, prefix="/api/v1", tags=["training"])
+app.include_router(llm_routes.router, prefix="/api", tags=["llm-aliases"])
 
 
 @app.get("/debug/git")
@@ -247,12 +250,33 @@ async def startup():
     import asyncio
     import threading
 
-    # Lightweight API mode for local diagnostics: skip background monitors/threads.
+    # Production guard: Render must never run light mode (skips all background tasks).
+    if os.getenv("RENDER") and os.getenv("API_LIGHT_MODE", "0") == "1":
+        logger.warning(
+            "⚠️ API_LIGHT_MODE=1 ignored on Render — forcing full startup "
+            "(light mode skips brain/alpha-graph/staggered threads)"
+        )
+        os.environ["API_LIGHT_MODE"] = "0"
+
+    # Lightweight API mode for local diagnostics: skip UnifiedAlphaMonitor only.
     if os.getenv("API_LIGHT_MODE", "0") == "1":
         _thread_status['monitor_run_loop'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
         _thread_status['paper_trade_scheduler'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
         _thread_status['econ_release_capture'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
-        logger.info("⚡ API_LIGHT_MODE=1 — skipping monitor/thread startup for responsive API diagnostics")
+        logger.info(
+            "⚡ API_LIGHT_MODE=1 — skipping UnifiedAlphaMonitor; "
+            "still starting brain/alpha-graph/staggered threads"
+        )
+        asyncio.create_task(_staggered_thread_launcher())
+        asyncio.create_task(_brain_polling_loop())
+        asyncio.create_task(_alpha_graph_polling_loop())
+        asyncio.create_task(_auto_snapshot_loop())
+        _port = os.getenv("PORT", "8000")
+        logger.info(
+            "📡 Local smoke: curl -sS -m 90 http://127.0.0.1:%s/api/v1/health && "
+            "scripts/smoke_signals.sh (first /signals can take 10–25s; not a 3s endpoint)",
+            _port,
+        )
         return
 
     if MONITOR_AVAILABLE:
@@ -344,7 +368,16 @@ async def startup():
     # Background alpha graph polling — runs LangGraph pipeline every 10min, caches result
     asyncio.create_task(_alpha_graph_polling_loop())
 
+    # Autonomous training snapshot capture — saves kill-shots result every 30min during market hours
+    asyncio.create_task(_auto_snapshot_loop())
 
+    _port = os.getenv("PORT", "8000")
+    logger.info(
+        "📡 Signals smoke: curl -sS -m 90 http://127.0.0.1:%s/api/v1/signals | "
+        "repo: PORT=%s ./scripts/smoke_signals.sh",
+        _port,
+        _port,
+    )
 
 
 async def _staggered_thread_launcher():
@@ -430,6 +463,125 @@ async def _staggered_thread_launcher():
 
 # ── Alpha Graph result cache (populated by background loop) ──
 _alpha_graph_cache: dict = {}  # symbol → {verdict, confidence, thesis, ...}
+_last_kill_shots_result: dict = {}  # cached for autonomous snapshot loop
+
+
+def _compute_regime(layers: dict, kill_chain_result: dict | None) -> str:
+    """
+    Compute authoritative market regime from already-fetched data in layers.
+    No new API calls — uses spy_change_pct, vix, rsi_14, kill_chain verdict.
+
+    Returns: STRONG_UPTREND | UPTREND | CHOPPY | DOWNTREND | STRONG_DOWNTREND
+    """
+    try:
+        kc_verdict = (kill_chain_result or {}).get('verdict', '')
+        vix = float(layers.get('vix') or layers.get('vix_level') or 20.0)
+        rsi = float(layers.get('rsi_14') or layers.get('tech_rsi') or 50.0)
+
+        # Derive SPY daily change from layers (gex_spot_price vs prior close proxy)
+        # Use tech scorer data if available
+        spy_chg = float(layers.get('spy_change_pct') or layers.get('tech_spy_change') or 0.0)
+
+        # WAR_VETO always = strong downtrend
+        if kc_verdict == 'WAR_VETO':
+            return 'STRONG_DOWNTREND'
+
+        # VIX spike + down move
+        if vix > 28 and spy_chg < -0.8:
+            return 'STRONG_DOWNTREND'
+        if vix > 22 and spy_chg < -0.4:
+            return 'DOWNTREND'
+        if spy_chg < -0.3 or rsi < 38:
+            return 'DOWNTREND'
+
+        # Choppy: small move + moderate VIX
+        if abs(spy_chg) < 0.15 and vix < 22:
+            return 'CHOPPY'
+
+        # Uptrend
+        if spy_chg > 0.6 and rsi > 62:
+            return 'STRONG_UPTREND'
+        if spy_chg > 0.25 or rsi > 55:
+            return 'UPTREND'
+
+        return 'CHOPPY'
+    except Exception:
+        return 'UNKNOWN'
+
+
+async def _auto_snapshot_loop():
+    """
+    Autonomous training snapshot capture — runs every 30 min during market hours.
+    Saves kill-shots-live result to training JSONL without operator action.
+
+    Market hours: 9:30am–4:00pm ET, Mon–Fri.
+    Guard: skips if last auto-snapshot was < 25 min ago (prevents duplicates).
+    """
+    import asyncio
+    from datetime import datetime, timezone, timedelta
+    import pytz
+
+    ET = pytz.timezone('America/New_York')
+    INTERVAL_MIN = 30
+
+    await asyncio.sleep(90)  # Let startup + alpha graph finish first
+    logger.info("🤖 Auto-snapshot loop started")
+
+    _last_auto_ts: datetime | None = None
+
+    while True:
+        try:
+            now_et = datetime.now(ET)
+            is_weekday = now_et.weekday() < 5
+            market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+            market_close = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+            in_market_hours = is_weekday and market_open <= now_et <= market_close
+
+            if in_market_hours:
+                # Check guard: don't save if we saved < 25 min ago
+                too_soon = (_last_auto_ts is not None and 
+                           (datetime.now(timezone.utc) - _last_auto_ts).total_seconds() < 25 * 60)
+
+                if not too_soon and _last_kill_shots_result:
+                    result = _last_kill_shots_result
+                    result_age_s = (datetime.now(timezone.utc) - 
+                                   datetime.fromisoformat(result.get('timestamp', '2000-01-01T00:00:00'))
+                                   .replace(tzinfo=timezone.utc)).total_seconds()
+
+                    # Only save if result is fresh (< 35 min old)
+                    if result_age_s < 35 * 60:
+                        try:
+                            from backend.app.api.v1.training import save_snapshot, SnapshotRequest
+                            regime = _compute_regime(result.get('layers', {}), result.get('kill_chain'))
+                            req = SnapshotRequest(
+                                payload=result,
+                                label=result.get('reconciled_verdict') or result.get('verdict') or 'UNKNOWN',
+                                note=f'Auto-captured at {now_et.strftime("%H:%M ET")}',
+                                regime=regime,
+                                symbol='SPY',
+                                confidence=float((result.get('kill_chain') or {}).get('score') or 
+                                                result.get('divergence_score') or 0),
+                                signal_type='KILL_CHAIN_AUTO',
+                                direction=(
+                                    'BLOCKED' if 'VETO' in (result.get('reconciled_verdict') or '') else
+                                    'LONG' if 'BOOST' in (result.get('reconciled_verdict') or '') else
+                                    None
+                                ),
+                                source='auto',
+                            )
+                            saved = await save_snapshot(req)
+                            _last_auto_ts = datetime.now(timezone.utc)
+                            logger.info(f"🤖 Auto-snapshot saved: {saved.get('snapshot_id')} regime={regime} label={req.label}")
+                        except Exception as snap_e:
+                            logger.warning(f"⚠️ Auto-snapshot failed: {snap_e}")
+                    else:
+                        logger.debug(f"Auto-snapshot: result too old ({result_age_s:.0f}s), skipping")
+                elif too_soon:
+                    logger.debug("Auto-snapshot: too soon since last save, skipping")
+        except Exception as loop_e:
+            logger.warning(f"Auto-snapshot loop error: {loop_e}")
+
+        await asyncio.sleep(INTERVAL_MIN * 60)
 
 # ── Module-level BrainManager singleton for polling ──
 _brain_singleton = None
@@ -457,13 +609,27 @@ async def _brain_polling_loop():
             logger.info(f"🧠 Background brain poll complete — divergence_boost={boost}")
         except Exception as e:
             logger.error(f"Brain poll failed: {e}")
-        await asyncio.sleep(900)  # 15 minutes
+        finally:
+            # OOM FIX: reclaim memory after each brain poll (Finnhub + feedparser objects)
+            import gc as _gc; _gc.collect()
+        # OOM FIX: 30min on Render (512MB), 15min elsewhere
+        _brain_interval = 1800 if os.getenv("RENDER") else 900
+        await asyncio.sleep(_brain_interval)  # 30min on Render, 15min local
 
 
 
 async def _alpha_graph_polling_loop():
-    """Background loop: runs alpha graph every 10min, caches result for /kill-shots-live."""
+    """Background loop: runs alpha graph every 10min (30min on Render), caches result for /kill-shots-live.
+
+    OOM FIX: gated behind OPENROUTER_API_KEY — if not set, the LangGraph nodes call
+    OpenRouter and fail anyway, but the enrichment fetches (yfinance×3 + StockgridClient)
+    still consume ~40-80MB per cycle. Skip entirely if no key configured.
+    """
     import asyncio
+    # OOM FIX: skip alpha graph polling if no LLM key — enrichment fetches waste memory
+    if not os.getenv("OPENROUTER_API_KEY"):
+        logger.warning("⚠️ Alpha graph polling disabled — OPENROUTER_API_KEY not set")
+        return
     await asyncio.sleep(60)  # Let startup finish first
     while True:
         try:
@@ -532,7 +698,12 @@ async def _alpha_graph_polling_loop():
             logger.info(f"Alpha graph cache updated: {result.get('verdict')} @ {result.get('confidence'):.2f}")
         except Exception as e:
             logger.warning(f"Alpha graph background poll failed: {e}")
-        await asyncio.sleep(600)  # 10 minutes
+        finally:
+            # OOM FIX: reclaim memory after each alpha graph run
+            import gc as _gc; _gc.collect()
+        # OOM FIX: 30min on Render (512MB), 10min elsewhere
+        _alpha_interval = 1800 if os.getenv("RENDER") else 600
+        await asyncio.sleep(_alpha_interval)  # 30min on Render, 10min local
 
 
 @app.get("/alpha-graph/models")
@@ -543,7 +714,7 @@ async def list_models():
         return {
             "openrouter_configured": bool(_OR_KEY),
             "model_registry": MODEL_REGISTRY,
-            "groq_fallback": bool(os.getenv("GROQ_API_KEY")),
+            "openrouter": bool(os.getenv("OPENROUTER_API_KEY")),
             "timestamp": datetime.now().isoformat(),
         }
     except Exception as e:
@@ -826,10 +997,11 @@ async def kill_shots_live():
 
         def _safe_eval(name, fn):
             """Run a scorer with timeout. Returns empty result if it hangs."""
+            from concurrent.futures import ThreadPoolExecutor
+            executor = ThreadPoolExecutor(max_workers=1)
             try:
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(fn)
-                    return future.result(timeout=SCORER_TIMEOUT)
+                future = executor.submit(fn)
+                return future.result(timeout=SCORER_TIMEOUT)
             except FuturesTimeout:
                 logger.warning(f"⏰ {name} timed out after {SCORER_TIMEOUT}s — returning empty")
                 return SignalResult(
@@ -844,6 +1016,8 @@ async def kill_shots_live():
                     boost=0, active=False, timestamp=now_iso,
                     source_date=today_str, raw={"error": str(e)}
                 )
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
 
         # Evaluate — all 5 scorers in parallel (max 8s each)
         # FED_DP and COMBINED have soft dependencies but can run with defaults
@@ -1111,17 +1285,95 @@ async def kill_shots_live():
         for key, text in explanations.items():
             layers[f"explanation_{key}"] = text
 
-        return {
+        # ── RECONCILED VERDICT (GAP 4) ─────────────────────────────────────────
+        # Synthesizes divergence verdict vs kill chain verdict into a single
+        # actionable output. Does NOT modify either source score.
+        kc_verdict = kill_chain_result.get('verdict', 'NEUTRAL') if kill_chain_result else 'NEUTRAL'
+        kc_confluence = kill_chain_result.get('confluence', 'WAITING') if kill_chain_result else 'WAITING'
+        kc_war_veto = kc_verdict == 'WAR_VETO'
+        kc_layer_macro = (kill_chain_result.get('layer_macro') or {}) if kill_chain_result else {}
+        rsi_14 = layers.get('rsi_14') or layers.get('tech_rsi')
+
+        reconciled = verdict  # start from divergence verdict
+        reconciliation_reasons = []
+
+        # Rule 1: WAR_VETO always wins — override any BOOST
+        if kc_war_veto:
+            oil_src = kc_layer_macro.get('oil_wti_source', 'unknown')
+            oil_val = kc_layer_macro.get('oil_wti')
+            war_val = kc_layer_macro.get('value', 0)
+            reconciled = 'WATCH'
+            reconciliation_reasons.append(
+                f'WAR_VETO active (war_status={war_val}/10, oil=${oil_val} src={oil_src}) — '
+                f'LONG suppressed regardless of divergence score'
+            )
+            if oil_src == 'manual':
+                reconciliation_reasons.append(
+                    'WARNING: oil_wti_source=manual — WAR_VETO driven by MANUAL_OIL_PRICE env var, '
+                    'not live feed. Verify MANUAL_OIL_PRICE is intentional before trusting veto.'
+                )
+
+        # Rule 2: RSI overbought (>70) downgrades BOOST → HOLD
+        elif rsi_14 and float(rsi_14) > 70 and reconciled == 'BOOST':
+            reconciled = 'HOLD'
+            reconciliation_reasons.append(
+                f'RSI {float(rsi_14):.1f} overbought — BOOST downgraded to HOLD'
+            )
+
+        # Rule 3: Kill chain DOUBLE or VETO → downgrade BOOST to BUY (partial confluence)
+        elif kc_confluence in ('DOUBLE', 'VETO') and reconciled == 'BOOST':
+            reconciled = 'BUY'
+            reconciliation_reasons.append(
+                f'Kill chain {kc_confluence} (need TRIPLE for full BOOST) — downgraded to BUY'
+            )
+
+        # Rule 4: Kill chain WAITING/SINGLE + divergence BOOST = conflicting signals → HOLD
+        elif kc_confluence in ('WAITING', 'SINGLE') and reconciled == 'BOOST':
+            reconciled = 'HOLD'
+            reconciliation_reasons.append(
+                f'Kill chain {kc_confluence} contradicts divergence BOOST — HOLD until confluence aligns'
+            )
+
+        if not reconciliation_reasons:
+            reconciliation_reasons.append(
+                f'Divergence {verdict} and kill chain {kc_verdict} ({kc_confluence}) aligned — no override'
+            )
+
+        war_veto_transparency = None
+        if kc_war_veto:
+            oil_src = kc_layer_macro.get('oil_wti_source', 'unknown')
+            war_veto_transparency = {
+                'source': 'macro_overlay',
+                'war_status': kc_layer_macro.get('value'),
+                'oil_wti': kc_layer_macro.get('oil_wti'),
+                'oil_wti_source': oil_src,
+                'manual_oil_warning': oil_src == 'manual',
+                'veto_reason': kc_layer_macro.get('veto_reason'),
+            }
+
+        # Compute authoritative regime and inject into response
+        regime = _compute_regime(layers, kill_chain_result)
+        layers['regime'] = regime  # also available in layers for downstream use
+
+        result_payload = {
             'divergence_score': score,
             'verdict': verdict,
+            'reconciled_verdict': reconciled,
+            'reconciliation_reasons': reconciliation_reasons,
+            'war_veto_transparency': war_veto_transparency,
             'action': action,
             'action_plan': action_plan,
             'layers': layers,
             'reasons': reasons,
             'explanations': explanations,
             'kill_chain': kill_chain_result,
+            'regime': regime,
             'timestamp': now_iso,
         }
+        # Cache for autonomous snapshot loop
+        global _last_kill_shots_result
+        _last_kill_shots_result = result_payload
+        return result_payload
     except Exception as e:
         logger.error(f"Kill Shots Live Error: {e}")
         return {"error": str(e)}

@@ -5,7 +5,12 @@ Fan-out: macro_node + flow_node + regime_node run in parallel
 Fan-in:  synthesis_node → gate_node → END
 
 Uses MemorySaver for in-process checkpointing (thread_id = run_id).
+
+OOM FIX (2026-05-23): cap checkpoint history + gc.collect after each run.
+Each run adds ~2-5MB of state to MemorySaver; after 10 runs = 20-50MB leak.
+delete_thread() cleans storage + writes + blobs — all three dicts.
 """
+import gc
 import uuid
 import time
 import logging
@@ -54,9 +59,30 @@ def _build_graph() -> StateGraph:
     return builder
 
 
-# Compile once at module load — MemorySaver keeps state in-process
+# Compile once at module load — MemorySaver keeps state in-process.
+# OOM FIX: cap to last 3 thread_ids; evict older ones to prevent unbounded growth.
+# delete_thread() is the correct API — cleans .storage, .writes, AND .blobs.
+_MAX_CHECKPOINT_THREADS = 3
 _checkpointer = MemorySaver()
 _graph = None
+_thread_ids_fifo: list = []  # FIFO eviction queue
+
+
+def _evict_old_checkpoints() -> None:
+    """Evict oldest thread_id checkpoints when queue exceeds cap.
+
+    Uses MemorySaver.delete_thread() which correctly cleans all three internal
+    dicts: storage (checkpoint data), writes (pending writes), blobs (serialized
+    channel state — the largest memory consumer).
+    """
+    global _thread_ids_fifo
+    while len(_thread_ids_fifo) > _MAX_CHECKPOINT_THREADS:
+        old_tid = _thread_ids_fifo.pop(0)
+        try:
+            _checkpointer.delete_thread(old_tid)
+            logger.debug("Evicted checkpoint thread_id=%s (storage+writes+blobs)", old_tid)
+        except Exception as _e:
+            logger.debug("Checkpoint eviction skipped for %s: %s", old_tid, _e)
 
 
 def get_graph():
@@ -98,7 +124,19 @@ def run_alpha_pipeline(
                 initial_state[k] = v
     config = {"configurable": {"thread_id": run_id}}
     graph = get_graph()
-    final_state = graph.invoke(initial_state, config=config)
+
+    # Track thread_id for eviction — append BEFORE invoke so eviction fires
+    # even if invoke raises.
+    _thread_ids_fifo.append(run_id)
+    _evict_old_checkpoints()
+
+    try:
+        final_state = graph.invoke(initial_state, config=config)
+    finally:
+        # OOM FIX: force GC after each pipeline run — LangGraph holds large intermediate
+        # dicts in node outputs; explicit collect reclaims them immediately.
+        gc.collect()
+
     elapsed = round(time.time() - initial_state["started_at"], 2)
     logger.info(
         f"✅ Alpha pipeline complete | symbol={symbol} | verdict={final_state.get('verdict')} "

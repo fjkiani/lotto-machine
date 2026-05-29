@@ -1,0 +1,157 @@
+{
+  "window": {
+    "start": "2023-01-01",
+    "end_exclusive": "2026-04-01"
+  },
+  "wti_source": "FRED DCOILWTICO",
+  "wti_note": "Regression uses FRED DCOILWTICO daily returns \u2014 not the same object as Yahoo CL=F (front-month futures). Expect level divergences vs spot series.",
+  "price_sources": {
+    "XLE": "yahoo_chart_v8_adjclose",
+    "XLY": "yahoo_chart_v8_adjclose",
+    "XLP": "yahoo_chart_v8_adjclose",
+    "XLI": "yahoo_chart_v8_adjclose",
+    "XLB": "yahoo_chart_v8_adjclose",
+    "XLF": "yahoo_chart_v8_adjclose",
+    "XLV": "yahoo_chart_v8_adjclose",
+    "XLK": "yahoo_chart_v8_adjclose",
+    "XLU": "yahoo_chart_v8_adjclose",
+    "XLRE": "yahoo_chart_v8_adjclose",
+    "XLC": "yahoo_chart_v8_adjclose",
+    "USO": "yahoo_chart_v8_adjclose",
+    "SPY": "yahoo_chart_v8_adjclose"
+  },
+  "notes": "price_sources keys are exactly the tickers used for prices (11 sector ETFs + USO + SPY). sectors object includes the same 13 names with oil_beta blocks; use_in_eps_model is False for USO/SPY (benchmarks, not GICS sectors). Betas = cov(sector_ret, WTI_ret)/var(WTI_ret) on overlapping days.",
+  "fetch_failures": {},
+  "sectors": {
+    "XLE": {
+      "oil_beta": 0.35764,
+      "r_squared": 0.313432,
+      "p_value": 1.0712173767705063e-66,
+      "n_obs": 794,
+      "label": "BENEFITS",
+      "use_in_eps_model": true,
+      "role": "gics_sector",
+      "price_source": "yahoo_chart_v8_adjclose"
+    },
+    "XLY": {
+      "oil_beta": 0.008734,
+      "r_squared": 0.000203,
+      "p_value": 0.6886893631121755,
+      "n_obs": 794,
+      "label": "STATISTICALLY_INSIGNIFICANT",
+      "use_in_eps_model": false,
+      "role": "gics_sector",
+      "price_source": "yahoo_chart_v8_adjclose"
+    },
+    "XLP": {
+      "oil_beta": -0.020921,
+      "r_squared": 0.003502,
+      "p_value": 0.09562593734316568,
+      "n_obs": 794,
+      "label": "STATISTICALLY_INSIGNIFICANT",
+      "use_in_eps_model": false,
+      "role": "gics_sector",
+      "price_source": "yahoo_chart_v8_adjclose"
+    },
+    "XLI": {
+      "oil_beta": 0.036206,
+      "r_squared": 0.00596,
+      "p_value": 0.029614031648663594,
+      "n_obs": 794,
+      "label": "BENEFITS",
+      "use_in_eps_model": true,
+      "role": "gics_sector",
+      "price_source": "yahoo_chart_v8_adjclose"
+    },
+    "XLB": {
+      "oil_beta": 0.054646,
+      "r_squared": 0.01171,
+      "p_value": 0.002262978903460722,
+      "n_obs": 794,
+      "label": "BENEFITS",
+      "use_in_eps_model": true,
+      "role": "gics_sector",
+      "price_source": "yahoo_chart_v8_adjclose"
+    },
+    "XLF": {
+      "oil_beta": 0.040947,
+      "r_squared": 0.006994,
+      "p_value": 0.018428439223138818,
+      "n_obs": 794,
+      "label": "BENEFITS",
+      "use_in_eps_model": true,
+      "role": "gics_sector",
+      "price_source": "yahoo_chart_v8_adjclose"
+    },
+    "XLV": {
+      "oil_beta": -0.02467,
+      "r_squared": 0.003857,
+      "p_value": 0.08029843811081203,
+      "n_obs": 794,
+      "label": "STATISTICALLY_INSIGNIFICANT",
+      "use_in_eps_model": false,
+      "role": "gics_sector",
+      "price_source": "yahoo_chart_v8_adjclose"
+    },
+    "XLK": {
+      "oil_beta": 0.037273,
+      "r_squared": 0.003049,
+      "p_value": 0.120005669907493,
+      "n_obs": 794,
+      "label": "STATISTICALLY_INSIGNIFICANT",
+      "use_in_eps_model": false,
+      "role": "gics_sector",
+      "price_source": "yahoo_chart_v8_adjclose"
+    },
+    "XLU": {
+      "oil_beta": 0.000423,
+      "r_squared": 1e-06,
+      "p_value": 0.9803534433334339,
+      "n_obs": 794,
+      "label": "STATISTICALLY_INSIGNIFICANT",
+      "use_in_eps_model": false,
+      "role": "gics_sector",
+      "price_source": "yahoo_chart_v8_adjclose"
+    },
+    "XLRE": {
+      "oil_beta": -0.013823,
+      "r_squared": 0.000713,
+      "p_value": 0.4523217047613311,
+      "n_obs": 794,
+      "label": "STATISTICALLY_INSIGNIFICANT",
+      "use_in_eps_model": false,
+      "role": "gics_sector",
+      "price_source": "yahoo_chart_v8_adjclose"
+    },
+    "XLC": {
+      "oil_beta": 0.019238,
+      "r_squared": 0.001372,
+      "p_value": 0.29724442357979697,
+      "n_obs": 794,
+      "label": "STATISTICALLY_INSIGNIFICANT",
+      "use_in_eps_model": false,
+      "role": "gics_sector",
+      "price_source": "yahoo_chart_v8_adjclose"
+    },
+    "USO": {
+      "oil_beta": 0.857935,
+      "r_squared": 0.848766,
+      "p_value": 0.0,
+      "n_obs": 794,
+      "label": "BENCHMARK",
+      "use_in_eps_model": false,
+      "role": "benchmark",
+      "price_source": "yahoo_chart_v8_adjclose"
+    },
+    "SPY": {
+      "oil_beta": 0.037964,
+      "r_squared": 0.007267,
+      "p_value": 0.016272571174295165,
+      "n_obs": 794,
+      "label": "BENCHMARK",
+      "use_in_eps_model": false,
+      "role": "benchmark",
+      "price_source": "yahoo_chart_v8_adjclose"
+    }
+  }
+}

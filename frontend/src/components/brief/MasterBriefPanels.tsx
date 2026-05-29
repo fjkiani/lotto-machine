@@ -1,12 +1,16 @@
 /**
- * MasterBriefPanels — entry point for the Today's Brief page.
- *
- * Renders UnifiedBriefView (Alpha Terminal V8) which owns its own
- * data fetching via useMasterBrief and useOracleBrief hooks.
+ * MasterBriefPanels — kill chain verdict bar + compact macro edge strip.
+ * UnifiedBriefView removed: it caused Groq 429 errors, re-rendered duplicate data,
+ * and buried the kill chain verdict under 6 bloated components.
  */
-
-import { UnifiedBriefView } from './UnifiedBriefView';
+import { ExploitationCommandCenter } from './ExploitationCommandCenter';
+import { MacroEdgeStrip } from './MacroEdgeStrip';
 
 export function MasterBriefPanels() {
-  return <UnifiedBriefView />;
+  return (
+    <>
+      <ExploitationCommandCenter />
+      <MacroEdgeStrip />
+    </>
+  );
 }

@@ -1,7 +1,7 @@
 """
-🧠 LLM-Based Sentiment Analyzer — Groq (Llama 3.3 70B)
-========================================================
-Migrated from Cohere (hanging/429) to Groq free tier.
+🧠 LLM-Based Sentiment Analyzer — OpenRouter Nemotron 120B
+==========================================================
+Migrated from Groq to OpenRouter (2026-05-23).
 Same structured JSON output, 10s timeout, keyword fallback.
 """
 
@@ -14,9 +14,8 @@ from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
-# ── Groq Config (same as signal_explainer.py) ──
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+# ── OpenRouter Config (Nemotron 120B free) ──
+from backend.app.graph.openrouter_client import _openrouter_post, NEMOTRON_MODEL, OPENROUTER_API_KEY
 
 
 class SentimentAnalyzer:
@@ -26,18 +25,18 @@ class SentimentAnalyzer:
         self.db = database
         self._groq_key = None
 
-        # Initialize Groq key
+        # Initialize OpenRouter key
         try:
             from dotenv import load_dotenv
             load_dotenv()
 
-            self._groq_key = os.getenv('GROQ_API_KEY', '')
+            self._groq_key = OPENROUTER_API_KEY  # field name kept for compat
             if self._groq_key:
-                logger.info("✅ SentimentAnalyzer initialized (Groq Llama 3.3 70B)")
+                logger.info("✅ SentimentAnalyzer initialized (OpenRouter Nemotron 120B)")
             else:
-                logger.warning("GROQ_API_KEY not found. Sentiment analysis will use keyword fallback.")
+                logger.warning("OPENROUTER_API_KEY not found. Sentiment analysis will use keyword fallback.")
         except Exception as e:
-            logger.warning(f"Groq init failed: {e}")
+            logger.warning(f"OpenRouter init failed: {e}")
 
     def analyze(self, text: str, official_name: str) -> Tuple[str, float, str]:
         """
@@ -54,12 +53,12 @@ class SentimentAnalyzer:
 
         # If no pattern, use Groq LLM
         if self._groq_key:
-            return self._analyze_with_groq(text, official_name)
+            return self._analyze_with_openrouter(text, official_name)
         else:
             return self._analyze_fallback(text)
 
-    def _analyze_with_groq(self, text: str, official_name: str) -> Tuple[str, float, str]:
-        """Use Groq Llama 3.3 70B for sentiment analysis."""
+    def _analyze_with_openrouter(self, text: str, official_name: str) -> Tuple[str, float, str]:
+        """Use OpenRouter Nemotron 120B for sentiment analysis."""
         prompt = f"""Classify this Federal Reserve speech as HAWKISH, DOVISH, or NEUTRAL.
 Return JSON only: {{"tone": "HAWKISH|DOVISH|NEUTRAL", "confidence": 0.0-1.0, "reasoning": "one sentence"}}
 
@@ -67,30 +66,22 @@ Official: {official_name}
 Speech: {text[:1500]}"""
 
         try:
-            import httpx
-            resp = httpx.post(
-                GROQ_URL,
-                headers={
-                    "Authorization": f"Bearer {self._groq_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": GROQ_MODEL,
-                    "messages": [
-                        {"role": "system", "content": (
-                            "You are a Fed monetary policy tone analyzer. "
-                            "Analyze the text and return ONLY a JSON object. "
-                            "No markdown, no explanation, no code blocks."
-                        )},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "temperature": 0.1,
-                    "max_tokens": 200,
-                },
-                timeout=10.0,
+            raw_text = _openrouter_post(
+                messages=[
+                    {"role": "system", "content": (
+                        "You are a Fed monetary policy tone analyzer. "
+                        "Analyze the text and return ONLY a JSON object. "
+                        "No markdown, no explanation, no code blocks."
+                    )},
+                    {"role": "user", "content": prompt},
+                ],
+                model=NEMOTRON_MODEL,
+                max_tokens=200,
+                timeout=10,
             )
-            resp.raise_for_status()
-            raw_text = resp.json()["choices"][0]["message"]["content"].strip()
+            if not raw_text:
+                raise ValueError("empty response")
+            raw_text = raw_text.strip()
 
             # Parse JSON from response
             json_match = re.search(r'\{[^}]+\}', raw_text)
@@ -98,7 +89,7 @@ Speech: {text[:1500]}"""
                 data = json.loads(json_match.group())
                 sentiment = data.get('tone', data.get('sentiment', 'NEUTRAL')).upper()
                 confidence = float(data.get('confidence', 0.5))
-                reasoning = data.get('reasoning', 'Groq analysis')
+                reasoning = data.get('reasoning', 'OpenRouter analysis')
 
                 # Learn this pattern for future fast lookups
                 if len(text) < 100:
@@ -112,14 +103,14 @@ Speech: {text[:1500]}"""
                     )
                     self.db.save_sentiment_pattern(pattern)
 
-                logger.info(f"✅ Groq tone: {sentiment} ({confidence:.0%}) for {official_name}")
+                logger.info(f"✅ OpenRouter tone: {sentiment} ({confidence:.0%}) for {official_name}")
                 return sentiment, confidence, reasoning
 
-            logger.warning(f"Groq returned non-JSON: {raw_text[:100]}")
+            logger.warning(f"OpenRouter returned non-JSON: {raw_text[:100]}")
             return self._analyze_fallback(text)
 
         except Exception as e:
-            logger.warning(f"Groq sentiment analysis failed: {e}")
+            logger.warning(f"OpenRouter sentiment analysis failed: {e}")
             return self._analyze_fallback(text)
 
     def _analyze_fallback(self, text: str) -> Tuple[str, float, str]:

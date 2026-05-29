@@ -1,0 +1,275 @@
+---
+description: ZETA MASTER PLAN — Code Audit vs Claims (2026-05-23)
+globs: ["**/*.py", "**/*.ts", "**/*.tsx"]
+alwaysApply: false
+---
+
+# ZETA MASTER PLAN — AUDIT REPORT
+**Audited:** 2026-05-23  
+**Branch:** `manager-audit/cde006-canonical-kc-20260523`  
+**Auditor:** Biomni (automated code audit)
+
+---
+
+## VERDICT SUMMARY
+
+| Category | Claim | Reality | Status |
+|----------|-------|---------|--------|
+| Win rates (55.6% selloff/rally) | Backtested result | Computed in `evaluate_complete_system.py` from Dec 18 run | ✅ REAL (single day) |
+| Win rates (81.2% DP bounce) | "DP Learning Engine" stat | String literal in `PLUMBER_TASKS.md` — NOT computed at runtime | ⚠️ UNVERIFIED |
+| Order Flow Imbalance | "Used in signal_generator.py" | Method exists in `volume_profile.py:260` but is a TODO stub using DP prints as proxy | ❌ NOT INTEGRATED |
+| RegimeDetector.adjust_strategy_for_regime() | "Adjusts position sizing" | Method does NOT exist — only `detect()` and `get_regime_details()` | ❌ MISSING |
+| Time-of-day filtering | "Avoids first/last 30 min" | No time-of-day filter in `signal_generator.py` or `unified_monitor.py` | ❌ MISSING |
+| CompositeSignalFilter | "Integrated for 75%+ WR" | Wired into `unified_backtest_runner.py` only — NOT in live `signal_generator.py` | ⚠️ BACKTESTING ONLY |
+| PaperTrader (Alpaca) | "Production paper trading" | `paper_trader.py` exists but is NOT imported/called in `unified_monitor.py` | ❌ NOT WIRED |
+| LLM stack (Gemini) | Plan says Gemini | Backend migrated to OpenRouter Nemotron (2026-05-23) | ✅ MIGRATED (backend) |
+| LLM stack (Gemini) | Plan says Gemini | `src/` has 53 live `google.generativeai` calls — NOT migrated | ❌ STALE (src/) |
+| Discord bot LLM | Migrated to OpenRouter | `savage_llm_service.py` + `alpha_agent.py` still check `GROQ_API_KEY` | ❌ NOT MIGRATED |
+| Perplexity | "Replaced by Tavily" | Backend `/enrichment` uses Tavily; `live_monitoring/agents/economic/` still imports Perplexity | ⚠️ PARTIAL |
+| MarketContextDetector | "Wired into backtest runner" | ✅ Confirmed wired in `unified_backtest_runner.py:94,134` | ✅ CONFIRMED |
+| DPLearningEngine | "Wired into unified_monitor" | ✅ Confirmed via `status.get('dp_learning')` at line 175-177 | ✅ CONFIRMED |
+| Kill Chain integration | "Live monitoring uses KC" | `signal_generator.py:69` imports `kill_chain_config`; `kc_mismatch_detector.py` exists | ✅ CONFIRMED |
+
+---
+
+## GAP 1 — Order Flow Imbalance: Stub, Not Signal
+
+**File:** `live_monitoring/core/volume_profile.py:260`  
+**Method:** `calculate_order_flow_imbalance()`
+
+```python
+# TODO: When ChartExchange adds intraday trades endpoint:
+# trades = self.client.get_intraday_trades(symbol, date)
+#
+# For now, use dark pool prints as proxy for institutional flow
+```
+
+**Reality:** The method uses DP prints as a proxy and returns an `OrderFlowImbalance` dataclass, but:
+1. It is **never called** in `signal_generator.py` (only `order_flow_imbalance: Optional[object] = None` as a parameter stub)
+2. The `_apply_master_filters()` method does NOT use order flow — only sentiment and gamma
+3. `_calculate_confidence_score()` accepts `order_flow` param but it's always `None`
+
+**Fix:** Wire `VolumeProfileAnalyzer.calculate_order_flow_imbalance()` into `_calculate_confidence_score()` and add 10% weight to confidence formula.
+
+---
+
+## GAP 2 — RegimeDetector: No Strategy Adjustment Method
+
+**File:** `live_monitoring/orchestrator/regime_detector.py`  
+**Methods that exist:** `detect()`, `get_regime_details()`  
+**Method that does NOT exist:** `adjust_strategy_for_regime()`
+
+The ZETA plan claims regime detection adjusts position sizing and direction bias. In reality:
+- `_detect_market_regime()` in `unified_monitor.py:476` calls `regime_detector.detect()` and logs the result
+- The returned regime string is **never used** to modify signal confidence, position size, or direction filter
+
+**Fix:**
+```python
+# Add to RegimeDetector:
+def adjust_strategy_for_regime(self, regime: str, base_confidence: float, direction: str) -> dict:
+    multipliers = {
+        "STRONG_UPTREND": {"LONG": 1.2, "SHORT": 0.5},
+        "UPTREND":        {"LONG": 1.1, "SHORT": 0.7},
+        "STRONG_DOWNTREND": {"LONG": 0.5, "SHORT": 1.2},
+        "DOWNTREND":      {"LONG": 0.7, "SHORT": 1.1},
+        "CHOPPY":         {"LONG": 0.8, "SHORT": 0.8},
+    }
+    mult = multipliers.get(regime, {}).get(direction, 1.0)
+    return {"adjusted_confidence": min(base_confidence * mult, 1.0), "multiplier": mult}
+```
+
+---
+
+## GAP 3 — Time-of-Day Filtering: Completely Absent
+
+**Files checked:** `signal_generator.py`, `unified_monitor.py`, `_apply_master_filters()`  
+**Result:** Zero references to `time_of_day`, `avoid_open`, `avoid_close`, `morning_filter`
+
+The ZETA plan claims signals avoid the first and last 30 minutes of trading. This is **not implemented anywhere** in the live signal path.
+
+**Fix:** Add to `_apply_master_filters()`:
+```python
+from datetime import datetime, time as dt_time
+import pytz
+
+et = pytz.timezone('America/New_York')
+now_et = datetime.now(et).time()
+AVOID_OPEN  = dt_time(9, 30), dt_time(10, 0)   # first 30 min
+AVOID_CLOSE = dt_time(15, 30), dt_time(16, 0)  # last 30 min
+
+if AVOID_OPEN[0] <= now_et < AVOID_OPEN[1]:
+    logger.info(f"⏰ Time-of-day veto: opening 30 min — skipping {signal.symbol}")
+    continue
+if AVOID_CLOSE[0] <= now_et < AVOID_CLOSE[1]:
+    logger.info(f"⏰ Time-of-day veto: closing 30 min — skipping {signal.symbol}")
+    continue
+```
+
+---
+
+## GAP 4 — CompositeSignalFilter: Backtesting Only
+
+**Wired in:** `backtesting/simulation/unified_backtest_runner.py:98-108`  
+**NOT wired in:** `live_monitoring/core/signal_generator.py`, `live_monitoring/orchestrator/unified_monitor.py`
+
+The composite filter (which the plan claims achieves 75%+ win rate) runs during backtests but **never runs on live signals**. Live signals go through `_apply_master_filters()` which only checks sentiment and gamma.
+
+**Fix:** Import and instantiate `CompositeSignalFilter` in `signal_generator.py.__init__()` and call it after `_apply_master_filters()`.
+
+---
+
+## GAP 5 — PaperTrader: Built But Not Wired
+
+**File:** `live_monitoring/trading/paper_trader.py` — fully implemented with Alpaca SDK  
+**Problem:** `unified_monitor.py` has **zero imports or calls** to `PaperTrader`
+
+The plan claims paper trading is production-ready. The class exists and works in isolation (`run_live_paper_trading.py` calls it directly), but it is **not integrated into the main monitoring loop**.
+
+**Fix:** In `unified_monitor.py._init_monitors()`:
+```python
+from live_monitoring.trading.paper_trader import PaperTrader
+if os.getenv('ALPACA_API_KEY') and os.getenv('ALPACA_SECRET_KEY'):
+    self.paper_trader = PaperTrader()
+    logger.info("✅ PaperTrader initialized")
+```
+Then call `self.paper_trader.execute_signal(signal)` after a signal passes all filters.
+
+---
+
+## GAP 6 — Gemini API: 53 Live Calls in src/ Not Migrated
+
+**Backend (migrated ✅):** `backend/app/` — all Groq/Gemini calls replaced with OpenRouter Nemotron  
+**src/ (NOT migrated ❌):** 53 live `google.generativeai` calls across:
+
+| File | Calls | Model Used |
+|------|-------|-----------|
+| `src/analysis/feedback_loop.py` | 2 | `gemini-1.5-flash` |
+| `src/analysis/feedback_loop_experimental.py` | 4 | `gemini-2.0-flash-thinking-exp` |
+| `src/analysis/options_analyzer.py` | 2 | `gemini-1.5-flash` |
+| `src/analysis/technical_analyzer.py` | 2 | `gemini-1.5-flash` |
+| `src/llm/analysis.py` | 1 | `gemini-1.5-pro` |
+| `src/llm/deep_reasoning_analysis.py` | 1+ | `gemini-*` |
+| `src/intelligence/narrative.py` | 1 | config-driven |
+
+These files require `GEMINI_API_KEY` env var. If that key is not set on Render, these paths silently fail.
+
+**Decision required:** Migrate `src/` to OpenRouter OR keep Gemini for `src/` (separate key). Do NOT leave ambiguous.
+
+---
+
+## GAP 7 — Discord Bot: Still Checks GROQ_API_KEY
+
+**Files:**
+- `discord_bot/services/savage_llm_service.py:29` — `self.api_key = os.getenv("GROQ_API_KEY", "")`
+- `discord_bot/agents/alpha_agent.py:83` — `if os.getenv("GROQ_API_KEY", "").strip():`
+
+`src/data/llm_api.py` was migrated to OpenRouter in commit `a063f95`, but the service layer that wraps it still gates on `GROQ_API_KEY`. This means `SavageLLMService.ready = False` on any deployment without `GROQ_API_KEY`, even though the underlying `query_llm_savage()` now uses OpenRouter.
+
+**Fix (2 lines):**
+```python
+# savage_llm_service.py:29
+self.api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+
+# alpha_agent.py:83
+if os.getenv("OPENROUTER_API_KEY", "").strip():
+```
+
+---
+
+## GAP 8 — Win Rate Provenance
+
+### 55.6% Selloff/Rally Win Rate
+**Source:** `backtesting/evaluate_complete_system.py:440` — computed from a **single backtest run on Dec 18, 2025 (a rally day)**  
+**Status:** Real computed number, but from one day. Not a rolling average. Treat as directional signal, not production SLA.
+
+### 81.2% Dark Pool Bounce Rate
+**Source:** `PLUMBER_TASKS.md:3048` — hardcoded string: `"81.2% bounce"`  
+**Status:** NOT computed at runtime. No code in `dark_pool_checker.py` or `dp_learning/engine.py` outputs this number. Origin unknown — likely from a manual analysis session.
+
+**Action:** Either compute this live from `DPLearningEngine` stats or remove the claim from all docs.
+
+---
+
+## WHAT IS ACTUALLY PRODUCTION-READY
+
+| Component | Production Status | Notes |
+|-----------|------------------|-------|
+| Kill Chain scoring (backend) | ✅ PRODUCTION | `/brief/master`, `/kill-shots-live` endpoints live |
+| OpenRouter Nemotron (backend) | ✅ PRODUCTION | All 6 backend LLM call sites migrated |
+| Signal Chain page (frontend) | ✅ PRODUCTION | All 8 scorers visible, sv_pct_today wired |
+| Today's Brief page (frontend) | ✅ PRODUCTION | action_plan drawer, VerdictBanner kill chain vocab |
+| UnifiedAlphaMonitor | ✅ RUNNING | Deployed on Render |
+| DPLearningEngine | ✅ WIRED | Integrated via status dict in unified_monitor |
+| MarketContextDetector | ✅ WIRED | Integrated in unified_backtest_runner |
+| CompositeSignalFilter | ⚠️ BACKTESTING ONLY | Not in live path |
+| PaperTrader | ⚠️ ISOLATED | Works standalone, not in monitor loop |
+| Order Flow Imbalance | ❌ STUB | TODO comment, never called |
+| Regime Strategy Adjustment | ❌ MISSING | Method doesn't exist |
+| Time-of-Day Filter | ❌ MISSING | Not implemented anywhere |
+| src/ LLM (Gemini) | ❌ STALE | 53 calls need key or migration |
+| Discord Savage LLM | ❌ BROKEN | Gates on GROQ_API_KEY, key not set |
+
+---
+
+## PRIORITY FIX LIST
+
+### P0 — Breaks live Discord bot (5 min fix)
+1. `savage_llm_service.py:29` → change `GROQ_API_KEY` to `OPENROUTER_API_KEY`
+2. `alpha_agent.py:83` → change `GROQ_API_KEY` to `OPENROUTER_API_KEY`
+
+### P1 — Closes biggest live signal gap (1-2 hours)
+3. Add time-of-day filter to `_apply_master_filters()` (30 lines)
+4. Add `adjust_strategy_for_regime()` to `RegimeDetector` and call it in `unified_monitor._detect_market_regime()`
+
+### P2 — Closes composite filter gap (2-4 hours)
+5. Import `CompositeSignalFilter` into `signal_generator.py` and call after master filters
+6. Wire `calculate_order_flow_imbalance()` into `_calculate_confidence_score()` with 10% weight
+
+### P3 — Closes paper trading gap (1 hour)
+7. Import `PaperTrader` in `unified_monitor._init_monitors()` and call on confirmed signals
+
+### P4 — Resolve LLM ambiguity (decision required)
+8. Decide: migrate `src/` Gemini calls to OpenRouter OR document `GEMINI_API_KEY` as required env var
+9. Update `SAVAGE_LLM_STATUS.md` to reflect OpenRouter (not Gemini 2.5 Pro)
+
+### P5 — Win rate integrity
+10. Add runtime computation of DP bounce rate to `DPLearningEngine` and expose via `/brief/master`
+11. Add rolling win rate tracker to `unified_backtest_runner` (not just single-day snapshots)
+
+---
+
+## STALE REFERENCES TO CLEAN UP
+
+| File | Stale Reference | Correct Reference |
+|------|----------------|-------------------|
+| `backend/app/api/v1/agents.py:46` | "via Groq (server-side key)" | "via OpenRouter Nemotron" |
+| `backend/app/api/v1/oracle.py:6,493,495` | "Groq call" | "OpenRouter call" |
+| `backend/app/signals/signal_explainer.py:27` | `GROQ_API_KEY = OPENROUTER_API_KEY` alias | Remove alias, use `OPENROUTER_API_KEY` directly |
+| `live_monitoring/agents/fed_officials/sentiment_analyzer.py:22` | "via Groq (migrated from Cohere)" | "via OpenRouter Nemotron" |
+| `SAVAGE_LLM_STATUS.md` | `gemini-2.5-pro` as primary model | `nvidia/nemotron-3-super-120b-a12b:free` via OpenRouter |
+| `.cursor/rules/ZETA_MASTER_PLAN.mdc` | Win rates as production SLAs | Single-day backtest results (Dec 18, 2025) |
+
+---
+
+## ENV VARS REQUIRED ON RENDER (CURRENT STATE)
+
+```bash
+# REQUIRED — backend will not start without these
+OPENROUTER_API_KEY=<OPENROUTER_API_KEY_REDACTED>
+CHARTEXCHANGE_API_KEY=<your key>
+TAVILY_API_KEY=<your key>
+
+# REQUIRED for Discord bot LLM (currently broken — gates on wrong key)
+# After P0 fix, this becomes the only key needed:
+OPENROUTER_API_KEY=<same as above>
+
+# OPTIONAL — only needed if keeping src/ on Gemini (Gap 6 unresolved)
+GEMINI_API_KEY=<your key>
+
+# OPTIONAL — only needed if keeping Perplexity in live_monitoring/agents/economic/
+PERPLEXITY_API_KEY=<your key>
+
+# REMOVE — no longer needed after OpenRouter migration
+# GROQ_API_KEY  ← DELETE from Render env vars
+# API_LIGHT_MODE=1  ← DELETE from Render env vars
+```

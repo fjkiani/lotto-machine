@@ -1,0 +1,181 @@
+---
+description: Training pipeline design — autonomous capture, regime labeling, quality gates, similar setups, historical data findings
+globs: ["backend/app/main.py", "backend/app/api/v1/training.py", "frontend/src/components/signal-chain/SignalChainView.tsx"]
+alwaysApply: false
+---
+
+# Training Pipeline — Complete Design
+
+## Architecture
+
+```
+Every 30 min (market hours, auto)     Operator click (manual)
+         │                                    │
+         ▼                                    ▼
+POST /training/snapshot (source="auto")   POST /training/snapshot (source="manual")
+  - regime from _compute_regime()           - regime from d.regime (authoritative)
+  - reads _last_kill_shots_result cache     - fallback: inferRegime() heuristic
+  - skips if result > 35 min old           
+         │                                    │
+         └──────────────┬─────────────────────┘
+                        ▼
+              training_snapshots.jsonl
+              pending_outcomes.json (index)
+                        │
+                        ▼ (3 days later)
+              GET /training/pending-outcomes
+              → overdue[] with days_overdue field
+                        │
+                        ▼
+              Operator opens OutcomePanel
+              Fills: P&L %, source (REQUIRED ≥3 chars)
+              Clicks WIN / FLAT / LOSS
+                        │
+                        ▼
+              POST /training/outcome
+              Quality gates:
+                - outcome ∈ {WIN, LOSS, NEUTRAL}
+                - pnl_pct ∈ [-50, 50]
+                - source.strip().length ≥ 3 (422 if empty)
+                        │
+                        ▼
+              JSONL record patched in-place
+              pending_outcomes.json updated
+                        │
+                        ▼
+              GET /training/export?complete_only=true
+              → JSONL download (only records with outcomes)
+              → Export button appears when complete_records ≥ 50
+```
+
+## Regime Labeling — Authoritative Source
+
+`_compute_regime(layers, kill_chain_result)` in `main.py`:
+- Uses already-fetched data: `vix`, `rsi_14`, `spy_change_pct`, `kill_chain.verdict`
+- No new API calls
+- Injected into kill-shots-live response as `regime` field
+- Frontend `inferRegime()` uses `d.regime` first, falls back to verdict heuristic
+
+### Regime Rules
+```
+WAR_VETO in verdict                    → STRONG_DOWNTREND
+vix > 28 AND spy_chg < -0.8%          → STRONG_DOWNTREND
+vix > 22 AND spy_chg < -0.4%          → DOWNTREND
+spy_chg < -0.3% OR rsi < 38           → DOWNTREND
+|spy_chg| < 0.15% AND vix < 22        → CHOPPY
+spy_chg > 0.6% AND rsi > 62           → STRONG_UPTREND
+spy_chg > 0.25% OR rsi > 55           → UPTREND
+default                                → CHOPPY
+```
+
+## Historical Data — Real Findings (Dec 2025, 1h OHLC backfill)
+
+### Data quality audit (completed 2026-05-24)
+
+**Raw db_learning.db:** 372 rows total
+- 159 rows EXCLUDED: 156 batch artifacts (time_of_day=None, Dec 18/19/23/24 — same approach_price stamped on all records at 12:00 noon) + 3 Dec 5 QQQ records with corrupted prices (~100 pts off actual)
+- **213 clean records** across 5 real trading days: Dec 5, 10, 11, 12, 16 2025
+
+**Original data problems found and fixed:**
+1. `max_move_pct` was hardcoded (0.3/0.4 thresholds), not real price moves → backfilled with Yahoo Finance 1h OHLC
+2. Timezone bug: `find_bar()` compared naive ET to naive UTC (5h mismatch) → fixed with pytz.localize() in `find_bar_fixed()`
+3. Batch artifacts: Dec 18/19/23/24 records all share identical timestamp (12:00:00) and approach_price per day → excluded via `time_of_day IS NOT NULL` filter
+4. Dec 5 QQQ: approach_price 519-525 vs actual QQQ 624-628 (~100 pts off) → excluded
+
+### Real win rates — CLEAN DATA ONLY (resistance bounces, FROM_BELOW, n=121)
+
+| Filter | n | Tradeable (≥0.2% move) | Wilson CI |
+|--------|---|------------------------|-----------|
+| **SPY resistance (all)** | **78** | **70.5%** | **[60-79%]** |
+| QQQ resistance (all) | 43 | 27.9% | [17-43%] |
+| MORNING (all symbols) | 47 | 74.5% | [60-85%] |
+| MIDDAY (all symbols) | 36 | 38.9% | [25-55%] |
+| AFTERNOON (all symbols) | 38 | 47.4% | [32-63%] |
+
+**⚠️ CRITICAL CAVEAT — DATE CONFOUND:**
+The MORNING=74.5% finding is NOT a robust time-of-day rule. It is driven by Dec 12 being a 100%-tradeable bearish day (SPY -0.30%, resistance held all morning). With only 5 trading days, date effects and time-of-day effects cannot be separated.
+
+**What we can actually claim:**
+- ✅ SPY resistance bounces work ~55-70% of the time (n=78-121, CI lower bound 46-60%) — real edge
+- ✅ QQQ resistance bounces do NOT work (27.9%, n=43) — do not trade
+- ❌ MORNING > AFTERNOON — cannot claim, confounded by Dec 12 date effect
+- ❌ touch_count=2 = 100% — n=10, single day effect, not robust
+- ❌ Any time-of-day rule — need 30+ trading days to separate from date/regime effects
+
+**What we need to validate time-of-day rules:** 30+ trading days of real intraday data. The autonomous snapshot loop will build this. Alternatively: Polygon or TwelveData API key for historical 5m data.
+
+### Support bounces (FROM_ABOVE)
+- ~4% tradeable — essentially broken in Dec 2025 (downtrend context)
+- Do NOT trade support bounces without regime filter
+
+### The original "82.5% bounce rate" claim
+- Was categorical (price didn't break through level), not a directional move
+- Real tradeable rate for SPY resistance: **55.4% overall** (n=121, CI: 46-64%)
+- This is a marginal but real edge — lower CI bound barely above 50%
+
+## Similar Setups Strip
+
+`GET /training/similar-setups?regime=&direction=&days=30`
+- Scans complete JSONL records (have outcome) matching regime + direction
+- Returns: `{ count, wins, losses, neutral, win_rate, avg_pnl_pct }`
+- Frontend shows strip only when count ≥ 3
+- Color: green WR>55%, amber 45-55%, red <45%
+
+## Quality Gate on Outcome Recording
+
+Backend (422 if violated):
+1. `outcome` ∈ {WIN, LOSS, NEUTRAL}
+2. `pnl_pct` ∈ [-50, 50]
+3. `source.strip().length ≥ 3` — describe where P&L came from
+
+Frontend:
+- Source text input required before WIN/FLAT/LOSS buttons enable
+- Input border turns green when source is valid (≥3 chars)
+
+## API Endpoints
+
+```
+POST /api/v1/training/snapshot
+  Body: { payload, label, note, regime, symbol, confidence, signal_type, direction, source }
+  Returns: { snapshot_id, outcome_due_date, total_records, complete_records, pending_outcome_count }
+
+POST /api/v1/training/outcome
+  Body: { snapshot_id, outcome, pnl_pct, days_elapsed, source (required ≥3 chars) }
+  Returns: { status, complete_records }
+  Errors: 422 if quality gate violated
+
+GET /api/v1/training/pending-outcomes
+  Returns: { overdue_count, upcoming_count, overdue: [...days_overdue field...], upcoming: [...] }
+
+GET /api/v1/training/similar-setups?regime=&direction=&days=30
+  Returns: { count, wins, losses, neutral, win_rate, avg_pnl_pct }
+
+GET /api/v1/training/historical-summary
+  Returns: honest summary of dp_learning.db + snapshots + gate_backtest
+
+GET /api/v1/training/auto-status
+  Returns: { auto_snapshots_total, manual_snapshots_total, auto_snapshots_today, is_market_hours }
+
+GET /api/v1/training/export?complete_only=true
+  Returns: JSONL download (only records with outcomes)
+
+GET /api/v1/training/status
+  Returns: { total_records, complete_records, pending_outcome_count, overdue_outcome_count }
+```
+
+## Autonomous Capture Loop
+
+`_auto_snapshot_loop()` in `main.py`:
+- asyncio task started at server startup
+- Runs every 30 min during market hours (9:30am–4pm ET, Mon–Fri)
+- Reads `_last_kill_shots_result` cache (populated by kill-shots-live endpoint)
+- Skips if: result > 35 min old, last auto-save < 25 min ago, market closed
+- source = "auto" in JSONL record
+
+## Remaining Gaps
+
+1. **spy_change_pct in layers** — `_compute_regime()` reads `layers.get("spy_change_pct")` but this field may not be populated by all scorer paths. If 0.0, regime defaults to CHOPPY. Fix: add SPY daily change to TechScorer output.
+2. **Date/regime confound** — All Dec 2025 data spans only 5 trading days. Time-of-day rules (MORNING/AFTERNOON) cannot be validated until 30+ days of data are collected.
+3. **Confidence calibration** — Bonus/penalty values are heuristic v1. Need isotonic regression on 200+ complete records.
+4. **GEX + war_status rules** — gex_history.db has 1 row. Cannot derive suppression rules until 30+ days of GEX data collected.
+5. **QQQ exclusion rule** — Data clearly shows QQQ resistance bounces don't work (27.9%). Should add a filter: suppress LONG signals on QQQ resistance FROM_BELOW until validated on 30+ days.

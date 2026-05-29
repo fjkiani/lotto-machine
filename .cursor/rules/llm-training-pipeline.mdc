@@ -1,0 +1,281 @@
+---
+description: "LLM training data collection pipeline — how to collect kill chain snapshots, export JSONL, and fine-tune. Backend training.py endpoints, frontend TrainButton, OpenRouter Nemotron migration."
+alwaysApply: false
+---
+
+# LLM Training Pipeline — Production Handoff
+
+**Purpose:** Collect labeled kill chain snapshots as OpenAI fine-tune JSONL records.  
+**Model target:** OpenAI fine-tuning API (gpt-4o-mini or gpt-3.5-turbo)  
+**Current LLM backend:** OpenRouter Nemotron 120B (`nvidia/nemotron-3-super-120b-a12b:free`)  
+**Last updated:** 2026-05-23
+
+---
+
+## Architecture
+
+```
+Operator clicks "Train LLM on this snapshot"
+    ↓
+TrainButton (SignalChainView.tsx)
+    ↓ POST /api/v1/training/snapshot
+backend/app/api/v1/training.py
+    ↓ appends JSONL record
+kill_chain_snapshots.jsonl
+    ↓ (50+ records)
+GET /api/v1/training/export → download file
+    ↓
+OpenAI fine-tuning API
+```
+
+---
+
+## Backend Endpoints
+
+**File:** `backend/app/api/v1/training.py`  
+**Router prefix:** `/api/v1` (wired in `main.py`)
+
+### POST /api/v1/training/snapshot
+
+Appends one labeled snapshot as an OpenAI fine-tune JSONL record.
+
+**Request body:**
+```json
+{
+  "payload": { ...full /kill-shots-live response... },
+  "label": "BOOST",
+  "note": "Manual label from operator"
+}
+```
+
+**Response:**
+```json
+{
+  "saved": true,
+  "total_records": 12,
+  "export_path": "/mnt/shared-workspace/training/kill_chain_snapshots.jsonl",
+  "message": "Snapshot saved (12 total). Export JSONL when you have 50+ records."
+}
+```
+
+### GET /api/v1/training/export
+
+Downloads the full JSONL file. Returns 404 if no snapshots saved yet.
+
+### GET /api/v1/training/status
+
+Returns `{ total_records, export_path, last_captured_at, ready_for_finetune }`.
+
+---
+
+## Storage Path
+
+```python
+# Render (production): S3-backed, survives deploys
+/mnt/shared-workspace/training/kill_chain_snapshots.jsonl
+
+# Local dev
+./data/training/kill_chain_snapshots.jsonl
+
+# Override via env var
+TRAINING_JSONL_PATH=/custom/path/snapshots.jsonl
+```
+
+The path is Render-aware: `os.getenv("RENDER")` switches automatically.
+
+---
+
+## JSONL Record Format
+
+Each record is an OpenAI fine-tune message:
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a kill chain signal analyst. Given a structured market snapshot, output the reconciled verdict and reasoning."
+    },
+    {
+      "role": "user",
+      "content": "{...full kill-shots-live payload as JSON string...}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"reconciled_verdict\": \"BOOST\", \"reconciliation_reasons\": [\"...reason...\"]}"
+    }
+  ],
+  "metadata": {
+    "captured_at": "2026-05-23T14:32:00Z",
+    "label": "BOOST",
+    "note": "Manual label from operator"
+  }
+}
+```
+
+---
+
+## Frontend: TrainButton
+
+**Location:** Bottom of `SignalChainView.tsx` (co-located, not a separate file)
+
+**Behavior:**
+- Click → POST to `/api/v1/training/snapshot` with full `/kill-shots-live` payload
+- Shows "Snapshot saved (N total)" on success
+- Shows "N more to go" until 50 records
+- At 50+ records: "Export JSONL" button appears (downloads file directly)
+- Error state: shows error message, auto-resets after 4s
+
+**URL construction:**
+```ts
+const API = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '');
+// POST: ${API}/api/v1/training/snapshot  ← correct (API is base, not /api/v1)
+// GET:  ${API}/api/v1/training/export    ← correct
+```
+
+---
+
+## How to Collect 50+ Snapshots
+
+1. Open `/signal-chain` in the browser
+2. Wait for data to load (30s poll)
+3. Verify the `reconciled_verdict` looks correct
+4. Click "Train LLM on this snapshot"
+5. Repeat at different market conditions:
+   - Morning (pre-market, 7-9 AM ET)
+   - Market open (9:30-10 AM ET)
+   - Midday (12-2 PM ET)
+   - Close (3:30-4 PM ET)
+   - After FOMC announcements
+   - During high VIX (>25) sessions
+   - During WAR_VETO conditions
+
+**Target distribution:** ~10 records per verdict type (BOOST, BUY, HOLD, WATCH, SOFT_VETO, HARD_VETO)
+
+---
+
+## How to Fine-Tune with OpenAI
+
+Once you have 50+ records:
+
+```bash
+# 1. Download the JSONL file
+curl https://lotto-machine-wr6t.onrender.com/api/v1/training/export \
+  -o kill_chain_snapshots.jsonl
+
+# 2. Validate format
+openai tools fine_tunes.prepare_data -f kill_chain_snapshots.jsonl
+
+# 3. Upload and start fine-tune
+openai api fine_tuning.jobs.create \
+  -t kill_chain_snapshots.jsonl \
+  -m gpt-4o-mini \
+  --suffix "kill-chain-v1"
+
+# 4. Monitor
+openai api fine_tuning.jobs.list
+
+# 5. Use the fine-tuned model
+# Update OPENROUTER_API_KEY or add OPENAI_FINETUNE_MODEL env var
+```
+
+---
+
+## OpenRouter Nemotron Migration (2026-05-23)
+
+All Groq calls replaced with OpenRouter Nemotron 120B. Files changed:
+
+| File | Change |
+|------|--------|
+| `backend/app/graph/openrouter_client.py` | Groq fallback removed, shared `_openrouter_post` / `_openrouter_post_async` helpers added |
+| `backend/app/api/v1/oracle.py` | 3 call sites → `_openrouter_post_async` + `NEMOTRON_MODEL` |
+| `backend/app/api/v1/agents.py` | signal-brief → `_openrouter_post_async` |
+| `backend/app/signals/signal_explainer.py` | per-signal explanations → `_openrouter_post` |
+| `live_monitoring/agents/fed_officials/sentiment_analyzer.py` | Fed tone → `_openrouter_post` |
+| `src/data/llm_api.py` | Discord savage LLM → `_openrouter_post` |
+
+**Env var:** `OPENROUTER_API_KEY` (replaces `GROQ_API_KEY`)  
+**Model:** `nvidia/nemotron-3-super-120b-a12b:free`  
+**Key:** Set in Render environment variables (not in code)
+
+### How to add a new LLM call
+
+Always use the shared helper — never call OpenRouter directly:
+
+```python
+# Sync (background tasks, scorers)
+from backend.app.graph.openrouter_client import _openrouter_post, NEMOTRON_MODEL
+
+content = _openrouter_post(
+    messages=[{"role": "user", "content": "your prompt"}],
+    model=NEMOTRON_MODEL,
+    max_tokens=200,
+    timeout=15,
+)
+
+# Async (FastAPI endpoints)
+from backend.app.graph.openrouter_client import _openrouter_post_async, NEMOTRON_MODEL
+
+content = await _openrouter_post_async(
+    messages=[{"role": "user", "content": "your prompt"}],
+    model=NEMOTRON_MODEL,
+    max_tokens=200,
+    timeout=15.0,
+    response_format={"type": "json_object"},  # optional
+)
+```
+
+Both return `Optional[str]` — `None` on failure. Always check before using.
+
+---
+
+## How to Extend the Snapshot Payload
+
+To add new fields to training records, modify `TrainButton` in `SignalChainView.tsx`:
+
+```tsx
+body: JSON.stringify({
+  payload: {
+    ...d,                          // full kill-shots-live response
+    my_extra_field: someValue,     // add here
+  },
+  label: d.reconciled_verdict ?? d.verdict,
+  note: 'Manual label from operator',
+}),
+```
+
+The `payload` is stored verbatim in the JSONL `user` message. The fine-tuned model will learn to use whatever fields you include.
+
+---
+
+## File Locations
+
+```
+backend/app/
+  api/v1/training.py                             ← POST /snapshot, GET /export, GET /status
+  graph/openrouter_client.py                     ← shared LLM helpers (_openrouter_post, _openrouter_post_async)
+  api/v1/oracle.py                               ← oracle endpoints (OpenRouter)
+  api/v1/agents.py                               ← signal-brief endpoint (OpenRouter)
+  signals/signal_explainer.py                    ← per-signal explanations (OpenRouter)
+
+live_monitoring/agents/fed_officials/
+  sentiment_analyzer.py                          ← Fed tone analysis (OpenRouter)
+
+src/data/
+  llm_api.py                                     ← Discord savage LLM (OpenRouter)
+
+frontend/src/components/signal-chain/
+  SignalChainView.tsx                            ← TrainButton (co-located, ~line 480)
+
+data/training/
+  kill_chain_snapshots.jsonl                     ← local training data output
+```
+
+---
+
+## Known Gaps / Next Steps
+
+- [ ] No automatic labeling — operator must manually click TrainButton and verify verdict is correct before saving
+- [ ] No deduplication — same market state can be saved multiple times (filter by `captured_at` when fine-tuning)
+- [ ] No validation endpoint — add `GET /training/validate` to check JSONL format before upload
+- [ ] Discord bot (`discord_bot/services/savage_llm_service.py`) still checks `GROQ_API_KEY` for `self.ready` — update to `OPENROUTER_API_KEY`

@@ -80,8 +80,8 @@ class AlphaIntelligenceAgent:
     def _init_llm(self) -> bool:
         """Initialize LLM for synthesis"""
         try:
-            if os.getenv("GROQ_API_KEY", "").strip():
-                logger.info("  ✅ LLM available for synthesis (Groq)")
+            if os.getenv("OPENROUTER_API_KEY", "").strip():
+                logger.info("  ✅ LLM available for synthesis (OpenRouter Nemotron)")
                 return True
         except Exception as e:
             logger.debug(f"LLM init: {e}")

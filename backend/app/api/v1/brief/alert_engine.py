@@ -20,6 +20,7 @@ class PreSignalAlertEngine:
         self._gex_alert(brief, alerts)
         self._adp_alert(brief, alerts)
         self._gdp_alert(brief, alerts)
+        self._claims_trend_alert(brief, alerts)
         priority_order = {'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3}
         return sorted(alerts, key=lambda x: priority_order.get(x.get('priority', 'LOW'), 3))
 
@@ -139,4 +140,60 @@ class PreSignalAlertEngine:
                 'estimate': gdp.get('gdp_estimate'), 'consensus': gdp.get('consensus'),
                 'edge': gdp.get('edge'),
                 'action': f"GDPNow: {gdp.get('edge', '')} — growth trajectory warning",
+            })
+
+    def _claims_trend_alert(self, brief: dict, alerts: list) -> None:
+        """
+        CLAIMS_TREND GDP risk alert — Phase 5 research finding (commit ad2c9b1).
+        IC4WSA 3-month trend is the top GDP predictor (feature importance 0.225).
+        Rising claims (>+5% 3-month trend) → GDP_RISK alert.
+        Falling claims (<-5%) → GDP_STRENGTH note.
+        """
+        claims = brief.get('jobless_claims', {})
+        if not claims or claims.get('error'):
+            return
+
+        # Prefer pre-computed trend if available; otherwise compute from raw values
+        trend_pct = claims.get('claims_trend_pct')
+        if trend_pct is None:
+            # Fallback: compute from current vs 3-month-ago if available
+            current = claims.get('current_claims')
+            three_mo_ago = claims.get('three_month_ago_claims')
+            if current and three_mo_ago and three_mo_ago > 0:
+                trend_pct = ((current - three_mo_ago) / three_mo_ago) * 100
+            else:
+                return  # insufficient data
+
+        if trend_pct > 5.0:
+            # Rising claims — GDP risk
+            alerts.append({
+                'type': 'GDP_RISK',
+                'priority': 'HIGH' if trend_pct > 10.0 else 'MEDIUM',
+                'event': 'Jobless Claims Trend',
+                'signal': 'CLAIMS_RISING',
+                'trend_pct': round(trend_pct, 1),
+                'current_claims': claims.get('current_claims'),
+                'edge': (
+                    f"IC4WSA 3-month trend +{trend_pct:.1f}% — "
+                    f"top GDP predictor (Phase 5 research, importance 0.225)"
+                ),
+                'action': (
+                    "Rising claims signal GDP deceleration risk. "
+                    "Reduce LONG exposure on growth-sensitive sectors."
+                ),
+            })
+        elif trend_pct < -5.0:
+            # Falling claims — GDP strength
+            alerts.append({
+                'type': 'GDP_STRENGTH',
+                'priority': 'LOW',
+                'event': 'Jobless Claims Trend',
+                'signal': 'CLAIMS_FALLING',
+                'trend_pct': round(trend_pct, 1),
+                'current_claims': claims.get('current_claims'),
+                'edge': (
+                    f"IC4WSA 3-month trend {trend_pct:.1f}% — "
+                    f"labour market tightening supports GDP"
+                ),
+                'action': "Falling claims support growth outlook. LONG bias intact.",
             })
