@@ -12,7 +12,7 @@ Uses raw REST — no finnhub package needed. Tested live March 9 2026.
 
 import os
 import logging
-import requests
+from live_monitoring.enrichment.apis._http import get_session
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
@@ -49,7 +49,7 @@ class FinnhubClient:
         params = params or {}
         params["token"] = self.api_key
         try:
-            r = requests.get(f"{self.BASE_URL}{path}", params=params, timeout=10)
+            r = get_session().get(f"{self.BASE_URL}{path}", params=params, timeout=10)
             if r.status_code == 429:
                 logger.warning("Finnhub rate limit hit (250/day)")
                 return None

@@ -7,6 +7,8 @@ DarkPoolTrend can share the same stamped numbers.
 
 from __future__ import annotations
 
+import contextlib
+
 import json
 import sqlite3
 import threading
@@ -26,12 +28,19 @@ def _db_path() -> Path:
     return DEFAULT_DB_PATH
 
 
-def _connect() -> sqlite3.Connection:
+def _connect() -> "contextlib.closing[sqlite3.Connection]":
+    """
+    Phase 1 fix 1.2b — The Leak Killers:
+    Returns contextlib.closing(conn) so `with _connect() as c:` actually
+    closes the connection on exit. Previously, sqlite3's context manager
+    only committed/rolled back — it never closed the connection, leaking
+    one file descriptor per call (~30s interval = ~2880 FDs/day).
+    """
     p = _db_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(p), timeout=15)
     conn.row_factory = sqlite3.Row
-    return conn
+    return contextlib.closing(conn)
 
 
 def _migrate_canonical(conn: sqlite3.Connection) -> None:

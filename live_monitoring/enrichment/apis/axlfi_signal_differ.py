@@ -9,6 +9,7 @@ Author: Zo (Alpha's AI)
 """
 
 import os
+from collections import deque
 import json
 import time
 import logging
@@ -24,7 +25,9 @@ class AXLFISignalDiffer:
         os.makedirs(log_dir, exist_ok=True)
         self.log_dir = log_dir
         self._last_signals = {"bullish": [], "bearish": []}
-        self._history = []
+        # Phase 1 fix 1.5 — The Leak Killers: bounded at 48 snapshots
+        # (48 × 1-hour intervals = 2 trading days of history)
+        self._history = deque(maxlen=48)
         self._load_latest()
 
     def _log_path(self, d: date = None):

@@ -579,12 +579,29 @@ def get_signals(
         _finalize_signals_payload(result)
 
         # ── Cache store ───────────────────────────────────────────────
+        # Phase 1 fix 1.3 — The Leak Killers:
+        # Evict expired entries on every write, then enforce hard cap at 50.
+        # Prevents ~78MB/day growth from unique oracle_signal_cache_bump() keys.
         with _cache_lock:
+            _now = time.time()
+            # Step 1: evict expired entries
+            expired_keys = [k for k, v in _signals_cache.items() if _now >= v["expires"]]
+            for _k in expired_keys:
+                del _signals_cache[_k]
+            # Step 2: hard cap — if still over 50, nuke the whole cache
+            # (bump keys are unique per cycle; a full clear is safe and fast)
+            if len(_signals_cache) > 50:
+                _signals_cache.clear()
+                logger.warning(
+                    "signals cache hard cap hit (>50 entries after eviction) — cache cleared"
+                )
             _signals_cache[cache_key] = {
                 "data": result,
-                "expires": time.time() + SIGNALS_CACHE_TTL,
+                "expires": _now + SIGNALS_CACHE_TTL,
             }
-            logger.debug(f"signals cache STORED ({cache_key})")
+            logger.debug(
+                f"signals cache STORED ({cache_key}) size={len(_signals_cache)}"
+            )
 
         return result
 
