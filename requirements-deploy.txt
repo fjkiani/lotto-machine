@@ -1,0 +1,55 @@
+# ============================================================
+# PRODUCTION DEPLOY REQUIREMENTS (Railway / Render)
+# Stripped of dev tools, streamlit, paper-trade-only deps.
+# Heavy deps (langgraph, langchain-groq) are lazy-imported
+# inside their route handlers — not loaded at startup.
+# ============================================================
+
+# Core
+requests>=2.31.0
+numpy>=1.24.0
+yfinance>=0.2.18
+pandas>=2.0.0
+python-dateutil>=2.8.0
+pytz>=2023.3
+python-dotenv>=1.0.0
+beautifulsoup4>=4.12.0
+feedparser>=6.0.10
+pyfedwatch>=1.2.0
+psutil>=5.9.0
+
+# FastAPI
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+httpx>=0.27.0
+
+# LLM / AI
+google-generativeai>=0.3.0
+cohere>=5.0.0
+groq>=0.9.0
+
+# Kill Chain (Finnhub insider + CFTC COT)
+finnhub-python>=2.4.0
+cot_reports>=0.1.0
+supabase>=2.0.0
+
+# Technical Analysis
+ta>=0.11.0
+
+# Analog scorer (MinMaxScaler)
+scikit-learn>=1.3.0
+
+# LangGraph — lazy-imported in /kill-shots-live route only
+# NOT imported at startup — saves ~80MB baseline
+langgraph>=0.3.0
+langchain-groq>=0.3.0
+
+# NOTE: Intentionally excluded from deploy:
+# streamlit>=1.28.0     — demo only, ~60MB baseline
+# redis>=5.0.0          — not used in production path
+# alpaca-py>=0.21.0     — paper trade only, not needed on Railway
+# statsmodels>=0.14.0   — paper trade only
+# matplotlib>=3.7.0     — not needed for API
+# seaborn>=0.12.0       — not needed for API
+# discord.py==2.3.2     — run as separate worker if needed
+# pytest, black, flake8 — dev only

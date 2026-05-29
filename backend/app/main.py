@@ -250,13 +250,12 @@ async def startup():
     import asyncio
     import threading
 
-    # Production guard: Render must never run light mode (skips all background tasks).
-    if os.getenv("RENDER") and os.getenv("API_LIGHT_MODE", "0") == "1":
-        logger.warning(
-            "⚠️ API_LIGHT_MODE=1 ignored on Render — forcing full startup "
-            "(light mode skips brain/alpha-graph/staggered threads)"
-        )
-        os.environ["API_LIGHT_MODE"] = "0"
+    # NOTE: API_LIGHT_MODE=1 is intentionally honoured on Railway (and Render).
+    # Setting API_LIGHT_MODE=1 skips UnifiedAlphaMonitor (~300-400MB startup bomb)
+    # while keeping all API endpoints functional — kill-chain data is served by
+    # compute_kill_chain() in the API layer, not the monitor.
+    # The old Render guard that forced API_LIGHT_MODE=0 has been removed (2026-05-29).
+    # To re-enable the monitor on a specific platform, unset API_LIGHT_MODE or set it to 0.
 
     # Lightweight API mode for local diagnostics: skip UnifiedAlphaMonitor only.
     if os.getenv("API_LIGHT_MODE", "0") == "1":
