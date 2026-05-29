@@ -1,4 +1,5 @@
 # Keep Docker build context lean — exclude dev/test artifacts
+# NOTE: requirements-deploy.txt MUST be present — do not add *.txt here
 .git
 .gitignore
 __pycache__
@@ -16,20 +17,9 @@ node_modules/
 *.sqlite
 tests/
 docs/
-*.md
-*.pdf
-*.png
-*.jpg
-*.json
-backtests/
-backtest_results_*.json
-historical_cache/
-cache/
-logs/
 .pytest_cache/
 .mypy_cache/
 cursorReview/
 research/
 demos/
 examples/
-scripts/
