@@ -1,6 +1,5 @@
 [build]
-builder = "RAILPACK"
-buildCommand = "pip install -r requirements-deploy.txt"
+builder = "NIXPACKS"
 
 [deploy]
 startCommand = "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT --workers 1"
