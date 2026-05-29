@@ -259,17 +259,25 @@ async def startup():
 
     # Lightweight API mode for local diagnostics: skip UnifiedAlphaMonitor only.
     if os.getenv("API_LIGHT_MODE", "0") == "1":
+        # 🔥 OOM FIX (2026-05-29): Full light mode — ALL background threads disabled.
+        # Previously this block still launched 4 staggered threads + brain + alpha-graph
+        # + auto-snapshot, causing RSS to grow from 110MB → 400MB+ in 35 minutes.
+        # In true light mode, ONLY the FastAPI request handlers run.
+        # No background data fetches, no polling loops, no thread memory accumulation.
         _thread_status['monitor_run_loop'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
         _thread_status['paper_trade_scheduler'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
         _thread_status['econ_release_capture'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
+        _thread_status['dp_recorder'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
+        _thread_status['signal_differ'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
+        _thread_status['volume_spikes'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
+        _thread_status['premarket_scheduler'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
+        _thread_status['brain_polling'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
+        _thread_status['alpha_graph_polling'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
+        _thread_status['auto_snapshot'] = {'status': 'disabled (API_LIGHT_MODE=1)'}
         logger.info(
-            "⚡ API_LIGHT_MODE=1 — skipping UnifiedAlphaMonitor; "
-            "still starting brain/alpha-graph/staggered threads"
+            "⚡ API_LIGHT_MODE=1 — ALL background threads disabled. "
+            "Only FastAPI request handlers are active. True idle baseline mode."
         )
-        asyncio.create_task(_staggered_thread_launcher())
-        asyncio.create_task(_brain_polling_loop())
-        asyncio.create_task(_alpha_graph_polling_loop())
-        asyncio.create_task(_auto_snapshot_loop())
         _port = os.getenv("PORT", "8000")
         logger.info(
             "📡 Local smoke: curl -sS -m 90 http://127.0.0.1:%s/api/v1/health && "
