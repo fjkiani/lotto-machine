@@ -24,7 +24,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from backend.app.api import llm_routes
-from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate, intraday, brief, oracle, morningstar, training
+from backend.app.api.v1 import agents, websocket, dp, health, market, killchain, signals, darkpool, gamma, options, squeeze, charts, agentx, calendar, enrichment, economic, pivots, cot, ta, axlfi, gate, intraday, brief, oracle, morningstar, training, memstats
 from backend.app.core.dependencies import set_monitor_bridge
 
 logging.basicConfig(level=logging.INFO)
@@ -83,6 +83,7 @@ app.include_router(oracle.router, prefix="/api/v1", tags=["oracle"])
 app.include_router(morningstar.router, prefix="/api/v1", tags=["morningstar"])
 app.include_router(training.router, prefix="/api/v1", tags=["training"])
 app.include_router(llm_routes.router, prefix="/api", tags=["llm-aliases"])
+app.include_router(memstats.router, tags=["memstats"])  # /debug/memory + /debug/memory/history
 
 
 @app.get("/debug/git")
@@ -220,6 +221,13 @@ _thread_status = {}
 _pipe_instances = {}
 _startup_errors = {}  # Captures init failures at startup for /startup-errors
 
+# ── In-process RSS burn monitor ──
+# Populated by _rss_burn_logger() which runs every 60s regardless of API_LIGHT_MODE.
+# Exposed via GET /debug/memory/history — full burn curve from startup to now.
+from collections import deque as _deque
+_rss_history: _deque = _deque(maxlen=200)  # 200 × 60s = 3.3 hours of history
+_rss_start_time: float = 0.0  # set at startup
+
 def _run_pipe(name, instance, method_name, interval, first_capture_method=None):
     """Wrapper that tracks thread status and does immediate first capture."""
     import traceback as tb
@@ -284,6 +292,8 @@ async def startup():
             "scripts/smoke_signals.sh (first /signals can take 10–25s; not a 3s endpoint)",
             _port,
         )
+        # Always start the RSS burn logger — zero overhead, needed for burn curve
+        asyncio.create_task(_rss_burn_logger())
         return
 
     if MONITOR_AVAILABLE:
@@ -378,6 +388,9 @@ async def startup():
     # Autonomous training snapshot capture — saves kill-shots result every 30min during market hours
     asyncio.create_task(_auto_snapshot_loop())
 
+    # Always start the RSS burn logger — zero overhead, needed for burn curve
+    asyncio.create_task(_rss_burn_logger())
+
     _port = os.getenv("PORT", "8000")
     logger.info(
         "📡 Signals smoke: curl -sS -m 90 http://127.0.0.1:%s/api/v1/signals | "
@@ -385,6 +398,52 @@ async def startup():
         _port,
         _port,
     )
+
+
+async def _rss_burn_logger():
+    """Always-on in-process RSS logger. Runs every 60s regardless of API_LIGHT_MODE.
+    Appends to _rss_history deque (maxlen=200, ~3.3h at 1-min intervals).
+    Also emits RSS_BURN log lines captured by Railway log stream.
+    Zero meaningful memory overhead — one psutil call per minute.
+    """
+    import asyncio, os, time
+    global _rss_start_time
+    _rss_start_time = time.time()
+    await asyncio.sleep(10)  # Let uvicorn finish binding before first read
+    while True:
+        try:
+            rss_b, vms_b = 0, 0
+            try:
+                import psutil
+                mi = psutil.Process(os.getpid()).memory_info()
+                rss_b, vms_b = mi.rss, mi.vms
+            except Exception:
+                try:
+                    with open("/proc/self/status") as _f:
+                        for _line in _f:
+                            if _line.startswith("VmRSS:"):
+                                rss_b = int(_line.split()[1]) * 1024
+                            elif _line.startswith("VmSize:"):
+                                vms_b = int(_line.split()[1]) * 1024
+                except Exception:
+                    pass
+
+            rss_mb  = round(rss_b / 1024 / 1024, 2)
+            vms_mb  = round(vms_b / 1024 / 1024, 2)
+            elapsed = round((time.time() - _rss_start_time) / 60, 1)
+
+            entry = {
+                "ts": datetime.utcnow().isoformat() + "Z",
+                "elapsed_min": elapsed,
+                "rss_mb": rss_mb,
+                "vms_mb": vms_mb,
+            }
+            _rss_history.append(entry)
+            # Emit structured log line — captured by Railway log stream
+            logger.info("RSS_BURN elapsed=%.1fmin rss_mb=%.2f vms_mb=%.2f", elapsed, rss_mb, vms_mb)
+        except Exception as _e:
+            logger.warning("RSS logger error: %s", _e)
+        await asyncio.sleep(60)
 
 
 async def _staggered_thread_launcher():
