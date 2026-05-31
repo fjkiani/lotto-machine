@@ -1,0 +1,209 @@
+---
+description: Squad 1 — Core Infra & State. Memory management, SQLite lifecycle, async I/O, WebSocket stability.
+globs: ["backend/app/core/**/*.py", "backend/app/main.py", "live_monitoring/core/**/*.py", "live_monitoring/orchestrator/confluence_gate.py"]
+alwaysApply: false
+---
+
+# Squad 1: Core Infra & State — The Plumbers
+
+> **Agent Profile:** Low-level Systems Engineer. Strict, boring, obsessive about memory.
+> **Lane:** System survival. You do not touch signal logic, gate thresholds, or UI.
+> **Owns:** Memory lifecycle, SQLite connections, async I/O wrappers, WebSocket manager, SnapshotState singleton.
+
+---
+
+## Inherited Gaps (From Prior Audits)
+
+### From FORENSIC AUDIT — Railway Deployment + End-to-End Memory Fix Plan
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| INF-01 | `requests.Session` created per-call in FinnhubClient and StockgridClient | 🔴 CRITICAL | ✅ FIXED (commit d11a26f, Fix 1.1) |
+| INF-02 | `brain.py` self._conn persistent SQLite connection never closed | 🔴 CRITICAL | ✅ FIXED (commit d11a26f, Fix 1.2a) |
+| INF-03 | `canonical_state.py` sqlite3 context manager commits but does NOT close — 2880 leaked FDs/day | 🔴 CRITICAL | ✅ FIXED (commit d11a26f, Fix 1.2b) |
+| INF-04 | `_signals_cache` unbounded growth — ~78MB/day from unique oracle_signal_cache_bump() keys | 🔴 CRITICAL | ✅ FIXED (commit d11a26f, Fix 1.3) |
+| INF-05 | `_seen_urls` in brain.py unbounded set | 🔴 CRITICAL | ✅ FIXED (commit d11a26f, Fix 1.4) |
+| INF-06 | `AXLFISignalDiffer._history` unbounded list | 🔴 CRITICAL | ✅ FIXED (commit d11a26f, Fix 1.5) |
+| INF-07 | `UnifiedAlphaMonitor.initialize_all()` loads 8+ heavy objects at boot (~300-400MB startup bomb) | 🔴 CRITICAL | ✅ FIXED (API_LIGHT_MODE=1 gate, commit 99c4d48) |
+| INF-08 | `_staggered_thread_launcher` ran in API_LIGHT_MODE=1, causing 110→402MB RSS growth in 35 min | 🔴 CRITICAL | ✅ FIXED (commit 99c4d48) |
+| INF-09 | `import redis` at module level crashed startup when redis not installed | 🔴 CRITICAL | ✅ FIXED (lazy import, commit 1a194f4) |
+
+### From AUDIT_ITERATION_2 — Data Layer (262 Silent Errors)
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| INF-10 | `/tmp/intraday_snapshot.json` read synchronously inside FastAPI route handlers (blocking event loop) | 🔴 CRITICAL | ❌ OPEN |
+| INF-11 | `/tmp/intraday_snapshot.json` has no write lock — concurrent writes from `intraday_guardian.py` and `guardian_replay.py` can corrupt the file | 🔴 CRITICAL | ❌ OPEN |
+| INF-12 | SQLite calls in `training.py`, `gate_outcome_tracker.py`, `dp_learning/database.py` are synchronous inside async FastAPI routes | 🟡 HIGH | ❌ OPEN |
+| INF-13 | WebSocket manager has no reconnection logic, no heartbeat, no exponential backoff | 🟡 HIGH | ❌ OPEN |
+| INF-14 | `premarket_scheduler.py` writes stage files to `/tmp/premarket_stages/` — lost on container restart | 🟢 MEDIUM | ❌ OPEN |
+| INF-15 | Thread pool in `brief/router.py` (ThreadPoolExecutor, 3 workers) has no timeout enforcement per fetcher — one slow fetcher blocks the wave | 🟡 HIGH | ❌ OPEN |
+
+---
+
+## Phase 2 Scope
+
+### P2-INF-01: SnapshotState In-Memory Singleton
+
+**Problem:** `confluence_gate.py`, `unified_monitor.py`, and 4 other files all open `/tmp/intraday_snapshot.json` independently. No locking. Blocking I/O in async context.
+
+**Solution:** Create `live_monitoring/core/snapshot_state.py`:
+
+```python
+# live_monitoring/core/snapshot_state.py
+import threading, json, time
+from pathlib import Path
+from typing import Optional
+
+_SNAPSHOT_PATH = Path("/tmp/intraday_snapshot.json")
+_lock = threading.RLock()
+_current: dict = {}
+_written_at: float = 0.0
+
+def write(snapshot: dict) -> None:
+    """Write snapshot to memory AND file atomically."""
+    global _current, _written_at
+    with _lock:
+        _current = snapshot.copy()
+        _written_at = time.time()
+        # Atomic file write: write to .tmp then rename
+        tmp = _SNAPSHOT_PATH.with_suffix(".tmp")
+        tmp.write_text(json.dumps(snapshot, default=str))
+        tmp.replace(_SNAPSHOT_PATH)
+
+def get_current() -> dict:
+    """Non-blocking read. Returns last written snapshot or {}."""
+    with _lock:
+        return _current.copy()
+
+def get_age_seconds() -> float:
+    return time.time() - _written_at if _written_at else float("inf")
+
+def is_stale(threshold_s: int = 120) -> bool:
+    return get_age_seconds() > threshold_s
+```
+
+**Migration:** Replace all `open("/tmp/intraday_snapshot.json")` reads with `snapshot_state.get_current()`. Replace all `json.dump(snapshot, f)` writes with `snapshot_state.write(snapshot)`.
+
+**Files to migrate:**
+- `live_monitoring/intraday_guardian.py` (writer)
+- `live_monitoring/guardian_replay.py` (writer + reader)
+- `live_monitoring/orchestrator/confluence_gate.py` (reader)
+- `live_monitoring/orchestrator/unified_monitor.py` (reader)
+- `live_monitoring/enrichment/apis/level_watcher.py` (reader)
+- `live_monitoring/core/risk_manager.py` (reader)
+
+---
+
+### P2-INF-02: Async SQLite Wrappers for FastAPI Routes
+
+**Problem:** `training.py`, `gate_outcome_tracker.py`, and `dp_learning/database.py` call `sqlite3.connect()` synchronously inside `async def` route handlers. This blocks the uvicorn event loop.
+
+**Solution:** Wrap all SQLite calls with `asyncio.to_thread()`:
+
+```python
+# Pattern for all async route handlers:
+import asyncio
+
+async def save_snapshot(req: SnapshotRequest):
+    def _write():
+        # all synchronous sqlite3 code here
+        conn = sqlite3.connect(str(DB_PATH))
+        ...
+        conn.close()
+    await asyncio.to_thread(_write)
+```
+
+**Files to migrate:**
+- `backend/app/api/v1/training.py` — all 5 endpoints
+- `live_monitoring/orchestrator/gate_outcome_tracker.py` — `log_signal()`, `get_recent()`
+- `live_monitoring/agents/dp_learning/database.py` — `save_interaction()`, `get_interactions()`
+
+**Do NOT use aiosqlite** — it adds a dependency and the existing code is already structured as synchronous blocks. `asyncio.to_thread()` is the minimal-change fix.
+
+---
+
+### P2-INF-03: WebSocket Exponential Backoff
+
+**Problem:** `backend/app/core/websocket_manager.py` has no reconnection logic. When a client disconnects, the server just removes it. The client has no guidance on when to reconnect.
+
+**Solution:** Add a `ConnectionPolicy` to the WebSocket manager:
+
+```python
+# backend/app/core/websocket_manager.py additions:
+RECONNECT_POLICY = {
+    "initial_delay_s": 1,
+    "max_delay_s": 30,
+    "backoff_factor": 2,
+    "max_attempts": 10,
+    "heartbeat_interval_s": 30,
+}
+
+async def heartbeat_loop(self, websocket: WebSocket, channel: str):
+    """Send ping every 30s. Disconnect on failure."""
+    while True:
+        await asyncio.sleep(RECONNECT_POLICY["heartbeat_interval_s"])
+        try:
+            await websocket.send_json({"type": "ping", "ts": time.time()})
+        except Exception:
+            self.disconnect(websocket)
+            break
+```
+
+**Frontend contract:** The frontend WebSocket client must implement the matching backoff policy. See Squad 5 spec for frontend implementation.
+
+---
+
+### P2-INF-04: Thread Re-enable (Monday Readiness)
+
+**Problem:** All 10 background threads are currently disabled in `API_LIGHT_MODE=1`. The system is a comatose patient.
+
+**Solution:** Re-enable 3 core threads in `API_LIGHT_MODE=1` block in `main.py`:
+
+```python
+# In API_LIGHT_MODE=1 block, before return:
+asyncio.create_task(_brain_polling_loop())           # core signal — 40-80MB
+asyncio.create_task(_staggered_thread_launcher(
+    enabled=["dp_recorder", "volume_spikes"]         # 30-60MB combined
+))
+asyncio.create_task(_rss_burn_logger())              # always-on, ~0MB
+```
+
+**Modify `_staggered_thread_launcher()`** to accept `enabled: list[str] | None = None` parameter. If provided, only launch threads whose key is in the list.
+
+**Pass criteria:** `/debug/memory/history` shows RSS < 420MB after 30 min with these 3 threads active.
+
+**Leave disabled:** `signal_differ`, `premarket_scheduler`, `alpha_graph_polling`, `auto_snapshot`, `monitor_run_loop`, `paper_trade_scheduler`, `econ_release_capture`.
+
+---
+
+## Files Owned by Squad 1
+
+```
+backend/app/main.py                              (startup sequence, thread management)
+backend/app/core/websocket_manager.py            (WebSocket lifecycle)
+backend/app/core/dependencies.py                 (lazy imports, shared deps)
+live_monitoring/core/snapshot_state.py           (NEW — SnapshotState singleton)
+live_monitoring/intraday_guardian.py             (snapshot writer)
+live_monitoring/enrichment/apis/_http.py         (requests.Session singleton)
+```
+
+## Files Squad 1 Must NOT Touch
+
+```
+live_monitoring/orchestrator/confluence_gate.py  (Squad 2)
+live_monitoring/enrichment/apis/dynamic_threshold_engine.py  (Squad 3)
+backend/app/api/v1/training.py                   (Squad 4)
+frontend/                                        (Squad 5)
+```
+
+---
+
+## Acceptance Criteria
+
+- [ ] `SnapshotState.get_current()` returns last snapshot in < 1ms (no file I/O)
+- [ ] No `open("/tmp/intraday_snapshot.json")` calls outside `snapshot_state.py`
+- [ ] All SQLite calls in async route handlers wrapped with `asyncio.to_thread()`
+- [ ] WebSocket heartbeat fires every 30s, disconnects dead clients
+- [ ] RSS with 3 threads re-enabled: < 420MB at 30 min (verified via `/debug/memory/history`)
+- [ ] Zero `except: pass` or `except Exception as e: pass` (without logging) in owned files

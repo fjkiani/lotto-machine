@@ -1,0 +1,216 @@
+---
+description: Squad 4 — Training & ML Flywheel. Win rate validation, LLM snapshot training, quality gates, autonomous distillation.
+globs: ["backend/app/api/v1/training.py", "live_monitoring/orchestrator/gate_outcome_tracker.py", "live_monitoring/data/training/**/*"]
+alwaysApply: false
+---
+
+# Squad 4: Training & ML Flywheel — The Forge
+
+> **Agent Profile:** MLOps Architect. Builds self-improving loops. Obsessed with verified win rates.
+> **Lane:** Training data collection, outcome labeling, win rate analysis, LLM snapshot evaluation. You do not touch gate logic or UI.
+> **Owns:** `training.py`, `gate_outcome_tracker.py`, training JSONL pipeline, win rate analytics.
+
+---
+
+## Inherited Gaps (From Prior Audits)
+
+### From Win Rate Validation & Training Pipeline Plan
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| ML-01 | Training snapshots are saved but outcomes are never automatically recorded — `pending_outcomes.json` grows indefinitely with no resolution | 🔴 CRITICAL | ❌ OPEN |
+| ML-02 | Win rate calculation has no regime breakdown — can't tell if BULLISH signals win at 70% but CHOPPY signals win at 30% | 🔴 CRITICAL | ❌ OPEN |
+| ML-03 | `gate_outcome_tracker.py` logs gate decisions but missing: DTE modifier used, synthesis_score, sizing_multiplier — incomplete training record | 🔴 CRITICAL | ❌ OPEN |
+| ML-04 | No quality gate on training data — snapshots with `confidence < 50` or `regime = UNKNOWN` are included in fine-tune export | 🟡 HIGH | ❌ OPEN |
+| ML-05 | Training JSONL export has no versioning — overwriting the file loses historical data | 🟡 HIGH | ❌ OPEN |
+| ML-06 | No similar-setup lookup — when a new signal fires, there's no way to find historical setups with matching regime + bias + confidence range | 🟡 HIGH | ❌ OPEN |
+
+### From Training Pipeline — Autonomous + Quality Gates + Similar Setups
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| ML-07 | Auto-snapshot loop (`_auto_snapshot_loop` in main.py) is disabled in API_LIGHT_MODE=1 — no autonomous training data collection on Railway | 🟡 HIGH | ❌ OPEN |
+| ML-08 | No outcome window enforcement — snapshots older than `OUTCOME_WINDOW_DAYS` (default 3) with no outcome are never flagged or auto-resolved | 🟡 HIGH | ❌ OPEN |
+| ML-09 | Training export endpoint (`GET /training/export`) returns raw JSONL with no filtering — includes incomplete records (no outcome) | 🟡 HIGH | ❌ OPEN |
+| ML-10 | No fine-tune trigger — even when training data is ready, there's no mechanism to kick off retraining | 🟢 MEDIUM | ❌ OPEN |
+
+### From Signal Chain: LLM Snapshot Training
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| ML-11 | LLM snapshot format is not standardized — different callers save different fields, making fine-tuning inconsistent | 🟡 HIGH | ❌ OPEN |
+| ML-12 | No deduplication — the same market setup can be saved multiple times if the auto-snapshot loop fires twice in 30 min | 🟢 MEDIUM | ❌ OPEN |
+
+---
+
+## Phase 2 Scope
+
+### P2-ML-01: Extended GateDecisionEvent Schema
+
+**Problem:** `gate_outcome_tracker.py` logs gate decisions but is missing the fields Squad 2 now emits (DTE modifier, synthesis_score, sizing_multiplier).
+
+**Solution:** Update `GateOutcomeTracker.log_signal()` to accept and store the full `GateDecisionEvent` from the inter-agent contract:
+
+```python
+# gate_outcome_tracker.py — extended schema
+def log_signal(
+    self,
+    ticker: str,
+    direction: str,
+    entry_price: float,
+    confidence: float,
+    blocked: bool,
+    reason: str,
+    regime: str,
+    bias: str,
+    source: str = "",
+    # NEW fields from GateDecisionEvent contract:
+    dte_modifier: float = 1.0,
+    synthesis_score: float = 50.0,
+    sizing_multiplier: float = 1.0,
+    raw_confidence: float = 0.0,
+    gates_passed: list = None,
+    gates_failed: list = None,
+) -> None:
+```
+
+**SQLite schema migration:** Add columns `dte_modifier REAL`, `synthesis_score REAL`, `sizing_multiplier REAL`, `raw_confidence REAL`, `gates_passed TEXT`, `gates_failed TEXT` to `gate_decisions` table.
+
+---
+
+### P2-ML-02: Win Rate Analytics Endpoint
+
+**Problem:** No regime-breakdown win rate. Can't tell which regimes are profitable.
+
+**Solution:** Add `GET /api/v1/training/win-rate-summary` endpoint:
+
+```python
+# Returns:
+{
+    "total_signals": int,
+    "total_with_outcomes": int,
+    "overall_win_rate_pct": float,
+    "by_regime": {
+        "BULLISH": {"signals": int, "wins": int, "win_rate_pct": float},
+        "CHOPPY": {"signals": int, "wins": int, "win_rate_pct": float},
+        "TREND_EXTENDED": {"signals": int, "wins": int, "win_rate_pct": float},
+        "BREAKDOWN": {"signals": int, "wins": int, "win_rate_pct": float},
+    },
+    "by_direction": {
+        "LONG": {"signals": int, "wins": int, "win_rate_pct": float},
+        "SHORT": {"signals": int, "wins": int, "win_rate_pct": float},
+    },
+    "by_dte_regime": {
+        "HOLD": {"signals": int, "wins": int, "win_rate_pct": float},
+        "HIKE_RISK": {"signals": int, "wins": int, "win_rate_pct": float},
+        "CUT_CYCLE": {"signals": int, "wins": int, "win_rate_pct": float},
+    },
+    "pending_outcomes": int,
+    "last_snapshot_ts": str,
+}
+```
+
+---
+
+### P2-ML-03: Quality Gate on Training Export
+
+**Problem:** Fine-tune export includes incomplete and low-quality records.
+
+**Solution:** Add quality filter to `GET /training/export`:
+
+```python
+QUALITY_GATES = {
+    "min_confidence": 50,           # exclude low-confidence signals
+    "exclude_regimes": ["UNKNOWN"], # exclude data-failure signals
+    "require_outcome": True,        # exclude pending outcomes
+    "min_sizing_multiplier": 0.5,   # exclude 0x-sized (blocked) signals
+}
+```
+
+Add `?quality=strict` query param to apply gates. Default export includes all records (backward compat).
+
+---
+
+### P2-ML-04: Standardized LLM Snapshot Schema
+
+**Problem:** Different callers save different fields. Fine-tuning is inconsistent.
+
+**Solution:** Define a `SnapshotSchema` Pydantic model that all callers must use:
+
+```python
+class SnapshotSchema(BaseModel):
+    # Required
+    ts: str                          # ISO UTC
+    symbol: str
+    direction: str                   # LONG | SHORT | WATCH
+    regime: str                      # from RegimeResult.regime
+    label: str                       # WIN | LOSS | PENDING
+    confidence: float                # adjusted_confidence from GateResult
+    raw_confidence: float            # before gate adjustments
+    
+    # Gate context
+    gates_passed: list[str]
+    gates_failed: list[str]
+    sizing_multiplier: float
+    dte_modifier: float
+    synthesis_bias: str
+    synthesis_score: float
+    
+    # Market context
+    spy_price: float
+    vix: Optional[float]
+    kill_chain_score: Optional[float]
+    
+    # LLM training fields
+    oracle_summary: Optional[str]    # NYX oracle brief at time of signal
+    narrative_summary: Optional[str] # narrative brain summary
+    
+    # Outcome (filled later)
+    outcome: Optional[str]           # WIN | LOSS
+    outcome_pct: Optional[float]     # actual P&L %
+    outcome_recorded_at: Optional[str]
+```
+
+---
+
+### P2-ML-05: Outcome Auto-Resolution
+
+**Problem:** Snapshots older than `OUTCOME_WINDOW_DAYS` with no outcome are never resolved.
+
+**Solution:** Add `POST /training/auto-resolve-outcomes` endpoint that:
+1. Finds all pending snapshots older than `OUTCOME_WINDOW_DAYS`
+2. Fetches the price at `entry_price` + `OUTCOME_WINDOW_DAYS` days later via yfinance
+3. Computes P&L and labels WIN (>0.5%) or LOSS (<-0.5%) or NEUTRAL
+4. Records the outcome automatically
+
+**Run:** Via cron or manual trigger. Not automatic on every request.
+
+---
+
+## Files Owned by Squad 4
+
+```
+backend/app/api/v1/training.py
+live_monitoring/orchestrator/gate_outcome_tracker.py
+live_monitoring/data/training/                    (data directory)
+```
+
+## Files Squad 4 Must NOT Touch
+
+```
+live_monitoring/orchestrator/confluence_gate.py  (Squad 2)
+live_monitoring/enrichment/apis/dte_cache.py     (Squad 3)
+frontend/                                        (Squad 5)
+live_monitoring/core/snapshot_state.py           (Squad 1)
+```
+
+---
+
+## Acceptance Criteria
+
+- [ ] `GateOutcomeTracker.log_signal()` accepts and stores `dte_modifier`, `synthesis_score`, `sizing_multiplier`
+- [ ] `GET /training/win-rate-summary` returns regime-breakdown win rates
+- [ ] `GET /training/export?quality=strict` excludes UNKNOWN regime, confidence < 50, no outcome
+- [ ] `SnapshotSchema` Pydantic model is used by all callers of `POST /training/snapshot`
+- [ ] `POST /training/auto-resolve-outcomes` resolves pending snapshots older than `OUTCOME_WINDOW_DAYS`
+- [ ] Training JSONL is versioned: `kill_chain_snapshots_YYYY-MM.jsonl` (monthly rotation)

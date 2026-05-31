@@ -1,0 +1,225 @@
+---
+description: Squad 5 — Command Center UI. Exploitation dashboard, signal lineage, DTE visibility, tooltips, WebSocket client.
+globs: ["frontend/src/**/*.tsx", "frontend/src/**/*.ts", "frontend/src/components/brief/**", "frontend/src/components/signal-chain/**"]
+alwaysApply: false
+---
+
+# Squad 5: Command Center UI — The Dashboard
+
+> **Agent Profile:** React/Vite Frontend Ninja. Obsessed with data visibility and UX.
+> **Lane:** Frontend only. You consume backend contracts — you do not write backend logic.
+> **Owns:** All `frontend/src/` files, `docs/scaffolding/` reference components.
+
+---
+
+## Inherited Gaps (From Prior Audits)
+
+### From Exploitation Dashboard — Today's Brief Overhaul
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| UI-01 | `ExploitationCommandCenter.tsx` does not show WHY a signal was blocked — gate reason is not surfaced | 🔴 CRITICAL | ❌ OPEN |
+| UI-02 | `GateHealthBar.tsx` shows pass/fail count but not the active regime or DTE modifier | 🔴 CRITICAL | ❌ OPEN |
+| UI-03 | `VerdictBanner.tsx` shows final verdict but not the confidence adjustment path (raw → adjusted) | 🟡 HIGH | ❌ OPEN |
+| UI-04 | `MasterBriefPanels.tsx` has no staleness indicator — user cannot tell if data is 2 min or 2 hours old | 🟡 HIGH | ❌ OPEN |
+| UI-05 | `MacroEdgeStrip.tsx` does not show DTE threshold modifiers — operator cannot see if thresholds are tightened/relaxed | 🔴 CRITICAL | ❌ OPEN |
+
+### From Signal Chain — Full Lineage View
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| UI-06 | `SignalChainView.tsx` exists but shows a flat list — no tree structure showing which gates passed/failed | 🔴 CRITICAL | ❌ OPEN |
+| UI-07 | No lineage tooltip on signal cards — clicking a signal shows no explanation of why it fired | 🟡 HIGH | ❌ OPEN |
+| UI-08 | `PillarCardCombined.tsx` does not show the regime that was active when the signal fired | 🟡 HIGH | ❌ OPEN |
+| UI-09 | Signal chain has no "similar setups" panel — no historical context for current signal | 🟢 MEDIUM | ❌ OPEN |
+
+### From Signal Chain: Consolidation + Tooltips + LLM Snapshot Training
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| UI-10 | No tooltip on confidence score — user doesn't know if 85% means "strong" or "barely passed" | 🟡 HIGH | ❌ OPEN |
+| UI-11 | No tooltip on sizing multiplier — user doesn't know what 1.5x means in dollar terms | 🟡 HIGH | ❌ OPEN |
+| UI-12 | WebSocket client has no reconnection logic — connection drops silently, UI shows stale data | 🔴 CRITICAL | ❌ OPEN |
+
+### From Production Handoff Plan — Today's Brief + Signal Chain
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| UI-13 | `AiBriefingPanel.tsx` oracle path badge (UNIFIED/KC/DEV/OFFLINE) exists but is not visible enough — operators miss it | 🟢 MEDIUM | ❌ OPEN |
+| UI-14 | No AAPL/SPY regime state display — when AAPL signal fires, UI doesn't show which regime was used | 🟡 HIGH | ❌ OPEN |
+
+---
+
+## Phase 2 Scope
+
+### P2-UI-01: Gate Reason Transparency
+
+**Problem:** Operators cannot see why a signal was blocked. The gate reason string exists in the API response but is not surfaced.
+
+**Solution:** In `ExploitationCommandCenter.tsx` and `SignalChainView.tsx`, add a `GateReasonBadge` component:
+
+```tsx
+// GateReasonBadge.tsx
+interface GateReasonBadgeProps {
+  blocked: boolean;
+  reason: string;
+  gatesPassed: string[];
+  gatesFailed: string[];
+  regime: string;
+  sizingMultiplier: number;
+}
+
+// Renders:
+// ✅ PASS: LONG SPY (4 gates passed | 1.5x size)
+// ⛔ BLOCK: CHOPPY CONFIDENCE BLOCK: Need 90%+ (got 72%)
+//   Gates passed: THESIS ✓ | DIRECTION ✓
+//   Gates failed: CONFIDENCE ✗
+```
+
+**Wire into:** `SignalFeedGrid.tsx` — show `GateReasonBadge` on each signal card.
+
+---
+
+### P2-UI-02: DTE Modifier Display in GateHealthBar
+
+**Problem:** `GateHealthBar.tsx` shows pass/fail count but not the active DTE regime or threshold adjustments.
+
+**Solution:** Extend `GateHealthBar.tsx` to consume `GET /api/v1/economic/dte-status` (Squad 3 contract):
+
+```tsx
+// GateHealthBar additions:
+<DTEStatusStrip
+  modifier={dteStatus.threshold_modifier}
+  regimeLabel={dteStatus.regime_label}
+  choppyThreshold={dteStatus.choppy_threshold}
+  trendThreshold={dteStatus.trend_threshold}
+  lastUpdated={dteStatus.last_updated}
+/>
+```
+
+**Visual:** Show a colored badge:
+- `HOLD` → gray, "Thresholds: 90% / 70%"
+- `CUT_CYCLE` → green, "Thresholds: 81% / 63% (relaxed)"
+- `HIKE_RISK` → red, "Thresholds: 95% / 77% (tightened)"
+
+---
+
+### P2-UI-03: Signal Chain Lineage Tree
+
+**Problem:** `SignalChainView.tsx` is a flat list. No tree showing the gate evaluation path.
+
+**Solution:** Replace flat list with a `SignalLineageTree` component:
+
+```
+Signal: LONG SPY @ $585.20
+├── Gate 0: THESIS ✅ (valid)
+├── Gate 1: REGIME ✅ (BULLISH — SPY $585.20 between walls $580/$590)
+├── Gate 2: SYNTHESIS ✅ (BULLISH bias, 72% score)
+├── Gate 2.5: DP PROXIMITY ✅ (support @ $584.50, 89% WR)
+└── Gate 3: KILL CHAIN ✅ (2/3 layers active, 1.0x size)
+    └── Confidence: 85% → 93.5% (DP boost +10%)
+    └── Sizing: 1.0x
+```
+
+**Data source:** `gates_passed` and `gates_failed` arrays from `GateResult` — already in the API response.
+
+---
+
+### P2-UI-04: WebSocket Reconnection (Client-Side)
+
+**Problem:** WebSocket client drops silently. Squad 1 is adding server-side heartbeat — Squad 5 must implement the matching client-side reconnection.
+
+**Solution:** Create `frontend/src/hooks/useReconnectingWebSocket.ts`:
+
+```typescript
+const RECONNECT_POLICY = {
+  initialDelayMs: 1000,
+  maxDelayMs: 30000,
+  backoffFactor: 2,
+  maxAttempts: 10,
+};
+
+export function useReconnectingWebSocket(url: string) {
+  const [status, setStatus] = useState<"connecting" | "open" | "closed" | "error">("connecting");
+  const [lastMessage, setLastMessage] = useState<any>(null);
+  const attemptRef = useRef(0);
+  
+  // Exponential backoff reconnection logic
+  // Responds to server ping with pong
+  // Shows connection status badge in UI
+}
+```
+
+**Replace** all direct `new WebSocket(url)` calls in `frontend/src/` with `useReconnectingWebSocket`.
+
+---
+
+### P2-UI-05: Confidence Score Tooltips
+
+**Problem:** Confidence scores have no explanation. 85% means nothing to an operator without context.
+
+**Solution:** Add `ConfidenceTooltip` component:
+
+```tsx
+// ConfidenceTooltip.tsx
+// On hover over confidence score, shows:
+// Raw: 85%
+// After regime penalty: 85% (no penalty — BULLISH regime)
+// After DP boost: 93.5% (+10% — near support @ $584.50)
+// DTE modifier: 0.91 (CUT_CYCLE — thresholds relaxed)
+// Sizing: 1.0x (2/3 Kill Chain layers active)
+```
+
+**Data source:** `raw_confidence`, `adjusted_confidence`, `gates_passed` from `GateResult`.
+
+---
+
+### P2-UI-06: Staleness Indicators
+
+**Problem:** `MasterBriefPanels.tsx` shows data with no age indicator.
+
+**Solution:** Add `DataFreshnessBar` component that shows:
+- Green: data < 2 min old
+- Yellow: data 2-10 min old
+- Red: data > 10 min old (with "STALE" badge)
+
+**Data source:** `scan_time` and `as_of` fields already in `/api/v1/brief/master` response.
+
+---
+
+## Files Owned by Squad 5
+
+```
+frontend/src/                                    (all frontend files)
+docs/scaffolding/                                (reference components)
+```
+
+## Files Squad 5 Must NOT Touch
+
+```
+backend/                                         (all backend files)
+live_monitoring/                                 (all live monitoring files)
+```
+
+## Backend Endpoints Squad 5 Consumes (Read-Only)
+
+| Endpoint | Owner | Purpose |
+|----------|-------|---------|
+| `GET /api/v1/economic/dte-status` | Squad 3 | DTE modifier + regime label |
+| `GET /api/v1/training/win-rate-summary` | Squad 4 | Win rate by regime |
+| `GET /api/v1/enrichment/narrative-divergence` | Squad 3 | Narrative divergence signal |
+| `GET /debug/memory/history` | Squad 1 | RSS burn curve (ops panel) |
+| `GET /api/v1/brief/master` | Squad 1/2/3 | Full brief payload |
+| `GET /kill-shots-live` | Squad 2 | Gate result + verdict |
+
+---
+
+## Acceptance Criteria
+
+- [ ] `GateReasonBadge` shows blocked reason and gates passed/failed on every signal card
+- [ ] `GateHealthBar` shows DTE modifier, regime label, and adjusted thresholds
+- [ ] `SignalLineageTree` renders gate evaluation path as a tree (not flat list)
+- [ ] `useReconnectingWebSocket` implements exponential backoff, responds to server ping
+- [ ] `ConfidenceTooltip` shows raw → adjusted confidence path on hover
+- [ ] `DataFreshnessBar` shows data age with green/yellow/red indicator
+- [ ] AAPL signals show AAPL's regime state (not SPY's) in the signal card

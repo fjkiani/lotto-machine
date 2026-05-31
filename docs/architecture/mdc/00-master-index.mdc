@@ -1,0 +1,197 @@
+---
+description: Master Data Control — lotto-machine squad directory, capability map, and inter-agent contracts
+globs: ["docs/architecture/mdc/**/*.mdc"]
+alwaysApply: true
+---
+
+# lotto-machine.mdc — Master Data Control Directory
+
+> **Version:** 1.0 | **Date:** 2026-05-31 | **Principal Dispatcher:** Biomni
+> **Status:** AUTHORITATIVE — all squad agents read this before touching code
+
+---
+
+## Why This Exists
+
+We spent months acting like a solo rogue hacker patching 262 leaks while simultaneously building a macro prediction engine. That ends here. This MDC directory is the single source of truth for what each squad owns, what they must NOT touch, and how they pass data to each other.
+
+**The application has 5 distinct capability domains. Each has one squad. Squads do not cross lanes.**
+
+---
+
+## Application Capability Map
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        lotto-machine                                │
+│                                                                     │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐  │
+│  │  SQUAD 1     │    │  SQUAD 2     │    │  SQUAD 3             │  │
+│  │  Core Infra  │───▶│  Execution   │◀───│  Macro & Data        │  │
+│  │  & State     │    │  & Risk      │    │  Prediction          │  │
+│  │              │    │              │    │                      │  │
+│  │ /specs/01    │    │ /specs/02    │    │ /specs/03            │  │
+│  └──────┬───────┘    └──────┬───────┘    └──────────────────────┘  │
+│         │                  │                        │               │
+│         │ SnapshotState    │ GateResult             │ DTE output    │
+│         │ (shared memory)  │ (typed)                │ (cached)      │
+│         ▼                  ▼                        ▼               │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                    SQUAD 4: ML Flywheel                      │  │
+│  │              /specs/04 — Training & Win Rate                 │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                              │                                      │
+│                              │ Verified signals                     │
+│                              ▼                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                    SQUAD 5: Command Center                   │  │
+│  │              /specs/05 — Dashboard & Signal Lineage          │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Squad Directory
+
+| Squad | File | Domain | Phase 2 Priority |
+|-------|------|---------|-----------------|
+| 1 — Core Infra & State | `01-core-infra.mdc` | Memory, SQLite, async I/O, WebSockets | 🔴 CRITICAL — blocks all others |
+| 2 — Execution & Risk | `02-execution-risk.mdc` | Gate logic, DTE, regime, slippage | 🔴 CRITICAL — Monday readiness |
+| 3 — Macro & Data | `03-macro-data.mdc` | Narrative divergence, econ prediction | 🟡 HIGH — signal quality |
+| 4 — Training & ML | `04-training-ml.mdc` | Win rate, LLM snapshots, flywheel | 🟡 HIGH — self-improvement |
+| 5 — Command Center | `05-command-center.mdc` | Dashboard, lineage, tooltips | 🟢 MEDIUM — visibility |
+
+---
+
+## Inter-Agent Contracts (Data Sharing Rules)
+
+### Contract 1: Squad 1 → Squad 2 (State → Gate)
+
+**What:** The intraday snapshot (spy_price, walls, thesis_valid, regime) must reach the gate without blocking the FastAPI event loop.
+
+**Current state (broken):** `confluence_gate.py` reads `/tmp/intraday_snapshot.json` synchronously inside a FastAPI route handler. This is a blocking file I/O call on the async event loop.
+
+**Contract:**
+```python
+# Squad 1 owns: SnapshotState singleton (in-memory, thread-safe)
+# Interface Squad 2 consumes:
+class SnapshotState:
+    def get_current() -> dict:  # non-blocking, returns last written snapshot
+    def get_age_seconds() -> float:  # how stale is the snapshot
+    def is_stale(threshold_s: int = 120) -> bool:
+```
+
+**Rule:** Squad 2 (gate) calls `SnapshotState.get_current()` — never opens `/tmp/intraday_snapshot.json` directly. Squad 1 writes the file AND updates the singleton. The singleton is the fast path; the file is the persistence path.
+
+---
+
+### Contract 2: Squad 3 → Squad 2 (Macro → Gate)
+
+**What:** DTE threshold modifiers (hawkish_mult, dovish_mult) must reach `confluence_gate.py` without a blocking FRED API call on every gate evaluation.
+
+**Current state (broken):** DTE is completely disconnected from the gate. Gate uses hardcoded 90%/70% thresholds.
+
+**Contract:**
+```python
+# Squad 3 owns: DTECache singleton
+# Interface Squad 2 consumes:
+class DTECache:
+    def get_threshold_modifier() -> float:  # 0.85–1.15, cached 1h, default 1.0
+    def get_regime_label() -> str:          # "HOLD" | "HIKE_RISK" | "CUT_CYCLE"
+    def last_updated() -> datetime
+```
+
+**Rule:** Squad 3 refreshes DTECache on a background schedule (every 1h). Squad 2 reads it synchronously — never calls FRED directly from inside `should_fire()`.
+
+---
+
+### Contract 3: Squad 2 → Squad 4 (Gate → Training)
+
+**What:** Every gate decision (pass or block) must be logged for training. The training pipeline needs the full GateResult, not just the final verdict.
+
+**Current state (partial):** `GateOutcomeTracker` exists but only logs blocked/passed + reason. Missing: regime, DTE modifier used, synthesis_score, sizing_multiplier.
+
+**Contract:**
+```python
+# Squad 2 emits on every should_fire() call:
+GateDecisionEvent = {
+    "ts": str,                    # ISO UTC
+    "symbol": str,
+    "direction": str,             # LONG | SHORT
+    "regime": str,                # BULLISH | CHOPPY | BREAKDOWN | TREND_EXTENDED | PRE_MARKET
+    "blocked": bool,
+    "reason": str,
+    "raw_confidence": float,
+    "adjusted_confidence": float,
+    "sizing_multiplier": float,
+    "dte_modifier": float,        # NEW — what DTE modifier was active
+    "synthesis_bias": str,
+    "synthesis_score": float,
+    "gates_passed": list[str],
+    "gates_failed": list[str],
+}
+# Squad 4 consumes this via: training.py POST /training/gate-decision
+```
+
+---
+
+### Contract 4: Squad 3 → Squad 5 (Macro → Dashboard)
+
+**What:** DTE thresholds, regime label, and VIX proxy must be surfaced on the UI so operators can see WHY a trade fired or blocked.
+
+**Contract:**
+```python
+# Squad 3 exposes via: GET /api/v1/economic/dte-status
+{
+    "threshold_modifier": float,
+    "regime_label": str,
+    "choppy_threshold": int,      # e.g. 81 (90 * 0.9 in CUT_CYCLE)
+    "trend_threshold": int,       # e.g. 63 (70 * 0.9 in CUT_CYCLE)
+    "last_updated": str,
+    "p_hike": float,
+    "p_cut": float,
+}
+# Squad 5 reads this endpoint and displays it in the gate health bar
+```
+
+---
+
+### Contract 5: Squad 4 → Squad 5 (ML → Dashboard)
+
+**What:** Win rate stats and similar-setup lookups must be available to the signal chain lineage view.
+
+**Contract:**
+```python
+# Squad 4 exposes via: GET /api/v1/training/win-rate-summary
+{
+    "total_signals": int,
+    "win_rate_pct": float,
+    "by_regime": { "BULLISH": float, "CHOPPY": float, ... },
+    "by_direction": { "LONG": float, "SHORT": float },
+    "pending_outcomes": int,
+    "last_snapshot_ts": str,
+}
+```
+
+---
+
+## Phase Status
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1 | ✅ COMPLETE | 5 root-cause memory leaks fixed (commit d11a26f). RSS stable at 133 MB in API_LIGHT_MODE=1. |
+| Phase 1.5 | ✅ COMPLETE | Railway deploy, OOM fix, in-process RSS burn monitor (commit bc9924f). |
+| Phase 2 | 🔴 IN PROGRESS | Squad 1: SnapshotState singleton + async SQLite. Squad 2: RegimeResult typed, AAPL desync, DTE wired. |
+| Phase 3 | ⏳ BLOCKED on Phase 2 | Squad 3: Narrative divergence rebuild. Squad 4: Training flywheel. Squad 5: Signal lineage UI. |
+
+---
+
+## Hard Rules (All Squads)
+
+1. **No squad touches another squad's owned files without a contract change.** If Squad 2 needs something from Squad 1, it goes through the defined interface — not a direct import.
+2. **No blocking I/O in FastAPI route handlers.** All file reads, SQLite queries, and external API calls in route handlers must use `asyncio.to_thread()` or be pre-cached.
+3. **No silent exception swallowing.** `except: pass` and `except Exception as e: pass` (without logging) are banned. Every exception must be logged at WARNING or higher.
+4. **No hardcoded thresholds in gate logic.** All confidence thresholds must read from DTECache (Squad 3) with a hardcoded fallback only as a last resort.
+5. **No raw market orders in paper_trader.** All orders must use limit orders with a configurable slippage tolerance.
+6. **The `/tmp/intraday_snapshot.json` file is Squad 1's write path only.** All other squads read via `SnapshotState.get_current()`.
