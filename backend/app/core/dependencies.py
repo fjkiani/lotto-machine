@@ -5,7 +5,7 @@ FastAPI dependencies for agent endpoints
 import os
 import logging
 from typing import Optional
-import redis
+# redis is optional — only imported when REDIS_URL is set (not needed on Railway without Redis)
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ def get_redis():
         redis_url = os.getenv('REDIS_URL')
         if redis_url:
             try:
+                import redis  # lazy import — only when REDIS_URL is configured
                 _redis_client = redis.from_url(redis_url, decode_responses=True)
                 logger.info("✅ Redis client connected")
             except Exception as e:

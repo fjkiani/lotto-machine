@@ -1,0 +1,247 @@
+---
+description: Squad 2 — Execution & Risk. Gate logic, regime detection, DTE wiring, slippage control, circuit breakers.
+globs: ["live_monitoring/orchestrator/confluence_gate.py", "live_monitoring/orchestrator/checkers/**/*.py", "live_monitoring/trading/paper_trader.py", "backend/app/api/v1/gate.py"]
+alwaysApply: false
+---
+
+# Squad 2: Execution & Risk — The Snipers
+
+> **Agent Profile:** Ruthless Quant Developer. Obsessed with execution speed and capital preservation.
+> **Lane:** Signal filtering, gate logic, order execution. You do not touch data fetching, UI, or training pipelines.
+> **Owns:** `confluence_gate.py`, all checkers, `paper_trader.py`, `gate_outcome_tracker.py`, `intraday_guardian.py` (gate-side reads only).
+
+---
+
+## Inherited Gaps (From Prior Audits)
+
+### From FULL FINDINGS — Chapters 3 & 4
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| EX-01 | `_get_market_regime()` returns bare `str` — no typed contract, no auditable price source | 🔴 CRITICAL | ❌ OPEN |
+| EX-02 | `regime == "UNKNOWN"` blocks ALL signals when `spy_price=0` — fires during pre-market when market is closed and snapshot has no price | 🔴 CRITICAL | ❌ OPEN |
+| EX-03 | AAPL/SPY desync: `_evaluate_long_proposal()` Gate 1 calls `regime_detector.detect(current_price, symbol)` but `current_price` is `None` for non-SPY symbols, causing silent fallback to `"BULLISH"` | 🔴 CRITICAL | ❌ OPEN |
+| EX-04 | Hardcoded confidence thresholds: CHOPPY=90%, TREND_EXTENDED=70%, DOWNTREND counter-trend=90% — static regardless of macro regime | 🔴 CRITICAL | ❌ OPEN |
+| EX-05 | DTE (`DynamicThresholdEngine`) exists and works but is completely disconnected from `confluence_gate.py` | 🔴 CRITICAL | ❌ OPEN |
+| EX-06 | `paper_trader.py` uses raw market orders (`submit_order` with no limit price) — subject to full slippage on volatile opens | 🟡 HIGH | ❌ OPEN |
+| EX-07 | No pre-market volume gate — signals can fire at 9:30 open when spread is 10x normal | 🟡 HIGH | ❌ OPEN |
+| EX-08 | `_regime_evaluators` dict has no explicit handler for `"UNKNOWN"` — falls through to `_evaluate_long_proposal` silently | 🟡 HIGH | ❌ OPEN |
+| EX-09 | VIX is not in the intraday snapshot schema — gate cannot use live VIX for threshold adjustment | 🟡 HIGH | ❌ OPEN |
+| EX-10 | `synthesis_bias` defaults to `None` when no synthesis data available — gate passes with 15% confidence penalty but no explicit warning | 🟢 MEDIUM | ❌ OPEN |
+
+### From CAN_WE_MAKE_MONEY.md
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| EX-11 | Signal thresholds too high — system generates 0 signals in normal market conditions | 🔴 CRITICAL | ❌ OPEN (related to EX-04) |
+| EX-12 | No circuit breaker for consecutive losses — system can keep firing after 3 losing trades | 🟡 HIGH | ❌ OPEN |
+
+---
+
+## Phase 2 Scope
+
+### P2-EX-01: Typed RegimeResult Dataclass
+
+**Problem:** `_get_market_regime()` returns a bare `str`. No audit trail of what price was used, what walls were compared, or why UNKNOWN was returned.
+
+**Solution:** Replace the return type with a typed dataclass:
+
+```python
+# In confluence_gate.py, add at top:
+@dataclass
+class RegimeResult:
+    regime: str          # "BULLISH" | "CHOPPY" | "BREAKDOWN" | "TREND_EXTENDED" | "PRE_MARKET" | "UNKNOWN"
+    spy_price: float     # price used for regime determination
+    price_source: str    # "snapshot" | "alternate" | "yfinance_fallback" | "none"
+    call_wall: float     # 0.0 if unavailable
+    put_wall: float      # 0.0 if unavailable
+    reason: str          # human-readable explanation of why this regime was chosen
+```
+
+**Update `_get_market_regime()`** to return `RegimeResult` instead of `str`.
+
+**Update `should_fire()`** to unpack: `regime_result = self._get_market_regime(...)` then `regime = regime_result.regime`.
+
+**Log the full RegimeResult** at DEBUG level on every gate call — this is the audit trail.
+
+---
+
+### P2-EX-02: Pre-Market Bypass (Fix UNKNOWN Block)
+
+**Problem:** When market is closed (`market_open=False` in snapshot), `spy_price=0`, so `_get_market_regime()` returns `"UNKNOWN"`, which blocks ALL signals. Pre-market signals (valid use case) are silently killed.
+
+**Solution:** In `_get_market_regime()`, add pre-market check before the price check:
+
+```python
+if not snapshot.get("market_open", True):
+    return RegimeResult(
+        regime="PRE_MARKET",
+        spy_price=0.0,
+        price_source="none",
+        call_wall=0.0,
+        put_wall=0.0,
+        reason="Market closed — pre-market permissive regime"
+    )
+```
+
+**Add `_evaluate_premarket_proposal()`** to `_regime_evaluators`:
+- LONG: requires 75%+ confidence, sizing 0.75x
+- SHORT: blocked (no pre-market shorts)
+
+**Add explicit `_evaluate_unknown_proposal()`** to `_regime_evaluators`:
+- Blocks all signals with clear reason: `"⛔ UNKNOWN REGIME: spy_price=0 during market hours — data feed failure"`
+- This replaces the silent fallback to `_evaluate_long_proposal`
+
+---
+
+### P2-EX-03: AAPL/SPY Desync Fix
+
+**Problem:** In `_evaluate_long_proposal()` Gate 1, `current_price` is `None` for non-SPY symbols when callers don't pass it. The gate silently skips regime detection and defaults to `"BULLISH"`.
+
+**Root cause confirmed:** `dp_divergence_checker.py` calls `gate.should_fire(symbol=signal.symbol, raw_confidence=signal.confidence)` without `current_price`. For AAPL, `current_price=None`, so Gate 1 is skipped.
+
+**Solution:**
+
+```python
+# In _evaluate_long_proposal(), Gate 1:
+if current_price is None:
+    # Fetch symbol-specific price — not SPY's price
+    current_price = self._get_price(symbol)
+    if current_price:
+        logger.debug(f"Gate: fetched {symbol} price ${current_price:.2f} for regime check")
+
+if self.regime_detector and current_price:
+    try:
+        regime = self.regime_detector.detect(current_price, symbol)
+    except Exception as e:
+        logger.warning(f"⚠️ Gate: regime detection failed for {symbol}: {e}")
+        regime = "BULLISH"  # explicit fallback, not silent
+```
+
+**Note:** The wall-relative regime (BULLISH/CHOPPY/TREND_EXTENDED) in `_get_market_regime()` correctly uses SPY's walls — this is intentional. SPY walls are market-level constructs. The fix is only in Gate 1's `regime_detector.detect()` call, which should use the symbol's own price.
+
+---
+
+### P2-EX-04: DTE Wired into Confluence Gate
+
+**Problem:** Gate uses hardcoded thresholds. DTE exists but is disconnected.
+
+**Solution:** Add `DTECache` consumer to `ConfluenceGate.__init__()`:
+
+```python
+def __init__(self, regime_detector=None, kill_chain_logger=None):
+    ...
+    self._dte_modifier_cache: tuple[float, float] = (1.0, 0.0)  # (modifier, timestamp)
+    self._dte_cache_ttl = 3600  # 1 hour
+
+def _get_dte_threshold_modifier(self) -> float:
+    """Get DTE modifier. Cached 1h. Returns 1.0 on any failure."""
+    modifier, ts = self._dte_modifier_cache
+    if time.time() - ts < self._dte_cache_ttl:
+        return modifier
+    try:
+        # Read from DTECache singleton (Squad 3 owns this)
+        from live_monitoring.enrichment.apis.dte_cache import DTECache
+        modifier = DTECache.get_threshold_modifier()
+        self._dte_modifier_cache = (modifier, time.time())
+        return modifier
+    except Exception as e:
+        logger.debug(f"DTE modifier fetch failed: {e} — using 1.0")
+        return 1.0
+```
+
+**Apply modifier in `_evaluate_choppy_proposal()`:**
+```python
+dte_mod = self._get_dte_threshold_modifier()
+choppy_threshold = int(min(95, max(75, round(90 * dte_mod))))
+# HOLD regime: 90%, CUT_CYCLE: ~81%, HIKE_RISK: ~99% (clamped to 95%)
+```
+
+**Apply modifier in `_evaluate_trend_extended_proposal()`:**
+```python
+trend_threshold = int(min(85, max(55, round(70 * dte_mod))))
+```
+
+**Apply modifier in `_evaluate_long_proposal()` DOWNTREND soft block:**
+```python
+downtrend_threshold = int(min(95, max(80, round(90 * dte_mod))))
+```
+
+---
+
+### P2-EX-05: Limit Orders in paper_trader.py
+
+**Problem:** `paper_trader.py` line 171: `"Use market order for simplicity"` — raw market orders on volatile opens bleed slippage.
+
+**Solution:** Replace market orders with limit orders using a configurable slippage tolerance:
+
+```python
+# paper_trader.py
+LIMIT_SLIPPAGE_PCT = float(os.getenv("LIMIT_SLIPPAGE_PCT", "0.05"))  # 0.05% default
+
+def _build_order(self, symbol, qty, side, current_price):
+    if side == "buy":
+        limit_price = round(current_price * (1 + LIMIT_SLIPPAGE_PCT / 100), 2)
+    else:
+        limit_price = round(current_price * (1 - LIMIT_SLIPPAGE_PCT / 100), 2)
+    
+    return {
+        "symbol": symbol,
+        "qty": qty,
+        "side": side,
+        "type": "limit",
+        "time_in_force": "day",
+        "limit_price": str(limit_price),
+        "extended_hours": False,
+    }
+```
+
+**Add pre-market volume gate:**
+```python
+def _passes_volume_gate(self, symbol: str) -> bool:
+    """Block orders in first 5 minutes of market open (9:30-9:35 ET)."""
+    et = datetime.now(pytz.timezone("America/New_York"))
+    if et.hour == 9 and et.minute < 35:
+        logger.info(f"Volume gate: blocking {symbol} order — first 5 min of open")
+        return False
+    return True
+```
+
+---
+
+## Files Owned by Squad 2
+
+```
+live_monitoring/orchestrator/confluence_gate.py
+live_monitoring/orchestrator/checkers/dp_bearish_checker.py
+live_monitoring/orchestrator/checkers/dp_divergence_checker.py
+live_monitoring/orchestrator/checkers/gamma_checker.py
+live_monitoring/orchestrator/checkers/dark_pool_checker.py
+live_monitoring/orchestrator/checkers/options_flow_checker.py
+live_monitoring/orchestrator/checkers/squeeze_checker.py
+live_monitoring/orchestrator/gate_outcome_tracker.py
+live_monitoring/trading/paper_trader.py
+backend/app/api/v1/gate.py
+```
+
+## Files Squad 2 Must NOT Touch
+
+```
+live_monitoring/core/snapshot_state.py           (Squad 1 — read via interface only)
+live_monitoring/enrichment/apis/dynamic_threshold_engine.py  (Squad 3 — read via DTECache only)
+backend/app/api/v1/training.py                   (Squad 4)
+frontend/                                        (Squad 5)
+```
+
+---
+
+## Acceptance Criteria
+
+- [ ] `_get_market_regime()` returns `RegimeResult` dataclass — never a bare `str`
+- [ ] Pre-market signals (market_open=False) route to `_evaluate_premarket_proposal()` — not blocked by UNKNOWN
+- [ ] AAPL signal with `current_price=None` fetches AAPL's own price before Gate 1 regime check
+- [ ] `_evaluate_unknown_proposal()` is an explicit handler — no silent fallback to `_evaluate_long_proposal`
+- [ ] CHOPPY threshold adjusts with DTE modifier: 81% in CUT_CYCLE, 90% in HOLD, 95% in HIKE_RISK
+- [ ] `paper_trader.py` uses limit orders with `LIMIT_SLIPPAGE_PCT` env var
+- [ ] Pre-market volume gate blocks orders before 9:35 ET
+- [ ] Every gate decision logs `RegimeResult` at DEBUG level

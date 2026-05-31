@@ -1,0 +1,248 @@
+---
+description: Squad 3 — Macro & Data Prediction. Narrative divergence, economic event parsing, DTE cache, IV skew ingest.
+globs: ["live_monitoring/agents/economic/**/*.py", "live_monitoring/enrichment/apis/dynamic_threshold_engine.py", "live_monitoring/pipeline/components/trump_monitor.py", "live_monitoring/agents/narrative_brain/**/*.py"]
+alwaysApply: false
+---
+
+# Squad 3: Macro & Data Prediction — The Oracles
+
+> **Agent Profile:** Macro-Economist Data Scientist. Deeply analytical, connects news to price action.
+> **Lane:** Economic data, narrative divergence, DTE cache. You do not touch gate logic or UI rendering.
+> **Owns:** `dynamic_threshold_engine.py`, `macro_regime_detector.py`, `narrative_brain/`, `trump_monitor.py`, `economic/` agents, `DTECache` singleton (new).
+
+---
+
+## Inherited Gaps (From Prior Audits)
+
+### From Gap Audit Fix Plan — Narrative/Divergence (2026-05-23)
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| MAC-01 | `trump_monitor.py` swallows all exceptions silently — `except Exception as e: pass` with no logging | 🔴 CRITICAL | ❌ OPEN |
+| MAC-02 | `economic/calendar.py` line 80: bare `except:` — swallows ALL exceptions including KeyboardInterrupt | 🔴 CRITICAL | ❌ OPEN |
+| MAC-03 | `economic/pre_event_analyzer.py` has 6 bare `except:` blocks — silent failures mean the pre-event signal never fires | 🔴 CRITICAL | ❌ OPEN |
+| MAC-04 | Narrative divergence detection exists in `narrative_brain.py` but output is never routed to the gate — `divergence_detected` flag is computed but discarded | 🔴 CRITICAL | ❌ OPEN |
+| MAC-05 | `DynamicThresholdEngine` is completely disconnected from `confluence_gate.py` — Squad 2 cannot consume it | 🔴 CRITICAL | ❌ OPEN (Squad 3 must build DTECache; Squad 2 consumes it) |
+| MAC-06 | No VIX synthetic fallback — when `^VIX` yfinance call fails, DTE returns `regime_label: "UNKNOWN"` and all modifiers default to 1.0 | 🟡 HIGH | ❌ OPEN |
+| MAC-07 | `economic/predictor.py` line 266: bare `except:` — prediction failures are silent | 🟡 HIGH | ❌ OPEN |
+| MAC-08 | AAPL IV skew not ingested — system uses lagging price action for AAPL signals instead of forward-looking options IV | 🟡 HIGH | ❌ OPEN |
+
+### From Economic Data Prediction Framework — Multi-Phase Audit
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| MAC-09 | `MacroRegimeDetector.get_regime()` returns a dict but callers sometimes treat it as a string — no typed contract | 🟡 HIGH | ❌ OPEN |
+| MAC-10 | FRED API key not set on Railway — `DynamicThresholdEngine` degrades silently, no alert to operator | 🟡 HIGH | ❌ OPEN |
+| MAC-11 | Cleveland Fed nowcast scraper has no retry logic — single network failure kills the nowcast signal | 🟢 MEDIUM | ❌ OPEN |
+| MAC-12 | `economic/data_collector.py` has 4 separate `except Exception as e: logger.error(...)` blocks that log but return `None` — callers don't check for None | 🟢 MEDIUM | ❌ OPEN |
+
+### From Macro Prediction Framework — Production Integration Plan
+
+| Gap ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| MAC-13 | `FedShiftPredictor` uses static coefficients — not calibrated to current FedWatch probabilities | 🟡 HIGH | ❌ OPEN |
+| MAC-14 | No forward-looking IV skew ingest for SPY/QQQ — system is reactive, not predictive | 🟡 HIGH | ❌ OPEN |
+| MAC-15 | `narrative_brain.py` divergence output has no structured schema — it's a free-text string, not a typed signal | 🟢 MEDIUM | ❌ OPEN |
+
+---
+
+## Phase 2 Scope
+
+### P2-MAC-01: DTECache Singleton (Critical — Squad 2 Dependency)
+
+**Problem:** Squad 2 needs DTE threshold modifiers without blocking the gate on a FRED API call. Squad 3 must build the cache layer.
+
+**Solution:** Create `live_monitoring/enrichment/apis/dte_cache.py`:
+
+```python
+# live_monitoring/enrichment/apis/dte_cache.py
+import threading, time, logging
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+_lock = threading.RLock()
+_modifier: float = 1.0
+_regime_label: str = "HOLD"
+_p_hike: float = 0.0
+_p_cut: float = 0.0
+_last_updated: float = 0.0
+_TTL = 3600  # 1 hour
+
+def refresh() -> None:
+    """Fetch fresh DTE data. Called by background scheduler every 1h."""
+    global _modifier, _regime_label, _p_hike, _p_cut, _last_updated
+    try:
+        from live_monitoring.enrichment.apis.dynamic_threshold_engine import DynamicThresholdEngine
+        dte = DynamicThresholdEngine()
+        shifts = dte.get_regime_adjusted_shifts("INFLATION")
+        
+        hawkish = shifts.get("hawkish_mult", 1.0)
+        dovish = shifts.get("dovish_mult", 1.0)
+        
+        # Modifier: hawkish → tighten thresholds (>1.0), dovish → relax (<1.0)
+        if hawkish > 1.0:
+            raw_modifier = 1.0 + (hawkish - 1.0) * 0.15   # 1.6x hawkish → 1.09 modifier
+        elif dovish > 1.0:
+            raw_modifier = 1.0 - (dovish - 1.0) * 0.15   # 1.6x dovish → 0.91 modifier
+        else:
+            raw_modifier = 1.0
+        
+        with _lock:
+            _modifier = max(0.85, min(1.15, raw_modifier))  # clamp ±15%
+            _regime_label = shifts.get("regime", "HOLD")
+            _p_hike = shifts.get("p_hike", 0.0)
+            _p_cut = shifts.get("p_cut", 0.0)
+            _last_updated = time.time()
+        
+        logger.info(f"DTECache refreshed: modifier={_modifier:.3f} regime={_regime_label} p_hike={_p_hike:.1f}% p_cut={_p_cut:.1f}%")
+    except Exception as e:
+        logger.warning(f"DTECache refresh failed: {e} — keeping modifier={_modifier:.3f}")
+
+def get_threshold_modifier() -> float:
+    with _lock:
+        return _modifier
+
+def get_regime_label() -> str:
+    with _lock:
+        return _regime_label
+
+def get_status() -> dict:
+    with _lock:
+        return {
+            "threshold_modifier": _modifier,
+            "regime_label": _regime_label,
+            "p_hike": _p_hike,
+            "p_cut": _p_cut,
+            "last_updated": _last_updated,
+            "age_seconds": time.time() - _last_updated if _last_updated else None,
+            "choppy_threshold": int(min(95, max(75, round(90 * _modifier)))),
+            "trend_threshold": int(min(85, max(55, round(70 * _modifier)))),
+        }
+```
+
+**Wire into `main.py`:** Add `DTECache.refresh()` call to the background scheduler (every 1h). Also call once at startup (non-blocking, in a thread).
+
+---
+
+### P2-MAC-02: Fix Silent Exception Swallowing
+
+**Problem:** 6+ bare `except:` and `except Exception as e: pass` blocks in economic agents mean failures are invisible.
+
+**Rule:** Every `except` block must either:
+1. Log at `WARNING` or higher with the exception message, OR
+2. Re-raise the exception
+
+**Files to fix:**
+- `live_monitoring/agents/economic/calendar.py` line 80: `except:` → `except Exception as e: logger.warning(f"Calendar parse error: {e}")`
+- `live_monitoring/agents/economic/pre_event_analyzer.py` lines 112, 120, 147, 163: all bare `except:` → log + continue
+- `live_monitoring/agents/economic/predictor.py` line 266: bare `except:` → log
+- `live_monitoring/pipeline/components/trump_monitor.py` line 138: `except Exception as e: pass` → log
+
+**Pattern to enforce:**
+```python
+# BANNED:
+except:
+    pass
+except Exception as e:
+    pass
+
+# REQUIRED:
+except Exception as e:
+    logger.warning(f"[module_name] operation failed: {e}")
+    # optionally: return None or default value
+```
+
+---
+
+### P2-MAC-03: VIX Synthetic Fallback
+
+**Problem:** When `^VIX` yfinance call fails, DTE returns `regime_label: "UNKNOWN"` and all modifiers default to 1.0. No fallback.
+
+**Solution:** Add VIX fallback chain in `DynamicThresholdEngine._get_regime()`:
+
+```python
+def _get_vix_fallback(self) -> float:
+    """VIX fallback chain: yfinance → CBOE API → last known → 20.0 (neutral)."""
+    # 1. Try yfinance
+    try:
+        import yfinance as yf
+        vix = yf.Ticker("^VIX").fast_info.get("lastPrice")
+        if vix and vix > 0:
+            return float(vix)
+    except Exception:
+        pass
+    
+    # 2. Try CBOE direct
+    try:
+        import requests
+        r = requests.get("https://cdn.cboe.com/api/global/delayed_quotes/charts/historical/_VIX.json", timeout=5)
+        data = r.json()
+        if data and "data" in data:
+            return float(data["data"][-1][4])  # last close
+    except Exception:
+        pass
+    
+    # 3. Return neutral fallback
+    logger.warning("VIX fetch failed on all paths — using neutral fallback 20.0")
+    return 20.0
+```
+
+---
+
+### P2-MAC-04: Narrative Divergence → Typed Signal
+
+**Problem:** `narrative_brain.py` computes `divergence_detected` but it's a free-text string. No structured output that the gate can consume.
+
+**Solution:** Add a typed `NarrativeDivergenceSignal` to the narrative brain output:
+
+```python
+@dataclass
+class NarrativeDivergenceSignal:
+    detected: bool
+    direction: str          # "BULLISH_DIVERGENCE" | "BEARISH_DIVERGENCE" | "NONE"
+    confidence: float       # 0.0–1.0
+    summary: str            # 1-sentence human-readable
+    sources: list[str]      # ["finnhub", "trump_monitor", "fed_tone"]
+    ts: str                 # ISO UTC
+```
+
+**Expose via:** `GET /api/v1/enrichment/narrative-divergence` — Squad 5 displays this on the dashboard.
+
+---
+
+## Files Owned by Squad 3
+
+```
+live_monitoring/enrichment/apis/dynamic_threshold_engine.py
+live_monitoring/enrichment/apis/dte_cache.py              (NEW)
+live_monitoring/agents/economic/macro_regime_detector.py
+live_monitoring/agents/economic/calendar.py
+live_monitoring/agents/economic/pre_event_analyzer.py
+live_monitoring/agents/economic/predictor.py
+live_monitoring/agents/economic/data_collector.py
+live_monitoring/agents/economic/fed_shift_predictor.py
+live_monitoring/agents/narrative_brain/narrative_brain.py
+live_monitoring/pipeline/components/trump_monitor.py
+```
+
+## Files Squad 3 Must NOT Touch
+
+```
+live_monitoring/orchestrator/confluence_gate.py  (Squad 2 — expose via DTECache interface only)
+backend/app/api/v1/training.py                   (Squad 4)
+frontend/                                        (Squad 5)
+live_monitoring/core/snapshot_state.py           (Squad 1)
+```
+
+---
+
+## Acceptance Criteria
+
+- [ ] `DTECache.get_threshold_modifier()` returns a float in [0.85, 1.15] within 1ms (no blocking I/O)
+- [ ] `DTECache.refresh()` runs every 1h in background — failure logs at WARNING, does not crash
+- [ ] Zero bare `except:` or `except Exception as e: pass` (without logging) in owned files
+- [ ] VIX fallback chain: yfinance → CBOE → 20.0 neutral — never returns None
+- [ ] `GET /api/v1/economic/dte-status` returns `threshold_modifier`, `regime_label`, `choppy_threshold`, `trend_threshold`
+- [ ] `NarrativeDivergenceSignal` is a typed dataclass — not a free-text string
+- [ ] FRED_API_KEY absence logs a WARNING at startup — not a silent degradation
