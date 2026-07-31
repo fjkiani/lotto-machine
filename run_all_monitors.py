@@ -2093,180 +2093,24 @@ class _LegacyUnifiedAlphaMonitor_DEPRECATED:
             return False
     
     def _detect_market_regime(self, current_price: float) -> str:
-        """
-        🧠 SMART REGIME DETECTION
-        
-        Multi-factor regime detection that adapts to:
-        - Intraday price movement (from open)
-        - Recent momentum (last 30 min)
-        - Volatility (ATR-based thresholds)
-        - Time of day (morning chop vs afternoon trend)
-        - Higher lows / Lower highs pattern
-        
-        Returns:
-            str: "STRONG_UPTREND", "UPTREND", "STRONG_DOWNTREND", "DOWNTREND", or "CHOPPY"
+        """Detect market regime — DELEGATES to canonical regime_state.
+
+        Single-source rule: exactly ONE regime computation exists
+        (backend.app.signals.regime_state.compute_regime). This 175-line
+        duplicate of RegimeDetector.detect is removed; all logic is gone.
+        No regime logic lives here.
         """
         try:
-            import yfinance as yf
-            
-            # Get today's intraday data (5-min bars)
-            ticker = yf.Ticker('SPY')
-            hist = ticker.history(period='1d', interval='5m')
-            
-            if hist.empty or len(hist) < 6:
-                return "CHOPPY"  # Default to choppy if no data
-            
-            # ═══════════════════════════════════════════════════════════════
-            # 1. PRICE CHANGE FROM OPEN
-            # ═══════════════════════════════════════════════════════════════
-            open_price = hist['Open'].iloc[0]
-            change_from_open = ((current_price - open_price) / open_price) * 100
-            
-            # ═══════════════════════════════════════════════════════════════
-            # 2. RECENT MOMENTUM (Last 30 minutes = 6 bars)
-            # ═══════════════════════════════════════════════════════════════
-            recent_bars = min(6, len(hist))
-            recent_prices = hist['Close'].tail(recent_bars)
-            recent_high = recent_prices.max()
-            recent_low = recent_prices.min()
-            recent_start = recent_prices.iloc[0]
-            recent_end = recent_prices.iloc[-1]
-            
-            recent_momentum = ((recent_end - recent_start) / recent_start) * 100
-            
-            # ═══════════════════════════════════════════════════════════════
-            # 3. VOLATILITY-ADJUSTED THRESHOLDS (ATR-like)
-            # ═══════════════════════════════════════════════════════════════
-            # Calculate average range of recent bars
-            ranges = (hist['High'] - hist['Low']).tail(12)  # Last 1 hour
-            avg_range = ranges.mean()
-            avg_range_pct = (avg_range / current_price) * 100
-            
-            # Thresholds scale with volatility
-            # High volatility = higher threshold, Low volatility = lower threshold
-            base_threshold = 0.15  # Base 0.15%
-            volatility_multiplier = max(1.0, avg_range_pct / 0.10)  # Scale with volatility
-            trend_threshold = base_threshold * volatility_multiplier
-            strong_trend_threshold = trend_threshold * 2.5
-            
-            # ═══════════════════════════════════════════════════════════════
-            # 4. HIGHER HIGHS / LOWER LOWS PATTERN
-            # ═══════════════════════════════════════════════════════════════
-            # Split into 3 segments and check pattern
-            segment_size = len(hist) // 3
-            if segment_size >= 2:
-                seg1_high = hist['High'].iloc[:segment_size].max()
-                seg2_high = hist['High'].iloc[segment_size:segment_size*2].max()
-                seg3_high = hist['High'].iloc[segment_size*2:].max()
-                
-                seg1_low = hist['Low'].iloc[:segment_size].min()
-                seg2_low = hist['Low'].iloc[segment_size:segment_size*2].min()
-                seg3_low = hist['Low'].iloc[segment_size*2:].min()
-                
-                higher_highs = seg3_high > seg2_high > seg1_high
-                higher_lows = seg3_low > seg2_low > seg1_low
-                lower_highs = seg3_high < seg2_high < seg1_high
-                lower_lows = seg3_low < seg2_low < seg1_low
-                
-                pattern_bullish = higher_highs or higher_lows
-                pattern_bearish = lower_highs or lower_lows
-            else:
-                pattern_bullish = False
-                pattern_bearish = False
-            
-            # ═══════════════════════════════════════════════════════════════
-            # 5. TIME OF DAY ADJUSTMENT
-            # ═══════════════════════════════════════════════════════════════
-            from datetime import time as dt_time
-            now = datetime.now()
-            current_time = now.time()
-            
-            # First 30 min (9:30-10:00) - Higher threshold (morning chop)
-            is_morning_chop = dt_time(9, 30) <= current_time < dt_time(10, 0)
-            # Power hour (3:00-4:00) - Lower threshold (trends more reliable)
-            is_power_hour = dt_time(15, 0) <= current_time < dt_time(16, 0)
-            
-            if is_morning_chop:
-                trend_threshold *= 1.5  # Require stronger move in morning
-                strong_trend_threshold *= 1.5
-            elif is_power_hour:
-                trend_threshold *= 0.8  # Trends more reliable in power hour
-                strong_trend_threshold *= 0.8
-            
-            # ═══════════════════════════════════════════════════════════════
-            # 6. COMPOSITE REGIME DETERMINATION
-            # ═══════════════════════════════════════════════════════════════
-            bullish_signals = 0
-            bearish_signals = 0
-            
-            # Change from open
-            if change_from_open > strong_trend_threshold:
-                bullish_signals += 2
-            elif change_from_open > trend_threshold:
-                bullish_signals += 1
-            elif change_from_open < -strong_trend_threshold:
-                bearish_signals += 2
-            elif change_from_open < -trend_threshold:
-                bearish_signals += 1
-            
-            # Recent momentum
-            if recent_momentum > trend_threshold * 0.5:
-                bullish_signals += 1
-            elif recent_momentum < -trend_threshold * 0.5:
-                bearish_signals += 1
-            
-            # Pattern confirmation
-            if pattern_bullish:
-                bullish_signals += 1
-            if pattern_bearish:
-                bearish_signals += 1
-            
-            # Price position (above/below session VWAP approximation)
-            session_avg = hist['Close'].mean()
-            if current_price > session_avg * 1.002:
-                bullish_signals += 1
-            elif current_price < session_avg * 0.998:
-                bearish_signals += 1
-            
-            # ═══════════════════════════════════════════════════════════════
-            # 7. FINAL REGIME CLASSIFICATION
-            # ═══════════════════════════════════════════════════════════════
-            if bullish_signals >= 4:
-                regime = "STRONG_UPTREND"
-            elif bullish_signals >= 2 and bearish_signals < 2:
-                regime = "UPTREND"
-            elif bearish_signals >= 4:
-                regime = "STRONG_DOWNTREND"
-            elif bearish_signals >= 2 and bullish_signals < 2:
-                regime = "DOWNTREND"
-            else:
-                regime = "CHOPPY"
-            
-            # Log details for debugging
-            logger.info(f"   📊 REGIME: {regime}")
-            logger.debug(f"      → Open: ${open_price:.2f} | Current: ${current_price:.2f} | Change: {change_from_open:+.2f}%")
-            logger.debug(f"      → Momentum (30m): {recent_momentum:+.2f}% | Vol threshold: {trend_threshold:.2f}%")
-            logger.debug(f"      → Bullish signals: {bullish_signals} | Bearish signals: {bearish_signals}")
-            logger.debug(f"      → Pattern: {'HH/HL' if pattern_bullish else 'LH/LL' if pattern_bearish else 'None'}")
-            
-            # Cache the regime details for synthesis alignment
-            self._last_regime_details = {
-                'regime': regime,
-                'change_from_open': change_from_open,
-                'recent_momentum': recent_momentum,
-                'bullish_signals': bullish_signals,
-                'bearish_signals': bearish_signals,
-                'pattern': 'bullish' if pattern_bullish else 'bearish' if pattern_bearish else 'none'
-            }
-            
-            return regime
-            
+            from backend.app.signals import regime_state
+            result = regime_state.get_regime(
+                layers={"spy_price": current_price} if current_price else {},
+                kill_chain_result=None,
+            )
+            return result["regime"]
         except Exception as e:
-            logger.warning(f"   ⚠️ Regime detection error: {e}")
-            import traceback
-            logger.debug(traceback.format_exc())
-            return "CHOPPY"  # Default to choppy on error
-    
+            logger.warning(f"regime_state delegation failed, fallback UNKNOWN: {e}")
+            return "UNKNOWN"
+
     def _is_market_hours(self) -> bool:
         """Check if currently in RTH (9:30 AM - 4:00 PM ET, Mon-Fri)."""
         from datetime import time as dt_time

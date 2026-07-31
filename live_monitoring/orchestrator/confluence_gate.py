@@ -111,28 +111,17 @@ class ConfluenceGate:
         symbol: str = "SPY",
         alternate_price: Optional[float] = None,
     ) -> str:
-        """Determine market regime from Guardian snapshot.
+        """Determine market regime — DELEGATES to canonical regime_state.
 
-        Priority order:
-        1. BREAKDOWN — thesis broken, bearish_breakdown_building active
-        2. TREND_EXTENDED — SPY at or above call wall (strong uptrend)
-        3. CHOPPY — SPY between walls with tight spread (< 12)
-        4. BULLISH — default when thesis_valid and none of the above
-        5. UNKNOWN — fallback
+        Single-source rule: there is exactly ONE regime computation in the
+        codebase (backend.app.signals.regime_state.compute_regime). This shim
+        only resolves the price fallback chain (snapshot → signal price →
+        yfinance) and forwards. No regime logic lives here.
         """
-        # BREAKDOWN takes priority — wall already broken
-        if snapshot.get("bearish_breakdown_building", False):
-            return "BREAKDOWN"
+        from backend.app.signals import regime_state
 
-        if not snapshot.get("thesis_valid", True):
-            return "UNKNOWN"
-
-        # Wall-relative positioning (requires spy_call_wall / spy_put_wall)
+        # Resolve price: snapshot → signal price → yfinance fallback
         spy_price = float(snapshot.get("spy_price") or 0)
-        spy_call_wall = snapshot.get("spy_call_wall", 0)
-        spy_put_wall = snapshot.get("spy_put_wall", 0)
-
-        # Missing snapshot price (e.g. guardian yfinance fail) — try signal price, then fetch
         if spy_price <= 0:
             if alternate_price and alternate_price > 0:
                 spy_price = float(alternate_price)
@@ -148,22 +137,17 @@ class ConfluenceGate:
                 except Exception as e:
                     logger.debug(f"⚠️ Gate: regime price fallback failed: {e}")
 
-        if spy_price <= 0:
-            return "UNKNOWN"
-
-        if spy_price > 0 and spy_call_wall > 0 and spy_put_wall > 0:
-            wall_spread = spy_call_wall - spy_put_wall
-
-            # TREND_EXTENDED: SPY at or above call wall
-            if spy_price >= spy_call_wall:
-                return "TREND_EXTENDED"
-
-            # CHOPPY: SPY between walls with tight spread
-            if spy_price > spy_put_wall and wall_spread < 12:
-                return "CHOPPY"
-
-        # Default: thesis valid, no special wall positioning
-        return "BULLISH"
+        result = regime_state.compute_regime(
+            spy_price=spy_price if spy_price > 0 else None,
+            call_wall=snapshot.get("spy_call_wall"),
+            put_wall=snapshot.get("spy_put_wall"),
+            thesis_valid=snapshot.get("thesis_valid", True),
+            bearish_breakdown_building=snapshot.get("bearish_breakdown_building", False),
+            spy_change_pct=snapshot.get("spy_change_pct"),  # None if absent — NEVER defaulted
+            vix=snapshot.get("vix"),
+            rsi=snapshot.get("rsi_14") or snapshot.get("tech_rsi"),
+        )
+        return result["regime"]
 
     def should_fire(
         self,

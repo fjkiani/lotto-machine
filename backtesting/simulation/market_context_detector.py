@@ -15,6 +15,7 @@ Author: Zo (Alpha's AI)
 
 import os
 import sys
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional, Dict, Tuple
@@ -26,6 +27,8 @@ base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 sys.path.insert(0, base_path)
 
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 load_dotenv()
 
 
@@ -238,6 +241,21 @@ class MarketContextDetector:
             print(f"   ⚠️ News analysis error: {e}")
             return 'NEUTRAL', headlines
     
+    # Canonical regime vocabulary → this endpoint's legacy vocabulary.
+    # The frontend MarketRegime.tsx widget reads these labels; mapping kept
+    # stable so the UI is unchanged while the computation is single-sourced.
+    _REGIME_MAP = {
+        "STRONG_UPTREND": "TRENDING_UP",
+        "UPTREND": "TRENDING_UP",
+        "TREND_EXTENDED": "TRENDING_UP",
+        "BULLISH": "TRENDING_UP",
+        "STRONG_DOWNTREND": "TRENDING_DOWN",
+        "DOWNTREND": "TRENDING_DOWN",
+        "BREAKDOWN": "BREAKDOWN",
+        "CHOPPY": "CHOPPY",
+        "UNKNOWN": "CHOPPY",
+    }
+
     def _determine_regime(
         self,
         direction: str,
@@ -245,32 +263,24 @@ class MarketContextDetector:
         vix: float,
         news_sentiment: str
     ) -> str:
-        """Determine market regime"""
-        
-        # High conviction trending
-        if direction == 'UP' and trend_strength > 70:
-            return 'TRENDING_UP'
-        elif direction == 'DOWN' and trend_strength > 70:
-            return 'TRENDING_DOWN'
-        
-        # Breakout/Breakdown
-        if direction == 'UP' and news_sentiment == 'BULLISH':
-            return 'BREAKOUT'
-        elif direction == 'DOWN' and news_sentiment == 'BEARISH':
-            return 'BREAKDOWN'
-        
-        # Choppy
-        if direction == 'CHOP' or trend_strength < 50:
-            return 'CHOPPY'
-        
-        # Default to direction-based
-        if direction == 'UP':
-            return 'TRENDING_UP'
-        elif direction == 'DOWN':
-            return 'TRENDING_DOWN'
-        else:
-            return 'CHOPPY'
-    
+        """Determine market regime — DELEGATES to canonical regime_state.
+
+        Single-source rule: exactly ONE regime computation exists
+        (backend.app.signals.regime_state.compute_regime). This shim maps the
+        canonical label into this endpoint's legacy vocabulary for the UI.
+        No regime logic lives here.
+        """
+        try:
+            from backend.app.signals import regime_state
+            result = regime_state.get_regime(layers={}, kill_chain_result=None)
+            canonical = result["regime"]
+            mapped = self._REGIME_MAP.get(canonical, "CHOPPY")
+            logger.debug(f"regime: canonical={canonical} -> endpoint={mapped} ({result['reason']})")
+            return mapped
+        except Exception as e:
+            logger.warning(f"regime_state delegation failed, fallback CHOPPY: {e}")
+            return "CHOPPY"
+
     def _get_recommendations(
         self,
         direction: str,
