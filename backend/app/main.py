@@ -468,45 +468,19 @@ _last_kill_shots_result: dict = {}  # cached for autonomous snapshot loop
 
 def _compute_regime(layers: dict, kill_chain_result: dict | None) -> str:
     """
-    Compute authoritative market regime from already-fetched data in layers.
-    No new API calls — uses spy_change_pct, vix, rsi_14, kill_chain verdict.
+    DEPRECATED SHIM — delegates to the canonical single-source regime module.
 
-    Returns: STRONG_UPTREND | UPTREND | CHOPPY | DOWNTREND | STRONG_DOWNTREND
+    The old body manufactured CHOPPY on a +1.51% day by defaulting a missing
+    spy_change_pct key to 0.0. That computation is deleted. All regime logic
+    now lives in backend.app.signals.regime_state.compute_regime (wall-based,
+    spy_change_pct NEVER defaulted). This shim exists only so the two call
+    sites (auto-snapshot, kill-shots-live) keep their signature; it adds no
+    logic of its own.
+
+    Returns: regime string from regime_state.get_regime()
     """
-    try:
-        kc_verdict = (kill_chain_result or {}).get('verdict', '')
-        vix = float(layers.get('vix') or layers.get('vix_level') or 20.0)
-        rsi = float(layers.get('rsi_14') or layers.get('tech_rsi') or 50.0)
-
-        # Derive SPY daily change from layers (gex_spot_price vs prior close proxy)
-        # Use tech scorer data if available
-        spy_chg = float(layers.get('spy_change_pct') or layers.get('tech_spy_change') or 0.0)
-
-        # WAR_VETO always = strong downtrend
-        if kc_verdict == 'WAR_VETO':
-            return 'STRONG_DOWNTREND'
-
-        # VIX spike + down move
-        if vix > 28 and spy_chg < -0.8:
-            return 'STRONG_DOWNTREND'
-        if vix > 22 and spy_chg < -0.4:
-            return 'DOWNTREND'
-        if spy_chg < -0.3 or rsi < 38:
-            return 'DOWNTREND'
-
-        # Choppy: small move + moderate VIX
-        if abs(spy_chg) < 0.15 and vix < 22:
-            return 'CHOPPY'
-
-        # Uptrend
-        if spy_chg > 0.6 and rsi > 62:
-            return 'STRONG_UPTREND'
-        if spy_chg > 0.25 or rsi > 55:
-            return 'UPTREND'
-
-        return 'CHOPPY'
-    except Exception:
-        return 'UNKNOWN'
+    from backend.app.signals import regime_state
+    return regime_state.get_regime(layers, kill_chain_result)["regime"]
 
 
 async def _auto_snapshot_loop():
