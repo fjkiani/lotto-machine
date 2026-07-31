@@ -105,6 +105,31 @@ class ConfluenceGate:
         self._synthesis_score = score
         logger.info(f"🔄 Gate synthesis updated: {bias} ({score:.0f}%)")
 
+    def _compute_sizing(self, direction: str, confidence: float, regime: str,
+                        snap: dict, extra: dict):
+        """Canonical sizing — delegates to sizing_engine.compute_size.
+
+        Pulls modifier inputs from the guardian snapshot + call kwargs and
+        runs the multiplicative stack. The unclamped size is logged by the
+        engine before the 2.0x clamp on every call (permanent).
+        """
+        from backend.app.signals import sizing_engine
+        return sizing_engine.compute_size(
+            direction=direction,
+            confidence=confidence,
+            regime=regime,
+            dp_score=extra.get("dp_score") or snap.get("dp_score"),
+            kill_chain_layers=extra.get("kill_chain_layers", 0),
+            kill_chain_triple=extra.get("kill_chain_triple", False),
+            neg_gex=bool(snap.get("gex_negative") or snap.get("neg_gex") or extra.get("neg_gex")),
+            short_vol_pct=snap.get("short_vol_pct") or snap.get("spy_short_vol") or extra.get("short_vol_pct"),
+            bias=(snap.get("synthesis_bias") or self._synthesis_bias or extra.get("bias")),
+            has_synthesis=bool(snap.get("synthesis_bias") or self._synthesis_bias),
+            econ_regime=snap.get("econ_regime", "NORMAL"),
+            measured_outcomes=int(snap.get("measured_outcomes", 0)),
+            has_calibration_curve=bool(snap.get("has_calibration_curve", False)),
+        )
+
     def _get_market_regime(
         self,
         snapshot: dict,
@@ -269,20 +294,26 @@ class ConfluenceGate:
             )
         gates_passed.append(f"CONFIDENCE: {raw_confidence:.0f}% >= 90% (CHOPPY threshold)")
 
+        _sz = self._compute_sizing(direction, raw_confidence, regime, snapshot or {}, kwargs)
+        if _sz.no_trade:
+            gates_failed.append(f"SIZING: computed size {_sz.unclamped_size}x < 0.10x floor -> NO-TRADE")
+            return GateResult(blocked=True, reason=f"⛔ SIZING NO-TRADE: {_sz.unclamped_size}x below floor",
+                adjusted_confidence=0, gates_passed=gates_passed, gates_failed=gates_failed,
+                regime=regime, bias=bias, sizing_multiplier=0.0)
         logger.info(
             f"✅ GATE PASS: {direction} {symbol} | "
             f"Regime=CHOPPY | Bias={bias} | "
-            f"Confidence: {raw_confidence:.0f}% | Sizing: 0.5x"
+            f"Confidence: {raw_confidence:.0f}% | Sizing: {_sz.size}x (unclamped {_sz.unclamped_size}x)"
         )
         return GateResult(
             blocked=False,
-            reason=f"✅ PASS: {direction} {symbol} (CHOPPY 0.5x)",
+            reason=f"✅ PASS: {direction} {symbol} (CHOPPY {_sz.size}x)",
             adjusted_confidence=raw_confidence,
             gates_passed=gates_passed,
             gates_failed=gates_failed,
             regime=regime,
             bias=bias,
-            sizing_multiplier=0.5
+            sizing_multiplier=_sz.size
         )
 
     def _evaluate_trend_extended_proposal(
@@ -338,20 +369,26 @@ class ConfluenceGate:
             )
         gates_passed.append(f"CONFIDENCE: {raw_confidence:.0f}% >= 70% (TREND_EXTENDED threshold)")
 
+        _sz = self._compute_sizing(direction, raw_confidence, regime, snapshot or {}, kwargs)
+        if _sz.no_trade:
+            gates_failed.append(f"SIZING: computed size {_sz.unclamped_size}x < 0.10x floor -> NO-TRADE")
+            return GateResult(blocked=True, reason=f"⛔ SIZING NO-TRADE: {_sz.unclamped_size}x below floor",
+                adjusted_confidence=0, gates_passed=gates_passed, gates_failed=gates_failed,
+                regime=regime, bias=bias, sizing_multiplier=0.0)
         logger.info(
             f"✅ GATE PASS: {direction} {symbol} | "
             f"Regime=TREND_EXTENDED | Bias={bias} | "
-            f"Confidence: {raw_confidence:.0f}% | Sizing: 1.5x"
+            f"Confidence: {raw_confidence:.0f}% | Sizing: {_sz.size}x (unclamped {_sz.unclamped_size}x)"
         )
         return GateResult(
             blocked=False,
-            reason=f"✅ PASS: {direction} {symbol} (TREND_EXTENDED 1.5x)",
+            reason=f"✅ PASS: {direction} {symbol} (TREND_EXTENDED {_sz.size}x)",
             adjusted_confidence=raw_confidence,
             gates_passed=gates_passed,
             gates_failed=gates_failed,
             regime=regime,
             bias=bias,
-            sizing_multiplier=1.5
+            sizing_multiplier=_sz.size
         )
 
     def _evaluate_short_proposal(
@@ -457,15 +494,21 @@ class ConfluenceGate:
             f"Regime={regime} | Bias={bias} | "
             f"Confidence: {raw_confidence:.0f}%"
         )
+        _sz = self._compute_sizing(direction, raw_confidence, regime, snapshot or {}, kwargs)
+        if _sz.no_trade:
+            gates_failed.append(f"SIZING: computed size {_sz.unclamped_size}x < 0.10x floor -> NO-TRADE")
+            return GateResult(blocked=True, reason=f"⛔ SIZING NO-TRADE: {_sz.unclamped_size}x below floor",
+                adjusted_confidence=0, gates_passed=gates_passed, gates_failed=gates_failed,
+                regime=regime, bias=bias, sizing_multiplier=0.0)
         return GateResult(
             blocked=False,
-            reason=f"✅ PASS: {direction} {symbol} (Short Evaluator)",
+            reason=f"✅ PASS: {direction} {symbol} (Short Evaluator {_sz.size}x)",
             adjusted_confidence=raw_confidence,
             gates_passed=gates_passed,
             gates_failed=gates_failed,
             regime=regime,
             bias=bias,
-            sizing_multiplier=1.0  # sizing logic for shorts could be added later
+            sizing_multiplier=_sz.size
         )
 
     def _evaluate_long_proposal(
@@ -674,56 +717,67 @@ class ConfluenceGate:
                 )
 
         # ═══════════════════════════════════════════════════════════════
-        # GATE 3: KILL CHAIN MACRO & CONVICTION SCALING
+        # GATE 3: KILL CHAIN MACRO & CONVICTION SCALING (via sizing engine)
         # ═══════════════════════════════════════════════════════════════
-        multiplier = 1.0  # Default sizing
-
+        kc_layers = 0
+        kc_triple = False
         if self.kill_chain_logger:
             try:
                 kc = self.kill_chain_logger
-                
                 if hasattr(kc, 'triple_active') and kc.triple_active:
-                    multiplier = 3.0
-                    gates_passed.append("🔥 MAX CONVICTION: Kill Chain Triple Active (3.0x size)")
+                    kc_triple = True
+                    gates_passed.append("🔥 MAX CONVICTION: Kill Chain Triple Active")
                     confidence *= 1.15
                 else:
-                    layers = sum([
+                    kc_layers = sum([
                         getattr(kc, 'cot_divergence', False),
                         getattr(kc, 'gex_positive', False),
                         getattr(kc, 'dp_selling', False)
                     ])
-                    if layers == 0:
-                        multiplier = 0.5
-                        gates_passed.append("⚪ LOW CONVICTION: No Kill Chain layers active (0.5x size)")
-                    else:
-                        multiplier = 1.0
-                        gates_passed.append(f"🟡 MED CONVICTION: {layers}/3 Kill Chain layers active (1.0x size)")
-                    
+                    gates_passed.append(f"🟡 Kill Chain: {kc_layers}/3 layers active")
             except Exception as e:
                 logger.debug(f"⚠️ Gate: kill chain conviction check failed: {e}")
-                gates_passed.append("KILL CHAIN: Conviction check failed (1.0x size fallback)")
+                gates_passed.append("KILL CHAIN: Conviction check failed (0 layers fallback)")
+
+        # Canonical sizing engine — multiplicative stack, logged intermediates
+        _sz = self._compute_sizing(direction, confidence, regime, snapshot or {},
+                                   dict(kwargs, kill_chain_layers=kc_layers,
+                                        kill_chain_triple=kc_triple))
 
         # ═══════════════════════════════════════════════════════════════
         # FINAL RESULT: All gates passed
         # ═══════════════════════════════════════════════════════════════
         confidence = min(confidence, 100.0)
 
+        if _sz.no_trade:
+            gates_failed.append(f"SIZING: computed size {_sz.unclamped_size}x < 0.10x floor -> NO-TRADE")
+            return GateResult(
+                blocked=True,
+                reason=f"⛔ SIZING NO-TRADE: {_sz.unclamped_size}x below floor",
+                adjusted_confidence=0,
+                gates_passed=gates_passed,
+                gates_failed=gates_failed,
+                regime=regime,
+                bias=synthesis_bias or "NEUTRAL",
+                sizing_multiplier=0.0,
+            )
+
         logger.info(
             f"✅ GATE PASS: {direction} {symbol} | "
             f"Regime={regime} | Bias={synthesis_bias or 'N/A'} | "
             f"Confidence: {raw_confidence:.0f}% → {confidence:.0f}% | "
-            f"Sizing: {multiplier}x"
+            f"Sizing: {_sz.size}x (unclamped {_sz.unclamped_size}x)"
         )
 
         return GateResult(
             blocked=False,
-            reason=f"✅ PASS: {direction} {symbol} ({len(gates_passed)} gates passed | {multiplier}x size)",
+            reason=f"✅ PASS: {direction} {symbol} ({len(gates_passed)} gates passed | {_sz.size}x size)",
             adjusted_confidence=confidence,
             gates_passed=gates_passed,
             gates_failed=gates_failed,
             regime=regime,
             bias=synthesis_bias or "NEUTRAL",
-            sizing_multiplier=multiplier,
+            sizing_multiplier=_sz.size,
         )
 
     def _log_result(self, result: 'GateResult', symbol: str, direction: str,
