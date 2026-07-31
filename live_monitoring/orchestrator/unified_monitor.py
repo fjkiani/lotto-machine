@@ -474,11 +474,18 @@ class UnifiedAlphaMonitor:
     # ═══════════════════════════════════════════════════════════════
 
     def _detect_market_regime(self, current_price: float):
-        """Detect market regime (delegates to RegimeDetector)."""
-        result = self.regime_detector.detect(current_price)
-        if result.get('regime_changed'):
-            logger.info(f"   📊 Regime change: {result.get('regime')}")
-        return result.get('regime', 'NEUTRAL')
+        """Detect market regime (delegates to RegimeDetector -> regime_state).
+
+        RegimeDetector.detect returns a plain regime STRING (it always did —
+        the prior dict access `result.get(...)` was a latent type bug). Track
+        the last regime to detect changes.
+        """
+        regime = self.regime_detector.detect(current_price)
+        last = getattr(self, '_last_market_regime', None)
+        if last is not None and regime != last:
+            logger.info(f"   📊 Regime change: {last} -> {regime}")
+        self._last_market_regime = regime
+        return regime
 
     # ═══════════════════════════════════════════════════════════════
     # SIGNAL BUFFER (API reads from this)
