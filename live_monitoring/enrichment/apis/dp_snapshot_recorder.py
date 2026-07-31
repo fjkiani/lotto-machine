@@ -117,13 +117,23 @@ class DPSnapshotRecorder:
     def run_continuous(self, interval_minutes: int = 5):
         """
         Runs continuously, capturing a snapshot every interval_minutes.
+
+        If self.on_snapshot is set to a callable, it is invoked after every
+        successful capture (used by the DP learning rewire to run battleground
+        detection + log alerts on every cycle, not just the first).
         """
         print(f"🚀 Starting DP Snapshot Recorder (Interval: {interval_minutes}m)")
         print(f"💾 Saving to: {self.db_path}")
-        
+
         while True:
             try:
                 self.capture_snapshot()
+                hook = getattr(self, 'on_snapshot', None)
+                if callable(hook):
+                    try:
+                        hook()
+                    except Exception as e:
+                        print(f"⚠️ on_snapshot hook error (non-fatal): {e}")
                 time.sleep(interval_minutes * 60)
             except KeyboardInterrupt:
                 print("\n🛑 Snapshot Recorder stopped by user.")

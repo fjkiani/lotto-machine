@@ -394,9 +394,52 @@ async def _staggered_thread_launcher():
         from live_monitoring.enrichment.apis.dp_snapshot_recorder import DPSnapshotRecorder
         dp = DPSnapshotRecorder(db_path='/tmp/dp_timeseries.db')
         _pipe_instances['dp_recorder'] = dp
+
+        # ── DP LEARNING REWIRE (audit Item 3) ────────────────────────────────
+        # The 89.8% WR was frozen 2026-03-24 because DPLearningEngine only ran
+        # inside the full monitor stack, which API_LIGHT_MODE disables. Wire it
+        # into this thread so learning resumes under light mode: after each
+        # snapshot, run battleground detection and log any alert to the
+        # learning engine (whose OutcomeTracker settles BOUNCE/BREAK/FADE).
+        dp_learning = None
+        dp_monitor = None
+        try:
+            from live_monitoring.agents.dp_learning.engine import DPLearningEngine
+            from live_monitoring.agents.dp_monitor.engine import DPMonitorEngine
+            dp_learning = DPLearningEngine()
+            dp_learning.start()  # spawns OutcomeTracker thread + sweeps stale PENDING
+            dp_monitor = DPMonitorEngine(learning_engine=dp_learning)
+            _pipe_instances['dp_learning'] = dp_learning
+            _thread_status['dp_learning'] = {'status': 'running', 'started': datetime.now().isoformat()}
+            logger.info("✅ [staggered] DP learning engine started (rewired into dp_recorder)")
+        except Exception as e:
+            logger.error(f"⚠️ DP learning engine failed to init (recorder continues): {e}")
+            _thread_status['dp_learning'] = {'status': f'init_failed: {e}'}
+
+        def _dp_learn_cycle():
+            """Battleground detection + learning write (every cycle)."""
+            if dp_monitor is not None:
+                try:
+                    alerts = dp_monitor.check_symbol('SPY')
+                    for alert in (alerts or []):
+                        dp_monitor.log_to_learning_engine(alert)
+                    if alerts:
+                        logger.info(f"🧠 dp_learning: logged {len(alerts)} alert(s) to learning engine")
+                except Exception as e:
+                    logger.warning(f"⚠️ dp_learning check/log failed (non-fatal): {e}")
+
+        def _dp_capture_and_learn():
+            """First capture: snapshot + learning write."""
+            result = dp.capture_snapshot(symbols=['SPY'])
+            _dp_learn_cycle()
+            return result
+
+        # Fire learning on EVERY snapshot cycle, not just the first.
+        dp.on_snapshot = _dp_learn_cycle
+
         threading.Thread(
             target=_run_pipe,
-            args=('dp_recorder', dp, 'run_continuous', 5, lambda: dp.capture_snapshot(symbols=['SPY'])),
+            args=('dp_recorder', dp, 'run_continuous', 5, _dp_capture_and_learn),
             daemon=True
         ).start()
         logger.info("✅ [staggered] DP snapshot recorder thread launched")

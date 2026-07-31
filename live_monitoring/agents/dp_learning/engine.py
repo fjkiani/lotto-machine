@@ -70,9 +70,53 @@ class DPLearningEngine:
         logger.info(f"   Patterns: {len(self.learner.patterns)}")
     
     def start(self):
-        """Start the outcome tracker background thread."""
+        """Start the outcome tracker background thread.
+
+        Also reloads any PENDING interactions left over from a prior run.
+        The audit found 26 interactions stuck PENDING since 2025-12-11 because
+        the tracker only tracked NEW in-memory jobs and never reloaded open
+        ones on restart — they would have pended forever. On start, sweep any
+        PENDING older than MAX_TRACKING_TIME to FADE (their 60-min window is
+        long past) and reload any still within the window for live tracking.
+        """
+        self._sweep_stale_pending()
         self.tracker.start()
         logger.info("🚀 DPLearningEngine started")
+
+    def _sweep_stale_pending(self):
+        """Settle orphaned PENDING interactions from prior runs.
+
+        Any PENDING whose timestamp is older than the tracker's
+        MAX_TRACKING_TIME window can never produce a meaningful live outcome
+        (its price window is gone) — settle it to FADE so it stops inflating
+        the open-interaction count. Recent ones are left for the tracker.
+        """
+        try:
+            from datetime import datetime, timedelta
+            from . import tracker as _t
+            from .models import Outcome, DPOutcome
+            max_age_min = getattr(_t.OutcomeTracker, 'MAX_TRACKING_TIME', 60)
+            cutoff = datetime.now() - timedelta(minutes=max_age_min)
+            rows = self.db.get_pending_interactions() if hasattr(self.db, 'get_pending_interactions') else []
+            swept = 0
+            for row in rows:
+                # row is a DPInteraction; timestamp may be datetime or str
+                ts = getattr(row, 'timestamp', None)
+                if isinstance(ts, str):
+                    try:
+                        ts = datetime.fromisoformat(ts.replace('Z', ''))
+                    except Exception:
+                        ts = None
+                rid = getattr(row, 'id', None)
+                if rid is not None and (ts is None or ts < cutoff):
+                    self.db.update_outcome(rid, DPOutcome(
+                        interaction_id=rid, outcome=Outcome.FADE,
+                        max_move_pct=0.0, time_to_outcome_min=int(max_age_min)))
+                    swept += 1
+            if swept:
+                logger.info(f"🧹 Swept {swept} orphaned PENDING interactions -> FADE")
+        except Exception as e:
+            logger.warning(f"⚠️ PENDING sweep failed (non-fatal): {e}")
     
     def stop(self):
         """Stop the outcome tracker."""
@@ -102,6 +146,23 @@ class DPLearningEngine:
         Returns:
             DPPrediction with confidence and suggested action
         """
+        # INPUT VALIDATION (audit fix): reject malformed alerts before they
+        # reach the write path. A None / empty / symbol-less alert used to
+        # raise AttributeError ('NoneType' has no attribute 'upper') and kill
+        # the learning write. Return None instead and log the rejection.
+        if symbol_or_interaction is None:
+            logger.warning("⚠️ log_interaction rejected: None alert")
+            return None
+        if isinstance(symbol_or_interaction, dict) and not symbol_or_interaction:
+            logger.warning("⚠️ log_interaction rejected: empty dict alert")
+            return None
+        if not hasattr(symbol_or_interaction, 'symbol') and not isinstance(symbol_or_interaction, str):
+            logger.warning(
+                f"⚠️ log_interaction rejected: alert has no symbol "
+                f"(type={type(symbol_or_interaction).__name__})"
+            )
+            return None
+
         # Handle DPInteraction object passed as first argument
         if hasattr(symbol_or_interaction, 'symbol'):
             # It's a DPInteraction object
