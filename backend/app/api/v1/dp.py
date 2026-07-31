@@ -1,7 +1,14 @@
 """
 🔥 DP EDGE API ENDPOINTS
 
-Provides access to the PROVEN 89.8% win rate DP exploitation system.
+Provides access to DP level-reaction statistics.
+
+NOTE (2026-07-31 audit): the historical "89.8% win rate" is a LABELING ARTIFACT.
+It counts BOUNCE outcomes (level reactions), not tradeable wins. The
+direction_correct/tradeable_1h columns are an unreliable out-of-band backfill
+that the live code never writes. Clean-label recompute (edge/) found 1h
+expectancy ≈ 0 (CI crosses zero). Treat win_rate below as a bounce rate,
+NOT a proven edge, until a conditioned edge survives OOS + adversarial attack.
 """
 
 import os

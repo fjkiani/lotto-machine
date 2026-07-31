@@ -171,7 +171,12 @@ export function DPEdgeDashboard() {
           </p>
         </div>
         {stats && stats.total_interactions >= 100 && (
-          <span className="badge badge-bullish text-xs font-bold">PROVEN EDGE</span>
+          <span
+            className="badge text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40"
+            title="Bounce rate counts level reactions, not tradeable wins. Clean-label audit (edge/) found 1h expectancy ~0 (CI crosses zero). Not a proven edge."
+          >
+            UNPROVEN — UNDER AUDIT
+          </span>
         )}
       </div>
 
@@ -192,8 +197,8 @@ export function DPEdgeDashboard() {
               <div className="text-text-muted text-xs mt-1">
                 {stats.bounces} bounces / {stats.breaks} breaks
               </div>
-              <div className="text-text-muted/50 text-[10px] mt-2 italic max-w-xs mx-auto">
-                Backtested on {stats.total_interactions.toLocaleString()} historical DP level interactions. Past performance not indicative of future results.
+              <div className="text-amber-400/80 text-[10px] mt-2 italic max-w-xs mx-auto">
+                Bounce rate is a level-reaction count, not a tradeable win rate. Clean-label audit (edge/) found 1h expectancy ≈ 0 (CI crosses zero) — a bounce often runs the wrong direction for the fade. UNPROVEN until a conditioned edge survives out-of-sample + adversarial attack.
               </div>
             </motion.div>
 
