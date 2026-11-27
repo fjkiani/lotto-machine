@@ -133,12 +133,7 @@ class GEXCalculator:
             spot, options, ts = self._fetch_options_chain(ticker)
             
             if not options or spot == 0:
-                logger.warning(f"⚠️ No CBOE options data for {ticker} — trying AXLFI walls")
-                walls_fallback = self._gex_from_option_walls(ticker)
-                if walls_fallback and walls_fallback.spot_price:
-                    self._cache[cache_key] = walls_fallback
-                    self._cache_ts[cache_key] = time.time()
-                    return walls_fallback
+                logger.warning(f"⚠️ No options data for {ticker}")
                 return GEXResult(ticker=ticker)
             
             # Parse options and compute GEX
@@ -249,93 +244,7 @@ class GEXCalculator:
             
         except Exception as e:
             logger.error(f"❌ GEX calculation error for {ticker}: {e}")
-            cached = self._cache.get(cache_key)
-            if cached and getattr(cached, "spot_price", 0):
-                return cached
-            # CBOE dead/403 — reuse existing StockgridClient walls (no parallel GEX engine)
-            walls_fallback = self._gex_from_option_walls(ticker)
-            if walls_fallback and walls_fallback.spot_price:
-                self._cache[cache_key] = walls_fallback
-                self._cache_ts[cache_key] = time.time()
-                return walls_fallback
-            return GEXResult(ticker=ticker)
-
-    def _gex_from_option_walls(self, ticker: str) -> Optional[GEXResult]:
-        """
-        Honest walls fallback when CBOE is unavailable.
-
-        Uses StockgridClient.get_option_walls / get_option_walls_today only.
-        Does NOT invent CBOE-style notional GEX — total_gex stays 0;
-        regime comes from AXLFI balance_pct sign; walls/POC are real levels.
-        """
-        try:
-            from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
-
-            sg = StockgridClient(cache_ttl=self._cache_ttl)
-            payload = sg.get_option_walls(ticker)
-            today = sg.get_option_walls_today(ticker)
-            if not payload or not today:
-                return None
-
-            spot = float(payload.get("spot") or 0)
-            if not spot:
-                return None
-
-            nearest = None
-            walls_by_date = payload.get("option_walls") or {}
-            if today.date and today.date in walls_by_date:
-                nearest = walls_by_date[today.date]
-            elif walls_by_date:
-                nearest = walls_by_date[sorted(walls_by_date.keys())[0]]
-
-            balance = float((nearest or {}).get("balance_pct") or 0)
-            regime = "POSITIVE" if balance >= 0 else "NEGATIVE"
-
-            gamma_walls: List[GammaWall] = []
-            for strike, label in (
-                (today.call_wall, "RESISTANCE"),
-                (today.call_wall_2, "RESISTANCE"),
-                (today.call_wall_3, "RESISTANCE"),
-            ):
-                if strike:
-                    gamma_walls.append(
-                        GammaWall(strike=float(strike), gex=0.0, signal=label)
-                    )
-
-            negative_zones: List[GammaWall] = []
-            for strike, label in (
-                (today.put_wall, "SUPPORT"),
-                (today.put_wall_2, "SUPPORT"),
-                (today.put_wall_3, "SUPPORT"),
-            ):
-                if strike:
-                    negative_zones.append(
-                        GammaWall(strike=float(strike), gex=0.0, signal=label)
-                    )
-
-            logger.info(
-                f"✅ {ticker} GEX walls-fallback: {regime} (balance_pct={balance:.2f}), "
-                f"spot=${spot:,.2f}, call={today.call_wall} put={today.put_wall} "
-                f"(total_gex=0 — CBOE blind, no invented notional)"
-            )
-            return GEXResult(
-                ticker=ticker.upper(),
-                spot_price=spot,
-                total_gex=0.0,  # honest: no CBOE notional available
-                gamma_regime=regime,
-                gamma_flip=float(today.poc or 0) or None,
-                max_pain=float(today.poc or 0),
-                gamma_walls=gamma_walls,
-                negative_zones=negative_zones,
-                total_contracts=0,
-                total_calls=0,
-                total_puts=0,
-                timestamp=str(payload.get("as_of_date") or ""),
-                source="axlfi_option_walls",
-            )
-        except Exception as e:
-            logger.warning(f"Option-walls GEX fallback failed for {ticker}: {e}")
-            return None
+            return self._cache.get(cache_key, GEXResult(ticker=ticker))
 
     # ── Narrative ────────────────────────────────────────────────────────
 

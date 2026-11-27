@@ -5,7 +5,7 @@ Signal logic:
     - Direction from dp_position 5d TREND (NOT from SV% threshold)
     - Velocity = continuous math, not tiered buckets
     - Divergence detection: DP improving while price falling = accumulation
-    - GEX Layer 2: canonical GEXCalculator (CBOE; walls fallback when CBOE blind)
+    - GEX Layer 2: AXLFI option walls (dark-pool API) — CBOE is fallback only
     - Option walls from AXLFI provide key_levels
     - Reasoning chain has min 6 sequential elements
 
