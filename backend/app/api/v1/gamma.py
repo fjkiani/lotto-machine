@@ -3,8 +3,8 @@ Gamma Tracker API Endpoints
 
 Provides gamma exposure data, gamma flip levels, max pain, and P/C ratios.
 
-Data source: GEXCalculator (CBOE free delayed options API — no auth, no key).
-NO MOCK FALLBACKS — if data is unavailable the endpoint raises HTTP 503.
+Data source: canonical GEX — prefers CBOE, falls back to AXLFI /options/walls
+(dark-pool API). NO invented numbers — if both sources fail → HTTP 404/502.
 """
 
 import logging
@@ -75,11 +75,9 @@ class GammaResponse(BaseModel):
 @router.get("/gamma/{symbol}", response_model=GammaResponse)
 async def get_gamma_data(symbol: str):
     """
-    Get gamma exposure data for a symbol from CBOE options.
+    Get gamma exposure for a symbol.
 
-    Returns gamma flip level, regime, max pain, gamma walls, negative zones.
-    Raises HTTP 503 if CBOE data is unavailable.
-    Never returns mock/hardcoded data.
+    Primary: CBOE delayed options. Fallback: AXLFI option walls (dark-pool API).
     """
     symbol = symbol.upper()
     from backend.app.utils.gex_canonical import compute_canonical_gex
@@ -88,12 +86,12 @@ async def get_gamma_data(symbol: str):
         result = compute_canonical_gex(symbol)
     except Exception as e:
         logger.error(f"GEX compute failed for {symbol}: {e}", exc_info=True)
-        raise HTTPException(status_code=502, detail=f"CBOE GEX computation error: {e}")
+        raise HTTPException(status_code=502, detail=f"GEX computation error: {e}")
 
-    if not result.spot_price:
+    if not result or not result.spot_price:
         raise HTTPException(
             status_code=404,
-            detail=f"No options data available for {symbol} from CBOE"
+            detail=f"No options/walls data available for {symbol} (CBOE + AXLFI blind)",
         )
 
     # Calculate distance to gamma flip
