@@ -1,22 +1,22 @@
 """
 AXLFI Dark Pool & Market Intelligence Client
-(formerly Stockgrid — rebranded March 2026; API moved again Nov 2026)
+(formerly Stockgrid — rebranded March 2026; API moved to /api/* Nov 2026)
 
-Nov 2026 surface (current):
+Public (no Pro):
+  GET https://axlfi.com/api/options/walls?ticker=SPY
+  GET https://axlfi.com/api/market/movers
+  GET https://axlfi.com/api/market/members?universe=us_large_cap_500
+
+Pro-gated (403 "needs a Pro plan" for bare requests):
+  GET https://axlfi.com/api/darkpools/ticker
   GET https://axlfi.com/api/darkpools/leaderboard
-  GET https://axlfi.com/api/darkpools/ticker?ticker=SPY&window=252
   GET https://axlfi.com/api/darkpools/sectors
-  GET https://axlfi.com/api/options/walls?ticker=SPY   ← PUBLIC (no Pro)
-  GET https://axlfi.com/api/market/movers              ← PUBLIC
 
-Dark-pool ticker/leaderboard are Pro-gated for bare requests (403).
-Browser (Playwright) can still capture a free visit; we persist that to
-`data/axlfi_v2_live_cache.json` and serve it when live Pro access fails.
+Legacy `axlfi-app-backend/api/*` routes return the Nuxt HTML shell — dead.
 
-Legacy `axlfi-app-backend/api/*` routes now return the Nuxt HTML shell — dead.
+Method signatures match historical consumers. Disk cache `/tmp/axlfi_cache`
+is last-known-good only (same pattern as before) — not a shipped repo bundle.
 """
-from __future__ import annotations
-
 import logging
 import time
 import json
@@ -24,7 +24,6 @@ import os
 from live_monitoring.enrichment.apis._http import get_session
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Any
-from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,11 @@ class DarkPoolSummary:
 
 class StockgridClient:
     """
-    Dark pool flow + option wall + market intelligence from AXLFI v2 API.
+    Dark pool flow + option wall + market intelligence from AXLFI.
+
+    Uses plain requests with browser-like headers (no auth needed for public
+    routes). Pro-gated dark-pool routes log clearly and fall back to
+    `/tmp/axlfi_cache` last-known-good only.
     """
 
     BASE = "https://axlfi.com/api"
@@ -89,7 +92,7 @@ class StockgridClient:
         "Accept-Language": "en-US,en;q=0.9",
     }
 
-    def __init__(self, cache_ttl: int = 300, max_retries: int = 2):
+    def __init__(self, cache_ttl: int = 300, max_retries: int = 3):
         self._cache: Dict[str, Any] = {}
         self._cache_ts: Dict[str, float] = {}
         self._cache_ttl = cache_ttl
@@ -99,9 +102,7 @@ class StockgridClient:
         )
         self._disk_cache_dir = "/tmp/axlfi_cache"
         os.makedirs(self._disk_cache_dir, exist_ok=True)
-        self._repo_cache_path = os.path.join(self._data_dir, "axlfi_v2_live_cache.json")
-        self._repo_cache: Optional[dict] = None
-        logger.info("📊 StockgridClient initialized (AXLFI v2 API + disk/repo cache)")
+        logger.info("📊 StockgridClient initialized (AXLFI /api v2, disk cache ON)")
 
     # ── Internal helpers ─────────────────────────────────────────────────
 
@@ -113,12 +114,14 @@ class StockgridClient:
         self._cache_ts[key] = time.time()
 
     def _disk_cache_key(self, path: str, params: dict = None) -> str:
+        """Generate a safe filename for disk cache."""
         key = path.replace("/", "_").strip("_")
         if params:
             key += "_" + "_".join(f"{k}={v}" for k, v in sorted(params.items()))
         return key.replace(" ", "") + ".json"
 
     def _read_disk_cache(self, cache_file: str) -> Optional[dict]:
+        """Read stale data from disk cache (last known good)."""
         try:
             fpath = os.path.join(self._disk_cache_dir, cache_file)
             if os.path.exists(fpath):
@@ -132,6 +135,7 @@ class StockgridClient:
         return None
 
     def _write_disk_cache(self, cache_file: str, data: Any):
+        """Write successful response to disk cache."""
         try:
             fpath = os.path.join(self._disk_cache_dir, cache_file)
             with open(fpath, "w") as f:
@@ -139,134 +143,8 @@ class StockgridClient:
         except Exception as e:
             logger.warning(f"Disk cache write error: {e}")
 
-    def _load_repo_cache(self) -> dict:
-        if self._repo_cache is not None:
-            return self._repo_cache
-        try:
-            if os.path.exists(self._repo_cache_path):
-                with open(self._repo_cache_path) as f:
-                    self._repo_cache = json.load(f)
-                    logger.info(
-                        "📂 Loaded repo AXLFI v2 cache (%s keys)",
-                        len([k for k in self._repo_cache if str(k).startswith("http")]),
-                    )
-                    return self._repo_cache
-        except Exception as e:
-            logger.warning(f"Repo cache load failed: {e}")
-        self._repo_cache = {}
-        return self._repo_cache
-
-    def _repo_cache_lookup(self, path: str, params: dict = None) -> Optional[dict]:
-        """Match a repo-bundled URL for path+params (best-effort)."""
-        bundle = self._load_repo_cache()
-        if not bundle:
-            return None
-        query = f"?{urlencode(params)}" if params else ""
-        target_suffix = f"{path}{query}"
-        # Exact / suffix match
-        for url, body in bundle.items():
-            if not isinstance(url, str) or not isinstance(body, dict):
-                continue
-            if url.endswith(target_suffix) or target_suffix in url:
-                # Prefer non-empty payload
-                if body.get("detail"):
-                    continue
-                logger.info(f"📂 Repo cache hit for {path}")
-                return body
-        # Soft match by resource family
-        if path.startswith("/darkpools/ticker") and params and params.get("ticker"):
-            ticker = str(params["ticker"]).upper()
-            for url, body in bundle.items():
-                if (
-                    isinstance(body, dict)
-                    and body.get("ticker") == ticker
-                    and isinstance(body.get("points"), list)
-                    and body["points"]
-                ):
-                    logger.info(f"📂 Repo cache soft-hit ticker={ticker}")
-                    return body
-        if path.startswith("/options/walls") and params and params.get("ticker"):
-            ticker = str(params["ticker"]).upper()
-            for url, body in bundle.items():
-                if isinstance(body, dict) and body.get("ticker") == ticker and body.get("expiries"):
-                    logger.info(f"📂 Repo cache soft-hit walls={ticker}")
-                    return body
-        if path.startswith("/darkpools/leaderboard"):
-            for url, body in bundle.items():
-                if isinstance(body, dict) and isinstance(body.get("rows"), list) and body["rows"]:
-                    logger.info("📂 Repo cache soft-hit leaderboard")
-                    return body
-        return None
-
-    def _browser_get(self, path: str, params: dict = None) -> Optional[dict]:
-        """
-        Optional Playwright capture for Pro-gated dark-pool routes.
-        Returns None if Playwright unavailable or capture fails.
-        """
-        try:
-            from playwright.sync_api import sync_playwright
-        except Exception:
-            return None
-
-        query = f"?{urlencode(params)}" if params else ""
-        full = f"{self.BASE}{path}{query}"
-        try:
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                context = browser.new_context(user_agent=self.HEADERS["User-Agent"])
-                page = context.new_page()
-                hit: Dict[str, Any] = {"body": None}
-
-                def on_response(response):
-                    if response.url.split("?")[0] != full.split("?")[0]:
-                        # match path family for ticker/leaderboard
-                        if path not in response.url:
-                            return
-                    try:
-                        ct = response.headers.get("content-type", "")
-                        if response.status == 200 and "json" in ct:
-                            body = response.json()
-                            if isinstance(body, dict) and not body.get("detail"):
-                                hit["body"] = body
-                    except Exception:
-                        pass
-
-                page.on("response", on_response)
-                # Warm page so free-visit darkpool XHRs fire
-                warm = "https://axlfi.com/darkpools" if "darkpools" in path else "https://axlfi.com/option-walls"
-                page.goto(warm, wait_until="networkidle", timeout=45000)
-                time.sleep(1.5)
-                # Direct in-page fetch (works for public walls; DP may 403 after free visit)
-                try:
-                    direct = page.evaluate(
-                        """async (url) => {
-                            const r = await fetch(url, {headers:{Accept:'application/json'}});
-                            const ct = r.headers.get('content-type') || '';
-                            const text = await r.text();
-                            return {status:r.status, ct, text};
-                        }""",
-                        full,
-                    )
-                    if (
-                        direct
-                        and direct.get("status") == 200
-                        and "json" in (direct.get("ct") or "")
-                    ):
-                        body = json.loads(direct["text"])
-                        if isinstance(body, dict) and not body.get("detail"):
-                            hit["body"] = body
-                except Exception as e:
-                    logger.debug(f"browser direct fetch failed: {e}")
-                browser.close()
-                if hit["body"]:
-                    logger.info(f"🌐 Playwright AXLFI hit: {path}")
-                return hit["body"]
-        except Exception as e:
-            logger.warning(f"Playwright AXLFI fetch failed for {path}: {e}")
-            return None
-
     def _get(self, path: str, params: dict = None) -> Optional[dict]:
-        """GET with retries → Playwright (optional) → disk → repo cache."""
+        """Make a GET request with retries + disk-backed cache fallback."""
         url = f"{self.BASE}{path}"
         disk_key = self._disk_cache_key(path, params)
 
@@ -276,43 +154,43 @@ class StockgridClient:
                 ct = r.headers.get("content-type", "")
                 if r.status_code == 200 and "json" in ct:
                     data = r.json()
+                    # Pro gate sometimes returns 200-shaped JSON with detail
                     if isinstance(data, dict) and data.get("detail"):
-                        logger.warning(f"⚠️ {path}: API detail={data.get('detail')} (attempt {attempt+1})")
-                    else:
-                        self._write_disk_cache(disk_key, data)
-                        return data
-                elif "html" in ct:
-                    logger.warning(f"⚠️ {path}: HTML shell (legacy route dead) attempt {attempt+1}")
+                        detail = str(data.get("detail"))
+                        logger.warning(f"⚠️ {path}: API detail={detail}")
+                        if "pro" in detail.lower():
+                            break  # no point retrying Pro gate
+                        continue
+                    self._write_disk_cache(disk_key, data)
+                    return data
+                if r.status_code == 403:
+                    try:
+                        detail = r.json().get("detail", "")
+                    except Exception:
+                        detail = r.text[:120]
+                    logger.warning(
+                        f"⚠️ {path}: HTTP 403 Pro-gated ({detail}) — live DP unavailable"
+                    )
+                    break  # don't burn retries on Pro wall
+                if "html" in ct:
+                    logger.warning(f"⚠️ {path}: HTML shell (legacy/dead route) attempt {attempt+1}")
                 else:
                     logger.warning(f"⚠️ {path}: status={r.status_code} (attempt {attempt+1})")
             except Exception as e:
                 logger.warning(f"⚠️ {path}: {e} (attempt {attempt+1})")
-            time.sleep(1 * (attempt + 1))
+            time.sleep(2 * (attempt + 1))
 
-        # Pro-gated darkpools: try browser once
-        if path.startswith("/darkpools/"):
-            browser_data = self._browser_get(path, params)
-            if browser_data:
-                self._write_disk_cache(disk_key, browser_data)
-                return browser_data
-
-        disk = self._read_disk_cache(disk_key)
-        if disk:
-            return disk
-
-        return self._repo_cache_lookup(path, params)
+        # All retries failed — fall back to disk cache (stale but better than None)
+        logger.warning(f"⚠️ {path}: live fetch failed, checking disk cache")
+        return self._read_disk_cache(disk_key)
 
     # ── Schema adapters (v2 → legacy consumer shapes) ─────────────────────
 
     @staticmethod
     def _normalize_ticker_payload(data: dict) -> dict:
-        """
-        Convert AXLFI v2 /darkpools/ticker payload into the legacy shape
-        expected by DarkPoolTrend / darkpool_source / earnings intel.
-        """
+        """Map AXLFI v2 /darkpools/ticker → legacy history shape consumers expect."""
         if not data:
             return {}
-        # Already legacy?
         if "individual_dark_pool_position_data" in data:
             return data
 
@@ -325,7 +203,7 @@ class StockgridClient:
                 continue
             d = p.get("d") or p.get("date") or ""
             dates.append(d)
-            # Consumers treat dp_position as the trendable series — use $ position.
+            # Trendable series: prefer USD position (v2), else share position
             pos = float(p.get("position_usd") or p.get("dp_position") or 0)
             dps.append(pos)
             ddp.append(pos)
@@ -367,15 +245,11 @@ class StockgridClient:
                 "net_short_dollars": dnv[-1] if dnv else 0,
                 "close": prices[-1] if prices else 0,
             },
-            "_source": "axlfi_v2",
-            "_raw": data,
         }
 
     @staticmethod
     def _normalize_walls_payload(data: dict) -> dict:
-        """
-        Convert AXLFI v2 /options/walls into legacy option_walls keyed-by-date shape.
-        """
+        """Map AXLFI v2 /options/walls → legacy option_walls keyed-by-date shape."""
         if not data:
             return {}
         if "option_walls" in data and isinstance(data.get("option_walls"), dict):
@@ -388,9 +262,8 @@ class StockgridClient:
                 continue
             d = exp.get("d") or exp.get("date")
             walls = exp.get("walls") or {}
-            call_walls = walls.get("call_walls") or [0, 0, 0]
-            put_walls = walls.get("put_walls") or [0, 0, 0]
-            # pad
+            call_walls = list(walls.get("call_walls") or [0, 0, 0])
+            put_walls = list(walls.get("put_walls") or [0, 0, 0])
             while len(call_walls) < 3:
                 call_walls.append(0)
             while len(put_walls) < 3:
@@ -426,14 +299,12 @@ class StockgridClient:
                 ],
             },
             "strikes": data.get("strikes"),
-            "_source": "axlfi_v2",
-            "_raw": data,
         }
 
     # ── Dark Pool Endpoints ──────────────────────────────────────────────
 
     def get_top_positions(self, limit: int = 200, sort_by: str = "Dark Pools Position $") -> List[DarkPoolPosition]:
-        """Get top tickers by dark pool position."""
+        """Get top tickers by dark pool position (Pro-gated; may return [])."""
         cache_key = f"leaderboard_{limit}"
         if self._is_cached(cache_key):
             return self._cache[cache_key]
@@ -455,19 +326,18 @@ class StockgridClient:
         for item in rows[:limit]:
             if not isinstance(item, dict):
                 continue
-            # v2 fields: position_usd, short_pct, net_usd
             positions.append(
                 DarkPoolPosition(
                     ticker=item.get("ticker", ""),
                     date=item.get("date", data.get("as_of") or data.get("as_of_date", "")),
                     dp_position_shares=float(item.get("dp_position") or 0),
                     dp_position_dollars=float(
-                        item.get("position_usd")
-                        or item.get("dollar_dp_position")
-                        or 0
+                        item.get("position_usd") or item.get("dollar_dp_position") or 0
                     ),
                     net_short_volume=float(item.get("net_volume") or 0),
-                    net_short_dollars=float(item.get("net_usd") or item.get("dollar_net_volume") or 0),
+                    net_short_dollars=float(
+                        item.get("net_usd") or item.get("dollar_net_volume") or 0
+                    ),
                     short_volume=float(item.get("short_volume") or 0),
                     short_volume_pct=float(
                         item.get("short_pct") or item.get("short_volume_percent") or 0
@@ -481,9 +351,18 @@ class StockgridClient:
         return positions
 
     def get_ticker_detail(self, ticker: str = "SPY", window: int = 252) -> Optional["DarkPoolPosition"]:
+        """
+        Get latest dark pool position for a ticker.
+        Returns a DarkPoolPosition dataclass (backward compatible with all consumers).
+        Use get_ticker_detail_raw() for the full historical dict.
+        """
         return self.get_ticker_latest(ticker)
 
     def get_ticker_detail_raw(self, ticker: str = "SPY", window: int = 252) -> Optional[dict]:
+        """
+        Get full dark pool history for a ticker.
+        Live Pro-gated; returns None unless disk last-known-good exists.
+        """
         cache_key = f"detail_raw_{ticker}_{window}"
         if self._is_cached(cache_key):
             return self._cache[cache_key]
@@ -499,6 +378,7 @@ class StockgridClient:
         return normalized
 
     def get_ticker_latest(self, ticker: str) -> Optional[DarkPoolPosition]:
+        """Get latest dark pool position for a single ticker."""
         data = self.get_ticker_detail_raw(ticker)
         if not data:
             return None
@@ -544,6 +424,7 @@ class StockgridClient:
         net_vol = 0.0
         if sv_items and isinstance(sv_items[-1], dict):
             net_vol = float(sv_items[-1].get("net_short_volume") or 0)
+
         return DarkPoolPosition(
             ticker=ticker.upper(),
             date=dates[-1],
@@ -558,6 +439,10 @@ class StockgridClient:
     # ── Option Walls ─────────────────────────────────────────────────────
 
     def get_option_walls(self, symbol: str = "SPY") -> Optional[dict]:
+        """
+        Get option wall data for SPY/QQQ/IWM (PUBLIC).
+        Returns legacy-shaped dict: {as_of_date, expirations, option_walls, symbol, spot}.
+        """
         cache_key = f"walls_{symbol}"
         if self._is_cached(cache_key):
             return self._cache[cache_key]
@@ -570,6 +455,7 @@ class StockgridClient:
         return normalized
 
     def get_option_walls_today(self, symbol: str = "SPY") -> Optional[OptionWall]:
+        """Get nearest-expiry option wall levels (PUBLIC)."""
         data = self.get_option_walls(symbol)
         if not data:
             return None
@@ -578,11 +464,7 @@ class StockgridClient:
         if not walls:
             return None
 
-        latest_date = sorted(walls.keys())[0] if walls else None  # nearest expiry first chronologically
-        # Prefer soonest dated expiry (>= today-ish): sorted ascending
-        if not latest_date:
-            return None
-        # Use nearest expiry (smallest date string among future/near)
+        # Nearest expiry first (ascending date keys)
         nearest = sorted(walls.keys())[0]
         w = walls[nearest]
         return OptionWall(
@@ -614,7 +496,10 @@ class StockgridClient:
     # ── Dashboard / Strategy ─────────────────────────────────────────────
 
     def get_dashboard(self) -> Optional[dict]:
-        """Best-effort dashboard from public market endpoints (v2 has no /dashboard/all)."""
+        """
+        Best-effort dashboard from public market endpoints.
+        Legacy /dashboard/all is dead — do not pretend signals/regime exist.
+        """
         cache_key = "dashboard"
         if self._is_cached(cache_key):
             return self._cache[cache_key]
@@ -623,39 +508,45 @@ class StockgridClient:
         snap = self.get_market_snapshot() or {}
         data = {
             "movers": movers,
-            "signal_symbols": [],  # Pro/legacy — unavailable on free v2 surface
+            "signal_symbols": [],  # unavailable on free v2 surface
             "strategy_metrics": {"market_regime": None},
             "market_snapshot": snap.get("market_snapshot"),
-            "_source": "axlfi_v2_public",
         }
         self._set_cache(cache_key, data)
         return data
 
     def get_signal_symbols(self) -> List[dict]:
+        """Get current signal symbols (from dashboard). Empty on free v2."""
         dash = self.get_dashboard()
         if dash:
             return dash.get("signal_symbols", []) or []
         return []
 
     def get_volatility_regime(self) -> Optional[dict]:
+        """Get current VIX climax / volatility regime (None on free v2)."""
         dash = self.get_dashboard()
         if dash:
             return dash.get("strategy_metrics", {}).get("market_regime")
         return None
 
     def get_movers(self) -> Optional[dict]:
-        dash = self.get_dashboard()
-        if dash:
-            return dash.get("movers", {})
-        return self._get("/market/movers")
+        """Get today's market movers (PUBLIC /market/movers)."""
+        cache_key = "movers"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/market/movers")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
 
     # ── Cluster Universe ─────────────────────────────────────────────────
 
     def get_clusters(self) -> Optional[dict]:
+        """Get market members universe (public /market/members)."""
         cache_key = "clusters"
         if self._is_cached(cache_key):
             return self._cache[cache_key]
-        # v2: /market/members approximates cluster universe
+
         data = self._get("/market/members", {"universe": "us_large_cap_500"})
         if data:
             self._set_cache(cache_key, data)
@@ -664,7 +555,7 @@ class StockgridClient:
     # ── Symbol Info ──────────────────────────────────────────────────────
 
     def get_symbol_info(self, ticker: str) -> Optional[dict]:
-        # Prefer ticker payload summary
+        """Ticker metadata — prefers DP ticker payload when available (often Pro)."""
         raw = self.get_ticker_detail_raw(ticker, window=5)
         if not raw:
             return None
@@ -674,8 +565,8 @@ class StockgridClient:
             "symbol": {
                 "symbol": ticker.upper(),
                 "close": latest.get("close") or summary.get("close"),
-                "company": (raw.get("_raw") or {}).get("name", ""),
-                "sector": (raw.get("_raw") or {}).get("sector", ""),
+                "company": "",
+                "sector": "",
                 "short_volume_pct": latest.get("short_volume_pct"),
             }
         }
@@ -683,6 +574,7 @@ class StockgridClient:
     # ── Summary/Narrative (backward compat) ──────────────────────────────
 
     def get_summary(self) -> DarkPoolSummary:
+        """Get combined dark pool summary with SPY + QQQ detail."""
         top = self.get_top_positions(limit=10)
         spy = self.get_ticker_latest("SPY")
         qqq = self.get_ticker_latest("QQQ")
@@ -694,6 +586,7 @@ class StockgridClient:
         )
 
     def get_narrative(self) -> str:
+        """Generate narrative-ready text for agents/systems."""
         try:
             summary = self.get_summary()
             parts = []
@@ -721,6 +614,10 @@ class StockgridClient:
     # ── Earnings-Specific Intelligence ───────────────────────────────────
 
     def get_earnings_intel(self, tickers: List[str]) -> Dict[str, dict]:
+        """
+        Pull consolidated dark pool + option wall intelligence for earnings targets.
+        DP history may be empty when Pro-gated; walls still fill for SPY/QQQ.
+        """
         intel: Dict[str, dict] = {}
 
         for ticker in tickers:
@@ -790,7 +687,6 @@ class StockgridClient:
                 "latest_net_vol": dnv[-1] if dnv else None,
                 "short_volume_pct": sv_pct,
                 "trend_5d": trend,
-                "state": detail.get("state"),
             }
 
         for sym in ["SPY", "QQQ"]:
@@ -821,19 +717,19 @@ if __name__ == "__main__":
     client = StockgridClient()
 
     print("=" * 60)
-    print("🐺 AXLFI v2 Market Intelligence — Smoke Test")
+    print("🐺 AXLFI /api v2 — Smoke Test")
     print("=" * 60)
 
     walls = client.get_option_walls_today("SPY")
     print("SPY walls:", walls)
 
-    raw = client.get_ticker_detail_raw("SPY", window=30)
+    raw = client.get_ticker_detail_raw("SPY", window=10)
     if raw:
         dp = raw["individual_dark_pool_position_data"]
         print("SPY as_of", raw.get("as_of_date"), "points", len(dp.get("dates") or []))
         print("last5 pos", (dp.get("dp_position") or [])[-5:])
     else:
-        print("SPY ticker: NONE")
+        print("SPY ticker: NONE (Pro-gated or no disk cache)")
 
     top = client.get_top_positions(limit=5)
     print("top", [(p.ticker, round(p.dp_position_dollars / 1e9, 2)) for p in top])
@@ -841,4 +737,5 @@ if __name__ == "__main__":
 
 # ─── Backward Compatibility Aliases ─────────────────────────────────────────
 
+# dp_snapshot_recorder.py imports StockGridClient (capital G)
 StockGridClient = StockgridClient

@@ -3,8 +3,8 @@ Gamma Tracker API Endpoints
 
 Provides gamma exposure data, gamma flip levels, max pain, and P/C ratios.
 
-Data source: canonical GEX — prefers CBOE, falls back to AXLFI /options/walls
-(dark-pool API). NO invented numbers — if both sources fail → HTTP 404/502.
+Data source: canonical GEXCalculator (CBOE primary; AXLFI option-walls fallback
+for levels/regime when CBOE is blind). No invented notional GEX.
 """
 
 import logging
@@ -77,7 +77,7 @@ async def get_gamma_data(symbol: str):
     """
     Get gamma exposure for a symbol.
 
-    Primary: CBOE delayed options. Fallback: AXLFI option walls (dark-pool API).
+    Primary: CBOE delayed options. Fallback: AXLFI option walls via GEXCalculator.
     """
     symbol = symbol.upper()
     from backend.app.utils.gex_canonical import compute_canonical_gex
@@ -91,7 +91,7 @@ async def get_gamma_data(symbol: str):
     if not result or not result.spot_price:
         raise HTTPException(
             status_code=404,
-            detail=f"No options/walls data available for {symbol} (CBOE + AXLFI blind)",
+            detail=f"No options data available for {symbol} (CBOE + AXLFI walls blind)",
         )
 
     # Calculate distance to gamma flip
