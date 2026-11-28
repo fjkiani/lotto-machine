@@ -117,6 +117,32 @@ class TestAxlfiV2Extensions(unittest.TestCase):
         self.assertIsNotNone(earn)
         self.assertIn("/earnings/upcoming", session4.get.call_args[0][0])
 
+        client5, session5 = self._client_with_response(
+            200, {"as_of": "2026-11-27", "rows": [{"ticker": "GME"}]}
+        )
+        si_lb = client5.get_short_interest_leaderboard()
+        self.assertIsNotNone(si_lb)
+        self.assertIn("/short-interest/leaderboard", session5.get.call_args[0][0])
+
+        client6, session6 = self._client_with_response(
+            200, {"ticker": "SPY", "history": []}
+        )
+        et = client6.get_earnings_ticker("SPY")
+        self.assertEqual(et.get("ticker"), "SPY")
+        self.assertIn("/earnings/ticker", session6.get.call_args[0][0])
+
+        client7, session7 = self._client_with_response(200, {"activity": []})
+        act = client7.get_congress_activity()
+        self.assertIsNotNone(act)
+        self.assertIn("/congress/activity", session7.get.call_args[0][0])
+
+        client8, session8 = self._client_with_response(
+            200, [{"sector": "Technology", "ret_1d": 0.01}]
+        )
+        sectors = client8.get_market_sectors()
+        self.assertIsInstance(sectors, list)
+        self.assertIn("/market/sectors", session8.get.call_args[0][0])
+
     def test_darkpool_sectors_403_fail_closed(self):
         client, session = self._client_with_response(
             403, {"detail": "Pro subscription required"}
@@ -134,6 +160,22 @@ class TestAxlfiV2Extensions(unittest.TestCase):
         rows = client.get_top_positions(limit=10)
         self.assertEqual(rows, [])
         self.assertTrue(client.last_fetch_meta.get("paywall"))
+
+    def test_darkpool_ticker_403_returns_none_not_fake(self):
+        client, session = self._client_with_response(
+            403, {"detail": "Pro subscription required"}
+        )
+        out = client.get_ticker_detail_raw("SPY")
+        self.assertIsNone(out)
+        self.assertTrue(client.last_fetch_meta.get("paywall"))
+        self.assertEqual(client.last_fetch_meta.get("http_status"), 403)
+        self.assertIn("/darkpools/ticker", session.get.call_args[0][0])
+
+    def test_leaderboard_metric_is_position_usd(self):
+        client, session = self._client_with_response(200, {"as_of": "x", "rows": []})
+        client.get_top_positions(limit=5)
+        kwargs = session.get.call_args.kwargs
+        self.assertEqual(kwargs.get("params", {}).get("metric"), "position_usd")
 
 
 if __name__ == "__main__":
