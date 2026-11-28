@@ -8,6 +8,11 @@ Nov 2026 surface (current) — BASE https://axlfi.com/api
     GET /market/movers | /market/volatility | /market/update
     GET /market/sectors | /market/themes | /market/breadth | /market/members
     GET /short-interest/ticker?ticker=SPY | /short-interest/leaderboard
+    GET /short-interest/fails | /short-interest/fails/ticker?ticker=
+    GET /institutions/overview | /institutions/ticker?ticker=
+    GET /events/overview
+    GET /breadth/signals
+    GET /contracts/overview | /contracts/ticker?ticker=
     GET /clusters/scan | /clusters/stock/{ticker}
     GET /congress/trades | /congress/activity
     GET /earnings/upcoming | /earnings/ticker?ticker=
@@ -16,6 +21,8 @@ Nov 2026 surface (current) — BASE https://axlfi.com/api
     GET /darkpools/leaderboard (metric=position_usd)
     GET /darkpools/ticker?ticker=SPY&window=252
     GET /darkpools/sectors
+    GET /insiders/overview | /insiders/ticker?ticker=
+    # Cookie-header only via AXLFI_SESSION_COOKIE (not Bearer / apikey)
 
 Legacy `axlfi-app-backend/api/*` routes return the Nuxt HTML shell — DEAD. Do not use.
 """
@@ -891,6 +898,123 @@ class StockgridClient:
         data = self._get("/short-interest/leaderboard")
         if data:
             self._set_cache(cache_key, data)
+        return data
+
+    def get_short_interest_fails(self) -> Optional[dict]:
+        """PUBLIC — fails-to-deliver overview (not Pro darkpools)."""
+        cache_key = "si_fails"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/short-interest/fails")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_short_interest_fails_ticker(self, ticker: str = "SPY") -> Optional[dict]:
+        """PUBLIC — fails-to-deliver for a ticker; None on empty/5xx (fail-closed)."""
+        t = ticker.upper()
+        cache_key = f"si_fails_ticker_{t}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/short-interest/fails/ticker", {"ticker": t})
+        if not data:
+            return None
+        if self.last_fetch_meta.get("http_status", 200) >= 400:
+            return None
+        self._set_cache(cache_key, data)
+        return data
+
+    # ── Institutions / Events / Breadth / Contracts (PUBLIC) ─────────────
+
+    def get_institutions_overview(self) -> Optional[dict]:
+        """PUBLIC — institutions overview feed."""
+        cache_key = "institutions_overview"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/institutions/overview")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_institutions_ticker(self, ticker: str = "SPY") -> Optional[dict]:
+        """PUBLIC — institutions holdings/activity for a ticker."""
+        t = ticker.upper()
+        cache_key = f"institutions_ticker_{t}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/institutions/ticker", {"ticker": t})
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_events_overview(self) -> Optional[dict]:
+        """PUBLIC — events overview."""
+        cache_key = "events_overview"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/events/overview")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_breadth_signals(self) -> Optional[dict]:
+        """PUBLIC — breadth signals (distinct from /market/breadth)."""
+        cache_key = "breadth_signals"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/breadth/signals")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_contracts_overview(self) -> Optional[dict]:
+        """PUBLIC — options contracts overview."""
+        cache_key = "contracts_overview"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/contracts/overview")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_contracts_ticker(self, ticker: str = "SPY") -> Optional[dict]:
+        """PUBLIC — options contracts for a ticker."""
+        t = ticker.upper()
+        cache_key = f"contracts_ticker_{t}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/contracts/ticker", {"ticker": t})
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    # ── Insiders (PRO fail-closed) ───────────────────────────────────────
+
+    def get_insiders_overview(self) -> Optional[dict]:
+        """Pro-gated insiders overview. 403 → None (PAYWALL_FALLBACK)."""
+        cache_key = "insiders_overview"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/insiders/overview")
+        if not data:
+            return None
+        if self.last_fetch_meta.get("paywall") or self.last_fetch_meta.get("http_status") == 403:
+            return None
+        self._set_cache(cache_key, data)
+        return data
+
+    def get_insiders_ticker(self, ticker: str = "SPY") -> Optional[dict]:
+        """Pro-gated insiders ticker. 403 → None (never invent)."""
+        t = ticker.upper()
+        cache_key = f"insiders_ticker_{t}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/insiders/ticker", {"ticker": t})
+        if not data:
+            return None
+        if self.last_fetch_meta.get("paywall") or self.last_fetch_meta.get("http_status") == 403:
+            return None
+        self._set_cache(cache_key, data)
         return data
 
     # ── Clusters (PUBLIC) ────────────────────────────────────────────────
