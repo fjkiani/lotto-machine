@@ -12,7 +12,7 @@ Inputs:
   MANEMP (Manufacturing Employment)   → goods sector drag
 
 Consensus (street) is pulled live from Trading Economics calendar (primary),
-then ForexFactory date page, then NER-style 40K baseline — not 150K.
+then ForexFactory / TE ADP page. No invented baseline floors.
 
 Output:
   MISS_LIKELY | BEAT_LIKELY | IN_LINE vs ADP consensus
@@ -43,7 +43,7 @@ import os
 import logging
 import re
 import requests
-from typing import Optional, Tuple
+from typing import Optional, Tuple  # noqa: F401 — Optional used by consensus helpers
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -57,17 +57,15 @@ class ADPPredictor:
     """
     FRED-based ADP Employment Change predictor.
     Uses 5 leading indicators to generate a pre-signal before ADP prints.
-    Consensus: TE calendar → ForexFactory → TE ADP page → 40K baseline.
+    Consensus: TE calendar → ForexFactory → TE ADP page (no invented floor).
     """
 
     FRED_BASE = "https://api.stlouisfed.org/fred"
-    # NER Pulse–style floor: ~10K jobs/week × 4 when no calendar reads succeed.
-    _FALLBACK_CONSENSUS = 40_000
 
     def __init__(self):
         self.api_key = os.getenv("FRED_API_KEY", "")
         if not self.api_key:
-            logger.warning("⚠️ FRED_API_KEY not set — ADPPredictor disabled")
+            logger.warning("⚠️ FRED_API_KEY not set — ADPPredictor FRED inputs degraded")
 
     @staticmethod
     def _parse_consensus_to_jobs(raw: Optional[str]) -> Optional[int]:
@@ -92,16 +90,30 @@ class ADPPredictor:
             return None
 
     def _fetch_consensus_te_calendar(self) -> Optional[int]:
-        """Primary: TE US calendar monthly ADP (exclude Weekly rows)."""
+        """Primary: TE US calendar monthly ADP (exclude Weekly + past/released rows)."""
         try:
             from live_monitoring.enrichment.apis.te_calendar_scraper import TECalendarScraper
+            from datetime import datetime
 
             scraper = TECalendarScraper(cache_ttl=300)
-            for e in scraper.get_us_calendar():
+            now = datetime.now()
+            # Prefer future unreleased, then any unreleased
+            pool = list(scraper.get_upcoming(days=45)) + [
+                e for e in scraper.get_us_calendar() if not e.has_actual
+            ]
+            seen = set()
+            for e in pool:
+                eid = id(e)
+                if eid in seen:
+                    continue
+                seen.add(eid)
                 el = e.event.lower()
                 if "adp" not in el or "employment" not in el:
                     continue
                 if "weekly" in el:
+                    continue
+                dt = TECalendarScraper._parse_event_datetime(e)
+                if dt is not None and dt < now:
                     continue
                 v = self._parse_consensus_to_jobs(e.consensus)
                 if v is not None:
@@ -199,13 +211,13 @@ class ADPPredictor:
             logger.warning(f"FRED fetch failed for {series_id}: {e}")
             return []
 
-    def _get_consensus(self) -> Tuple[int, str]:
+    def _get_consensus(self) -> Tuple[Optional[int], str]:
         """
         Live consensus chain:
           1) TE US calendar (monthly ADP row)
           2) ForexFactory day page
           3) TE /united-states/adp-employment-change (TEForecast)
-          4) Baseline 40K (≈ NER pulse × 4)
+        Returns (None, reason) when all live pulls fail — never invents a floor.
         """
         v = self._fetch_consensus_te_calendar()
         if v is not None:
@@ -216,11 +228,8 @@ class ADPPredictor:
         v = self._fetch_consensus_te_adp_page()
         if v is not None:
             return v, "te_adp_page"
-        logger.warning(
-            "ADP consensus: all live pulls failed — using baseline %s",
-            self._FALLBACK_CONSENSUS,
-        )
-        return self._FALLBACK_CONSENSUS, "ner_pulse_baseline"
+        logger.warning("ADP consensus: all live pulls failed — degraded (no invented floor)")
+        return None, "unavailable"
 
     def predict(self) -> dict:
         """
@@ -233,6 +242,25 @@ class ADPPredictor:
         inputs = {}
         adjustments = []
         reasons = []
+        fred_degraded = not bool(self.api_key)
+
+        if base_consensus is None:
+            return {
+                "consensus": None,
+                "consensus_source": consensus_source,
+                "prediction": None,
+                "delta": None,
+                "signal": None,
+                "confidence": None,
+                "degraded": True,
+                "fred_degraded": fred_degraded,
+                "reasons": [
+                    "Live ADP consensus unavailable from TE/ForexFactory — not inventing a floor",
+                ],
+                "inputs": inputs,
+                "as_of": datetime.utcnow().isoformat(),
+                "edge": "ADP degraded: no live consensus",
+            }
 
         # ── 1. ICSA: Initial Claims 4-week average ──────────────────────
         icsa_vals = self._fetch("ICSA", limit=4)
@@ -336,6 +364,9 @@ class ADPPredictor:
         else:
             signal, confidence = "IN_LINE", 0.40
 
+        if fred_degraded:
+            reasons.append("FRED_API_KEY missing — leading-indicator adjustments skipped/empty")
+
         sign = "+" if delta > 0 else ""
         return {
             "consensus": base_consensus,
@@ -344,6 +375,8 @@ class ADPPredictor:
             "delta": delta,
             "signal": signal,
             "confidence": confidence,
+            "degraded": fred_degraded and not inputs,
+            "fred_degraded": fred_degraded,
             "adjustment_count": len(adjustments),
             "total_adjustment": total_adj,
             "raw_adjustment_unscaled": raw_adj,

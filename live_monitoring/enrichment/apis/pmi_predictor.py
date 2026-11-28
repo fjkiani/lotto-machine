@@ -1,41 +1,21 @@
 """
 📊 PMI Pre-Signal Monitor
 
-Threshold-based monitor for S&P Global PMI releases:
-  - Manufacturing PMI
-  - Services PMI
-  - Composite PMI
-
-No FRED model needed — PMI signal is entirely binary vs 50 expansion/contraction line.
-Consensus comes from TE calendar scraper.
-
-Rules per series:
-  < 50       → CONTRACTION (bearish macro signal)
-  50 ≤ x < 51 → BORDERLINE  (reading near inflection — ambiguous)
-  ≥ 51       → EXPANSION   (healthy / mildly hawkish)
-
-Output shape (identical to ADPPredictor/JoblessClaimsPredictor):
-{
-  "prediction":  float,   # forecast value (consensus or last print)
-  "consensus":   float,
-  "delta":       float,   # forecast - consensus
-  "signal":      "CONTRACTION" | "BORDERLINE" | "EXPANSION" | "IN_LINE",
-  "confidence":  float,
-  "reasons":     list[str],
-  "series":      { "mfg": ..., "svcs": ..., "composite": ... }
-}
+Threshold-based monitor for S&P Global / ISM PMI releases.
+Consensus comes from live TE calendar / indicator pages only.
+Never invents consensus floors (no 51.5 / 50.5 / 52.0 echo).
 """
 
+from __future__ import annotations
+
 import logging
+import re
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ── Thresholds ────────────────────────────────────────────────────────────────
-
-PMI_CONTRACTION  = 50.0   # < 50 = CONTRACTION
-PMI_BORDERLINE   = 51.0   # 50–51 = BORDERLINE
-# ≥ 51 = EXPANSION
+PMI_CONTRACTION = 50.0
+PMI_BORDERLINE = 51.0
 
 
 def _classify_pmi(value: float) -> str:
@@ -43,22 +23,28 @@ def _classify_pmi(value: float) -> str:
         return "CONTRACTION"
     elif value < PMI_BORDERLINE:
         return "BORDERLINE"
-    else:
-        return "EXPANSION"
+    return "EXPANSION"
+
+
+def _parse_pmi_number(raw: Optional[str]) -> Optional[float]:
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s or s in ("—", "-", "N/A", "n/a", ""):
+        return None
+    s = s.replace(",", "").replace("%", "")
+    try:
+        return float(s)
+    except ValueError:
+        m = re.search(r"[-+]?\d+(\.\d+)?", s)
+        return float(m.group(0)) if m else None
 
 
 class PMIPredictor:
     """
-    S&P Global PMI threshold monitor.
-
-    Reads consensus values from TECalendarScraper and classifies each series.
-    Falls back to hardcoded safe defaults when calendar is unavailable.
+    PMI threshold monitor backed by live TE/FF calendar consensus.
+    If consensus cannot be scraped: degraded=True and consensus/prediction=null.
     """
-
-    # Fallback consensus values (S&P Global US PMI historical medians)
-    FALLBACK_MFG       = 50.5
-    FALLBACK_SVCS      = 52.0
-    FALLBACK_COMPOSITE = 51.5
 
     def __init__(self):
         self._scraper = None
@@ -67,64 +53,99 @@ class PMIPredictor:
         if self._scraper is None:
             try:
                 from live_monitoring.enrichment.apis.te_calendar_scraper import TECalendarScraper
-                self._scraper = TECalendarScraper()
+
+                self._scraper = TECalendarScraper(cache_ttl=900)
             except Exception as e:
-                logger.warning(f"PMIPredictor: TECalendarScraper unavailable — {e}")
+                logger.warning("PMIPredictor: TECalendarScraper unavailable — %s", e)
         return self._scraper
 
-    def _get_consensus(self, event_keywords: list[str], fallback: float) -> Optional[float]:
-        """Pull consensus from TE Calendar by fuzzy keyword match."""
+    def _get_consensus(self, event_keywords: list[str]) -> tuple[Optional[float], Optional[str]]:
+        """Pull consensus from TE calendar by keyword match. No invented fallback."""
         scraper = self._get_scraper()
         if not scraper:
-            return fallback
+            return None, "scraper_unavailable"
         try:
-            events = scraper.get_upcoming_events() or []
-            for ev in events:
-                name = (ev.get("event") or "").lower()
-                if all(kw.lower() in name for kw in event_keywords):
-                    raw = ev.get("consensus") or ev.get("forecast")
-                    if raw:
-                        return float(str(raw).replace(",", "").strip())
-        except Exception as e:
-            logger.warning(f"PMIPredictor._get_consensus failed: {e}")
-        return fallback
+            from live_monitoring.enrichment.apis.te_calendar_scraper import TECalendarScraper
+            from datetime import datetime
 
-    def _predict_series(self, name: str, keywords: list[str], fallback: float) -> dict:
-        consensus = self._get_consensus(keywords, fallback)
+            now = datetime.now()
+            # Prefer future unreleased events only (avoid past Flash PMI rows)
+            candidates = list(scraper.get_upcoming(days=45))
+            if not candidates:
+                # Fall back to full calendar but still skip past datetimes
+                for ev in scraper.get_us_calendar():
+                    if ev.has_actual:
+                        continue
+                    dt = TECalendarScraper._parse_event_datetime(ev)
+                    if dt is not None and dt < now:
+                        continue
+                    candidates.append(ev)
+
+            seen = set()
+            for ev in candidates:
+                eid = id(ev)
+                if eid in seen:
+                    continue
+                seen.add(eid)
+                name = (ev.event or "").lower()
+                if not all(kw.lower() in name for kw in event_keywords):
+                    continue
+                # Skip flash prints when looking for ISM-style monthly unless asked
+                raw = ev.consensus or ev.forecast
+                val = _parse_pmi_number(raw)
+                if val is not None:
+                    return val, getattr(ev, "source", "te_calendar")
+        except Exception as e:
+            logger.warning("PMIPredictor._get_consensus failed: %s", e)
+            return None, f"error:{e}"
+        return None, "not_found"
+
+    def _predict_series(self, name: str, keywords: list[str]) -> dict:
+        consensus, source = self._get_consensus(keywords)
         if consensus is None:
-            consensus = fallback
+            return {
+                "prediction": None,
+                "consensus": None,
+                "delta": None,
+                "signal": None,
+                "confidence": None,
+                "degraded": True,
+                "consensus_source": source,
+                "reasons": [
+                    f"{name}: live consensus unavailable ({source}) — not inventing a PMI floor",
+                ],
+            }
+
         signal = _classify_pmi(consensus)
-        confidence = self._confidence(consensus, signal)
-        reasons = self._reasons(name, consensus, signal)
         return {
-            "prediction":  consensus,   # Best estimate = consensus (no FRED model)
-            "consensus":   consensus,
-            "delta":       0.0,         # Will be updated post-print when actual is known
-            "signal":      signal,
-            "confidence":  confidence,
-            "reasons":     reasons,
+            "prediction": consensus,  # no separate model — report scraped consensus only
+            "consensus": consensus,
+            "delta": 0.0,
+            "signal": signal,
+            "confidence": self._confidence(consensus, signal),
+            "degraded": False,
+            "consensus_source": source,
+            "reasons": self._reasons(name, consensus, signal),
         }
 
     @staticmethod
     def _confidence(value: float, signal: str) -> float:
-        """Confidence scales with distance from the 50 threshold."""
         dist = abs(value - 50.0)
         if signal == "CONTRACTION":
             return min(0.9, 0.5 + dist * 0.08)
-        elif signal == "BORDERLINE":
+        if signal == "BORDERLINE":
             return 0.5
-        else:
-            return min(0.8, 0.4 + (value - 51.0) * 0.06)
+        return min(0.8, 0.4 + (value - 51.0) * 0.06)
 
     @staticmethod
     def _reasons(name: str, value: float, signal: str) -> list[str]:
-        line = f"50 threshold (expansion/contraction line)"
+        line = "50 threshold (expansion/contraction line)"
         if signal == "CONTRACTION":
             return [
                 f"{name} consensus {value:.1f} is below {line} — indicates contraction",
                 "Bearish for growth assets; may signal Fed dovish response",
             ]
-        elif signal == "BORDERLINE":
+        if signal == "BORDERLINE":
             return [
                 f"{name} consensus {value:.1f} is in the borderline 50–51 zone",
                 "Ambiguous signal — any miss risks dipping into contraction territory",
@@ -135,28 +156,37 @@ class PMIPredictor:
         ]
 
     def predict(self) -> dict:
-        """Return pre-signals for all three PMI series."""
-        mfg  = self._predict_series("Manufacturing PMI",  ["pmi", "manufacturing"],  self.FALLBACK_MFG)
-        svcs = self._predict_series("Services PMI",       ["pmi", "services"],       self.FALLBACK_SVCS)
-        comp = self._predict_series("Composite PMI",      ["pmi", "composite"],      self.FALLBACK_COMPOSITE)
+        """Return pre-signals for manufacturing / services / composite when available."""
+        mfg = self._predict_series("Manufacturing PMI", ["ism", "manufacturing"])
+        if mfg.get("consensus") is None:
+            # TE business-confidence slug surfaces as "ISM Manufacturing PMI"
+            mfg = self._predict_series("Manufacturing PMI", ["manufacturing", "pmi"])
 
-        # Composite drives the top-level signal (most representative)
-        top_signal = comp["signal"]
+        svcs = self._predict_series("Services PMI", ["services", "pmi"])
+        if svcs.get("consensus") is None:
+            svcs = self._predict_series("Services PMI", ["non-manufacturing"])
 
+        comp = self._predict_series("Composite PMI", ["composite", "pmi"])
+
+        series = {"pmi_mfg": mfg, "pmi_svcs": svcs, "pmi_comp": comp}
+        # Prefer composite; else manufacturing as top-level representative
+        top = comp if comp.get("consensus") is not None else mfg
+        if top.get("consensus") is None and svcs.get("consensus") is not None:
+            top = svcs
+
+        degraded = all(s.get("degraded") for s in series.values())
         return {
-            "signal":      top_signal,
-            "prediction":  comp["prediction"],
-            "consensus":   comp["consensus"],
-            "delta":       comp["delta"],
-            "confidence":  comp["confidence"],
-            "reasons":     comp["reasons"],
-            "series": {
-                "pmi_mfg":  mfg,
-                "pmi_svcs": svcs,
-                "pmi_comp": comp,
-            },
+            "signal": top.get("signal"),
+            "prediction": top.get("prediction"),
+            "consensus": top.get("consensus"),
+            "delta": top.get("delta"),
+            "confidence": top.get("confidence"),
+            "reasons": top.get("reasons") or [],
+            "series": series,
+            "degraded": degraded,
             "edge": (
-                f"Composite PMI {comp['consensus']:.1f} → {top_signal} | "
-                f"Mfg: {mfg['signal']}, Svcs: {svcs['signal']}"
+                f"Composite/top PMI {top.get('consensus')} → {top.get('signal')}"
+                if top.get("consensus") is not None
+                else "PMI consensus unavailable from live calendar (degraded)"
             ),
         }
