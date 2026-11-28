@@ -167,18 +167,35 @@ def fetch_hidden_hands() -> dict:
         return {'error': str(e)}
 
 
+# Short TTL so brief wave does not re-scrape TE indicators on every request.
+_ECON_CAL_CACHE: dict = {"ts": 0.0, "payload": None}
+_ECON_CAL_TTL_SEC = 300  # 5 minutes
+
+
 def fetch_economic_calendar() -> dict:
-    """Live TE/FF calendar — next binary event + 48h risk flag + week events."""
+    """Live FF+TE calendar — next binary + 48h risk flag + week events.
+
+    Cached for 5 minutes so /brief/master does not burn the wave budget on
+    repeated indicator scrapes. Wave timeout for this key must be >= ~12s
+    for a cold scrape (see brief/router.py).
+    """
+    import time as _time
+
     try:
+        now = _time.time()
+        cached = _ECON_CAL_CACHE.get("payload")
+        if cached is not None and (now - float(_ECON_CAL_CACHE.get("ts") or 0)) < _ECON_CAL_TTL_SEC:
+            out = dict(cached)
+            out["cache_hit"] = True
+            return out
+
         from live_monitoring.enrichment.apis.economic_calendar import EconomicCalendar
 
         ec = EconomicCalendar()
-        payload = {
-            "next_binary": ec.get_next_binary(),
-            "risk_flag": ec.get_risk_flag(),
-            "week_events": ec.get_week_events(),
-            "status": ec.status(),
-        }
+        payload = ec.build_brief_payload()
+        payload["cache_hit"] = False
+        _ECON_CAL_CACHE["payload"] = payload
+        _ECON_CAL_CACHE["ts"] = now
         return payload
     except Exception as e:
         logger.warning(f"Economic calendar failed: {e}")

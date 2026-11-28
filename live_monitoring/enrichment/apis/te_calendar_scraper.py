@@ -1,30 +1,37 @@
 """
 📅 Trading Economics Calendar Scraper — Dynamic Economic Calendar
 
-Primary path (2026-11+): TE main calendar is JS/WAF-gated (`?partial=calendar`
-returns captcha). Live events come from:
+Live sources (priority order):
 
-  1. TE indicator pages (SSR calendar tables — Actual/Previous/Consensus/TEForecast)
-  2. ForexFactory NFS JSON (`ff_calendar_thisweek.json`) for the current week
-  3. Legacy HTML table parse if TE ever re-enables SSR rows
+  1. ForexFactory NFS JSON — `ff_calendar_thisweek.json` +
+     `ff_calendar_nextweek.json` (when published) as the dense week spine
+  2. TE indicator SSR pages — consensus/forecast enrichment + 7–14d coverage
+     beyond the FF week window (expanded slug list, not a tiny allowlist)
+  3. TE main calendar — attempted via requests + optional Playwright;
+     WAF/JS/403 failures are recorded honestly (never treated as success)
 
 No API key required. No static April/March event dictionaries as source of truth.
-Caches results for 1 hour.
+Caches results for 1 hour (scraper) / brief fetcher uses a shorter TTL.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 import requests
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
+
+# Process-level memory of TE main Playwright 403 so brief cold paths stay fast.
+_TE_MAIN_PW_BLOCKED = False
 
 # ── Importance classification based on event name ──
 CRITICAL_EVENTS = {
@@ -34,10 +41,12 @@ CRITICAL_EVENTS = {
     "cpi s.a",
     "non farm payrolls",
     "nonfarm payrolls",
+    "non-farm employment",
     "employment change",
     "gdp growth rate",
     "gdp annual",
     "gdp price index",
+    "prelim gdp",
     "fed interest rate decision",
     "fomc",
     "pce price index",
@@ -48,6 +57,7 @@ CRITICAL_EVENTS = {
 HIGH_EVENTS = {
     "initial jobless claims",
     "jolts job openings",
+    "jolts",
     "ppi",
     "core ppi",
     "producer price",
@@ -79,9 +89,13 @@ HIGH_EVENTS = {
     "consumer confidence",
     "cb consumer confidence",
     "empire state manufacturing",
+    "ny empire state",
     "philadelphia fed",
     "nahb housing",
     "current account",
+    "average hourly earnings",
+    "nfib business",
+    "challenger job cuts",
 }
 
 MEDIUM_EVENTS = {
@@ -104,27 +118,34 @@ MEDIUM_EVENTS = {
     "monthly budget",
     "net long-term tic",
     "redbook",
-    "nfib business",
-    "jolts",
     "continuing jobless",
+    "crude oil stocks",
+    "natural gas stocks",
 }
 
-# High-impact TE indicator pages that still SSR a calendar table.
+# Expanded US indicator pages that SSR calendar tables (probed 2026-11).
+# Prefer breadth over a tiny allowlist — FF fills week gaps; these extend 7–14d.
 TE_INDICATOR_SLUGS: Tuple[str, ...] = (
     "inflation-cpi",
     "core-inflation-rate",
     "producer-prices",
     "gdp-growth",
     "non-farm-payrolls",
+    "nonfarm-payrolls-private",
     "unemployment-rate",
     "adp-employment-change",
     "jobless-claims",
     "continuing-jobless-claims",
+    "average-hourly-earnings",
     "interest-rate",
     "retail-sales",
+    "retail-sales-ex-autos",
     "business-confidence",  # ISM Manufacturing PMI
-    "consumer-confidence",  # Michigan / CB variants
+    "consumer-confidence",
+    "michigan-consumer-expectations",
     "existing-home-sales",
+    "new-home-sales",
+    "pending-home-sales",
     "housing-starts",
     "building-permits",
     "durable-goods-orders",
@@ -133,9 +154,54 @@ TE_INDICATOR_SLUGS: Tuple[str, ...] = (
     "balance-of-trade",
     "personal-spending",
     "personal-income",
+    "core-pce-price-index-mom",
+    "pce-price-index-monthly-change",
+    "pce-price-index-annual-change",
+    "job-offers",  # JOLTS
+    "philadelphia-fed-manufacturing-index",
+    "ny-empire-state-manufacturing-index",
+    "nahb-housing-market-index",
+    "nfib-business-optimism-index",
+    "current-account",
+    "capacity-utilization",
+    "challenger-job-cuts",
+    "crude-oil-stocks-change",
+    "natural-gas-stocks-change",
+    "economic-optimism-index",
 )
 
+# Map common FF titles → TE indicator slugs for optional enrichment fetches.
+FF_TITLE_TO_TE_SLUG: Dict[str, str] = {
+    "non-farm employment change": "non-farm-payrolls",
+    "nonfarm payrolls": "non-farm-payrolls",
+    "unemployment rate": "unemployment-rate",
+    "adp non-farm employment change": "adp-employment-change",
+    "core cpi m/m": "core-inflation-rate",
+    "cpi m/m": "inflation-cpi",
+    "cpi y/y": "inflation-cpi",
+    "core pce price index m/m": "core-pce-price-index-mom",
+    "pce price index m/m": "pce-price-index-monthly-change",
+    "pce price index y/y": "pce-price-index-annual-change",
+    "prelim gdp q/q": "gdp-growth",
+    "gdp q/q": "gdp-growth",
+    "retail sales m/m": "retail-sales",
+    "core retail sales m/m": "retail-sales-ex-autos",
+    "durable goods orders m/m": "durable-goods-orders",
+    "building permits": "building-permits",
+    "housing starts": "housing-starts",
+    "existing home sales": "existing-home-sales",
+    "new home sales": "new-home-sales",
+    "pending home sales m/m": "pending-home-sales",
+    "ism manufacturing pmi": "business-confidence",
+    "unemployment claims": "jobless-claims",
+    "jolts job openings": "job-offers",
+    "federal funds rate": "interest-rate",
+    "fomc statement": "interest-rate",
+    "average hourly earnings m/m": "average-hourly-earnings",
+}
+
 FF_THISWEEK_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+FF_NEXTWEEK_URL = "https://nfs.faireconomy.media/ff_calendar_nextweek.json"
 
 
 @dataclass
@@ -213,8 +279,9 @@ class TECalendarScraper:
     """
     Dynamic economic calendar.
 
-    Prefer live TE indicator SSR tables + ForexFactory week JSON.
-    Main TE calendar page is WAF/partial-gated — attempt then degrade honestly.
+    ForexFactory week JSON is the dense spine; TE indicator SSR pages enrich
+    consensus and extend beyond the FF window. Main TE calendar is WAF/JS-gated
+    — attempt then degrade honestly (never silent-success on empty WAF shell).
     """
 
     BASE_URL = "https://tradingeconomics.com"
@@ -225,6 +292,8 @@ class TECalendarScraper:
         self._cache_ttl = cache_ttl
         self._last_error: Optional[str] = None
         self._last_sources: List[str] = []
+        self._te_main_status: str = "not_attempted"
+        self._source_notes: Dict[str, str] = {}
         self._session = requests.Session()
         self._session.headers.update(
             {
@@ -237,7 +306,7 @@ class TECalendarScraper:
                 "Accept-Language": "en-US,en;q=0.9",
             }
         )
-        logger.info("📅 TECalendarScraper initialized (indicator pages + FF fallback)")
+        logger.info("📅 TECalendarScraper initialized (FF spine + TE indicators)")
 
     @property
     def last_error(self) -> Optional[str]:
@@ -247,55 +316,80 @@ class TECalendarScraper:
     def last_sources(self) -> List[str]:
         return list(self._last_sources)
 
+    @property
+    def te_main_status(self) -> str:
+        return self._te_main_status
+
+    @property
+    def source_notes(self) -> Dict[str, str]:
+        return dict(self._source_notes)
+
     def _is_cached(self, key: str) -> bool:
         return key in self._cache and (time.time() - self._cache_ts.get(key, 0)) < self._cache_ttl
 
     def get_us_calendar(self) -> List[TEEvent]:
-        """Get US economic events (merged live sources)."""
+        """Get US economic events (FF spine + TE indicator enrichment)."""
         cache_key = "us_calendar"
         if self._is_cached(cache_key):
             return self._cache[cache_key]
 
         self._last_error = None
         self._last_sources = []
+        self._source_notes = {}
+        self._te_main_status = "not_attempted"
         events: List[TEEvent] = []
         errors: List[str] = []
 
-        # 1) Attempt legacy / partial main calendar (usually WAF-blocked now)
+        # 1) ForexFactory this week + next week — dense calendar spine
         try:
-            main = self._scrape_main_calendar()
-            if main:
-                events.extend(main)
-                self._last_sources.append("te_main")
+            ff = self._fetch_forexfactory_weeks()
+            if ff:
+                events.extend(ff)
+                self._last_sources.append("forexfactory")
         except Exception as e:
-            errors.append(f"te_main:{e}")
+            errors.append(f"forexfactory:{e}")
+            self._source_notes["forexfactory"] = str(e)
 
-        # 2) Indicator SSR pages (reliable as of 2026-11)
+        # 2) TE indicator SSR pages (consensus enrichment + forward coverage)
         try:
-            indicator_events = self._scrape_indicator_calendars()
+            extra_slugs = self._slugs_from_ff_titles(events)
+            indicator_events = self._scrape_indicator_calendars(extra_slugs=extra_slugs)
             if indicator_events:
                 events = self._merge_events(events, indicator_events)
                 self._last_sources.append("te_indicator")
         except Exception as e:
             errors.append(f"te_indicator:{e}")
+            self._source_notes["te_indicator"] = str(e)
 
-        # 3) ForexFactory this-week JSON
+        # 3) Attempt TE main calendar (usually WAF/JS/403 — degrade honestly)
         try:
-            ff = self._fetch_forexfactory_week()
-            if ff:
-                events = self._merge_events(events, ff)
-                self._last_sources.append("forexfactory")
+            main = self._scrape_main_calendar()
+            if main:
+                events = self._merge_events(events, main)
+                self._last_sources.append("te_main")
+                self._te_main_status = "ok"
+            else:
+                # status already set inside _scrape_main_calendar
+                self._source_notes["te_main"] = self._te_main_status
+                logger.warning(
+                    "TE main calendar unavailable (%s) — using FF + te_indicator",
+                    self._te_main_status,
+                )
         except Exception as e:
-            errors.append(f"forexfactory:{e}")
+            self._te_main_status = f"error:{e}"
+            errors.append(f"te_main:{e}")
+            self._source_notes["te_main"] = str(e)
+            logger.warning("TE main calendar failed: %s", e)
 
         if not events:
             self._last_error = "; ".join(errors) if errors else "no calendar sources returned events"
             logger.error("❌ Calendar scrape empty: %s", self._last_error)
         else:
             logger.info(
-                "📅 Scraped %d US economic events via %s",
+                "📅 Scraped %d US economic events via %s (te_main=%s)",
                 len(events),
                 ",".join(self._last_sources) or "unknown",
+                self._te_main_status,
             )
 
         self._cache[cache_key] = events
@@ -458,14 +552,23 @@ class TECalendarScraper:
     # ── Source: main TE calendar ─────────────────────────────────────────
 
     def _scrape_main_calendar(self) -> List[TEEvent]:
-        """Try SSR table or ?partial=calendar; return [] on WAF/empty."""
+        """
+        Try SSR table, ?partial=calendar, then optional Playwright.
+        Returns [] on WAF/empty and sets self._te_main_status honestly.
+        """
         url = f"{self.BASE_URL}/united-states/calendar"
-        # First: full page (usually empty body now)
+
+        # First: full page (usually empty calendar shell + sidebar noise)
         r = self._session.get(url, timeout=20)
         r.raise_for_status()
         events = self._parse_calendar_html(r.text)
         if events:
+            self._te_main_status = "ok_ssr"
             return events
+
+        # Detect JS/WAF shell honestly
+        if "calendar-table" in r.text and r.text.count("<tr") <= 2:
+            self._te_main_status = "js_shell_empty_rows"
 
         # Second: partial endpoint (often captcha/403/405)
         try:
@@ -478,18 +581,107 @@ class TECalendarScraper:
                 },
                 timeout=20,
             )
+            waf = pr.headers.get("x-amzn-waf-action")
             if pr.status_code == 200 and pr.headers.get("X-TE-Partial") == "calendar":
                 events = self._parse_calendar_html(pr.text)
                 if events:
+                    self._te_main_status = "ok_partial"
                     return events
+            if waf or pr.status_code in (403, 405, 429):
+                self._te_main_status = f"waf_blocked_status_{pr.status_code}"
+            elif self._te_main_status == "not_attempted":
+                self._te_main_status = f"partial_empty_status_{pr.status_code}"
             logger.debug(
-                "TE main partial unavailable status=%s waf=%s (expected; using indicator/FF fallbacks)",
+                "TE main partial unavailable status=%s waf=%s",
                 pr.status_code,
-                pr.headers.get("x-amzn-waf-action"),
+                waf,
             )
         except Exception as e:
+            self._te_main_status = f"partial_error:{e}"
             logger.debug("TE partial fetch failed: %s", e)
+
+        # Third: optional Playwright (often 403 to headless).
+        # Skip after a known process-level 403 unless TE_CALENDAR_PLAYWRIGHT=1.
+        global _TE_MAIN_PW_BLOCKED
+        force_pw = os.environ.get("TE_CALENDAR_PLAYWRIGHT", "").strip() in ("1", "true", "True")
+        if _TE_MAIN_PW_BLOCKED and not force_pw:
+            self._te_main_status = (
+                f"{self._te_main_status}|playwright_skipped_known_403"
+                if self._te_main_status not in ("not_attempted",)
+                else "playwright_skipped_known_403"
+            )
+            return []
+
+        pw_events = self._browser_scrape_main_calendar(url)
+        if pw_events:
+            self._te_main_status = "ok_playwright"
+            return pw_events
+
+        if self._te_main_status in ("not_attempted",):
+            self._te_main_status = "empty_no_rows"
         return []
+
+    def _browser_scrape_main_calendar(self, url: str) -> List[TEEvent]:
+        """Optional Playwright load of TE main calendar. Prefer existing pattern."""
+        global _TE_MAIN_PW_BLOCKED
+        # Sync Playwright cannot run inside an asyncio loop (FastAPI request threads
+        # that already have a loop → RuntimeError). Skip honestly in that case.
+        try:
+            import asyncio
+
+            asyncio.get_running_loop()
+            self._te_main_status = (
+                f"{self._te_main_status}|playwright_skipped_async_loop"
+                if self._te_main_status not in ("not_attempted",)
+                else "playwright_skipped_async_loop"
+            )
+            return []
+        except RuntimeError:
+            pass  # no running loop — safe for sync Playwright
+
+        try:
+            from playwright.sync_api import sync_playwright
+        except Exception:
+            if not str(self._te_main_status).startswith("waf") and "js_shell" not in self._te_main_status:
+                self._te_main_status = "playwright_unavailable"
+            return []
+
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=["--disable-blink-features=AutomationControlled"],
+                )
+                context = browser.new_context(
+                    user_agent=self._session.headers["User-Agent"],
+                    viewport={"width": 1280, "height": 900},
+                )
+                page = context.new_page()
+                resp = page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                status = resp.status if resp else 0
+                if status == 403:
+                    _TE_MAIN_PW_BLOCKED = True
+                    self._te_main_status = "playwright_403_access_denied"
+                    browser.close()
+                    return []
+                try:
+                    page.wait_for_selector(
+                        "#calendar table tr td, table.calendar-table tr td, table tr td",
+                        timeout=12000,
+                    )
+                except Exception:
+                    pass
+                page.wait_for_timeout(2000)
+                html = page.content()
+                browser.close()
+                events = self._parse_calendar_html(html)
+                if not events:
+                    self._te_main_status = f"playwright_empty_status_{status}"
+                return events
+        except Exception as e:
+            self._te_main_status = f"playwright_error:{e}"
+            logger.debug("Playwright TE main failed: %s", e)
+            return []
 
     def _parse_calendar_html(self, html: str) -> List[TEEvent]:
         """Parse classic multi-row calendar HTML table if present."""
@@ -581,19 +773,53 @@ class TECalendarScraper:
 
     # ── Source: TE indicator pages ───────────────────────────────────────
 
-    def _scrape_indicator_calendars(self) -> List[TEEvent]:
-        """Scrape SSR calendar tables from key US indicator pages."""
+    def _slugs_from_ff_titles(self, events: List[TEEvent]) -> List[str]:
+        """Grow indicator fetch list from FF event titles when mappable."""
+        extra: List[str] = []
+        for e in events:
+            if e.source != "forexfactory":
+                continue
+            key = re.sub(r"\s+", " ", (e.event or "").lower()).strip()
+            slug = FF_TITLE_TO_TE_SLUG.get(key)
+            if not slug:
+                # fuzzy: strip m/m y/y q/q suffixes
+                key2 = re.sub(r"\b(m/m|y/y|q/q|mom|yoy|qoq)\b", "", key).strip()
+                slug = FF_TITLE_TO_TE_SLUG.get(key2)
+            if slug and slug not in TE_INDICATOR_SLUGS and slug not in extra:
+                extra.append(slug)
+        return extra
+
+    def _scrape_indicator_calendars(self, extra_slugs: Optional[List[str]] = None) -> List[TEEvent]:
+        """Scrape SSR calendar tables from key US indicator pages (parallel)."""
+        slugs = list(TE_INDICATOR_SLUGS)
+        for s in extra_slugs or []:
+            if s not in slugs:
+                slugs.append(s)
+
         events: List[TEEvent] = []
-        for slug in TE_INDICATOR_SLUGS:
-            try:
-                url = f"{self.BASE_URL}/united-states/{slug}"
-                r = self._session.get(url, timeout=18)
-                if r.status_code != 200:
-                    continue
-                page_events = self._parse_indicator_calendar_table(r.text)
-                events.extend(page_events)
-            except Exception as e:
-                logger.debug("Indicator scrape failed for %s: %s", slug, e)
+        errors = 0
+
+        def _one(slug: str) -> List[TEEvent]:
+            url = f"{self.BASE_URL}/united-states/{slug}"
+            r = self._session.get(url, timeout=18)
+            if r.status_code != 200:
+                return []
+            return self._parse_indicator_calendar_table(r.text)
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futs = {pool.submit(_one, slug): slug for slug in slugs}
+            for fut in as_completed(futs):
+                slug = futs[fut]
+                try:
+                    page_events = fut.result()
+                    events.extend(page_events)
+                except Exception as e:
+                    errors += 1
+                    logger.debug("Indicator scrape failed for %s: %s", slug, e)
+
+        self._source_notes["te_indicator"] = (
+            f"slugs={len(slugs)} events={len(events)} errors={errors}"
+        )
         return events
 
     def _parse_indicator_calendar_table(self, html: str) -> List[TEEvent]:
@@ -602,9 +828,9 @@ class TECalendarScraper:
         for table in soup.find_all("table"):
             headers = [th.get_text(strip=True).lower() for th in table.find_all("th")]
             header_blob = " ".join(headers)
-            if "consensus" not in header_blob and "teforecast" not in header_blob:
-                continue
             if "actual" not in header_blob:
+                continue
+            if "consensus" not in header_blob and "teforecast" not in header_blob and "previous" not in header_blob:
                 continue
 
             for tr in table.find_all("tr")[1:]:
@@ -612,7 +838,6 @@ class TECalendarScraper:
                 if len(cells) < 4:
                     continue
                 # Typical: [date, time, event, reference?, actual, previous, consensus, teforecast]
-                # Some pages fold reference into a separate column.
                 date_raw = cells[0]
                 if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_raw):
                     continue
@@ -668,10 +893,32 @@ class TECalendarScraper:
 
     # ── Source: ForexFactory week JSON ───────────────────────────────────
 
-    def _fetch_forexfactory_week(self) -> List[TEEvent]:
-        r = self._session.get(FF_THISWEEK_URL, timeout=15)
-        r.raise_for_status()
-        data = r.json()
+    def _fetch_forexfactory_weeks(self) -> List[TEEvent]:
+        """Fetch this-week + next-week FF JSON. Label source honestly as forexfactory."""
+        events: List[TEEvent] = []
+        notes: List[str] = []
+
+        for label, url in (("thisweek", FF_THISWEEK_URL), ("nextweek", FF_NEXTWEEK_URL)):
+            try:
+                r = self._session.get(url, timeout=15)
+                if r.status_code == 404:
+                    notes.append(f"{label}=404")
+                    continue
+                r.raise_for_status()
+                data = r.json()
+                if not isinstance(data, list):
+                    notes.append(f"{label}=bad_json")
+                    continue
+                week_events = self._parse_forexfactory_payload(data)
+                events.extend(week_events)
+                notes.append(f"{label}={len(week_events)}")
+            except Exception as e:
+                notes.append(f"{label}=err:{e}")
+
+        self._source_notes["forexfactory"] = "; ".join(notes) if notes else "empty"
+        return events
+
+    def _parse_forexfactory_payload(self, data: list) -> List[TEEvent]:
         events: List[TEEvent] = []
         for raw in data:
             if str(raw.get("country", "")).upper() not in ("USD", "US", "UNITED STATES"):
@@ -726,11 +973,27 @@ class TECalendarScraper:
                 by_key[k] = e
                 continue
             existing = by_key[k]
-            # Prefer entry with consensus / actual filled
+            # Prefer entry with consensus / actual filled; prefer te_indicator consensus over FF
             if (not existing.has_consensus and e.has_consensus) or (
                 not existing.has_actual and e.has_actual
             ):
                 by_key[k] = e
+            elif e.source == "te_indicator" and e.has_consensus and existing.source == "forexfactory":
+                # Keep FF timing/name but prefer TE consensus numbers when both exist
+                merged = TEEvent(
+                    date=existing.date,
+                    time=existing.time or e.time,
+                    event=existing.event,
+                    actual=existing.actual or e.actual,
+                    previous=e.previous or existing.previous,
+                    consensus=e.consensus or existing.consensus,
+                    forecast=e.forecast or existing.forecast,
+                    importance=existing.importance
+                    if _classify_importance(existing.event) == existing.importance
+                    else e.importance,
+                    source="forexfactory+te_indicator",
+                )
+                by_key[k] = merged
         return list(by_key.values())
 
 
@@ -745,6 +1008,8 @@ if __name__ == "__main__":
     all_events = scraper.get_us_calendar()
     print(f"\n📅 Total US events: {len(all_events)}")
     print(f"   sources: {scraper.last_sources}")
+    print(f"   te_main_status: {scraper.te_main_status}")
+    print(f"   source_notes: {scraper.source_notes}")
     print(f"   error: {scraper.last_error}")
 
     imp_counts = Counter(e.importance for e in all_events)
@@ -752,6 +1017,7 @@ if __name__ == "__main__":
     print(f"   HIGH:     {imp_counts.get('HIGH', 0)}")
     print(f"   MEDIUM:   {imp_counts.get('MEDIUM', 0)}")
     print(f"   LOW:      {imp_counts.get('LOW', 0)}")
+    print(f"   by_source: {Counter(e.source for e in all_events)}")
 
     print("\n🔥 UPCOMING CRITICAL EVENTS:")
     for e in scraper.get_upcoming_critical():
@@ -759,10 +1025,10 @@ if __name__ == "__main__":
         if e.has_consensus:
             print(f"     Consensus: {e.consensus} | Forecast: {e.forecast} | Previous: {e.previous}")
 
-    print("\n📊 NEXT 7d HIGH+CRITICAL:")
+    print("\n📊 NEXT 14d HIGH+CRITICAL:")
     for e in scraper.get_upcoming(days=14):
         if e.importance in ("CRITICAL", "HIGH"):
             print(
                 f"   {e.date} {e.time:8s} | {e.event[:40]:40s} | "
-                f"C={e.consensus or '—':8s} F={e.forecast or '—':8s}"
+                f"C={e.consensus or '—':8s} F={e.forecast or '—':8s} [{e.source}]"
             )
