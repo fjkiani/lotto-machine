@@ -8,9 +8,11 @@ Fail-closed (Pro / darkpools):
   - Never prints cookie values (bool presence only)
   - Overall pack remains NOT SELLABLE without cookie + LIVE Pro universe
 
-PUBLIC enrichment (no Pro) always attempted via StockgridClient #16 methods:
-  - get_option_walls / get_short_interest_ticker / get_clusters_scan / get_market_update
+PUBLIC enrichment (no Pro) always attempted via StockgridClient #16/#20 methods:
+  - walls / SI / clusters / market_update
+  - institutions / events / breadth / contracts / SI-fails (#20 fold)
   - Labeled LIVE only on HTTP 200; shown honestly even when overall NOT SELLABLE
+  - Insiders: Pro fail-closed (never public LIVE); darkpools HARD_BLOCK without cookie
 
 Writes HF_SIGNAL_PACK_<UTC>.json + HF_SIGNAL_STATUS.md.
 """
@@ -229,6 +231,7 @@ def _hard_block_pack(
         "public_enrichment": public,
         "layers": {
             **(public.get("layers") or {}),
+            **(public.get("fail_closed_layers") or {}),
             "darkpools": darkpools_hard_block_layer(
                 reason="cookie_env_present=false — Pro /darkpools/* not attempted"
             ),
@@ -245,7 +248,13 @@ def _hard_block_pack(
                 "get_short_interest_ticker",
                 "get_clusters_scan",
                 "get_market_update",
+                "get_institutions_ticker",
+                "get_events_overview",
+                "get_breadth_signals",
+                "get_contracts_ticker",
+                "get_short_interest_fails_ticker",
             ],
+            "fail_closed_methods": ["get_insiders_ticker"],
         },
         "sellable": False,
         "hard_block": True,
@@ -385,6 +394,7 @@ def _live_pack(
         "public_enrichment": public,
         "layers": {
             **(public.get("layers") or {}),
+            **(public.get("fail_closed_layers") or {}),
             "darkpools": dp_layer,
         },
         "gate_A_stockgrid": {
@@ -398,7 +408,13 @@ def _live_pack(
                 "get_short_interest_ticker",
                 "get_clusters_scan",
                 "get_market_update",
+                "get_institutions_ticker",
+                "get_events_overview",
+                "get_breadth_signals",
+                "get_contracts_ticker",
+                "get_short_interest_fails_ticker",
             ],
+            "fail_closed_methods": ["get_insiders_ticker"],
         },
         "sellable": sellable,
         "hard_block": not sellable,
@@ -408,7 +424,17 @@ def _live_pack(
 def _public_gate_rows(public: Dict[str, Any]) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     layers = (public or {}).get("layers") or {}
-    for key in ("options_walls", "short_interest", "clusters", "market_update"):
+    for key in (
+        "options_walls",
+        "short_interest",
+        "clusters",
+        "market_update",
+        "institutions",
+        "events",
+        "breadth",
+        "contracts",
+        "short_interest_fails",
+    ):
         layer = layers.get(key) or {}
         rows.append(
             {
@@ -420,6 +446,18 @@ def _public_gate_rows(public: Dict[str, Any]) -> List[Dict[str, Any]]:
                 ),
             }
         )
+    fc = (public or {}).get("fail_closed_layers") or {}
+    insiders = fc.get("insiders") or {}
+    rows.append(
+        {
+            "gate": "PRO fail-closed insiders",
+            "result": "HARD_BLOCK" if not insiders.get("live_ok") else "LIVE",
+            "notes": (
+                f"method={insiders.get('method')} http={insiders.get('http_status')} "
+                f"status={insiders.get('status')} (never public LIVE)"
+            ),
+        }
+    )
     return rows
 
 
