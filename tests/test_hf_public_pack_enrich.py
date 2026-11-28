@@ -2,7 +2,8 @@
 Unit tests: PUBLIC AXLFI layers LIVE on HTTP 200 vs darkpools/insiders HARD_BLOCK.
 
 Mocked HTTP only — never invents DP LIVE without Pro 200.
-Folds #20 PUBLIC methods + themes/sectors into HF pack.
+Folds #20 PUBLIC methods + themes/sectors + oil/nowcast into HF pack.
+Leadership is LIVE only on HTTP 200 (else fail-closed skip).
 """
 from __future__ import annotations
 
@@ -41,6 +42,12 @@ PUBLIC_LAYER_NAMES = (
     "short_interest_fails",
     "market_themes",
     "market_sectors",
+    "oil_overview",
+    "oil_prices",
+    "chart_markers",
+    "nowcast_gdp",
+    "watchlists_quotes",
+    "leadership",
 )
 
 
@@ -120,6 +127,24 @@ class TestPublicEnrichmentLive(unittest.TestCase):
                 return _json_resp(200, [{"theme": "AI", "tickers": ["NVDA"]}])
             if "/market/sectors" in url:
                 return _json_resp(200, [{"sector": "Technology", "chg": 1.2}])
+            if "/oil/overview" in url:
+                return _json_resp(200, {"as_of": "2026-11-27", "balance": {"wti": 70}})
+            if "/oil/prices" in url:
+                return _json_resp(200, {"as_of": "2026-11-27", "brent": 72, "wti": 70})
+            if "/charts/" in url and "/markers" in url:
+                return _json_resp(
+                    200, {"ticker": "SPY", "as_of": "2026-11-27", "rows": [{"m": 1}]}
+                )
+            if "/nowcast/gdp" in url:
+                return _json_resp(200, {"as_of": "2026-11-27", "gdp_nowcast": 2.1})
+            if "/watchlists/quotes" in url:
+                return _json_resp(
+                    200, {"as_of": "2026-11-27", "quotes": [{"t": "SPY", "px": 680}]}
+                )
+            if "/leadership" in url:
+                return _json_resp(
+                    200, {"universe": "us", "as_of": "2026-11-27", "count": 10}
+                )
             if "/insiders/" in url:
                 return _json_resp(403, {"detail": "Pro subscription required"})
             return _json_resp(404, {"detail": "not found"})
@@ -131,6 +156,7 @@ class TestPublicEnrichmentLive(unittest.TestCase):
         self.assertEqual(out["public_live_count"], len(PUBLIC_LAYER_NAMES))
         self.assertFalse(out["darkpools_included"])
         self.assertFalse(out["insiders_public_live"])
+        self.assertTrue(out["leadership_public_live"])
         for name in PUBLIC_LAYER_NAMES:
             layer = out["layers"][name]
             self.assertTrue(layer["live_ok"], msg=name)
@@ -159,6 +185,15 @@ class TestPublicEnrichmentLive(unittest.TestCase):
         self.assertEqual(out["layers"]["market_sectors"]["method"], "get_market_sectors")
         self.assertEqual(out["layers"]["market_themes"]["row_count"], 1)
         self.assertEqual(out["layers"]["market_sectors"]["row_count"], 1)
+        # oil/nowcast fold
+        self.assertEqual(out["layers"]["oil_overview"]["method"], "get_oil_overview")
+        self.assertEqual(out["layers"]["oil_prices"]["method"], "get_oil_prices")
+        self.assertEqual(out["layers"]["chart_markers"]["method"], "get_chart_markers")
+        self.assertEqual(out["layers"]["nowcast_gdp"]["method"], "get_nowcast_gdp")
+        self.assertEqual(
+            out["layers"]["watchlists_quotes"]["method"], "get_watchlists_quotes"
+        )
+        self.assertEqual(out["layers"]["leadership"]["method"], "get_leadership")
 
         # Insiders fail-closed — not public LIVE
         insiders = out["fail_closed_layers"]["insiders"]
@@ -187,6 +222,35 @@ class TestPublicEnrichmentLive(unittest.TestCase):
         self.assertEqual(insiders["http_status"], 200)
         self.assertEqual(out["public_live_count"], 0)
         self.assertFalse(out["insiders_public_live"])
+        # Leadership non-200 → fail-closed skip, not public LIVE
+        self.assertFalse(out["leadership_public_live"])
+        self.assertNotIn("leadership", out["layers"])
+        leadership = out["fail_closed_layers"]["leadership"]
+        self.assertFalse(leadership["live_ok"])
+        self.assertIn("skipped", leadership.get("reason", ""))
+
+    def test_leadership_skipped_when_not_http_200(self):
+        """Leadership folds only on public HTTP 200; else fail-closed note."""
+        client, session = self._client()
+
+        def _route(url, *args, **kwargs):
+            if "/oil/overview" in url:
+                return _json_resp(200, {"as_of": "2026-11-27", "balance": {}})
+            if "/leadership" in url:
+                return _json_resp(404, {"detail": "not found"})
+            if "/insiders/" in url:
+                return _json_resp(403, {"detail": "Pro subscription required"})
+            return _json_resp(404, {"detail": "not found"})
+
+        session.get.side_effect = _route
+        out = fetch_public_enrichment(client, "SPY")
+        self.assertEqual(out["public_live_count"], 1)
+        self.assertIn("oil_overview", out["live_layer_names"])
+        self.assertNotIn("leadership", out["layers"])
+        self.assertFalse(out["leadership_public_live"])
+        leadership = out["fail_closed_layers"]["leadership"]
+        self.assertEqual(leadership["http_status"], 404)
+        self.assertIn("skipped", leadership.get("reason", ""))
 
     def test_darkpools_hard_block_helper_never_live(self):
         layer = darkpools_hard_block_layer(reason="no cookie", http_status=None)
@@ -277,6 +341,12 @@ class TestProbePackPublicVsDarkpools(unittest.TestCase):
         self.assertEqual(pack["layers"]["short_interest_fails"]["status"], "LIVE")
         self.assertEqual(pack["layers"]["market_themes"]["status"], "LIVE")
         self.assertEqual(pack["layers"]["market_sectors"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["oil_overview"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["oil_prices"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["chart_markers"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["nowcast_gdp"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["watchlists_quotes"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["leadership"]["status"], "LIVE")
         self.assertEqual(pack["layers"]["insiders"]["status"], "HARD_BLOCK")
         self.assertFalse(pack["layers"]["insiders"]["live_ok"])
         self.assertEqual(pack["layers"]["darkpools"]["status"], "HARD_BLOCK")
@@ -285,6 +355,9 @@ class TestProbePackPublicVsDarkpools(unittest.TestCase):
         self.assertIn("get_institutions_ticker", pack["gate_A_stockgrid"]["public_methods"])
         self.assertIn("get_market_themes", pack["gate_A_stockgrid"]["public_methods"])
         self.assertIn("get_market_sectors", pack["gate_A_stockgrid"]["public_methods"])
+        self.assertIn("get_oil_overview", pack["gate_A_stockgrid"]["public_methods"])
+        self.assertIn("get_nowcast_gdp", pack["gate_A_stockgrid"]["public_methods"])
+        self.assertIn("get_leadership", pack["gate_A_stockgrid"]["public_methods"])
         self.assertIn(
             "get_insiders_ticker", pack["gate_A_stockgrid"]["fail_closed_methods"]
         )
@@ -358,12 +431,21 @@ class TestProbePackPublicVsDarkpools(unittest.TestCase):
             self.assertTrue(pack["layers"]["institutions"]["live_ok"])
             self.assertTrue(pack["layers"]["market_themes"]["live_ok"])
             self.assertTrue(pack["layers"]["market_sectors"]["live_ok"])
+            self.assertTrue(pack["layers"]["oil_overview"]["live_ok"])
+            self.assertTrue(pack["layers"]["nowcast_gdp"]["live_ok"])
+            self.assertTrue(pack["layers"]["leadership"]["live_ok"])
             self.assertFalse(pack["layers"]["insiders"]["live_ok"])
             status = status_path.read_text()
             self.assertIn("PUBLIC options_walls", status)
             self.assertIn("PUBLIC institutions", status)
             self.assertIn("PUBLIC market_themes", status)
             self.assertIn("PUBLIC market_sectors", status)
+            self.assertIn("PUBLIC oil_overview", status)
+            self.assertIn("PUBLIC oil_prices", status)
+            self.assertIn("PUBLIC chart_markers", status)
+            self.assertIn("PUBLIC nowcast_gdp", status)
+            self.assertIn("PUBLIC watchlists_quotes", status)
+            self.assertIn("PUBLIC leadership", status)
             self.assertIn("LIVE", status)
             self.assertIn("HARD_BLOCK", status)
             self.assertIn("NOT SELLABLE", status)
