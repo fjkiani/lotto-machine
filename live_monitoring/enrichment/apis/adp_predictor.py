@@ -90,16 +90,30 @@ class ADPPredictor:
             return None
 
     def _fetch_consensus_te_calendar(self) -> Optional[int]:
-        """Primary: TE US calendar monthly ADP (exclude Weekly rows)."""
+        """Primary: TE US calendar monthly ADP (exclude Weekly + past/released rows)."""
         try:
             from live_monitoring.enrichment.apis.te_calendar_scraper import TECalendarScraper
+            from datetime import datetime
 
             scraper = TECalendarScraper(cache_ttl=300)
-            for e in scraper.get_us_calendar():
+            now = datetime.now()
+            # Prefer future unreleased, then any unreleased
+            pool = list(scraper.get_upcoming(days=45)) + [
+                e for e in scraper.get_us_calendar() if not e.has_actual
+            ]
+            seen = set()
+            for e in pool:
+                eid = id(e)
+                if eid in seen:
+                    continue
+                seen.add(eid)
                 el = e.event.lower()
                 if "adp" not in el or "employment" not in el:
                     continue
                 if "weekly" in el:
+                    continue
+                dt = TECalendarScraper._parse_event_datetime(e)
+                if dt is not None and dt < now:
                     continue
                 v = self._parse_consensus_to_jobs(e.consensus)
                 if v is not None:
