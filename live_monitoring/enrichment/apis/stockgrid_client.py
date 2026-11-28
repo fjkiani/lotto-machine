@@ -113,6 +113,27 @@ class StockgridClient:
 
     # ── Internal helpers ─────────────────────────────────────────────────
 
+    @staticmethod
+    def _session_cookie() -> Optional[str]:
+        """
+        Optional Pro session cookie for /darkpools/* (Cookie header).
+        Prefer AXLFI_SESSION_COOKIE; fall back to AXLFI_PRO_COOKIE.
+        Empty / unset → no Cookie header (bare requests stay paywalled).
+        """
+        for key in ("AXLFI_SESSION_COOKIE", "AXLFI_PRO_COOKIE"):
+            val = (os.environ.get(key) or "").strip()
+            if val:
+                return val
+        return None
+
+    def _request_headers(self) -> Dict[str, str]:
+        """Browser headers + optional Pro Cookie when env is set."""
+        headers = dict(self.HEADERS)
+        cookie = self._session_cookie()
+        if cookie:
+            headers["Cookie"] = cookie
+        return headers
+
     def _is_cached(self, key: str) -> bool:
         return key in self._cache and (time.time() - self._cache_ts.get(key, 0)) < self._cache_ttl
 
@@ -282,7 +303,7 @@ class StockgridClient:
 
         for attempt in range(self._max_retries):
             try:
-                r = get_session().get(url, headers=self.HEADERS, params=params, timeout=25)
+                r = get_session().get(url, headers=self._request_headers(), params=params, timeout=25)
                 ct = r.headers.get("content-type", "")
                 last_status = r.status_code
                 if r.status_code == 200 and "json" in ct:
