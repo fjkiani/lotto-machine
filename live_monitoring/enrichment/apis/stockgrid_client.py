@@ -101,6 +101,14 @@ class StockgridClient:
         os.makedirs(self._disk_cache_dir, exist_ok=True)
         self._repo_cache_path = os.path.join(self._data_dir, "axlfi_v2_live_cache.json")
         self._repo_cache: Optional[dict] = None
+        # Last HTTP fetch provenance for honesty labels (LIVE vs PAYWALL_FALLBACK).
+        self.last_fetch_meta: Dict[str, Any] = {
+            "path": None,
+            "http_status": None,
+            "source": None,  # live | browser | disk | repo | legacy | none
+            "paywall": False,
+            "base": self.BASE,
+        }
         logger.info("📊 StockgridClient initialized (AXLFI v2 API + disk/repo cache)")
 
     # ── Internal helpers ─────────────────────────────────────────────────
@@ -269,18 +277,43 @@ class StockgridClient:
         """GET with retries → Playwright (optional) → disk → repo cache."""
         url = f"{self.BASE}{path}"
         disk_key = self._disk_cache_key(path, params)
+        last_status: Optional[int] = None
+        saw_paywall = False
 
         for attempt in range(self._max_retries):
             try:
                 r = get_session().get(url, headers=self.HEADERS, params=params, timeout=25)
                 ct = r.headers.get("content-type", "")
+                last_status = r.status_code
                 if r.status_code == 200 and "json" in ct:
                     data = r.json()
                     if isinstance(data, dict) and data.get("detail"):
+                        detail = str(data.get("detail") or "")
+                        if "pro" in detail.lower():
+                            saw_paywall = True
                         logger.warning(f"⚠️ {path}: API detail={data.get('detail')} (attempt {attempt+1})")
                     else:
                         self._write_disk_cache(disk_key, data)
+                        self.last_fetch_meta = {
+                            "path": path,
+                            "http_status": 200,
+                            "source": "live",
+                            "paywall": False,
+                            "base": self.BASE,
+                        }
                         return data
+                elif r.status_code == 403:
+                    saw_paywall = True
+                    try:
+                        detail = r.json().get("detail", "")
+                        if "pro" in str(detail).lower():
+                            saw_paywall = True
+                    except Exception:
+                        pass
+                    logger.warning(f"⚠️ {path}: status=403 (attempt {attempt+1})")
+                    # Pro paywall will not clear on retry — fall through to cache immediately
+                    if saw_paywall:
+                        break
                 elif "html" in ct:
                     logger.warning(f"⚠️ {path}: HTML shell (legacy route dead) attempt {attempt+1}")
                 else:
@@ -294,18 +327,47 @@ class StockgridClient:
             browser_data = self._browser_get(path, params)
             if browser_data:
                 self._write_disk_cache(disk_key, browser_data)
+                self.last_fetch_meta = {
+                    "path": path,
+                    "http_status": last_status,
+                    "source": "browser",
+                    "paywall": saw_paywall,
+                    "base": self.BASE,
+                }
                 return browser_data
 
         disk = self._read_disk_cache(disk_key)
         if disk:
+            self.last_fetch_meta = {
+                "path": path,
+                "http_status": last_status,
+                "source": "disk",
+                "paywall": saw_paywall or (last_status == 403),
+                "base": self.BASE,
+            }
             return disk
 
         repo = self._repo_cache_lookup(path, params)
         if repo:
+            self.last_fetch_meta = {
+                "path": path,
+                "http_status": last_status,
+                "source": "repo",
+                "paywall": saw_paywall or (last_status == 403),
+                "base": self.BASE,
+            }
             return repo
 
         # Last resort: existing production dump used by dp_bearish_checker / synthesis
-        return self._legacy_live_file_lookup(path, params)
+        legacy = self._legacy_live_file_lookup(path, params)
+        self.last_fetch_meta = {
+            "path": path,
+            "http_status": last_status,
+            "source": "legacy" if legacy else "none",
+            "paywall": saw_paywall or (last_status == 403),
+            "base": self.BASE,
+        }
+        return legacy
 
     def _legacy_live_file_lookup(self, path: str, params: dict = None) -> Optional[dict]:
         """

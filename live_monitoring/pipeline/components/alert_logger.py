@@ -84,7 +84,7 @@ class AlertLogger:
         content: Optional[str] = None,
         source: str = "monitor",
         symbol: Optional[str] = None
-    ) -> bool:
+    ) -> Optional[int]:
         """
         Log alert to database.
         
@@ -96,7 +96,8 @@ class AlertLogger:
             symbol: Optional symbol (SPY, QQQ, etc.)
         
         Returns:
-            True if logged successfully
+            Inserted row id on success, None on failure.
+            (Previously returned bool — callers treating truthiness still work.)
         """
         try:
             conn = sqlite3.connect(self.db_path)
@@ -112,13 +113,14 @@ class AlertLogger:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (timestamp, alert_type, title, description, content, embed_json, source, symbol))
             
+            row_id = cursor.lastrowid
             conn.commit()
             conn.close()
-            logger.debug(f"   📝 Alert logged to database: {alert_type}")
-            return True
+            logger.debug(f"   📝 Alert logged to database: {alert_type} id={row_id}")
+            return row_id
         except Exception as e:
             logger.debug(f"   ⚠️ Failed to log alert to database: {e}")
-            return False
+            return None
     
     def get_recent_alerts(
         self,

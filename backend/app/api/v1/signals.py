@@ -43,7 +43,10 @@ from backend.app.signals.canonical_state import (
 from backend.app.signals.sources.alert_db_source import fetch_alert_db_signals
 from backend.app.signals.sources.monitor_source import fetch_monitor_signals
 from backend.app.signals.sources.morning_brief_source import fetch_morning_brief_signals
-from backend.app.signals.sources.darkpool_source import fetch_darkpool_signals
+from backend.app.signals.sources.darkpool_source import (
+    fetch_darkpool_signals,
+    fetch_darkpool_universe,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -193,7 +196,10 @@ def _parallel_fetch_sources(
 
     def _dp():
         try:
-            return fetch_darkpool_signals(symbol=symbol or "SPY", regime_tier=regime_tier)
+            # Universe pack: SPY+QQQ+1 leaderboard name when no symbol filter
+            if symbol:
+                return fetch_darkpool_signals(symbol=symbol, regime_tier=regime_tier)
+            return fetch_darkpool_universe(regime_tier=regime_tier)
         except Exception as exc:
             logger.warning(f"DarkPoolTrend parallel: {exc}")
             return []
@@ -218,10 +224,25 @@ def _parallel_fetch_sources(
                 except Exception as exc:
                     logger.warning(f"{name} result error: {exc}")
         if pending:
-            logger.warning(
-                "⏰ Parallel sources: %d task(s) incomplete at budget — cancelling",
-                len(pending),
-            )
+            # Drain futures that finished before cancel — otherwise DarkPoolTrend
+            # can persist to alerts_history yet never appear in /signals.
+            still = set()
+            for fut in list(pending):
+                if fut.done():
+                    name = future_to_name.get(fut, "?")
+                    try:
+                        part = fut.result(timeout=0)
+                        merged.extend(part or [])
+                    except Exception as exc:
+                        logger.warning(f"{name} late-drain error: {exc}")
+                else:
+                    still.add(fut)
+            if still:
+                logger.warning(
+                    "⏰ Parallel sources: %d task(s) incomplete at budget — cancelling",
+                    len(still),
+                )
+                pending = still
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
     return merged

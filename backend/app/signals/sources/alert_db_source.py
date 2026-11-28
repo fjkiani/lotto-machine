@@ -144,6 +144,11 @@ def fetch_alert_db_signals(
             if symbol and alert_symbol != symbol:
                 continue
 
+            # DarkPoolTrend rows are audit-trail writes from darkpool_source.
+            # Remapping via classify_alert invents WATCH/50 — skip; SSOT is DarkPoolTrend source.
+            if str(alert_type).lower() in ("darkpool_trend", "dark_pool_trend"):
+                continue
+
             description = str(r.get("description", ""))
             action, confidence = classify_alert(alert_type, description)
 
