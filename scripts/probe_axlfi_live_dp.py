@@ -8,9 +8,13 @@ Fail-closed (Pro / darkpools):
   - Never prints cookie values (bool presence only)
   - Overall pack remains NOT SELLABLE without cookie + LIVE Pro universe
 
-PUBLIC enrichment (no Pro) always attempted via StockgridClient #16/#20 + themes/sectors fold:
+PUBLIC enrichment (no Pro) always attempted via StockgridClient #16/#20 + themes/sectors
+  + oil/nowcast fold:
   - walls / SI / clusters / market_update
   - institutions / events / breadth / contracts / SI-fails (#20 fold)
+  - market themes / sectors (themes/sectors fold)
+  - oil overview/prices, chart markers, nowcast GDP, watchlists quotes
+  - leadership ONLY IF HTTP 200 (else fail-closed skip note)
   - Labeled LIVE only on HTTP 200; shown honestly even when overall NOT SELLABLE
   - Insiders: Pro fail-closed (never public LIVE); darkpools HARD_BLOCK without cookie
 
@@ -255,6 +259,12 @@ def _hard_block_pack(
                 "get_short_interest_fails_ticker",
                 "get_market_themes",
                 "get_market_sectors",
+                "get_oil_overview",
+                "get_oil_prices",
+                "get_chart_markers",
+                "get_nowcast_gdp",
+                "get_watchlists_quotes",
+                "get_leadership",
             ],
             "fail_closed_methods": ["get_insiders_ticker"],
         },
@@ -417,6 +427,12 @@ def _live_pack(
                 "get_short_interest_fails_ticker",
                 "get_market_themes",
                 "get_market_sectors",
+                "get_oil_overview",
+                "get_oil_prices",
+                "get_chart_markers",
+                "get_nowcast_gdp",
+                "get_watchlists_quotes",
+                "get_leadership",
             ],
             "fail_closed_methods": ["get_insiders_ticker"],
         },
@@ -428,6 +444,7 @@ def _live_pack(
 def _public_gate_rows(public: Dict[str, Any]) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     layers = (public or {}).get("layers") or {}
+    fc = (public or {}).get("fail_closed_layers") or {}
     for key in (
         "options_walls",
         "short_interest",
@@ -440,19 +457,28 @@ def _public_gate_rows(public: Dict[str, Any]) -> List[Dict[str, Any]]:
         "short_interest_fails",
         "market_themes",
         "market_sectors",
+        "oil_overview",
+        "oil_prices",
+        "chart_markers",
+        "nowcast_gdp",
+        "watchlists_quotes",
+        "leadership",
     ):
-        layer = layers.get(key) or {}
+        layer = layers.get(key) or fc.get(key) or {}
+        skipped = key == "leadership" and key in fc and not layer.get("live_ok")
+        notes = (
+            f"method={layer.get('method')} http={layer.get('http_status')} "
+            f"path={layer.get('path')}"
+        )
+        if skipped:
+            notes += f" reason={layer.get('reason') or 'skipped — not public HTTP 200'}"
         rows.append(
             {
                 "gate": f"PUBLIC {key}",
                 "result": "LIVE" if layer.get("live_ok") else "HARD_BLOCK",
-                "notes": (
-                    f"method={layer.get('method')} http={layer.get('http_status')} "
-                    f"path={layer.get('path')}"
-                ),
+                "notes": notes,
             }
         )
-    fc = (public or {}).get("fail_closed_layers") or {}
     insiders = fc.get("insiders") or {}
     rows.append(
         {

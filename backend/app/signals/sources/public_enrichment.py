@@ -143,6 +143,13 @@ def fetch_public_enrichment(client, symbol: str = "SPY") -> Dict[str, Any]:
       - get_short_interest_fails_ticker(symbol)   → /short-interest/fails/ticker (#20)
       - get_market_themes()                       → /market/themes       (themes/sectors fold)
       - get_market_sectors()                      → /market/sectors      (themes/sectors fold)
+      - get_oil_overview()                        → /oil/overview        (oil/nowcast fold)
+      - get_oil_prices()                          → /oil/prices          (oil/nowcast fold)
+      - get_chart_markers(symbol)                 → /charts/{t}/markers  (oil/nowcast fold)
+      - get_nowcast_gdp()                         → /nowcast/gdp         (oil/nowcast fold)
+      - get_watchlists_quotes([sym,QQQ])          → /watchlists/quotes   (oil/nowcast fold)
+      - get_leadership()                          → /leadership ONLY IF HTTP 200
+                                                    (else fail-closed skip note)
 
     PRO fail-closed (never public LIVE):
       - get_insiders_ticker(symbol)               → /insiders/ticker
@@ -222,6 +229,37 @@ def fetch_public_enrichment(client, symbol: str = "SPY") -> Dict[str, Any]:
             "/market/sectors",
             lambda: client.get_market_sectors(),
         ),
+        # oil / charts / nowcast / watchlists PUBLIC fold (#24 wrappers)
+        (
+            "oil_overview",
+            "get_oil_overview",
+            "/oil/overview",
+            lambda: client.get_oil_overview(),
+        ),
+        (
+            "oil_prices",
+            "get_oil_prices",
+            "/oil/prices",
+            lambda: client.get_oil_prices(),
+        ),
+        (
+            "chart_markers",
+            "get_chart_markers",
+            f"/charts/{sym}/markers",
+            lambda: client.get_chart_markers(sym),
+        ),
+        (
+            "nowcast_gdp",
+            "get_nowcast_gdp",
+            "/nowcast/gdp",
+            lambda: client.get_nowcast_gdp(),
+        ),
+        (
+            "watchlists_quotes",
+            "get_watchlists_quotes",
+            "/watchlists/quotes",
+            lambda: client.get_watchlists_quotes([sym, "QQQ"]),
+        ),
     ]
 
     for name, method_name, path_hint, call in public_probes:
@@ -234,6 +272,23 @@ def fetch_public_enrichment(client, symbol: str = "SPY") -> Dict[str, Any]:
             allow_live=True,
         )
         layers[key] = layer
+
+    # Leadership — public LIVE only on HTTP 200; else fail-closed skip (never invent)
+    _, leadership_layer = _probe(
+        client,
+        name="leadership",
+        method_name="get_leadership",
+        path_hint="/leadership",
+        call=lambda: client.get_leadership(),
+        allow_live=True,
+    )
+    if leadership_layer.get("live_ok"):
+        layers["leadership"] = leadership_layer
+    else:
+        leadership_layer["reason"] = (
+            "skipped — /leadership not public HTTP 200 (fail-closed)"
+        )
+        fail_closed_layers["leadership"] = leadership_layer
 
     # Insiders — Pro fail-closed; never counted as public LIVE
     _, insiders_layer = _probe(
@@ -258,6 +313,9 @@ def fetch_public_enrichment(client, symbol: str = "SPY") -> Dict[str, Any]:
         # Explicit: darkpools are NOT part of public enrichment
         "darkpools_included": False,
         "insiders_public_live": False,
+        "leadership_public_live": bool(
+            (layers.get("leadership") or {}).get("live_ok")
+        ),
     }
 
 
