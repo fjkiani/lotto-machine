@@ -157,6 +157,8 @@ class TestPublicEnrichmentLive(unittest.TestCase):
         )
         self.assertEqual(out["layers"]["market_themes"]["method"], "get_market_themes")
         self.assertEqual(out["layers"]["market_sectors"]["method"], "get_market_sectors")
+        self.assertEqual(out["layers"]["market_themes"]["row_count"], 1)
+        self.assertEqual(out["layers"]["market_sectors"]["row_count"], 1)
 
         # Insiders fail-closed — not public LIVE
         insiders = out["fail_closed_layers"]["insiders"]
@@ -273,12 +275,16 @@ class TestProbePackPublicVsDarkpools(unittest.TestCase):
         self.assertEqual(pack["layers"]["breadth"]["status"], "LIVE")
         self.assertEqual(pack["layers"]["contracts"]["status"], "LIVE")
         self.assertEqual(pack["layers"]["short_interest_fails"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["market_themes"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["market_sectors"]["status"], "LIVE")
         self.assertEqual(pack["layers"]["insiders"]["status"], "HARD_BLOCK")
         self.assertFalse(pack["layers"]["insiders"]["live_ok"])
         self.assertEqual(pack["layers"]["darkpools"]["status"], "HARD_BLOCK")
         self.assertFalse(pack["layers"]["darkpools"]["live_ok"])
         self.assertEqual(pack["universe"]["SPY"]["status"], "HARD_BLOCK")
         self.assertIn("get_institutions_ticker", pack["gate_A_stockgrid"]["public_methods"])
+        self.assertIn("get_market_themes", pack["gate_A_stockgrid"]["public_methods"])
+        self.assertIn("get_market_sectors", pack["gate_A_stockgrid"]["public_methods"])
         self.assertIn(
             "get_insiders_ticker", pack["gate_A_stockgrid"]["fail_closed_methods"]
         )
@@ -350,6 +356,8 @@ class TestProbePackPublicVsDarkpools(unittest.TestCase):
             self.assertEqual(pack["layers"]["darkpools"]["status"], "HARD_BLOCK")
             self.assertTrue(pack["layers"]["options_walls"]["live_ok"])
             self.assertTrue(pack["layers"]["institutions"]["live_ok"])
+            self.assertTrue(pack["layers"]["market_themes"]["live_ok"])
+            self.assertTrue(pack["layers"]["market_sectors"]["live_ok"])
             self.assertFalse(pack["layers"]["insiders"]["live_ok"])
             status = status_path.read_text()
             self.assertIn("PUBLIC options_walls", status)
