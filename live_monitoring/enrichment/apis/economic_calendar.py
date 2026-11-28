@@ -55,6 +55,17 @@ class EconomicCalendar:
             logger.warning("EconomicCalendar live load failed: %s", e)
             return []
 
+    def build_brief_payload(self) -> Dict[str, Any]:
+        """Single scrape → next_binary + risk_flag + week_events (brief-friendly)."""
+        # Force one load so status/sources reflect the same scrape as week_events
+        _ = self._load_events()
+        return {
+            "next_binary": self.get_next_binary(),
+            "risk_flag": self.get_risk_flag(),
+            "week_events": self.get_week_events(),
+            "status": self.status(),
+        }
+
     def _te_to_row(self, ev: Any, ref: datetime) -> Optional[Dict[str, Any]]:
         from live_monitoring.enrichment.apis.te_calendar_scraper import TECalendarScraper
 
@@ -80,11 +91,16 @@ class EconomicCalendar:
         }
 
     def status(self) -> Dict[str, Any]:
-        return {
+        scraper = self._scraper
+        out: Dict[str, Any] = {
             "degraded": self._degraded,
             "error": self._last_error,
             "sources": self._sources,
         }
+        if scraper is not None:
+            out["te_main_status"] = getattr(scraper, "te_main_status", None)
+            out["source_notes"] = getattr(scraper, "source_notes", {}) or {}
+        return out
 
     def get_week_events(self, reference_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
         ref = _to_utc(reference_date or datetime.now(timezone.utc))

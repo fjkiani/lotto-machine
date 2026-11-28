@@ -112,6 +112,9 @@ async def get_economic_calendar(
             "events": [e.to_dict() for e in events],
             "count": len(events),
             "filter": filter or "all",
+            "sources": getattr(scraper, "last_sources", []),
+            "te_main_status": getattr(scraper, "te_main_status", None),
+            "source_notes": getattr(scraper, "source_notes", {}),
             "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as e:

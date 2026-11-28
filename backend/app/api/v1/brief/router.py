@@ -178,7 +178,9 @@ async def master_brief():
             'macro_regime':     (fetch_macro_regime,        6),
             'dynamic_thresholds': (fetch_thresholds,        6),
             'nowcast':          (fetch_nowcast,             5),
-            'economic_calendar': (fetch_economic_calendar, 2),
+            # Cold FF+TE indicator scrape is ~1–3s parallel; budget 12s so wave
+            # does not return {"error":"timeout after 2s"} while fetcher works.
+            'economic_calendar': (fetch_economic_calendar, 12),
             'adp_prediction':   (fetch_adp_prediction,      5),
             'gdp_nowcast':      (fetch_gdp_nowcast,         5),
             'jobless_claims':   (fetch_jobless_claims,      5),
