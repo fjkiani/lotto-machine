@@ -136,6 +136,23 @@ def _persist_to_alerts_history(signal: dict) -> Tuple[bool, Optional[int], str]:
         return False, None, f"persist exception: {exc}"
 
 
+def _public_layer_summary(
+    public_enrichment: Dict[str, Any], layer_name: str
+) -> Dict[str, Any]:
+    """Compact honesty summary for a PUBLIC layer (no invented numbers)."""
+    layer = ((public_enrichment or {}).get("layers") or {}).get(layer_name) or {}
+    return {
+        "status": layer.get("status"),
+        "freshness": layer.get("freshness"),
+        "http_status": layer.get("http_status"),
+        "live_ok": bool(layer.get("live_ok")),
+        "method": layer.get("method"),
+        "path": layer.get("path"),
+        "row_count": layer.get("row_count"),
+        "as_of": layer.get("as_of") or layer.get("as_of_date"),
+    }
+
+
 def _leaderboard_single_name(client) -> Optional[str]:
     """Pick first non-index ticker from leaderboard (live or cache)."""
     try:
@@ -250,23 +267,76 @@ def fetch_darkpool_signals(symbol: str = "SPY", regime_tier: int = 1) -> List[di
         if is_divergent:
             base_confidence = min(base_confidence + 10, 95)
 
-        # ── Option wall context ────────────────────────────────────────────
+        # ── PUBLIC enrichment (walls + SI + clusters) — no Pro required ───
+        # Walls already shipped in #16 via get_option_walls_today; do not re-add.
+        # Short-interest + clusters labeled LIVE only on HTTP 200.
         key_levels: Dict[str, Any] = {}
         walls_meta: Dict[str, Any] = {}
+        public_enrichment: Dict[str, Any] = {}
         try:
-            wall_symbol = symbol if symbol in ("SPY", "QQQ", "IWM") else "SPY"
-            walls = client.get_option_walls_today(wall_symbol)
-            walls_meta = dict(getattr(client, "last_fetch_meta", {}) or {})
-            if walls:
+            from backend.app.signals.sources.public_enrichment import (
+                fetch_public_enrichment,
+            )
+
+            enrich_sym = symbol if symbol in ("SPY", "QQQ", "IWM") else "SPY"
+            public_enrichment = fetch_public_enrichment(client, enrich_sym)
+            walls_layer = (public_enrichment.get("layers") or {}).get(
+                "options_walls"
+            ) or {}
+            if walls_layer.get("live_ok"):
                 key_levels = {
-                    "call_wall": walls.call_wall,
-                    "put_wall": walls.put_wall,
-                    "poc": walls.poc,
-                    "walls_as_of": getattr(walls, "date", None),
-                    "walls_fetch": walls_meta.get("source"),
+                    "call_wall": walls_layer.get("call_wall"),
+                    "put_wall": walls_layer.get("put_wall"),
+                    "poc": walls_layer.get("poc"),
+                    "walls_as_of": walls_layer.get("as_of")
+                    or walls_layer.get("as_of_date"),
+                    "walls_fetch": walls_layer.get("source"),
+                    "walls_http_status": walls_layer.get("http_status"),
+                    "walls_freshness": "LIVE",
                 }
-        except Exception as wall_exc:
-            logger.debug(f"Option walls unavailable: {wall_exc}")
+                walls_meta = {
+                    "http_status": walls_layer.get("http_status"),
+                    "source": walls_layer.get("source"),
+                    "paywall": False,
+                }
+            else:
+                # Fallback: existing #16 today helper (still public, not Pro)
+                try:
+                    walls = client.get_option_walls_today(enrich_sym)
+                    walls_meta = dict(getattr(client, "last_fetch_meta", {}) or {})
+                    if walls:
+                        key_levels = {
+                            "call_wall": walls.call_wall,
+                            "put_wall": walls.put_wall,
+                            "poc": walls.poc,
+                            "walls_as_of": getattr(walls, "date", None),
+                            "walls_fetch": walls_meta.get("source"),
+                            "walls_http_status": walls_meta.get("http_status"),
+                            "walls_freshness": (
+                                "LIVE"
+                                if walls_meta.get("http_status") == 200
+                                and walls_meta.get("source") in ("live", "browser")
+                                else "UNAVAILABLE"
+                            ),
+                        }
+                except Exception as wall_exc:
+                    logger.debug("Option walls fallback unavailable: %s", wall_exc)
+        except Exception as enrich_exc:
+            logger.debug("public enrichment unavailable: %s", enrich_exc)
+            try:
+                wall_symbol = symbol if symbol in ("SPY", "QQQ", "IWM") else "SPY"
+                walls = client.get_option_walls_today(wall_symbol)
+                walls_meta = dict(getattr(client, "last_fetch_meta", {}) or {})
+                if walls:
+                    key_levels = {
+                        "call_wall": walls.call_wall,
+                        "put_wall": walls.put_wall,
+                        "poc": walls.poc,
+                        "walls_as_of": getattr(walls, "date", None),
+                        "walls_fetch": walls_meta.get("source"),
+                    }
+            except Exception as wall_exc:
+                logger.debug(f"Option walls unavailable: {wall_exc}")
 
         # ── GEX Layer 2 — prefer last compute_kill_chain snapshot (stamped) else live canonical
         gex_data: Dict[str, Any] = {}
@@ -450,8 +520,20 @@ def fetch_darkpool_signals(symbol: str = "SPY", regime_tier: int = 1) -> List[di
                     "poc": key_levels.get("poc"),
                     "walls_as_of": key_levels.get("walls_as_of"),
                     "walls_fetch": key_levels.get("walls_fetch"),
+                    "walls_freshness": key_levels.get("walls_freshness"),
+                    "walls_http_status": key_levels.get("walls_http_status"),
                 },
+                "short_interest_summary": _public_layer_summary(
+                    public_enrichment, "short_interest"
+                ),
+                "clusters_summary": _public_layer_summary(
+                    public_enrichment, "clusters"
+                ),
+                "market_update_summary": _public_layer_summary(
+                    public_enrichment, "market_update"
+                ),
             },
+            "public_enrichment": public_enrichment,
             "source": "DarkPoolTrend",
             "is_master": base_confidence >= 70,
             "persisted": False,
@@ -463,6 +545,12 @@ def fetch_darkpool_signals(symbol: str = "SPY", regime_tier: int = 1) -> List[di
             signal["warnings"].append(
                 f"DATA {data_freshness}: as_of_data={as_of_raw} — NOT a fresh RTH fire"
             )
+            # Honesty: never claim darkpools LIVE when freshness is PAYWALL/CACHE
+            if data_freshness == "PAYWALL_FALLBACK":
+                signal["warnings"].append(
+                    "DARKPOOLS HARD_BLOCK / PAYWALL_FALLBACK — Pro cookie + "
+                    "HTTP 200 required; public walls/SI/clusters may still be LIVE"
+                )
 
         ok, row_id, reason = _persist_to_alerts_history(signal)
         signal["persisted"] = ok

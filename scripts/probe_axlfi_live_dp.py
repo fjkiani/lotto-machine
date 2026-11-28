@@ -2,14 +2,17 @@
 """
 AXLFI live dark-pool probe — SPY + QQQ + 1 leaderboard single-name.
 
-Fail-closed:
-  - Neither AXLFI_SESSION_COOKIE nor AXLFI_PRO_COOKIE set → HARD_BLOCK, exit 1
-  - Never invents DP numbers
+Fail-closed (Pro / darkpools):
+  - Neither AXLFI_SESSION_COOKIE nor AXLFI_PRO_COOKIE set → darkpools HARD_BLOCK
+  - Never invents DP numbers / never labels darkpools LIVE without HTTP 200 Pro
   - Never prints cookie values (bool presence only)
+  - Overall pack remains NOT SELLABLE without cookie + LIVE Pro universe
 
-When cookies are present, probes StockgridClient /api/darkpools/ticker and
-writes HF_SIGNAL_PACK_<UTC>.json with data_freshness LIVE | PAYWALL_FALLBACK
-honestly from HTTP results.
+PUBLIC enrichment (no Pro) always attempted via StockgridClient #16 methods:
+  - get_option_walls / get_short_interest_ticker / get_clusters_scan / get_market_update
+  - Labeled LIVE only on HTTP 200; shown honestly even when overall NOT SELLABLE
+
+Writes HF_SIGNAL_PACK_<UTC>.json + HF_SIGNAL_STATUS.md.
 """
 from __future__ import annotations
 
@@ -177,14 +180,20 @@ def _hard_block_pack(
     stamp: str,
     cookie_flags: Dict[str, bool],
     envfile_flags: Dict[str, bool],
+    public_enrichment: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    from backend.app.signals.sources.public_enrichment import darkpools_hard_block_layer
+
+    public = public_enrichment or {}
+    public_live = bool(public.get("public_live_ok"))
     return {
         "pack_id": f"HF_SIGNAL_PACK_{stamp}",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "verdict": "NOT_SELLABLE",
         "blocker": (
             "HARD_BLOCK LIVE — neither AXLFI_SESSION_COOKIE nor AXLFI_PRO_COOKIE "
-            "present (env and .env). Keep PAYWALL_FALLBACK / NOT SELLABLE."
+            "present (env and .env). Keep PAYWALL_FALLBACK / NOT SELLABLE. "
+            "Public layers may still be LIVE."
         ),
         "cookie_env_present": False,
         "cookie_flags": {
@@ -197,6 +206,7 @@ def _hard_block_pack(
                 "AXLFI_PRO_COOKIE": envfile_flags["AXLFI_PRO_COOKIE"],
             },
         },
+        # Pack-level freshness stays PAYWALL for Pro/darkpools gate honesty
         "data_freshness": "PAYWALL_FALLBACK",
         "strategy": "DarkPoolTrend",
         "universe": {
@@ -216,11 +226,26 @@ def _hard_block_pack(
                 "reason": "No Pro session cookie — leaderboard single-name probe skipped",
             },
         },
+        "public_enrichment": public,
+        "layers": {
+            **(public.get("layers") or {}),
+            "darkpools": darkpools_hard_block_layer(
+                reason="cookie_env_present=false — Pro /darkpools/* not attempted"
+            ),
+        },
         "gate_A_stockgrid": {
             "BASE": "https://axlfi.com/api",
             "darkpools_ticker_http": None,
             "probe_skipped": True,
             "reason": "cookie_env_present=false",
+            "public_live_ok": public_live,
+            "public_live_count": public.get("public_live_count", 0),
+            "public_methods": [
+                "get_option_walls",
+                "get_short_interest_ticker",
+                "get_clusters_scan",
+                "get_market_update",
+            ],
         },
         "sellable": False,
         "hard_block": True,
@@ -233,6 +258,7 @@ def _live_pack(
     cookie_flags: Dict[str, bool],
     probes: List[Dict[str, Any]],
     single_name: Optional[str],
+    public_enrichment: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     by_sym = {p["symbol"]: p for p in probes}
     all_live = all(p.get("live_ok") for p in probes) and len(probes) >= 3
@@ -317,6 +343,27 @@ def _live_pack(
         }
 
     spy = by_sym.get("SPY", {})
+    public = public_enrichment or {}
+    # Darkpools layer: LIVE only if SPY probe live_ok (HTTP 200 Pro + series)
+    if spy.get("live_ok"):
+        dp_layer: Dict[str, Any] = {
+            "name": "darkpools",
+            "method": "get_ticker_detail_raw",
+            "path": "/darkpools/ticker",
+            "status": "LIVE",
+            "freshness": "LIVE",
+            "http_status": spy.get("http_status"),
+            "live_ok": True,
+        }
+    else:
+        from backend.app.signals.sources.public_enrichment import darkpools_hard_block_layer
+
+        dp_layer = darkpools_hard_block_layer(
+            reason=spy.get("error")
+            or f"http={spy.get('http_status')} freshness={spy.get('data_freshness')}",
+            http_status=spy.get("http_status"),
+        )
+
     return {
         "pack_id": f"HF_SIGNAL_PACK_{stamp}",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -335,14 +382,45 @@ def _live_pack(
         "as_of_data": spy.get("as_of_data"),
         "universe": universe,
         "probes": probes,  # meta only — no invented DP arrays
+        "public_enrichment": public,
+        "layers": {
+            **(public.get("layers") or {}),
+            "darkpools": dp_layer,
+        },
         "gate_A_stockgrid": {
             "BASE": "https://axlfi.com/api",
             "darkpools_ticker_http": spy.get("http_status"),
             "probe_skipped": False,
+            "public_live_ok": bool(public.get("public_live_ok")),
+            "public_live_count": public.get("public_live_count", 0),
+            "public_methods": [
+                "get_option_walls",
+                "get_short_interest_ticker",
+                "get_clusters_scan",
+                "get_market_update",
+            ],
         },
         "sellable": sellable,
         "hard_block": not sellable,
     }
+
+
+def _public_gate_rows(public: Dict[str, Any]) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    layers = (public or {}).get("layers") or {}
+    for key in ("options_walls", "short_interest", "clusters", "market_update"):
+        layer = layers.get(key) or {}
+        rows.append(
+            {
+                "gate": f"PUBLIC {key}",
+                "result": "LIVE" if layer.get("live_ok") else "HARD_BLOCK",
+                "notes": (
+                    f"method={layer.get('method')} http={layer.get('http_status')} "
+                    f"path={layer.get('path')}"
+                ),
+            }
+        )
+    return rows
 
 
 def main() -> int:
@@ -358,11 +436,29 @@ def main() -> int:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     stamp = _utc_stamp()
     pack_path = ARTIFACTS_DIR / f"HF_SIGNAL_PACK_{stamp}.json"
-    branch = os.environ.get("GIT_BRANCH") or "cursor/axlfi-live-dp-probe-0041"
+    branch = os.environ.get("GIT_BRANCH") or "cursor/hf-public-pack-enrich-0041"
+
+    from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
+    from backend.app.signals.sources.public_enrichment import fetch_public_enrichment
+
+    # Public enrichment always runs (no Pro cookie required)
+    client = StockgridClient(cache_ttl=0, max_retries=1)
+    public = fetch_public_enrichment(client, "SPY")
+    print(
+        "public_live",
+        public.get("public_live_count"),
+        "/",
+        len(public.get("layers") or {}),
+        "layers=",
+        public.get("live_layer_names"),
+    )
 
     if not present:
         pack = _hard_block_pack(
-            stamp=stamp, cookie_flags=cookie_flags, envfile_flags=envfile_flags
+            stamp=stamp,
+            cookie_flags=cookie_flags,
+            envfile_flags=envfile_flags,
+            public_enrichment=public,
         )
         pack_path.write_text(json.dumps(pack, indent=2) + "\n", encoding="utf-8")
         gate_rows = [
@@ -371,10 +467,11 @@ def main() -> int:
                 "result": "FAIL",
                 "notes": "SESSION=false PRO=false (env+.env)",
             },
+            *_public_gate_rows(public),
             {
                 "gate": "LIVE /darkpools/ticker",
                 "result": "HARD_BLOCK",
-                "notes": "probe skipped — fail closed",
+                "notes": "probe skipped — fail closed (no Pro cookie)",
             },
             {
                 "gate": "universe SPY+QQQ+1",
@@ -384,7 +481,7 @@ def main() -> int:
             {
                 "gate": "sellable",
                 "result": "NO",
-                "notes": "requires HTTP 200 Pro + LIVE freshness",
+                "notes": "requires HTTP 200 Pro + LIVE freshness (public LIVE alone insufficient)",
             },
         ]
         _write_status(
@@ -394,7 +491,8 @@ def main() -> int:
             verdict="NOT SELLABLE",
             blocker=(
                 "HARD_BLOCK LIVE — cookie_env_present=false "
-                "(set AXLFI_SESSION_COOKIE or AXLFI_PRO_COOKIE)"
+                "(set AXLFI_SESSION_COOKIE or AXLFI_PRO_COOKIE); "
+                f"public_live_count={public.get('public_live_count', 0)}"
             ),
             gate_rows=gate_rows,
             branch=branch,
@@ -403,10 +501,7 @@ def main() -> int:
         print(f"PACK: {pack_path}")
         return 1
 
-    # Cookie present — live probe
-    from live_monitoring.enrichment.apis.stockgrid_client import StockgridClient
-
-    client = StockgridClient(cache_ttl=0, max_retries=1)
+    # Cookie present — Pro darkpools live probe
     probes: List[Dict[str, Any]] = []
     for sym in ("SPY", "QQQ"):
         probes.append(_probe_ticker(client, sym))
@@ -422,6 +517,7 @@ def main() -> int:
         cookie_flags=cookie_flags,
         probes=probes,
         single_name=single,
+        public_enrichment=public,
     )
     pack_path.write_text(json.dumps(pack, indent=2) + "\n", encoding="utf-8")
 
@@ -431,6 +527,7 @@ def main() -> int:
             "result": "PASS",
             "notes": "SESSION or PRO true",
         },
+        *_public_gate_rows(public),
     ]
     for p in probes:
         gate_rows.append(
