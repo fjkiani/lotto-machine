@@ -1,7 +1,11 @@
 """
 Economic calendar helpers for brief / gates.
 
-Live source: TECalendarScraper (TE indicator SSR tables + ForexFactory week JSON).
+Live source: TECalendarScraper
+  - ForexFactory = this-week/next-week spine (dating/presence)
+  - TE indicators = consensus enrichment (+ TE-only forward rows)
+  - TE main = attempted; often WAF-blocked (see te_main_status)
+
 No hardcoded April/March event lists as source of truth.
 """
 from __future__ import annotations
@@ -103,16 +107,28 @@ class EconomicCalendar:
         return out
 
     def get_week_events(self, reference_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """Next-7d events from merged calendar (FF spine + TE enrich, deduped)."""
+        from live_monitoring.enrichment.apis.te_calendar_scraper import TECalendarScraper
+
         ref = _to_utc(reference_date or datetime.now(timezone.utc))
         end = ref + timedelta(days=7)
         out: List[Dict[str, Any]] = []
+        seen = set()
         for ev in self._load_events():
             row = self._te_to_row(ev, ref)
             if not row:
                 continue
             ed = datetime.fromisoformat(row["date"])
-            if ref <= ed <= end:
-                out.append(row)
+            if not (ref <= ed <= end):
+                continue
+            # Safety dedupe: same calendar day + normalized event family
+            day = ed.strftime("%Y-%m-%d")
+            # Build a temporary TEEvent-like key via scraper helpers
+            key = (day, TECalendarScraper._merge_key(ev)[1])
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(row)
         out.sort(key=lambda x: x["date"])
         return out
 
