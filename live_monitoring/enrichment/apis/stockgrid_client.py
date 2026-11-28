@@ -2,18 +2,22 @@
 AXLFI Dark Pool & Market Intelligence Client
 (formerly Stockgrid — rebranded March 2026; API moved again Nov 2026)
 
-Nov 2026 surface (current):
-  GET https://axlfi.com/api/darkpools/leaderboard
-  GET https://axlfi.com/api/darkpools/ticker?ticker=SPY&window=252
-  GET https://axlfi.com/api/darkpools/sectors
-  GET https://axlfi.com/api/options/walls?ticker=SPY   ← PUBLIC (no Pro)
-  GET https://axlfi.com/api/market/movers              ← PUBLIC
+Nov 2026 surface (current) — BASE https://axlfi.com/api
+  PUBLIC:
+    GET /options/walls?ticker=SPY
+    GET /market/movers | /market/volatility | /market/update
+    GET /market/sectors | /market/themes | /market/breadth | /market/members
+    GET /short-interest/ticker?ticker=SPY | /short-interest/leaderboard
+    GET /clusters/scan | /clusters/stock/{ticker}
+    GET /congress/trades | /congress/activity
+    GET /earnings/upcoming | /earnings/ticker?ticker=
+    GET /leadership | /search/tickers?q=
+  PRO-gated (403 without cookie → fail-closed / PAYWALL_FALLBACK — NOT SELLABLE):
+    GET /darkpools/leaderboard (metric=position_usd)
+    GET /darkpools/ticker?ticker=SPY&window=252
+    GET /darkpools/sectors
 
-Dark-pool ticker/leaderboard are Pro-gated for bare requests (403).
-Browser (Playwright) can still capture a free visit; we persist that to
-`data/axlfi_v2_live_cache.json` and serve it when live Pro access fails.
-
-Legacy `axlfi-app-backend/api/*` routes now return the Nuxt HTML shell — dead.
+Legacy `axlfi-app-backend/api/*` routes return the Nuxt HTML shell — DEAD. Do not use.
 """
 from __future__ import annotations
 
@@ -693,6 +697,22 @@ class StockgridClient:
             short_volume_pct=sv_pct,
         )
 
+    def get_darkpool_sectors(self) -> Optional[dict]:
+        """
+        Pro-gated sector dark-pool aggregate.
+        403 / paywall → None (fail-closed). Never invent sector DP numbers.
+        """
+        cache_key = "darkpool_sectors"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/darkpools/sectors")
+        if not data:
+            return None
+        if self.last_fetch_meta.get("paywall") or self.last_fetch_meta.get("http_status") == 403:
+            return None
+        self._set_cache(cache_key, data)
+        return data
+
     # ── Option Walls ─────────────────────────────────────────────────────
 
     def get_option_walls(self, symbol: str = "SPY") -> Optional[dict]:
@@ -787,17 +807,176 @@ class StockgridClient:
             return dash.get("movers", {})
         return self._get("/market/movers")
 
-    # ── Cluster Universe ─────────────────────────────────────────────────
+    def get_market_volatility(self, ticker: str = "SPY") -> Optional[dict]:
+        """PUBLIC — realized vol windows for a ticker."""
+        cache_key = f"market_vol_{ticker.upper()}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/market/volatility", {"ticker": ticker.upper()})
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_market_update(self) -> Optional[dict]:
+        """PUBLIC — narrative/recap market update feed."""
+        cache_key = "market_update"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/market/update")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_market_sectors(self) -> Optional[list]:
+        """PUBLIC — sector performance list."""
+        cache_key = "market_sectors"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/market/sectors")
+        if data is None:
+            return None
+        rows = data if isinstance(data, list) else data.get("rows") or data.get("sectors") or []
+        self._set_cache(cache_key, rows)
+        return rows
+
+    def get_market_themes(self) -> Optional[list]:
+        """PUBLIC — thematic baskets."""
+        cache_key = "market_themes"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/market/themes")
+        if data is None:
+            return None
+        rows = data if isinstance(data, list) else data.get("rows") or data.get("themes") or []
+        self._set_cache(cache_key, rows)
+        return rows
+
+    def get_market_breadth(self) -> Optional[dict]:
+        """PUBLIC — market breadth (% above MAs, adv/dec, etc.)."""
+        cache_key = "market_breadth"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/market/breadth")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_leadership(self) -> Optional[dict]:
+        """PUBLIC — leadership screen."""
+        cache_key = "leadership"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/leadership")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    # ── Short Interest (PUBLIC) ──────────────────────────────────────────
+
+    def get_short_interest_ticker(self, ticker: str = "SPY") -> Optional[dict]:
+        """PUBLIC — short-interest history for a ticker (not Pro darkpools)."""
+        cache_key = f"si_ticker_{ticker.upper()}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/short-interest/ticker", {"ticker": ticker.upper()})
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_short_interest_leaderboard(self) -> Optional[dict]:
+        """PUBLIC — short-interest leaderboard."""
+        cache_key = "si_leaderboard"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/short-interest/leaderboard")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    # ── Clusters (PUBLIC) ────────────────────────────────────────────────
 
     def get_clusters(self) -> Optional[dict]:
         cache_key = "clusters"
         if self._is_cached(cache_key):
             return self._cache[cache_key]
-        # v2: /market/members approximates cluster universe
-        data = self._get("/market/members", {"universe": "us_large_cap_500"})
+        # Prefer live scan; fall back to members universe
+        data = self._get("/clusters/scan")
+        if not data:
+            data = self._get("/market/members", {"universe": "us_large_cap_500"})
         if data:
             self._set_cache(cache_key, data)
         return data
+
+    def get_clusters_scan(self) -> Optional[dict]:
+        """PUBLIC — cluster scan table + regime stats."""
+        cache_key = "clusters_scan"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/clusters/scan")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_cluster_stock(self, ticker: str) -> Optional[dict]:
+        """PUBLIC — per-ticker cluster membership / horizons."""
+        t = ticker.upper()
+        cache_key = f"cluster_stock_{t}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get(f"/clusters/stock/{t}")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    # ── Congress / Earnings (PUBLIC) ─────────────────────────────────────
+
+    def get_congress_trades(self) -> Optional[dict]:
+        """PUBLIC — recent congressional trades."""
+        cache_key = "congress_trades"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/congress/trades")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_congress_activity(self) -> Optional[dict]:
+        """PUBLIC — congress activity aggregates."""
+        cache_key = "congress_activity"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/congress/activity")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_earnings_upcoming(self) -> Optional[dict]:
+        """PUBLIC — upcoming earnings calendar."""
+        cache_key = "earnings_upcoming"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/earnings/upcoming")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_earnings_ticker(self, ticker: str) -> Optional[dict]:
+        """PUBLIC — earnings history / reaction stats for a ticker."""
+        t = ticker.upper()
+        cache_key = f"earnings_ticker_{t}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/earnings/ticker", {"ticker": t})
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def search_tickers(self, query: str) -> Optional[dict]:
+        """PUBLIC — ticker/theme search."""
+        q = (query or "").strip()
+        if not q:
+            return None
+        return self._get("/search/tickers", {"q": q})
 
     # ── Symbol Info ──────────────────────────────────────────────────────
 
