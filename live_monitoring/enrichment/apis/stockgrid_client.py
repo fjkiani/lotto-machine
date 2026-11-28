@@ -3,19 +3,26 @@ AXLFI Dark Pool & Market Intelligence Client
 (formerly Stockgrid — rebranded March 2026; API moved again Nov 2026)
 
 Nov 2026 surface (current) — BASE https://axlfi.com/api
-  PUBLIC:
+  PUBLIC (live 200 without cookie):
     GET /options/walls?ticker=SPY
     GET /market/movers | /market/volatility | /market/update
     GET /market/sectors | /market/themes | /market/breadth | /market/members
     GET /short-interest/ticker?ticker=SPY | /short-interest/leaderboard
+    GET /short-interest/fails | /short-interest/fails/ticker?ticker= (may 500 → None)
     GET /clusters/scan | /clusters/stock/{ticker}
     GET /congress/trades | /congress/activity
     GET /earnings/upcoming | /earnings/ticker?ticker=
     GET /leadership | /search/tickers?q=
+    GET /institutions/overview | /institutions/ticker?ticker=
+    GET /events/overview
+    GET /breadth/signals
+    GET /contracts/overview | /contracts/ticker?ticker=
   PRO-gated (403 without cookie → fail-closed / PAYWALL_FALLBACK — NOT SELLABLE):
     GET /darkpools/leaderboard (metric=position_usd)
     GET /darkpools/ticker?ticker=SPY&window=252
     GET /darkpools/sectors
+    GET /insiders/overview | /insiders/ticker?ticker=
+  Do NOT wire Bearer auth (auth probe CLOSED). Cookie header only when env set.
 
 Legacy `axlfi-app-backend/api/*` routes return the Nuxt HTML shell — DEAD. Do not use.
 """
@@ -891,6 +898,133 @@ class StockgridClient:
         data = self._get("/short-interest/leaderboard")
         if data:
             self._set_cache(cache_key, data)
+        return data
+
+    def get_short_interest_fails(self) -> Optional[dict]:
+        """PUBLIC — short-interest fails overview (no cookie required)."""
+        cache_key = "si_fails"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/short-interest/fails")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_short_interest_fails_ticker(self, ticker: str = "SPY") -> Optional[dict]:
+        """
+        PUBLIC — short-interest fails for a ticker.
+        Upstream may 500; fail-closed → None (never invent fails data).
+        """
+        t = ticker.upper()
+        cache_key = f"si_fails_ticker_{t}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/short-interest/fails/ticker", {"ticker": t})
+        if not data:
+            return None
+        # Non-200 / empty upstream → already None; refuse paywall bleed
+        if self.last_fetch_meta.get("http_status") not in (None, 200):
+            return None
+        self._set_cache(cache_key, data)
+        return data
+
+    # ── Institutions / Events / Breadth / Contracts (PUBLIC) ─────────────
+
+    def get_institutions_overview(self) -> Optional[dict]:
+        """PUBLIC — institutions overview (live 200 without cookie)."""
+        cache_key = "institutions_overview"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/institutions/overview")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_institutions_ticker(self, ticker: str = "SPY") -> Optional[dict]:
+        """PUBLIC — institutions positioning for a ticker."""
+        t = ticker.upper()
+        cache_key = f"institutions_ticker_{t}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/institutions/ticker", {"ticker": t})
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_events_overview(self) -> Optional[dict]:
+        """PUBLIC — events overview calendar / catalysts."""
+        cache_key = "events_overview"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/events/overview")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_breadth_signals(self) -> Optional[dict]:
+        """PUBLIC — breadth signals feed."""
+        cache_key = "breadth_signals"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/breadth/signals")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_contracts_overview(self) -> Optional[dict]:
+        """PUBLIC — contracts overview."""
+        cache_key = "contracts_overview"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/contracts/overview")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_contracts_ticker(self, ticker: str = "SPY") -> Optional[dict]:
+        """PUBLIC — contracts for a ticker."""
+        t = ticker.upper()
+        cache_key = f"contracts_ticker_{t}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/contracts/ticker", {"ticker": t})
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    # ── Insiders (PRO — fail-closed / PAYWALL_FALLBACK) ───────────────────
+
+    def get_insiders_overview(self) -> Optional[dict]:
+        """
+        PRO-gated insiders overview.
+        403 / paywall → None (PAYWALL_FALLBACK). Never invent insider data.
+        """
+        cache_key = "insiders_overview"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/insiders/overview")
+        if not data:
+            return None
+        if self.last_fetch_meta.get("paywall") or self.last_fetch_meta.get("http_status") == 403:
+            return None
+        self._set_cache(cache_key, data)
+        return data
+
+    def get_insiders_ticker(self, ticker: str = "SPY") -> Optional[dict]:
+        """
+        PRO-gated insiders for a ticker.
+        403 / paywall → None (PAYWALL_FALLBACK). Never invent insider data.
+        """
+        t = ticker.upper()
+        cache_key = f"insiders_ticker_{t}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/insiders/ticker", {"ticker": t})
+        if not data:
+            return None
+        if self.last_fetch_meta.get("paywall") or self.last_fetch_meta.get("http_status") == 403:
+            return None
+        self._set_cache(cache_key, data)
         return data
 
     # ── Clusters (PUBLIC) ────────────────────────────────────────────────
