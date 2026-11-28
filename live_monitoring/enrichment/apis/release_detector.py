@@ -281,19 +281,35 @@ class ReleaseDetector:
     def get_upcoming_critical_from_te(self) -> List[dict]:
         """
         Get upcoming CRITICAL + HIGH events with times converted to ET.
+        Future-only: drop past events even if actual is still blank.
         """
         try:
             from live_monitoring.utils.tz_mapper import te_display_time
             has_tz = True
         except ImportError:
             has_tz = False
-        
-        upcoming = [e for e in self.scraper.get_high_impact() if not e.has_actual]
+
+        from datetime import datetime
+        from live_monitoring.enrichment.apis.te_calendar_scraper import TECalendarScraper
+
+        now = datetime.now()
+        upcoming = []
+        for e in self.scraper.get_high_impact():
+            if e.has_actual:
+                continue
+            dt = TECalendarScraper._parse_event_datetime(e)
+            if dt is not None and dt < now:
+                continue  # stale past event
+            upcoming.append(e)
+
         results = []
         for e in upcoming:
             time_str = e.time
             if has_tz:
-                time_str = te_display_time(e.date, e.time)
+                try:
+                    time_str = te_display_time(e.date, e.time)
+                except Exception:
+                    time_str = e.time
             results.append({
                 'event': e.event,
                 'date': e.date,
@@ -302,6 +318,7 @@ class ReleaseDetector:
                 'consensus': e.consensus,
                 'importance': e.importance,
                 'time_zone': 'ET',
+                'source': getattr(e, 'source', 'te'),
             })
         return results
 

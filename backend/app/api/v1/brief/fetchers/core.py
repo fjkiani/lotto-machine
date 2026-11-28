@@ -168,19 +168,21 @@ def fetch_hidden_hands() -> dict:
 
 
 def fetch_economic_calendar() -> dict:
-    """Hardcoded April 2026 baseline — next binary event + 48h risk flag."""
+    """Live TE/FF calendar — next binary event + 48h risk flag + week events."""
     try:
         from live_monitoring.enrichment.apis.economic_calendar import EconomicCalendar
 
         ec = EconomicCalendar()
-        return {
+        payload = {
             "next_binary": ec.get_next_binary(),
             "risk_flag": ec.get_risk_flag(),
             "week_events": ec.get_week_events(),
+            "status": ec.status(),
         }
+        return payload
     except Exception as e:
         logger.warning(f"Economic calendar failed: {e}")
-        return {"error": str(e)}
+        return {"error": str(e), "degraded": True, "week_events": []}
 
 
 def fetch_gex_shared() -> dict:
