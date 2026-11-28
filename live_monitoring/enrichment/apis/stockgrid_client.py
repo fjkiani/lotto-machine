@@ -17,6 +17,10 @@ Nov 2026 surface (current) — BASE https://axlfi.com/api
     GET /congress/trades | /congress/activity
     GET /earnings/upcoming | /earnings/ticker?ticker=
     GET /leadership | /search/tickers?q=
+    GET /oil/overview | /oil/prices
+    GET /charts/{ticker}/markers
+    GET /nowcast/gdp
+    GET /watchlists/quotes?tickers=SPY,QQQ
   PRO-gated (403 without cookie → fail-closed / PAYWALL_FALLBACK — NOT SELLABLE):
     GET /darkpools/leaderboard (metric=position_usd)
     GET /darkpools/ticker?ticker=SPY&window=252
@@ -874,6 +878,68 @@ class StockgridClient:
         if self._is_cached(cache_key):
             return self._cache[cache_key]
         data = self._get("/leadership")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    # ── Oil / Charts / Nowcast / Watchlists (PUBLIC recon) ───────────────
+
+    def get_oil_overview(self) -> Optional[dict]:
+        """PUBLIC — oil market overview (STEO / balance). Live probe: HTTP 200."""
+        cache_key = "oil_overview"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/oil/overview")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_oil_prices(self) -> Optional[dict]:
+        """PUBLIC — Brent/WTI oil prices + forecast. Live probe: HTTP 200."""
+        cache_key = "oil_prices"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/oil/prices")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_chart_markers(self, ticker: str = "SPY") -> Optional[dict]:
+        """PUBLIC — chart markers for a ticker. Path: /charts/{t}/markers."""
+        t = ticker.upper()
+        cache_key = f"chart_markers_{t}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get(f"/charts/{t}/markers")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_nowcast_gdp(self) -> Optional[dict]:
+        """PUBLIC — GDP nowcast. Path: /nowcast/gdp. Live probe: HTTP 200."""
+        cache_key = "nowcast_gdp"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/nowcast/gdp")
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    def get_watchlists_quotes(
+        self, tickers: Optional[List[str]] = None
+    ) -> Optional[dict]:
+        """
+        PUBLIC — watchlist quotes. Requires tickers query (422 without).
+        Live probe: HTTP 200 with tickers=SPY,QQQ.
+        """
+        symbols = [str(t).upper() for t in (tickers or ["SPY", "QQQ"]) if t]
+        if not symbols:
+            symbols = ["SPY", "QQQ"]
+        joined = ",".join(symbols)
+        cache_key = f"watchlists_quotes_{joined}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        data = self._get("/watchlists/quotes", {"tickers": joined})
         if data:
             self._set_cache(cache_key, data)
         return data
