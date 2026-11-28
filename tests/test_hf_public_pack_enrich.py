@@ -2,7 +2,7 @@
 Unit tests: PUBLIC AXLFI layers LIVE on HTTP 200 vs darkpools/insiders HARD_BLOCK.
 
 Mocked HTTP only — never invents DP LIVE without Pro 200.
-Folds #20 PUBLIC methods (institutions/events/breadth/contracts/SI-fails).
+Folds #20 PUBLIC methods + themes/sectors into HF pack.
 """
 from __future__ import annotations
 
@@ -39,6 +39,8 @@ PUBLIC_LAYER_NAMES = (
     "breadth",
     "contracts",
     "short_interest_fails",
+    "market_themes",
+    "market_sectors",
 )
 
 
@@ -114,6 +116,10 @@ class TestPublicEnrichmentLive(unittest.TestCase):
                 return _json_resp(
                     200, {"ticker": "SPY", "contracts": [{"strike": 680}]}
                 )
+            if "/market/themes" in url:
+                return _json_resp(200, [{"theme": "AI", "tickers": ["NVDA"]}])
+            if "/market/sectors" in url:
+                return _json_resp(200, [{"sector": "Technology", "chg": 1.2}])
             if "/insiders/" in url:
                 return _json_resp(403, {"detail": "Pro subscription required"})
             return _json_resp(404, {"detail": "not found"})
@@ -149,6 +155,10 @@ class TestPublicEnrichmentLive(unittest.TestCase):
             out["layers"]["short_interest_fails"]["method"],
             "get_short_interest_fails_ticker",
         )
+        self.assertEqual(out["layers"]["market_themes"]["method"], "get_market_themes")
+        self.assertEqual(out["layers"]["market_sectors"]["method"], "get_market_sectors")
+        self.assertEqual(out["layers"]["market_themes"]["row_count"], 1)
+        self.assertEqual(out["layers"]["market_sectors"]["row_count"], 1)
 
         # Insiders fail-closed — not public LIVE
         insiders = out["fail_closed_layers"]["insiders"]
@@ -265,12 +275,16 @@ class TestProbePackPublicVsDarkpools(unittest.TestCase):
         self.assertEqual(pack["layers"]["breadth"]["status"], "LIVE")
         self.assertEqual(pack["layers"]["contracts"]["status"], "LIVE")
         self.assertEqual(pack["layers"]["short_interest_fails"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["market_themes"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["market_sectors"]["status"], "LIVE")
         self.assertEqual(pack["layers"]["insiders"]["status"], "HARD_BLOCK")
         self.assertFalse(pack["layers"]["insiders"]["live_ok"])
         self.assertEqual(pack["layers"]["darkpools"]["status"], "HARD_BLOCK")
         self.assertFalse(pack["layers"]["darkpools"]["live_ok"])
         self.assertEqual(pack["universe"]["SPY"]["status"], "HARD_BLOCK")
         self.assertIn("get_institutions_ticker", pack["gate_A_stockgrid"]["public_methods"])
+        self.assertIn("get_market_themes", pack["gate_A_stockgrid"]["public_methods"])
+        self.assertIn("get_market_sectors", pack["gate_A_stockgrid"]["public_methods"])
         self.assertIn(
             "get_insiders_ticker", pack["gate_A_stockgrid"]["fail_closed_methods"]
         )
@@ -342,10 +356,14 @@ class TestProbePackPublicVsDarkpools(unittest.TestCase):
             self.assertEqual(pack["layers"]["darkpools"]["status"], "HARD_BLOCK")
             self.assertTrue(pack["layers"]["options_walls"]["live_ok"])
             self.assertTrue(pack["layers"]["institutions"]["live_ok"])
+            self.assertTrue(pack["layers"]["market_themes"]["live_ok"])
+            self.assertTrue(pack["layers"]["market_sectors"]["live_ok"])
             self.assertFalse(pack["layers"]["insiders"]["live_ok"])
             status = status_path.read_text()
             self.assertIn("PUBLIC options_walls", status)
             self.assertIn("PUBLIC institutions", status)
+            self.assertIn("PUBLIC market_themes", status)
+            self.assertIn("PUBLIC market_sectors", status)
             self.assertIn("LIVE", status)
             self.assertIn("HARD_BLOCK", status)
             self.assertIn("NOT SELLABLE", status)

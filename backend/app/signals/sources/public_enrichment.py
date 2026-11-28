@@ -71,6 +71,8 @@ def _layer_from_meta(
         "pro_gated": not allow_live,
     }
     # Tiny non-secret summary keys only — never invent DP series
+    if isinstance(payload, list) and (live_ok or has_payload):
+        out["row_count"] = len(payload)
     if isinstance(payload, dict) and (live_ok or (not allow_live and has_payload)):
         for key in ("ticker", "as_of", "as_of_date", "spot", "narrative", "count"):
             if key in payload and payload[key] is not None:
@@ -139,6 +141,8 @@ def fetch_public_enrichment(client, symbol: str = "SPY") -> Dict[str, Any]:
       - get_breadth_signals()                     → /breadth/signals     (#20)
       - get_contracts_ticker(symbol)              → /contracts/ticker    (#20)
       - get_short_interest_fails_ticker(symbol)   → /short-interest/fails/ticker (#20)
+      - get_market_themes()                       → /market/themes       (themes/sectors fold)
+      - get_market_sectors()                      → /market/sectors      (themes/sectors fold)
 
     PRO fail-closed (never public LIVE):
       - get_insiders_ticker(symbol)               → /insiders/ticker
@@ -204,6 +208,19 @@ def fetch_public_enrichment(client, symbol: str = "SPY") -> Dict[str, Any]:
             "get_short_interest_fails_ticker",
             "/short-interest/fails/ticker",
             lambda: client.get_short_interest_fails_ticker(sym),
+        ),
+        # themes/sectors PUBLIC fold (wrappers already on StockgridClient)
+        (
+            "market_themes",
+            "get_market_themes",
+            "/market/themes",
+            lambda: client.get_market_themes(),
+        ),
+        (
+            "market_sectors",
+            "get_market_sectors",
+            "/market/sectors",
+            lambda: client.get_market_sectors(),
         ),
     ]
 

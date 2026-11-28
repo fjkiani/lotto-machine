@@ -8,7 +8,7 @@ Fail-closed (Pro / darkpools):
   - Never prints cookie values (bool presence only)
   - Overall pack remains NOT SELLABLE without cookie + LIVE Pro universe
 
-PUBLIC enrichment (no Pro) always attempted via StockgridClient #16/#20 methods:
+PUBLIC enrichment (no Pro) always attempted via StockgridClient #16/#20 + themes/sectors fold:
   - walls / SI / clusters / market_update
   - institutions / events / breadth / contracts / SI-fails (#20 fold)
   - Labeled LIVE only on HTTP 200; shown honestly even when overall NOT SELLABLE
@@ -253,6 +253,8 @@ def _hard_block_pack(
                 "get_breadth_signals",
                 "get_contracts_ticker",
                 "get_short_interest_fails_ticker",
+                "get_market_themes",
+                "get_market_sectors",
             ],
             "fail_closed_methods": ["get_insiders_ticker"],
         },
@@ -413,6 +415,8 @@ def _live_pack(
                 "get_breadth_signals",
                 "get_contracts_ticker",
                 "get_short_interest_fails_ticker",
+                "get_market_themes",
+                "get_market_sectors",
             ],
             "fail_closed_methods": ["get_insiders_ticker"],
         },
@@ -434,6 +438,8 @@ def _public_gate_rows(public: Dict[str, Any]) -> List[Dict[str, Any]]:
         "breadth",
         "contracts",
         "short_interest_fails",
+        "market_themes",
+        "market_sectors",
     ):
         layer = layers.get(key) or {}
         rows.append(
