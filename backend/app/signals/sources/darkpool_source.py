@@ -153,6 +153,25 @@ def _public_layer_summary(
     }
 
 
+def _fail_closed_layer_summary(
+    public_enrichment: Dict[str, Any], layer_name: str
+) -> Dict[str, Any]:
+    """Pro fail-closed layer summary (insiders) — never claims public LIVE."""
+    layer = (
+        ((public_enrichment or {}).get("fail_closed_layers") or {}).get(layer_name)
+        or {}
+    )
+    return {
+        "status": layer.get("status"),
+        "freshness": layer.get("freshness"),
+        "http_status": layer.get("http_status"),
+        "live_ok": False,
+        "method": layer.get("method"),
+        "path": layer.get("path"),
+        "pro_gated": True,
+    }
+
+
 def _leaderboard_single_name(client) -> Optional[str]:
     """Pick first non-index ticker from leaderboard (live or cache)."""
     try:
@@ -531,6 +550,24 @@ def fetch_darkpool_signals(symbol: str = "SPY", regime_tier: int = 1) -> List[di
                 ),
                 "market_update_summary": _public_layer_summary(
                     public_enrichment, "market_update"
+                ),
+                "institutions_summary": _public_layer_summary(
+                    public_enrichment, "institutions"
+                ),
+                "events_summary": _public_layer_summary(
+                    public_enrichment, "events"
+                ),
+                "breadth_summary": _public_layer_summary(
+                    public_enrichment, "breadth"
+                ),
+                "contracts_summary": _public_layer_summary(
+                    public_enrichment, "contracts"
+                ),
+                "short_interest_fails_summary": _public_layer_summary(
+                    public_enrichment, "short_interest_fails"
+                ),
+                "insiders_summary": _fail_closed_layer_summary(
+                    public_enrichment, "insiders"
                 ),
             },
             "public_enrichment": public_enrichment,

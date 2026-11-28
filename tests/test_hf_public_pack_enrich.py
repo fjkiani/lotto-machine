@@ -1,7 +1,8 @@
 """
-Unit tests: PUBLIC AXLFI layers LIVE on HTTP 200 vs darkpools HARD_BLOCK.
+Unit tests: PUBLIC AXLFI layers LIVE on HTTP 200 vs darkpools/insiders HARD_BLOCK.
 
 Mocked HTTP only — never invents DP LIVE without Pro 200.
+Folds #20 PUBLIC methods (institutions/events/breadth/contracts/SI-fails).
 """
 from __future__ import annotations
 
@@ -28,6 +29,19 @@ def _json_resp(status: int, payload):
     return mock_resp
 
 
+PUBLIC_LAYER_NAMES = (
+    "options_walls",
+    "short_interest",
+    "clusters",
+    "market_update",
+    "institutions",
+    "events",
+    "breadth",
+    "contracts",
+    "short_interest_fails",
+)
+
+
 class TestPublicEnrichmentLive(unittest.TestCase):
     def tearDown(self):
         for key in ("AXLFI_SESSION_COOKIE", "AXLFI_PRO_COOKIE"):
@@ -52,7 +66,7 @@ class TestPublicEnrichmentLive(unittest.TestCase):
             self.addCleanup(p.stop)
         return client, mock_session
 
-    def test_public_layers_live_on_200(self):
+    def test_public_layers_live_on_200_including_recon_fold(self):
         client, session = self._client()
 
         def _route(url, *args, **kwargs):
@@ -72,6 +86,10 @@ class TestPublicEnrichmentLive(unittest.TestCase):
                         },
                     },
                 )
+            if "/short-interest/fails/ticker" in url:
+                return _json_resp(
+                    200, {"ticker": "SPY", "as_of": "2026-11-27", "fails": [{"d": 1}]}
+                )
             if "/short-interest/ticker" in url:
                 return _json_resp(
                     200, {"ticker": "SPY", "as_of": "2026-11-27", "points": [1, 2]}
@@ -82,20 +100,37 @@ class TestPublicEnrichmentLive(unittest.TestCase):
                 )
             if "/market/update" in url:
                 return _json_resp(200, {"narrative": "ok", "recap": {}})
+            if "/institutions/ticker" in url:
+                return _json_resp(
+                    200, {"ticker": "SPY", "as_of": "2026-11-27", "rows": [{"fund": "X"}]}
+                )
+            if "/events/overview" in url:
+                return _json_resp(
+                    200, {"as_of": "2026-11-27", "events": [{"name": "CPI"}], "rows": []}
+                )
+            if "/breadth/signals" in url:
+                return _json_resp(200, {"as_of": "2026-11-27", "signals": [{"s": 1}]})
+            if "/contracts/ticker" in url:
+                return _json_resp(
+                    200, {"ticker": "SPY", "contracts": [{"strike": 680}]}
+                )
+            if "/insiders/" in url:
+                return _json_resp(403, {"detail": "Pro subscription required"})
             return _json_resp(404, {"detail": "not found"})
 
         session.get.side_effect = _route
         out = fetch_public_enrichment(client, "SPY")
 
         self.assertTrue(out["public_live_ok"])
-        self.assertEqual(out["public_live_count"], 4)
+        self.assertEqual(out["public_live_count"], len(PUBLIC_LAYER_NAMES))
         self.assertFalse(out["darkpools_included"])
-        for name in ("options_walls", "short_interest", "clusters", "market_update"):
+        self.assertFalse(out["insiders_public_live"])
+        for name in PUBLIC_LAYER_NAMES:
             layer = out["layers"][name]
             self.assertTrue(layer["live_ok"], msg=name)
-            self.assertEqual(layer["status"], "LIVE")
-            self.assertEqual(layer["freshness"], "LIVE")
-            self.assertEqual(layer["http_status"], 200)
+            self.assertEqual(layer["status"], "LIVE", msg=name)
+            self.assertEqual(layer["freshness"], "LIVE", msg=name)
+            self.assertEqual(layer["http_status"], 200, msg=name)
 
         # Existing #16 methods — not re-implemented walls
         self.assertEqual(out["layers"]["options_walls"]["method"], "get_option_walls")
@@ -103,6 +138,45 @@ class TestPublicEnrichmentLive(unittest.TestCase):
             out["layers"]["short_interest"]["method"], "get_short_interest_ticker"
         )
         self.assertEqual(out["layers"]["clusters"]["method"], "get_clusters_scan")
+        # #20 fold methods
+        self.assertEqual(
+            out["layers"]["institutions"]["method"], "get_institutions_ticker"
+        )
+        self.assertEqual(out["layers"]["events"]["method"], "get_events_overview")
+        self.assertEqual(out["layers"]["breadth"]["method"], "get_breadth_signals")
+        self.assertEqual(out["layers"]["contracts"]["method"], "get_contracts_ticker")
+        self.assertEqual(
+            out["layers"]["short_interest_fails"]["method"],
+            "get_short_interest_fails_ticker",
+        )
+
+        # Insiders fail-closed — not public LIVE
+        insiders = out["fail_closed_layers"]["insiders"]
+        self.assertFalse(insiders["live_ok"])
+        self.assertTrue(insiders["pro_gated"])
+        self.assertEqual(insiders["status"], "HARD_BLOCK")
+        self.assertEqual(insiders["freshness"], "PAYWALL_FALLBACK")
+        self.assertEqual(insiders["http_status"], 403)
+        self.assertNotIn("insiders", out["live_layer_names"])
+
+    def test_insiders_never_counted_as_public_live_even_on_200(self):
+        """With allow_live=False, 200 Pro payload is PRO_GATED not public LIVE."""
+        client, session = self._client()
+
+        def _route(url, *args, **kwargs):
+            if "/insiders/" in url:
+                return _json_resp(200, {"ticker": "SPY", "trades": [{"x": 1}]})
+            # Other public endpoints 404 → HARD_BLOCK (not under test)
+            return _json_resp(404, {"detail": "not found"})
+
+        session.get.side_effect = _route
+        out = fetch_public_enrichment(client, "SPY")
+        insiders = out["fail_closed_layers"]["insiders"]
+        self.assertFalse(insiders["live_ok"])
+        self.assertEqual(insiders["status"], "PRO_GATED")
+        self.assertEqual(insiders["http_status"], 200)
+        self.assertEqual(out["public_live_count"], 0)
+        self.assertFalse(out["insiders_public_live"])
 
     def test_darkpools_hard_block_helper_never_live(self):
         layer = darkpools_hard_block_layer(reason="no cookie", http_status=None)
@@ -140,53 +214,35 @@ class TestProbePackPublicVsDarkpools(unittest.TestCase):
         public = {
             "symbol": "SPY",
             "layers": {
-                "options_walls": {
-                    "name": "options_walls",
-                    "method": "get_option_walls",
-                    "path": "/options/walls",
+                name: {
+                    "name": name,
+                    "method": f"get_{name}",
+                    "path": f"/{name}",
                     "status": "LIVE",
                     "freshness": "LIVE",
                     "http_status": 200,
                     "live_ok": True,
-                },
-                "short_interest": {
-                    "name": "short_interest",
-                    "method": "get_short_interest_ticker",
-                    "path": "/short-interest/ticker",
-                    "status": "LIVE",
-                    "freshness": "LIVE",
-                    "http_status": 200,
-                    "live_ok": True,
-                },
-                "clusters": {
-                    "name": "clusters",
-                    "method": "get_clusters_scan",
-                    "path": "/clusters/scan",
-                    "status": "LIVE",
-                    "freshness": "LIVE",
-                    "http_status": 200,
-                    "live_ok": True,
-                },
-                "market_update": {
-                    "name": "market_update",
-                    "method": "get_market_update",
-                    "path": "/market/update",
-                    "status": "LIVE",
-                    "freshness": "LIVE",
-                    "http_status": 200,
-                    "live_ok": True,
-                },
+                }
+                for name in PUBLIC_LAYER_NAMES
             },
-            "live_layer_names": [
-                "options_walls",
-                "short_interest",
-                "clusters",
-                "market_update",
-            ],
-            "public_live_count": 4,
+            "fail_closed_layers": {
+                "insiders": {
+                    "name": "insiders",
+                    "method": "get_insiders_ticker",
+                    "path": "/insiders/ticker",
+                    "status": "HARD_BLOCK",
+                    "freshness": "PAYWALL_FALLBACK",
+                    "http_status": 403,
+                    "live_ok": False,
+                    "pro_gated": True,
+                }
+            },
+            "live_layer_names": list(PUBLIC_LAYER_NAMES),
+            "public_live_count": len(PUBLIC_LAYER_NAMES),
             "public_live_ok": True,
             "all_public_live": True,
             "darkpools_included": False,
+            "insiders_public_live": False,
         }
         flags = {
             "AXLFI_SESSION_COOKIE": False,
@@ -204,65 +260,58 @@ class TestProbePackPublicVsDarkpools(unittest.TestCase):
         self.assertEqual(pack["verdict"], "NOT_SELLABLE")
         self.assertEqual(pack["data_freshness"], "PAYWALL_FALLBACK")
         self.assertEqual(pack["layers"]["options_walls"]["status"], "LIVE")
-        self.assertEqual(pack["layers"]["short_interest"]["status"], "LIVE")
-        self.assertEqual(pack["layers"]["clusters"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["institutions"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["events"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["breadth"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["contracts"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["short_interest_fails"]["status"], "LIVE")
+        self.assertEqual(pack["layers"]["insiders"]["status"], "HARD_BLOCK")
+        self.assertFalse(pack["layers"]["insiders"]["live_ok"])
         self.assertEqual(pack["layers"]["darkpools"]["status"], "HARD_BLOCK")
         self.assertFalse(pack["layers"]["darkpools"]["live_ok"])
         self.assertEqual(pack["universe"]["SPY"]["status"], "HARD_BLOCK")
+        self.assertIn("get_institutions_ticker", pack["gate_A_stockgrid"]["public_methods"])
+        self.assertIn(
+            "get_insiders_ticker", pack["gate_A_stockgrid"]["fail_closed_methods"]
+        )
 
     def test_probe_main_cookie_absent_public_live_mocked(self):
         from scripts import probe_axlfi_live_dp as probe
 
         os.environ.pop("AXLFI_SESSION_COOKIE", None)
         os.environ.pop("AXLFI_PRO_COOKIE", None)
-        os.environ["GIT_BRANCH"] = "cursor/hf-public-pack-enrich-0041"
+        os.environ["GIT_BRANCH"] = "cursor/hf-public-pack-fold-0041"
 
         public_ok = {
             "symbol": "SPY",
             "layers": {
-                "options_walls": {
+                name: {
                     "status": "LIVE",
                     "freshness": "LIVE",
                     "http_status": 200,
                     "live_ok": True,
-                    "method": "get_option_walls",
-                    "path": "/options/walls",
-                },
-                "short_interest": {
-                    "status": "LIVE",
-                    "freshness": "LIVE",
-                    "http_status": 200,
-                    "live_ok": True,
-                    "method": "get_short_interest_ticker",
-                    "path": "/short-interest/ticker",
-                },
-                "clusters": {
-                    "status": "LIVE",
-                    "freshness": "LIVE",
-                    "http_status": 200,
-                    "live_ok": True,
-                    "method": "get_clusters_scan",
-                    "path": "/clusters/scan",
-                },
-                "market_update": {
-                    "status": "LIVE",
-                    "freshness": "LIVE",
-                    "http_status": 200,
-                    "live_ok": True,
-                    "method": "get_market_update",
-                    "path": "/market/update",
-                },
+                    "method": f"get_{name}",
+                    "path": f"/{name}",
+                }
+                for name in PUBLIC_LAYER_NAMES
             },
-            "live_layer_names": [
-                "options_walls",
-                "short_interest",
-                "clusters",
-                "market_update",
-            ],
-            "public_live_count": 4,
+            "fail_closed_layers": {
+                "insiders": {
+                    "status": "HARD_BLOCK",
+                    "freshness": "PAYWALL_FALLBACK",
+                    "http_status": 403,
+                    "live_ok": False,
+                    "method": "get_insiders_ticker",
+                    "path": "/insiders/ticker",
+                    "pro_gated": True,
+                }
+            },
+            "live_layer_names": list(PUBLIC_LAYER_NAMES),
+            "public_live_count": len(PUBLIC_LAYER_NAMES),
             "public_live_ok": True,
             "all_public_live": True,
             "darkpools_included": False,
+            "insiders_public_live": False,
         }
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -292,9 +341,11 @@ class TestProbePackPublicVsDarkpools(unittest.TestCase):
             self.assertFalse(pack["sellable"])
             self.assertEqual(pack["layers"]["darkpools"]["status"], "HARD_BLOCK")
             self.assertTrue(pack["layers"]["options_walls"]["live_ok"])
-            self.assertTrue(pack["layers"]["short_interest"]["live_ok"])
+            self.assertTrue(pack["layers"]["institutions"]["live_ok"])
+            self.assertFalse(pack["layers"]["insiders"]["live_ok"])
             status = status_path.read_text()
             self.assertIn("PUBLIC options_walls", status)
+            self.assertIn("PUBLIC institutions", status)
             self.assertIn("LIVE", status)
             self.assertIn("HARD_BLOCK", status)
             self.assertIn("NOT SELLABLE", status)
