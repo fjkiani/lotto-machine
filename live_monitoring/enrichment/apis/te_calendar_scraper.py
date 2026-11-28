@@ -3,8 +3,11 @@
 
 Live sources (priority order):
 
-  1. ForexFactory NFS JSON — `ff_calendar_thisweek.json` +
-     `ff_calendar_nextweek.json` (when published) as the dense week spine
+  1. ForexFactory week spine
+     - NFS JSON `ff_calendar_thisweek.json` (always when available)
+     - NFS JSON `ff_calendar_nextweek.json` when published (often 404)
+     - Fallback: Playwright load of `forexfactory.com/calendar?week=monD.YYYY`
+       and extract `window.calendarComponentStates` (HTML table fallback)
   2. TE indicator SSR pages — consensus/forecast enrichment + 7–14d coverage
      beyond the FF week window (expanded slug list, not a tiny allowlist)
   3. TE main calendar — attempted via requests + optional Playwright;
@@ -202,6 +205,7 @@ FF_TITLE_TO_TE_SLUG: Dict[str, str] = {
 
 FF_THISWEEK_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 FF_NEXTWEEK_URL = "https://nfs.faireconomy.media/ff_calendar_nextweek.json"
+FF_CALENDAR_WEEK_URL = "https://www.forexfactory.com/calendar?week={week}"
 
 
 @dataclass
@@ -891,32 +895,363 @@ class TECalendarScraper:
                 )
         return events
 
-    # ── Source: ForexFactory week JSON ───────────────────────────────────
+    # ── Source: ForexFactory week JSON (+ HTML next-week fallback) ───────
 
     def _fetch_forexfactory_weeks(self) -> List[TEEvent]:
-        """Fetch this-week + next-week FF JSON. Label source honestly as forexfactory."""
+        """
+        Fetch this-week + next-week FF events.
+
+        Prefer NFS JSON when published. `ff_calendar_nextweek.json` often 404s
+        (FairEconomy only reliably serves thisweek.*) — in that case scrape
+        ForexFactory `?week=monD.YYYY` via Playwright and read calendar state.
+        """
         events: List[TEEvent] = []
         notes: List[str] = []
+        thisweek_raw: List[dict] = []
 
-        for label, url in (("thisweek", FF_THISWEEK_URL), ("nextweek", FF_NEXTWEEK_URL)):
-            try:
-                r = self._session.get(url, timeout=15)
-                if r.status_code == 404:
-                    notes.append(f"{label}=404")
-                    continue
+        # 1) thisweek JSON
+        try:
+            r = self._session.get(FF_THISWEEK_URL, timeout=15)
+            if r.status_code == 404:
+                notes.append("thisweek=404")
+            else:
                 r.raise_for_status()
                 data = r.json()
                 if not isinstance(data, list):
-                    notes.append(f"{label}=bad_json")
-                    continue
-                week_events = self._parse_forexfactory_payload(data)
-                events.extend(week_events)
-                notes.append(f"{label}={len(week_events)}")
+                    notes.append("thisweek=bad_json")
+                else:
+                    thisweek_raw = data
+                    week_events = self._parse_forexfactory_payload(data)
+                    events.extend(week_events)
+                    notes.append(f"thisweek={len(week_events)}")
+        except Exception as e:
+            notes.append(f"thisweek=err:{e}")
+
+        # 2) nextweek JSON (frequently unpublished → 404)
+        nextweek_ok = False
+        try:
+            r = self._session.get(FF_NEXTWEEK_URL, timeout=15)
+            if r.status_code == 404:
+                notes.append("nextweek=404")
+            else:
+                r.raise_for_status()
+                data = r.json()
+                if not isinstance(data, list):
+                    notes.append("nextweek=bad_json")
+                else:
+                    week_events = self._parse_forexfactory_payload(data)
+                    events.extend(week_events)
+                    notes.append(f"nextweek={len(week_events)}")
+                    nextweek_ok = True
+        except Exception as e:
+            notes.append(f"nextweek=err:{e}")
+
+        # 3) HTML/JS week scrape when nextweek JSON missing or empty
+        if not nextweek_ok:
+            try:
+                week_monday = self._ff_next_week_monday(thisweek_raw)
+                html_events = self._fetch_forexfactory_week_html(week_monday)
+                if html_events:
+                    events.extend(html_events)
+                    notes.append(
+                        f"nextweek=html_week:{week_monday.isoformat()}:{len(html_events)}"
+                    )
+                else:
+                    notes.append(
+                        f"nextweek=html_week:{week_monday.isoformat()}:0"
+                    )
             except Exception as e:
-                notes.append(f"{label}=err:{e}")
+                notes.append(f"nextweek=html_err:{e}")
 
         self._source_notes["forexfactory"] = "; ".join(notes) if notes else "empty"
         return events
+
+    @staticmethod
+    def _ff_week_param(monday: date) -> str:
+        """ForexFactory week selector: `nov30.2026` (lowercase month + day + year)."""
+        return f"{monday.strftime('%b').lower()}{monday.day}.{monday.year}"
+
+    @staticmethod
+    def _ff_next_week_monday(thisweek_raw: Optional[List[dict]] = None) -> date:
+        """
+        Monday of the week AFTER the NFS thisweek window.
+
+        Prefer max date from thisweek JSON; else Monday after today's week.
+        """
+        max_d: Optional[date] = None
+        for raw in thisweek_raw or []:
+            iso = str(raw.get("date") or "")
+            if not iso:
+                continue
+            try:
+                dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+                d = dt.date()
+                if max_d is None or d > max_d:
+                    max_d = d
+            except ValueError:
+                continue
+        if max_d is not None:
+            # Day after thisweek end, then snap forward to Monday
+            cursor = max_d + timedelta(days=1)
+            while cursor.weekday() != 0:  # Monday=0
+                cursor += timedelta(days=1)
+            return cursor
+        today = date.today()
+        # Next Monday strictly after this week's Sunday
+        days_until_monday = (7 - today.weekday()) % 7
+        if days_until_monday == 0:
+            days_until_monday = 7
+        return today + timedelta(days=days_until_monday)
+
+    def _fetch_forexfactory_week_html(self, week_monday: date) -> List[TEEvent]:
+        """
+        Load FF calendar HTML for a week and extract USD events from
+        `window.calendarComponentStates` (table parse as fallback).
+        Runs Playwright in a worker thread so FastAPI async loops stay safe.
+        """
+        week = self._ff_week_param(week_monday)
+        url = FF_CALENDAR_WEEK_URL.format(week=week)
+        logger.info("FF nextweek HTML fallback: %s", url)
+
+        def _run() -> List[TEEvent]:
+            try:
+                from playwright.sync_api import sync_playwright
+            except Exception as e:
+                logger.warning("Playwright unavailable for FF week scrape: %s", e)
+                return []
+
+            try:
+                with sync_playwright() as p:
+                    browser = p.chromium.launch(
+                        headless=True,
+                        args=["--disable-blink-features=AutomationControlled"],
+                    )
+                    context = browser.new_context(
+                        user_agent=self._session.headers["User-Agent"],
+                        viewport={"width": 1400, "height": 900},
+                    )
+                    page = context.new_page()
+                    resp = page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                    status = resp.status if resp else 0
+                    if status >= 400:
+                        browser.close()
+                        logger.warning("FF week page HTTP %s for %s", status, url)
+                        return []
+                    try:
+                        page.wait_for_function(
+                            "() => !!(window.calendarComponentStates "
+                            "&& window.calendarComponentStates[1] "
+                            "&& window.calendarComponentStates[1].days)",
+                            timeout=15000,
+                        )
+                    except Exception:
+                        page.wait_for_timeout(2500)
+
+                    days = page.evaluate(
+                        """() => {
+                          const st = window.calendarComponentStates
+                            && window.calendarComponentStates[1];
+                          if (!st || !Array.isArray(st.days)) return null;
+                          return st.days.map(d => ({
+                            date: String(d.date || '').replace(/<[^>]+>/g, ''),
+                            dateline: d.dateline,
+                            events: (d.events || []).map(e => ({
+                              name: e.name || e.prefixedName || '',
+                              currency: e.currency || '',
+                              country: e.country || '',
+                              dateline: e.dateline,
+                              impact: e.impactName || e.impact || '',
+                              actual: e.actual || '',
+                              forecast: e.forecast || '',
+                              previous: e.previous || '',
+                            })),
+                          }));
+                        }"""
+                    )
+                    html = page.content() if not days else ""
+                    browser.close()
+
+                if days:
+                    return self._parse_forexfactory_component_days(days)
+                return self._parse_forexfactory_html_table(html)
+            except Exception as e:
+                logger.warning("FF week Playwright scrape failed: %s", e)
+                return []
+
+        # Always run in a worker thread — sync Playwright cannot nest in asyncio.
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(_run).result(timeout=90)
+
+    def _parse_forexfactory_component_days(self, days: list) -> List[TEEvent]:
+        """Parse Playwright-evaluated calendarComponentStates day list → TEEvent."""
+        events: List[TEEvent] = []
+        for day in days or []:
+            for raw in day.get("events") or []:
+                currency = str(raw.get("currency") or "").upper()
+                country = str(raw.get("country") or "").upper()
+                if currency not in ("USD", "US") and country not in ("US", "USA"):
+                    continue
+                title = str(raw.get("name") or "").strip()
+                if not title:
+                    continue
+                iso = ""
+                dateline = raw.get("dateline")
+                if dateline is not None:
+                    try:
+                        # FF datelines are US/Eastern epoch seconds
+                        dt = datetime.fromtimestamp(int(dateline))
+                        iso = dt.strftime("%Y-%m-%dT%H:%M:%S")
+                    except (TypeError, ValueError, OSError):
+                        iso = ""
+                if not iso:
+                    # Fallback: day label "Mon Nov 30" + year from week context
+                    label = str(day.get("date") or "").strip()
+                    iso = self._ff_day_label_to_iso(label) or label
+
+                impact_raw = str(raw.get("impact") or "low").lower()
+                if "high" in impact_raw:
+                    impact = "High"
+                elif "medium" in impact_raw or "ora" in impact_raw:
+                    impact = "Medium"
+                elif "holiday" in impact_raw:
+                    impact = "Holiday"
+                else:
+                    impact = "Low"
+
+                events.append(
+                    self._ff_event_from_fields(
+                        title=title,
+                        iso_date=iso,
+                        impact=impact,
+                        actual=str(raw.get("actual") or ""),
+                        previous=str(raw.get("previous") or ""),
+                        forecast=str(raw.get("forecast") or ""),
+                    )
+                )
+        return events
+
+    def _parse_forexfactory_html_table(self, html: str) -> List[TEEvent]:
+        """Fallback parse of FF calendar__row table markup."""
+        if not html:
+            return []
+        soup = BeautifulSoup(html, "html.parser")
+        events: List[TEEvent] = []
+        current_label = ""
+        current_year = date.today().year
+
+        for tr in soup.select("tr.calendar__row"):
+            classes = tr.get("class") or []
+            if "calendar__row--day-breaker" in classes:
+                current_label = tr.get_text(" ", strip=True)
+                continue
+
+            currency_el = tr.select_one(".calendar__currency")
+            if not currency_el or currency_el.get_text(strip=True).upper() != "USD":
+                continue
+
+            date_el = tr.select_one(".calendar__date")
+            if date_el and date_el.get_text(strip=True):
+                current_label = date_el.get_text(strip=True)
+
+            title_el = tr.select_one(".calendar__event")
+            title = title_el.get_text(" ", strip=True) if title_el else ""
+            if not title:
+                continue
+
+            time_el = tr.select_one(".calendar__time")
+            time_raw = time_el.get_text(strip=True) if time_el else ""
+            iso = self._ff_day_label_to_iso(current_label, time_raw, year=current_year)
+
+            impact_span = tr.select_one(".calendar__impact span[title]")
+            impact_title = (impact_span.get("title") or "").lower() if impact_span else ""
+            if "high" in impact_title:
+                impact = "High"
+            elif "medium" in impact_title:
+                impact = "Medium"
+            elif "holiday" in impact_title:
+                impact = "Holiday"
+            else:
+                impact = "Low"
+
+            def _cell(sel: str) -> str:
+                el = tr.select_one(sel)
+                return el.get_text(strip=True) if el else ""
+
+            events.append(
+                self._ff_event_from_fields(
+                    title=title,
+                    iso_date=iso or current_label,
+                    impact=impact,
+                    actual=_cell(".calendar__actual"),
+                    previous=_cell(".calendar__previous"),
+                    forecast=_cell(".calendar__forecast"),
+                )
+            )
+        return events
+
+    @staticmethod
+    def _ff_day_label_to_iso(
+        label: str,
+        time_raw: str = "",
+        year: Optional[int] = None,
+    ) -> str:
+        """Convert 'Mon Nov 30' + '10:00am' → ISO-ish local datetime string."""
+        label = (label or "").strip()
+        if not label:
+            return ""
+        year = year or date.today().year
+        # Strip weekday if present: "Mon Nov 30" / "Tue Dec 1"
+        parts = label.split()
+        if len(parts) >= 3 and parts[0][:3].isalpha():
+            md = " ".join(parts[1:3])
+        elif len(parts) >= 2:
+            md = " ".join(parts[:2])
+        else:
+            return ""
+        time_raw = (time_raw or "").strip()
+        if not time_raw or time_raw.lower() in ("all day", "tentative", "day"):
+            time_raw = "8:00am"
+        for fmt in ("%b %d %Y %I:%M%p", "%b %d %Y %I:%M %p"):
+            try:
+                dt = datetime.strptime(f"{md} {year} {time_raw}", fmt)
+                return dt.strftime("%Y-%m-%dT%H:%M:%S")
+            except ValueError:
+                continue
+        try:
+            dt = datetime.strptime(f"{md} {year}", "%b %d %Y")
+            return dt.strftime("%Y-%m-%dT08:00:00")
+        except ValueError:
+            return ""
+
+    def _ff_event_from_fields(
+        self,
+        *,
+        title: str,
+        iso_date: str,
+        impact: str,
+        actual: str,
+        previous: str,
+        forecast: str,
+    ) -> TEEvent:
+        imp_map = {"High": "CRITICAL", "Medium": "HIGH", "Low": "MEDIUM", "Holiday": "LOW"}
+        importance = imp_map.get(impact, _classify_importance(title))
+        kw = _classify_importance(title)
+        if kw == "CRITICAL":
+            importance = "CRITICAL"
+        elif kw == "HIGH" and importance not in ("CRITICAL",):
+            importance = "HIGH"
+        forecast_n = _normalize_cell(forecast)
+        return TEEvent(
+            date=iso_date,
+            time="",
+            event=title,
+            actual=_normalize_cell(actual),
+            previous=_normalize_cell(previous),
+            consensus=forecast_n,
+            forecast=forecast_n,
+            importance=importance,
+            source="forexfactory",
+        )
 
     def _parse_forexfactory_payload(self, data: list) -> List[TEEvent]:
         events: List[TEEvent] = []
@@ -928,26 +1263,14 @@ class TECalendarScraper:
                 continue
             iso = str(raw.get("date") or "")
             impact = str(raw.get("impact") or "Low").title()
-            imp_map = {"High": "CRITICAL", "Medium": "HIGH", "Low": "MEDIUM", "Holiday": "LOW"}
-            importance = imp_map.get(impact, _classify_importance(title))
-            # Prefer keyword classification when High/Medium would under-rank CPI etc.
-            kw = _classify_importance(title)
-            if kw == "CRITICAL":
-                importance = "CRITICAL"
-            elif kw == "HIGH" and importance not in ("CRITICAL",):
-                importance = "HIGH"
-
             events.append(
-                TEEvent(
-                    date=iso,  # keep ISO in date; parser handles it
-                    time="",
-                    event=title,
-                    actual=_normalize_cell(str(raw.get("actual") or "")),
-                    previous=_normalize_cell(str(raw.get("previous") or "")),
-                    consensus=_normalize_cell(str(raw.get("forecast") or "")),
-                    forecast=_normalize_cell(str(raw.get("forecast") or "")),
-                    importance=importance,
-                    source="forexfactory",
+                self._ff_event_from_fields(
+                    title=title,
+                    iso_date=iso,
+                    impact=impact,
+                    actual=str(raw.get("actual") or ""),
+                    previous=str(raw.get("previous") or ""),
+                    forecast=str(raw.get("forecast") or ""),
                 )
             )
         return events
@@ -1018,6 +1341,17 @@ if __name__ == "__main__":
     print(f"   MEDIUM:   {imp_counts.get('MEDIUM', 0)}")
     print(f"   LOW:      {imp_counts.get('LOW', 0)}")
     print(f"   by_source: {Counter(e.source for e in all_events)}")
+
+    ff_only = [e for e in all_events if "forexfactory" in e.source]
+    next_mon = TECalendarScraper._ff_next_week_monday()
+    nextweek_ff = []
+    for e in ff_only:
+        dt = TECalendarScraper._parse_event_datetime(e)
+        if dt and dt.date() >= next_mon:
+            nextweek_ff.append((dt, e))
+    print(f"\n📆 FF nextweek (from {next_mon.isoformat()}): {len(nextweek_ff)} events")
+    for dt, e in sorted(nextweek_ff, key=lambda x: x[0])[:12]:
+        print(f"   {dt.isoformat()} | {e.event[:42]:42s} C={e.consensus or '—'} [{e.source}]")
 
     print("\n🔥 UPCOMING CRITICAL EVENTS:")
     for e in scraper.get_upcoming_critical():
